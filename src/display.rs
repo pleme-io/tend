@@ -77,3 +77,52 @@ pub fn print_discover_results(org: &str, repos: &[String]) {
         println!("  {repo}");
     }
 }
+
+pub fn print_flake_chain_header(workspace_name: &str, changed: &str, steps: &[crate::flake::UpdateStep]) {
+    println!("{}", format!("workspace: {workspace_name}").bold());
+    println!("  changed: {}", changed.cyan());
+    println!("  chain ({} steps):", steps.len().to_string().green());
+    for (i, step) in steps.iter().enumerate() {
+        println!(
+            "    {}. {} → nix flake update {}",
+            i + 1,
+            step.repo.bold(),
+            step.inputs.join(" ")
+        );
+    }
+    println!();
+}
+
+pub fn print_flake_step_start(step: usize, total: usize, repo: &str, inputs: &[String]) {
+    println!(
+        "  [{}/{}] {} nix flake update {}",
+        step,
+        total,
+        repo.bold(),
+        inputs.join(" ")
+    );
+}
+
+pub fn print_flake_step_done(repo: &str) {
+    println!("  [{}] {} committed and pushed", "ok".green(), repo);
+}
+
+pub fn print_flake_step_dry_run() {
+    println!("  [{}] (dry-run, skipped)", ">>".yellow());
+}
+
+pub fn print_flake_step_no_changes(repo: &str) {
+    println!("  [{}] {} flake.lock unchanged", "==".cyan(), repo);
+}
+
+pub fn print_flake_chain_complete(updated: usize) {
+    if updated == 0 {
+        println!("\n  {}", "no repos needed updating".cyan());
+    } else {
+        println!(
+            "\n  {} {} updated",
+            "done:".green().bold(),
+            updated.to_string().green()
+        );
+    }
+}

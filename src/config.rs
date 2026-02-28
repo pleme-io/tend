@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,6 +24,8 @@ pub struct Workspace {
     pub exclude: Vec<String>,
     #[serde(default)]
     pub extra_repos: Vec<String>,
+    #[serde(default)]
+    pub flake_deps: HashMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -91,6 +94,7 @@ pub fn generate_starter_config() -> String {
             org: Some("my-org".to_string()),
             exclude: vec![".github".to_string()],
             extra_repos: vec![],
+            flake_deps: HashMap::new(),
         }],
     };
     serde_yaml::to_string(&config).unwrap()

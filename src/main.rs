@@ -1,5 +1,6 @@
 mod config;
 mod display;
+mod flake;
 mod provider;
 mod sync;
 
@@ -65,6 +66,29 @@ enum Commands {
 
     /// Generate a starter config file
     Init,
+
+    /// Propagate nix flake update through the dependency chain
+    FlakeUpdate {
+        /// Repo that was just pushed (trigger)
+        #[arg(long)]
+        changed: String,
+
+        /// Path to config file
+        #[arg(long)]
+        config: Option<PathBuf>,
+
+        /// Only process a specific workspace
+        #[arg(long)]
+        workspace: Option<String>,
+
+        /// Show the chain without executing
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Suppress per-step output
+        #[arg(long)]
+        quiet: bool,
+    },
 }
 
 #[tokio::main]
@@ -113,6 +137,38 @@ async fn main() -> Result<()> {
         Commands::Discover { org, provider: _ } => {
             let repos = provider::discover_github_repos(&org).await?;
             display::print_discover_results(&org, &repos);
+        }
+
+        Commands::FlakeUpdate {
+            changed,
+            config: config_path,
+            workspace: ws_filter,
+            dry_run,
+            quiet,
+        } => {
+            let cfg = load_config(config_path.as_deref())?;
+            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+                if ws.flake_deps.is_empty() {
+                    continue;
+                }
+                let chain = flake::compute_update_chain(&changed, &ws.flake_deps)?;
+                if chain.is_empty() {
+                    if !quiet {
+                        println!(
+                            "{}: {} has no dependents in flake_deps",
+                            ws.name, changed
+                        );
+                    }
+                    continue;
+                }
+                if !quiet {
+                    display::print_flake_chain_header(&ws.name, &changed, &chain);
+                }
+                flake::execute_update_chain(ws, &chain, dry_run, quiet)?;
+                if !quiet {
+                    display::print_flake_chain_complete(chain.len());
+                }
+            }
         }
 
         Commands::Init => {
