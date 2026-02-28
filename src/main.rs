@@ -1,4 +1,5 @@
 mod config;
+mod daemon;
 mod display;
 mod flake;
 mod provider;
@@ -62,6 +63,33 @@ enum Commands {
         /// Provider (only github supported)
         #[arg(long, default_value = "github")]
         provider: String,
+    },
+
+    /// Run as a persistent daemon — sync + fetch on interval
+    Daemon {
+        /// Path to config file
+        #[arg(long)]
+        config: Option<PathBuf>,
+
+        /// Only sync a specific workspace by name
+        #[arg(long)]
+        workspace: Option<String>,
+
+        /// Sync interval in seconds
+        #[arg(long, default_value = "300")]
+        interval: u64,
+
+        /// Fetch existing repos (git fetch --all)
+        #[arg(long, default_value = "true")]
+        fetch: bool,
+
+        /// Suppress per-repo output
+        #[arg(long)]
+        quiet: bool,
+
+        /// Path to file containing GitHub token (for launchd environments)
+        #[arg(long)]
+        github_token_file: Option<PathBuf>,
     },
 
     /// Generate a starter config file
@@ -171,6 +199,32 @@ async fn main() -> Result<()> {
             }
         }
 
+        Commands::Daemon {
+            config: config_path,
+            workspace: ws_filter,
+            interval,
+            fetch,
+            quiet,
+            github_token_file,
+        } => {
+            // In launchd/systemd environments, env vars may not be inherited.
+            // Read the token from a file and set GITHUB_TOKEN for provider discovery.
+            if let Some(ref token_path) = github_token_file {
+                let token = std::fs::read_to_string(token_path)
+                    .with_context(|| format!("reading token from {}", token_path.display()))?;
+                std::env::set_var("GITHUB_TOKEN", token.trim());
+            }
+
+            daemon::run(daemon::DaemonOpts {
+                config: config_path,
+                workspace: ws_filter,
+                interval,
+                fetch,
+                quiet,
+            })
+            .await?;
+        }
+
         Commands::Init => {
             let path = config::Config::default_path();
             if path.exists() {
@@ -190,7 +244,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn load_config(path: Option<&std::path::Path>) -> Result<config::Config> {
+pub(crate) fn load_config(path: Option<&std::path::Path>) -> Result<config::Config> {
     let config_path = match path {
         Some(p) => p.to_path_buf(),
         None => config::Config::default_path(),
@@ -198,7 +252,7 @@ fn load_config(path: Option<&std::path::Path>) -> Result<config::Config> {
     config::Config::load(&config_path)
 }
 
-fn filter_workspaces<'a>(
+pub(crate) fn filter_workspaces<'a>(
     workspaces: &'a [config::Workspace],
     filter: Option<&str>,
 ) -> Vec<&'a config::Workspace> {

@@ -9,6 +9,10 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     crate2nix.url = "github:nix-community/crate2nix";
     flake-utils.url = "github:numtide/flake-utils";
+    substrate = {
+      url = "github:pleme-io/substrate";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = {
@@ -16,45 +20,13 @@
     nixpkgs,
     crate2nix,
     flake-utils,
+    substrate,
   }:
-    flake-utils.lib.eachDefaultSystem (system: let
-      pkgs = import nixpkgs {inherit system;};
-      cargoNix = import ./Cargo.nix {inherit pkgs;};
-      tendBinary = cargoNix.rootCrate.build;
-    in {
-      packages = {
-        default = tendBinary;
-        tend = tendBinary;
-      };
-
-      apps = {
-        default = {
-          type = "app";
-          program = "${tendBinary}/bin/tend";
-        };
-
-        regenerate-cargo-nix = {
-          type = "app";
-          program = toString (pkgs.writeShellScript "regenerate-cargo-nix" ''
-            echo "Regenerating Cargo.nix..."
-            ${crate2nix.packages.${system}.default}/bin/crate2nix generate
-            echo "Cargo.nix regenerated."
-            echo "Don't forget to commit: git add Cargo.nix"
-          '');
-        };
-      };
-
-      devShells.default = pkgs.mkShell {
-        buildInputs = with pkgs; [
-          cargo
-          rustc
-          rust-analyzer
-          clippy
-          rustfmt
-          crate2nix.packages.${system}.default
-          pkg-config
-          openssl
-        ];
-      };
-    });
+    (import "${substrate}/lib/rust-tool-release-flake.nix" {
+      inherit nixpkgs crate2nix flake-utils;
+    }) {
+      toolName = "tend";
+      src = self;
+      repo = "pleme-io/tend";
+    };
 }

@@ -78,6 +78,60 @@ pub fn print_discover_results(org: &str, repos: &[String]) {
     }
 }
 
+pub fn print_daemon_cycle_start(cycle: u64) {
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
+    println!(
+        "[{}] {} cycle {}",
+        now,
+        "daemon:".bold(),
+        cycle.to_string().cyan()
+    );
+}
+
+pub fn print_daemon_cycle_done(cycle: u64, workspaces: usize) {
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
+    println!(
+        "[{}] {} cycle {} done ({} workspaces)",
+        now,
+        "daemon:".bold(),
+        cycle,
+        workspaces.to_string().green()
+    );
+}
+
+pub fn print_fetch_summary(workspace_name: &str, fetched: usize, skipped: usize) {
+    if fetched == 0 && skipped == 0 {
+        return;
+    }
+    println!(
+        "{}: fetched {}, skipped {}",
+        workspace_name.bold(),
+        fetched.to_string().green(),
+        skipped.to_string().yellow(),
+    );
+}
+
+pub fn print_daemon_error(workspace_name: &str, err: &anyhow::Error) {
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
+    eprintln!(
+        "[{}] {}: {} {}",
+        now,
+        "error".red().bold(),
+        workspace_name,
+        err
+    );
+}
+
+pub fn print_daemon_sleeping(interval: u64) {
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
+    println!(
+        "[{}] {} sleeping {}s",
+        now,
+        "daemon:".bold(),
+        interval
+    );
+}
+
 pub fn print_flake_chain_header(workspace_name: &str, changed: &str, steps: &[crate::flake::UpdateStep]) {
     println!("{}", format!("workspace: {workspace_name}").bold());
     println!("  changed: {}", changed.cyan());

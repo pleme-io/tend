@@ -140,6 +140,40 @@ pub async fn check_status(workspace: &Workspace, repos: &[String]) -> Result<Vec
     Ok(entries)
 }
 
+/// Fetch all remotes for existing repos. Returns (fetched, skipped) counts.
+pub async fn fetch_repos(workspace: &Workspace, repos: &[String], quiet: bool) -> Result<(usize, usize)> {
+    let base_dir = workspace.resolved_base_dir()?;
+    let mut fetched = 0usize;
+    let mut skipped = 0usize;
+
+    for repo_name in repos {
+        let repo_path = base_dir.join(repo_name);
+        if !repo_path.join(".git").exists() {
+            skipped += 1;
+            continue;
+        }
+
+        let output = Command::new("git")
+            .args(["fetch", "--all", "--prune", "--quiet"])
+            .current_dir(&repo_path)
+            .output()
+            .with_context(|| format!("running git fetch in {repo_name}"))?;
+
+        if output.status.success() {
+            fetched += 1;
+            if !quiet {
+                println!("  fetched: {repo_name}");
+            }
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("  warning: fetch failed for {repo_name}: {stderr}");
+            skipped += 1;
+        }
+    }
+
+    Ok((fetched, skipped))
+}
+
 fn is_dirty(repo_path: &Path) -> Result<bool> {
     let output = Command::new("git")
         .args(["status", "--porcelain"])
