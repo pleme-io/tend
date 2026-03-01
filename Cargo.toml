@@ -9,7 +9,7 @@ repository = "https://github.com/pleme-io/tend"
 homepage = "https://github.com/pleme-io/tend"
 keywords = ["workspace", "repository", "git", "sync", "monorepo"]
 categories = ["development-tools", "command-line-utilities"]
-exclude = ["module/", "target/", "result-*", "Cargo.nix", "flake.*"]
+exclude = ["module/", "target/", "result-*", "Cargo.nix", "flake.nix", "flake.lock"]
 
 [[bin]]
 name = "tend"
