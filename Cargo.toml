@@ -1,9 +1,15 @@
 [package]
-name = "tend"
+name = "pleme-tend"
 version = "0.1.0"
 edition = "2021"
 description = "Workspace repository manager — keeps your repos in sync"
-authors = ["Pleme.io <engineering@pleme.io>"]
+license = "MIT"
+authors = ["Pleme Team <team@pleme.io>"]
+repository = "https://github.com/pleme-io/tend"
+homepage = "https://github.com/pleme-io/tend"
+keywords = ["workspace", "repository", "git", "sync", "monorepo"]
+categories = ["development-tools", "command-line-utilities"]
+exclude = ["module/", "target/", "result-*", "Cargo.nix", "flake.*"]
 
 [[bin]]
 name = "tend"
