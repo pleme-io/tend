@@ -26,6 +26,7 @@ dirs = "6.0"
 shellexpand = "3.1"
 chrono = "0.4"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+serde_json = "1"
 tokio = { version = "1.40", features = ["full"] }
 
 [profile.release]

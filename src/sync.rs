@@ -24,8 +24,9 @@ pub struct RepoEntry {
     pub status: RepoStatus,
 }
 
-/// Resolve the full list of repos for a workspace (discover + extras - excludes)
-pub async fn resolve_repos(workspace: &Workspace) -> Result<Vec<String>> {
+/// Resolve the full list of repos for a workspace (discover + extras - excludes).
+/// When `refresh` is true, the discovery cache is bypassed and the GitHub API is always called.
+pub async fn resolve_repos(workspace: &Workspace, refresh: bool) -> Result<Vec<String>> {
     let mut repos = Vec::new();
 
     if workspace.discover {
@@ -33,7 +34,7 @@ pub async fn resolve_repos(workspace: &Workspace) -> Result<Vec<String>> {
             .org
             .as_deref()
             .unwrap_or(&workspace.name);
-        let discovered = provider::discover_github_repos(org).await?;
+        let discovered = provider::discover_github_repos_cached(org, refresh).await?;
         repos.extend(discovered);
     }
 

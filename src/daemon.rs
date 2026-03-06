@@ -67,7 +67,7 @@ async fn run_workspace_cycle(
     fetch: bool,
     quiet: bool,
 ) -> Result<()> {
-    let repos = sync::resolve_repos(ws).await?;
+    let repos = sync::resolve_repos(ws, false).await?;
     let (cloned, present) = sync::sync_repos(ws, &repos, quiet).await?;
 
     if !quiet || cloned > 0 {

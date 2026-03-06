@@ -1,3 +1,4 @@
+mod cache;
 mod config;
 mod daemon;
 mod display;
@@ -31,6 +32,10 @@ enum Commands {
         /// Suppress per-repo output, only show summary
         #[arg(long)]
         quiet: bool,
+
+        /// Bypass discovery cache and always hit the GitHub API
+        #[arg(long)]
+        refresh: bool,
     },
 
     /// Show repo status (clean/dirty/missing/unknown)
@@ -42,6 +47,10 @@ enum Commands {
         /// Only show status for a specific workspace
         #[arg(long)]
         workspace: Option<String>,
+
+        /// Bypass discovery cache and always hit the GitHub API
+        #[arg(long)]
+        refresh: bool,
     },
 
     /// List configured repos
@@ -53,6 +62,10 @@ enum Commands {
         /// Only list repos for a specific workspace
         #[arg(long)]
         workspace: Option<String>,
+
+        /// Bypass discovery cache and always hit the GitHub API
+        #[arg(long)]
+        refresh: bool,
     },
 
     /// Discover repos from a GitHub org
@@ -128,10 +141,11 @@ async fn main() -> Result<()> {
             config: config_path,
             workspace: ws_filter,
             quiet,
+            refresh,
         } => {
             let cfg = load_config(config_path.as_deref())?;
             for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
-                let repos = sync::resolve_repos(ws).await?;
+                let repos = sync::resolve_repos(ws, refresh).await?;
                 let (cloned, present) = sync::sync_repos(ws, &repos, quiet).await?;
                 if !quiet || cloned > 0 {
                     display::print_sync_summary(&ws.name, cloned, present);
@@ -142,10 +156,11 @@ async fn main() -> Result<()> {
         Commands::Status {
             config: config_path,
             workspace: ws_filter,
+            refresh,
         } => {
             let cfg = load_config(config_path.as_deref())?;
             for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
-                let repos = sync::resolve_repos(ws).await?;
+                let repos = sync::resolve_repos(ws, refresh).await?;
                 let entries = sync::check_status(ws, &repos).await?;
                 display::print_status(&ws.name, &entries);
             }
@@ -154,10 +169,11 @@ async fn main() -> Result<()> {
         Commands::List {
             config: config_path,
             workspace: ws_filter,
+            refresh,
         } => {
             let cfg = load_config(config_path.as_deref())?;
             for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
-                let repos = sync::resolve_repos(ws).await?;
+                let repos = sync::resolve_repos(ws, refresh).await?;
                 display::print_repo_list(&ws.name, &repos);
             }
         }

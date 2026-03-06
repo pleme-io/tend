@@ -1,10 +1,27 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
+use crate::cache;
+
 #[derive(Debug, Deserialize)]
 struct GitHubRepo {
     name: String,
     archived: bool,
+}
+
+/// Cached wrapper around `discover_github_repos`.
+/// Returns cached results if fresh (within TTL); otherwise hits the API and writes cache.
+/// Pass `refresh = true` to bypass the cache and always hit the API.
+pub async fn discover_github_repos_cached(org: &str, refresh: bool) -> Result<Vec<String>> {
+    if !refresh {
+        if let Some(repos) = cache::read(org) {
+            return Ok(repos);
+        }
+    }
+
+    let repos = discover_github_repos(org).await?;
+    let _ = cache::write(org, &repos); // best-effort cache write
+    Ok(repos)
 }
 
 /// Discover all repos in a GitHub org or user account via REST API.
