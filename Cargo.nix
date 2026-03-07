@@ -39,7 +39,7 @@ rec {
   #
 
   rootCrate = rec {
-    packageId = "tend";
+    packageId = "pleme-tend";
 
     # Use this attribute to refer to the derivation building your root crate package.
     # You can override the features with rootCrate.build.override { features = [ "default" "feature1" ... ]; }.
@@ -55,10 +55,10 @@ rec {
   # You can override the features with
   # workspaceMembers."${crateName}".build.override { features = [ "default" "feature1" ... ]; }.
   workspaceMembers = {
-    "tend" = rec {
-      packageId = "tend";
+    "pleme-tend" = rec {
+      packageId = "pleme-tend";
       build = internal.buildRustCrateWithFeatures {
-        packageId = "tend";
+        packageId = "pleme-tend";
       };
 
       # Debug support which might change between releases.
@@ -2314,6 +2314,78 @@ rec {
         ];
 
       };
+      "pleme-tend" = rec {
+        crateName = "pleme-tend";
+        version = "0.1.0";
+        edition = "2021";
+        crateBin = [
+          {
+            name = "tend";
+            path = "src/main.rs";
+            requiredFeatures = [ ];
+          }
+        ];
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./.; };
+        authors = [
+          "Pleme Team <team@pleme.io>"
+        ];
+        dependencies = [
+          {
+            name = "anyhow";
+            packageId = "anyhow";
+          }
+          {
+            name = "chrono";
+            packageId = "chrono";
+          }
+          {
+            name = "clap";
+            packageId = "clap";
+            features = [ "derive" ];
+          }
+          {
+            name = "colored";
+            packageId = "colored";
+          }
+          {
+            name = "dirs";
+            packageId = "dirs";
+          }
+          {
+            name = "reqwest";
+            packageId = "reqwest";
+            usesDefaultFeatures = false;
+            features = [ "json" "rustls-tls" ];
+          }
+          {
+            name = "serde";
+            packageId = "serde";
+            features = [ "derive" ];
+          }
+          {
+            name = "serde_json";
+            packageId = "serde_json";
+          }
+          {
+            name = "serde_yaml";
+            packageId = "serde_yaml";
+          }
+          {
+            name = "shellexpand";
+            packageId = "shellexpand";
+          }
+          {
+            name = "thiserror";
+            packageId = "thiserror";
+          }
+          {
+            name = "tokio";
+            packageId = "tokio";
+            features = [ "full" ];
+          }
+        ];
+
+      };
       "potential_utf" = rec {
         crateName = "potential_utf";
         version = "0.1.4";
@@ -3759,74 +3831,6 @@ rec {
           "proc-macro" = [ "proc-macro2/proc-macro" "syn/proc-macro" "quote/proc-macro" ];
         };
         resolvedDefaultFeatures = [ "default" "proc-macro" ];
-      };
-      "tend" = rec {
-        crateName = "tend";
-        version = "0.1.0";
-        edition = "2021";
-        crateBin = [
-          {
-            name = "tend";
-            path = "src/main.rs";
-            requiredFeatures = [ ];
-          }
-        ];
-        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./.; };
-        authors = [
-          "Pleme.io <engineering@pleme.io>"
-        ];
-        dependencies = [
-          {
-            name = "anyhow";
-            packageId = "anyhow";
-          }
-          {
-            name = "chrono";
-            packageId = "chrono";
-          }
-          {
-            name = "clap";
-            packageId = "clap";
-            features = [ "derive" ];
-          }
-          {
-            name = "colored";
-            packageId = "colored";
-          }
-          {
-            name = "dirs";
-            packageId = "dirs";
-          }
-          {
-            name = "reqwest";
-            packageId = "reqwest";
-            usesDefaultFeatures = false;
-            features = [ "json" "rustls-tls" ];
-          }
-          {
-            name = "serde";
-            packageId = "serde";
-            features = [ "derive" ];
-          }
-          {
-            name = "serde_yaml";
-            packageId = "serde_yaml";
-          }
-          {
-            name = "shellexpand";
-            packageId = "shellexpand";
-          }
-          {
-            name = "thiserror";
-            packageId = "thiserror";
-          }
-          {
-            name = "tokio";
-            packageId = "tokio";
-            features = [ "full" ];
-          }
-        ];
-
       };
       "thiserror" = rec {
         crateName = "thiserror";
