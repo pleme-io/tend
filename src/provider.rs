@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
+use std::collections::HashMap;
 
 use crate::cache;
 
@@ -7,6 +8,16 @@ use crate::cache;
 struct GitHubRepo {
     name: String,
     archived: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubCommit {
+    sha: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubTag {
+    name: String,
 }
 
 /// Cached wrapper around `discover_github_repos`.
@@ -108,4 +119,180 @@ async fn fetch_repos(
 
     all_repos.sort();
     Ok(all_repos)
+}
+
+/// Build a GitHub API client with auth from TEND_GITHUB_TOKEN or GITHUB_TOKEN.
+pub fn build_github_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .user_agent("tend/0.1.0")
+        .build()
+        .context("building HTTP client")
+}
+
+/// Get the auth token from environment (TEND_GITHUB_TOKEN or GITHUB_TOKEN).
+pub fn github_token() -> Option<String> {
+    std::env::var("TEND_GITHUB_TOKEN")
+        .or_else(|_| std::env::var("GITHUB_TOKEN"))
+        .ok()
+}
+
+/// Get the HEAD commit SHA for a repo.
+///
+/// Note: For workspaces with many repos (80+), this is called once per repo per
+/// watch cycle. Be mindful of GitHub API rate limits (5000 req/hr authenticated,
+/// 60 req/hr unauthenticated).
+pub async fn get_repo_head(
+    client: &reqwest::Client,
+    token: Option<&str>,
+    org: &str,
+    repo: &str,
+) -> Result<String> {
+    let url = format!(
+        "https://api.github.com/repos/{org}/{repo}/commits?per_page=1"
+    );
+
+    let mut req = client.get(&url);
+    if let Some(token) = token {
+        req = req.header("Authorization", format!("Bearer {token}"));
+    }
+
+    let resp = req
+        .send()
+        .await
+        .with_context(|| format!("fetching HEAD for {org}/{repo}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        anyhow::bail!("GitHub API returned {status} for {org}/{repo} commits: {body}");
+    }
+
+    let commits: Vec<GitHubCommit> = resp
+        .json()
+        .await
+        .with_context(|| format!("parsing commits for {org}/{repo}"))?;
+
+    commits
+        .into_iter()
+        .next()
+        .map(|c| c.sha)
+        .ok_or_else(|| anyhow::anyhow!("no commits found for {org}/{repo}"))
+}
+
+/// Get the latest tag for a repo (returns None if no tags).
+///
+/// Note: Tags are returned sorted by creation date (newest first) by the API.
+pub async fn get_latest_tag(
+    client: &reqwest::Client,
+    token: Option<&str>,
+    org: &str,
+    repo: &str,
+) -> Result<Option<String>> {
+    let url = format!(
+        "https://api.github.com/repos/{org}/{repo}/tags?per_page=1"
+    );
+
+    let mut req = client.get(&url);
+    if let Some(token) = token {
+        req = req.header("Authorization", format!("Bearer {token}"));
+    }
+
+    let resp = req
+        .send()
+        .await
+        .with_context(|| format!("fetching tags for {org}/{repo}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        anyhow::bail!("GitHub API returned {status} for {org}/{repo} tags: {body}");
+    }
+
+    let tags: Vec<GitHubTag> = resp
+        .json()
+        .await
+        .with_context(|| format!("parsing tags for {org}/{repo}"))?;
+
+    Ok(tags.into_iter().next().map(|t| t.name))
+}
+
+/// Detect the primary language of a repo via the GitHub languages endpoint.
+///
+/// Returns the top language, normalized to lowercase conventions:
+/// "Go" → "go", "Rust" → "rust", "Python" → "python",
+/// "TypeScript" or "JavaScript" → "typescript", etc.
+pub async fn detect_repo_language(
+    client: &reqwest::Client,
+    token: Option<&str>,
+    org: &str,
+    repo: &str,
+) -> Result<Option<String>> {
+    let url = format!(
+        "https://api.github.com/repos/{org}/{repo}/languages"
+    );
+
+    let mut req = client.get(&url);
+    if let Some(token) = token {
+        req = req.header("Authorization", format!("Bearer {token}"));
+    }
+
+    let resp = req
+        .send()
+        .await
+        .with_context(|| format!("fetching languages for {org}/{repo}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        anyhow::bail!("GitHub API returned {status} for {org}/{repo} languages: {body}");
+    }
+
+    let languages: HashMap<String, u64> = resp
+        .json()
+        .await
+        .with_context(|| format!("parsing languages for {org}/{repo}"))?;
+
+    // Pick the language with the most bytes
+    let top = languages
+        .into_iter()
+        .max_by_key(|(_, bytes)| *bytes)
+        .map(|(lang, _)| lang);
+
+    Ok(top.map(|lang| normalize_language(&lang)))
+}
+
+/// Normalize a GitHub language name to lowercase conventions.
+pub(crate) fn normalize_language(lang: &str) -> String {
+    match lang {
+        "Go" => "go".to_string(),
+        "Rust" => "rust".to_string(),
+        "Python" => "python".to_string(),
+        "TypeScript" | "JavaScript" => "typescript".to_string(),
+        "Java" => "java".to_string(),
+        "C#" => "csharp".to_string(),
+        "C++" => "cpp".to_string(),
+        "C" => "c".to_string(),
+        "Ruby" => "ruby".to_string(),
+        "Shell" => "shell".to_string(),
+        "Nix" => "nix".to_string(),
+        "HCL" => "hcl".to_string(),
+        other => other.to_lowercase(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_language() {
+        assert_eq!(normalize_language("Go"), "go");
+        assert_eq!(normalize_language("Rust"), "rust");
+        assert_eq!(normalize_language("TypeScript"), "typescript");
+        assert_eq!(normalize_language("JavaScript"), "typescript");
+        assert_eq!(normalize_language("Python"), "python");
+        assert_eq!(normalize_language("Java"), "java");
+        assert_eq!(normalize_language("C#"), "csharp");
+        assert_eq!(normalize_language("Fortran"), "fortran");
+    }
 }

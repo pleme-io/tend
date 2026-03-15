@@ -26,6 +26,26 @@ pub struct Workspace {
     pub extra_repos: Vec<String>,
     #[serde(default)]
     pub flake_deps: HashMap<String, Vec<String>>,
+    #[serde(default)]
+    pub watch: Option<WatchConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WatchConfig {
+    /// Enable watch for this workspace
+    #[serde(default)]
+    pub enable: bool,
+    /// Path to matrix.toml file to append entries to
+    pub matrix_file: Option<String>,
+    /// Run `akeyless-matrix certify` after appending pending entries
+    #[serde(default)]
+    pub auto_certify: bool,
+    /// Auto commit+push all changes (matrix.toml + generated files)
+    #[serde(default)]
+    pub auto_commit: bool,
+    /// Run `tend flake-update --changed <repo>` to propagate to dependent flakes
+    #[serde(default)]
+    pub auto_propagate: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -95,6 +115,7 @@ pub fn generate_starter_config() -> String {
             exclude: vec![".github".to_string()],
             extra_repos: vec![],
             flake_deps: HashMap::new(),
+            watch: None,
         }],
     };
     serde_yaml::to_string(&config).unwrap()

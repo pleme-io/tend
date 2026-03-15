@@ -3,8 +3,12 @@ mod config;
 mod daemon;
 mod display;
 mod flake;
+mod git;
+mod github;
 mod provider;
 mod sync;
+mod watch;
+mod watch_cache;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -103,6 +107,21 @@ enum Commands {
         /// Path to file containing GitHub token (for launchd environments)
         #[arg(long)]
         github_token_file: Option<PathBuf>,
+    },
+
+    /// Run watch cycle once (detect new versions)
+    Watch {
+        /// Path to config file
+        #[arg(long)]
+        config: Option<PathBuf>,
+
+        /// Only watch a specific workspace
+        #[arg(long)]
+        workspace: Option<String>,
+
+        /// Bypass discovery cache
+        #[arg(long)]
+        refresh: bool,
     },
 
     /// Generate a starter config file
@@ -211,6 +230,29 @@ async fn main() -> Result<()> {
                 flake::execute_update_chain(ws, &chain, dry_run, quiet)?;
                 if !quiet {
                     display::print_flake_chain_complete(chain.len());
+                }
+            }
+        }
+
+        Commands::Watch {
+            config: config_path,
+            workspace: ws_filter,
+            refresh: _refresh,
+        } => {
+            let cfg = load_config(config_path.as_deref())?;
+            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+                if let Some(ref watch_cfg) = ws.watch {
+                    if watch_cfg.enable {
+                        let gh = github::HttpGitHubClient::new()?;
+                        let cache_store = watch_cache::FsWatchStateStore;
+                        let matrix_appender = watch::TomlMatrixAppender;
+                        let git_ops = git::SystemGitOps;
+
+                        let summary = watch::run_watch_cycle(
+                            ws, false, &gh, &cache_store, &matrix_appender, &git_ops,
+                        ).await?;
+                        display::print_watch_summary(&ws.name, &summary);
+                    }
                 }
             }
         }

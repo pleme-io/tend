@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::{display, load_config, filter_workspaces, sync};
+use crate::{display, git, github, load_config, filter_workspaces, sync, watch, watch_cache};
 
 /// Options for the daemon command.
 pub struct DaemonOpts {
@@ -13,7 +13,9 @@ pub struct DaemonOpts {
     pub quiet: bool,
 }
 
-/// Run the daemon loop: sync + fetch on interval, re-reading config each cycle.
+/// Run the daemon loop: sync + fetch + watch on interval, re-reading config each cycle.
+///
+/// Workspaces are processed in parallel using tokio tasks.
 pub async fn run(opts: DaemonOpts) -> Result<()> {
     let mut cycle = 0u64;
 
@@ -39,12 +41,27 @@ pub async fn run(opts: DaemonOpts) -> Result<()> {
             display::print_daemon_cycle_start(cycle);
         }
 
-        for ws in &workspaces {
-            match run_workspace_cycle(ws, opts.fetch, opts.quiet).await {
-                Ok(()) => {}
-                Err(e) => {
-                    display::print_daemon_error(&ws.name, &e);
+        // Process all workspaces in parallel
+        let mut tasks = tokio::task::JoinSet::new();
+        for ws in workspaces {
+            let ws = ws.clone();
+            let fetch = opts.fetch;
+            let quiet = opts.quiet;
+            tasks.spawn(async move {
+                let name = ws.name.clone();
+                match run_workspace_cycle(&ws, fetch, quiet).await {
+                    Ok(()) => {}
+                    Err(e) => {
+                        display::print_daemon_error(&name, &e);
+                    }
                 }
+            });
+        }
+
+        // Await all workspace tasks
+        while let Some(result) = tasks.join_next().await {
+            if let Err(e) = result {
+                eprintln!("daemon: workspace task panicked: {e}");
             }
         }
 
@@ -78,6 +95,27 @@ async fn run_workspace_cycle(
         let (fetched, skipped) = sync::fetch_repos(ws, &repos, quiet).await?;
         if !quiet {
             display::print_fetch_summary(&ws.name, fetched, skipped);
+        }
+    }
+
+    // Watch: detect new versions if enabled
+    if let Some(ref watch_cfg) = ws.watch {
+        if watch_cfg.enable {
+            let gh = github::HttpGitHubClient::new()?;
+            let cache_store = watch_cache::FsWatchStateStore;
+            let matrix_appender = watch::TomlMatrixAppender;
+            let git_ops = git::SystemGitOps;
+
+            match watch::run_watch_cycle(ws, quiet, &gh, &cache_store, &matrix_appender, &git_ops).await {
+                Ok(summary) => {
+                    if !quiet {
+                        display::print_watch_summary(&ws.name, &summary);
+                    }
+                }
+                Err(e) => {
+                    display::print_daemon_error(&ws.name, &e);
+                }
+            }
         }
     }
 

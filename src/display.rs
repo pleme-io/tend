@@ -1,6 +1,7 @@
 use colored::Colorize;
 
 use crate::sync::{RepoEntry, RepoStatus};
+use crate::watch;
 
 pub fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
     let clean = entries
@@ -179,4 +180,37 @@ pub fn print_flake_chain_complete(updated: usize) {
             updated.to_string().green()
         );
     }
+}
+
+pub fn print_watch_summary(workspace_name: &str, summary: &watch::WatchSummary) {
+    if summary.new_versions == 0 {
+        println!(
+            "{}: watched {} repos, no new versions",
+            workspace_name.bold(),
+            summary.checked,
+        );
+    } else {
+        println!(
+            "{}: watched {} repos, {} new versions detected",
+            workspace_name.bold(),
+            summary.checked,
+            summary.new_versions.to_string().green(),
+        );
+    }
+    if summary.errors > 0 {
+        println!(
+            "  {} repos had errors",
+            summary.errors.to_string().yellow(),
+        );
+    }
+}
+
+pub fn print_watch_new_version(repo: &str, version: &str, tag: &str) {
+    println!(
+        "  [{}] {} {} (tag: {})",
+        "new".green(),
+        repo.bold(),
+        version,
+        tag,
+    );
 }
