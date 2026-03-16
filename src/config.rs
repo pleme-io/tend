@@ -49,6 +49,27 @@ pub struct WatchConfig {
     /// Post-hooks to run after watch cycle steps
     #[serde(default)]
     pub post_hooks: Vec<PostHook>,
+    /// File watches: monitor specific files in GitHub repos for content changes
+    #[serde(default)]
+    pub file_watches: Vec<FileWatch>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileWatch {
+    /// Human-readable name for this watch
+    pub name: String,
+    /// GitHub org/owner
+    pub org: String,
+    /// GitHub repo name
+    pub repo: String,
+    /// File path within the repo
+    pub path: String,
+    /// Local directory to download the file to (versioned: {download_to}/{sha[..12]}.{ext})
+    #[serde(default)]
+    pub download_to: Option<String>,
+    /// Hooks to run when the file content changes
+    #[serde(default)]
+    pub post_hooks: Vec<PostHook>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

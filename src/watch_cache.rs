@@ -13,6 +13,9 @@ pub trait WatchStateStore: Send + Sync {
 pub struct WatchState {
     #[serde(default)]
     pub repos: BTreeMap<String, RepoState>,
+    /// Cached file blob SHAs for file watches. Key: "org/repo/path" → SHA.
+    #[serde(default)]
+    pub file_shas: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

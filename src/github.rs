@@ -15,6 +15,15 @@ pub trait GitHubClient: Send + Sync {
 
     /// Detect the primary language of a repo.
     async fn detect_repo_language(&self, org: &str, repo: &str) -> Result<Option<String>>;
+
+    /// Get the git blob SHA, size, and download URL for a file in a repo.
+    /// Uses: GET /repos/{org}/{repo}/contents/{path}
+    async fn get_file_sha(
+        &self,
+        org: &str,
+        repo: &str,
+        path: &str,
+    ) -> Result<(String, u64, String)>;
 }
 
 /// Real implementation using reqwest HTTP client.
@@ -43,5 +52,14 @@ impl GitHubClient for HttpGitHubClient {
 
     async fn detect_repo_language(&self, org: &str, repo: &str) -> Result<Option<String>> {
         crate::provider::detect_repo_language(&self.client, self.token.as_deref(), org, repo).await
+    }
+
+    async fn get_file_sha(
+        &self,
+        org: &str,
+        repo: &str,
+        path: &str,
+    ) -> Result<(String, u64, String)> {
+        crate::provider::get_file_sha(&self.client, self.token.as_deref(), org, repo, path).await
     }
 }

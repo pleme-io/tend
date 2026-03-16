@@ -216,6 +216,57 @@ pub async fn get_latest_tag(
     Ok(tags.into_iter().next().map(|t| t.name))
 }
 
+/// Get the git blob SHA, size, and download URL for a file in a repo.
+///
+/// Uses the GitHub Contents API: GET /repos/{org}/{repo}/contents/{path}
+/// Returns: (sha, size, download_url)
+pub async fn get_file_sha(
+    client: &reqwest::Client,
+    token: Option<&str>,
+    org: &str,
+    repo: &str,
+    path: &str,
+) -> Result<(String, u64, String)> {
+    let url = format!(
+        "https://api.github.com/repos/{org}/{repo}/contents/{path}"
+    );
+
+    let mut req = client.get(&url);
+    if let Some(token) = token {
+        req = req.header("Authorization", format!("Bearer {token}"));
+    }
+
+    let resp = req
+        .send()
+        .await
+        .with_context(|| format!("fetching file SHA for {org}/{repo}/{path}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        anyhow::bail!("GitHub API returned {status} for {org}/{repo}/contents/{path}: {body}");
+    }
+
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .with_context(|| format!("parsing contents response for {org}/{repo}/{path}"))?;
+
+    let sha = json["sha"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    let size = json["size"]
+        .as_u64()
+        .unwrap_or(0);
+    let download_url = json["download_url"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+
+    Ok((sha, size, download_url))
+}
+
 /// Detect the primary language of a repo via the GitHub languages endpoint.
 ///
 /// Returns the top language, normalized to lowercase conventions:

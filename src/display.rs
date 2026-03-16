@@ -183,18 +183,25 @@ pub fn print_flake_chain_complete(updated: usize) {
 }
 
 pub fn print_watch_summary(workspace_name: &str, summary: &watch::WatchSummary) {
-    if summary.new_versions == 0 {
+    if summary.new_versions == 0 && summary.file_changes == 0 {
         println!(
             "{}: watched {} repos, no new versions",
             workspace_name.bold(),
             summary.checked,
         );
     } else {
+        let mut parts = Vec::new();
+        if summary.new_versions > 0 {
+            parts.push(format!("{} new versions", summary.new_versions.to_string().green()));
+        }
+        if summary.file_changes > 0 {
+            parts.push(format!("{} file changes", summary.file_changes.to_string().green()));
+        }
         println!(
-            "{}: watched {} repos, {} new versions detected",
+            "{}: watched {} repos, {} detected",
             workspace_name.bold(),
             summary.checked,
-            summary.new_versions.to_string().green(),
+            parts.join(", "),
         );
     }
     if summary.errors > 0 {

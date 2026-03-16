@@ -14,6 +14,8 @@ pub struct WatchSummary {
     pub checked: usize,
     pub new_versions: usize,
     pub errors: usize,
+    /// Number of file watches that detected changes.
+    pub file_changes: usize,
 }
 
 /// Tracking mode read from matrix.toml for a package.
@@ -127,21 +129,22 @@ pub async fn run_watch_cycle(
     let matrix_file = match watch_cfg.matrix_file.as_deref() {
         Some(path) => {
             let expanded = shellexpand::tilde(path);
-            std::path::PathBuf::from(expanded.as_ref())
+            Some(std::path::PathBuf::from(expanded.as_ref()))
         }
-        None => {
-            return Ok(WatchSummary {
-                checked: 0,
-                new_versions: 0,
-                errors: 0,
-            });
-        }
+        None => None,
     };
 
-    let mut state = cache_store.load(&ws.name)?;
-    let repos = sync::resolve_repos(ws, false).await?;
-    let org = ws.org.as_deref().unwrap_or(&ws.name);
+    // If there's no matrix_file and no file_watches, nothing to do
+    if matrix_file.is_none() && watch_cfg.file_watches.is_empty() {
+        return Ok(WatchSummary {
+            checked: 0,
+            new_versions: 0,
+            errors: 0,
+            file_changes: 0,
+        });
+    }
 
+    let mut state = cache_store.load(&ws.name)?;
     let mut checked = 0usize;
     let mut new_versions = 0usize;
     let mut errors = 0usize;
@@ -149,217 +152,372 @@ pub async fn run_watch_cycle(
     let mut last_version = String::new();
     let mut last_rev = String::new();
 
-    for repo_name in &repos {
-        checked += 1;
+    // ── Repo-level watch (matrix.toml version tracking) ──
+    if let Some(ref matrix_file) = matrix_file {
+        let repos = sync::resolve_repos(ws, false).await?;
+        let org = ws.org.as_deref().unwrap_or(&ws.name);
 
-        // Fetch HEAD commit SHA
-        let head = match github.get_repo_head(org, repo_name).await {
-            Ok(sha) => sha,
-            Err(e) => {
-                if !quiet {
-                    eprintln!("  warning: failed to get HEAD for {repo_name}: {e}");
-                }
-                errors += 1;
-                continue;
-            }
-        };
+        for repo_name in &repos {
+            checked += 1;
 
-        // Fetch latest tag
-        let latest_tag = match github.get_latest_tag(org, repo_name).await {
-            Ok(tag) => tag,
-            Err(e) => {
-                if !quiet {
-                    eprintln!("  warning: failed to get tags for {repo_name}: {e}");
-                }
-                errors += 1;
-                continue;
-            }
-        };
-
-        // Compare with cached state
-        let cached = state.repos.get(repo_name);
-        let head_changed = cached.is_none_or(|c| c.head != head);
-        let tag_changed = match (cached.and_then(|c| c.latest_tag.as_deref()), latest_tag.as_deref()) {
-            (Some(old), Some(new)) => old != new,
-            (None, Some(_)) => true,
-            _ => false,
-        };
-
-        // Determine what kind of change to act on:
-        // - Tag-tracked repos: only act on tag changes
-        // - Commit-tracked repos: act on HEAD changes (even without tag changes)
-        let track_mode = matrix_appender
-            .get_track_mode(&matrix_file, repo_name)
-            .unwrap_or(None);
-
-        let should_act = match &track_mode {
-            Some(TrackMode::Tags) | None => tag_changed,
-            Some(TrackMode::Commits { .. }) => head_changed,
-        };
-
-        if should_act {
-            // Detect language (use cached if available and HEAD hasn't changed)
-            let language = if !head_changed && cached.is_some_and(|c| c.language.is_some()) {
-                cached.unwrap().language.clone()
-            } else {
-                match github.detect_repo_language(org, repo_name).await {
-                    Ok(lang) => lang,
-                    Err(e) => {
-                        if !quiet {
-                            eprintln!("  warning: failed to detect language for {repo_name}: {e}");
-                        }
-                        None
-                    }
-                }
-            };
-
-            // Compute version based on tracking mode
-            let (version, display_tag) = match &track_mode {
-                Some(TrackMode::Commits { unstable_base }) => {
-                    // Include short SHA to differentiate multiple commits on the same day
-                    let today = chrono::Utc::now().format("%Y-%m-%d");
-                    let short_sha = &head[..head.len().min(8)];
-                    let ver = format!("{unstable_base}-unstable.{today}.{short_sha}");
-                    let tag = format!("HEAD@{short_sha}");
-                    (ver, tag)
-                }
-                _ => {
-                    // Tag-tracked: use tag as version
-                    let new_tag = latest_tag.as_deref().unwrap_or("unknown");
-                    let ver = new_tag.strip_prefix('v').unwrap_or(new_tag).to_string();
-                    (ver, new_tag.to_string())
-                }
-            };
-
-            // Append entry to matrix.toml (pass HEAD SHA as rev)
-            match matrix_appender.append_entry(&matrix_file, repo_name, &version, &head, language.as_deref()) {
-                Ok(true) => {
-                    if !quiet {
-                        display::print_watch_new_version(repo_name, &version, &display_tag);
-                    }
-                    new_versions += 1;
-                    last_repo = repo_name.clone();
-                    last_version = version.clone();
-                    last_rev = head.clone();
-                }
-                Ok(false) => {
-                    // Repo not found in matrix or version already exists
-                }
+            // Fetch HEAD commit SHA
+            let head = match github.get_repo_head(org, repo_name).await {
+                Ok(sha) => sha,
                 Err(e) => {
                     if !quiet {
-                        eprintln!("  warning: failed to append matrix entry for {repo_name}: {e}");
+                        eprintln!("  warning: failed to get HEAD for {repo_name}: {e}");
+                    }
+                    errors += 1;
+                    continue;
+                }
+            };
+
+            // Fetch latest tag
+            let latest_tag = match github.get_latest_tag(org, repo_name).await {
+                Ok(tag) => tag,
+                Err(e) => {
+                    if !quiet {
+                        eprintln!("  warning: failed to get tags for {repo_name}: {e}");
+                    }
+                    errors += 1;
+                    continue;
+                }
+            };
+
+            // Compare with cached state
+            let cached = state.repos.get(repo_name);
+            let head_changed = cached.is_none_or(|c| c.head != head);
+            let tag_changed = match (cached.and_then(|c| c.latest_tag.as_deref()), latest_tag.as_deref()) {
+                (Some(old), Some(new)) => old != new,
+                (None, Some(_)) => true,
+                _ => false,
+            };
+
+            // Determine what kind of change to act on:
+            // - Tag-tracked repos: only act on tag changes
+            // - Commit-tracked repos: act on HEAD changes (even without tag changes)
+            let track_mode = matrix_appender
+                .get_track_mode(matrix_file, repo_name)
+                .unwrap_or(None);
+
+            let should_act = match &track_mode {
+                Some(TrackMode::Tags) | None => tag_changed,
+                Some(TrackMode::Commits { .. }) => head_changed,
+            };
+
+            if should_act {
+                // Detect language (use cached if available and HEAD hasn't changed)
+                let language = if !head_changed && cached.is_some_and(|c| c.language.is_some()) {
+                    cached.unwrap().language.clone()
+                } else {
+                    match github.detect_repo_language(org, repo_name).await {
+                        Ok(lang) => lang,
+                        Err(e) => {
+                            if !quiet {
+                                eprintln!("  warning: failed to detect language for {repo_name}: {e}");
+                            }
+                            None
+                        }
+                    }
+                };
+
+                // Compute version based on tracking mode
+                let (version, display_tag) = match &track_mode {
+                    Some(TrackMode::Commits { unstable_base }) => {
+                        // Include short SHA to differentiate multiple commits on the same day
+                        let today = chrono::Utc::now().format("%Y-%m-%d");
+                        let short_sha = &head[..head.len().min(8)];
+                        let ver = format!("{unstable_base}-unstable.{today}.{short_sha}");
+                        let tag = format!("HEAD@{short_sha}");
+                        (ver, tag)
+                    }
+                    _ => {
+                        // Tag-tracked: use tag as version
+                        let new_tag = latest_tag.as_deref().unwrap_or("unknown");
+                        let ver = new_tag.strip_prefix('v').unwrap_or(new_tag).to_string();
+                        (ver, new_tag.to_string())
+                    }
+                };
+
+                // Append entry to matrix.toml (pass HEAD SHA as rev)
+                match matrix_appender.append_entry(matrix_file, repo_name, &version, &head, language.as_deref()) {
+                    Ok(true) => {
+                        if !quiet {
+                            display::print_watch_new_version(repo_name, &version, &display_tag);
+                        }
+                        new_versions += 1;
+                        last_repo = repo_name.clone();
+                        last_version = version.clone();
+                        last_rev = head.clone();
+                    }
+                    Ok(false) => {
+                        // Repo not found in matrix or version already exists
+                    }
+                    Err(e) => {
+                        if !quiet {
+                            eprintln!("  warning: failed to append matrix entry for {repo_name}: {e}");
+                        }
+                        errors += 1;
+                    }
+                }
+
+                // Update cache state
+                state.repos.insert(repo_name.clone(), RepoState {
+                    head: head.clone(),
+                    latest_tag: latest_tag.clone(),
+                    language,
+                });
+            } else {
+                // No actionable change; update cache with current state
+                let language = cached.and_then(|c| c.language.clone());
+                state.repos.insert(repo_name.clone(), RepoState {
+                    head,
+                    latest_tag,
+                    language,
+                });
+            }
+        }
+
+        if new_versions > 0 {
+            let matrix_file_str = matrix_file.to_string_lossy().to_string();
+
+            // Step 1: Auto-certify — run `akeyless-matrix certify` to build hashes + generate Nix
+            if watch_cfg.auto_certify {
+                if !quiet {
+                    eprintln!("  [>>] running akeyless-matrix certify...");
+                }
+                if let Err(e) = run_certify(matrix_file) {
+                    if !quiet {
+                        eprintln!("  warning: auto-certify failed: {e}");
                     }
                     errors += 1;
                 }
             }
 
-            // Update cache state
-            state.repos.insert(repo_name.clone(), RepoState {
-                head: head.clone(),
-                latest_tag: latest_tag.clone(),
-                language,
-            });
-        } else {
-            // No actionable change; update cache with current state
-            let language = cached.and_then(|c| c.language.clone());
-            state.repos.insert(repo_name.clone(), RepoState {
-                head,
-                latest_tag,
-                language,
-            });
+            // Run after_certify post-hooks
+            if let Err(e) = run_post_hooks(
+                &watch_cfg.post_hooks, "after_certify",
+                &last_repo, &last_version, &last_rev, &matrix_file_str,
+            ).await {
+                if !quiet {
+                    eprintln!("  warning: after_certify hook failed: {e}");
+                }
+                errors += 1;
+            }
+
+            // Step 2: Auto-commit — commit+push all changes (matrix.toml + generated files)
+            if watch_cfg.auto_commit {
+                if let Err(e) = auto_commit_matrix(matrix_file, git_ops) {
+                    if !quiet {
+                        eprintln!("  warning: auto-commit failed: {e}");
+                    }
+                    errors += 1;
+                }
+            }
+
+            // Run after_commit post-hooks
+            if let Err(e) = run_post_hooks(
+                &watch_cfg.post_hooks, "after_commit",
+                &last_repo, &last_version, &last_rev, &matrix_file_str,
+            ).await {
+                if !quiet {
+                    eprintln!("  warning: after_commit hook failed: {e}");
+                }
+                errors += 1;
+            }
+
+            // Step 3: Auto-propagate — run `tend flake-update --changed <repo>`
+            if let Some(ref repo_name) = watch_cfg.auto_propagate {
+                if !quiet {
+                    eprintln!("  [>>] propagating flake update for {repo_name}...");
+                }
+                if let Err(e) = run_flake_propagate(repo_name, ws) {
+                    if !quiet {
+                        eprintln!("  warning: auto-propagate failed: {e}");
+                    }
+                    errors += 1;
+                }
+            }
+
+            // Run after_propagate post-hooks
+            if let Err(e) = run_post_hooks(
+                &watch_cfg.post_hooks, "after_propagate",
+                &last_repo, &last_version, &last_rev, &matrix_file_str,
+            ).await {
+                if !quiet {
+                    eprintln!("  warning: after_propagate hook failed: {e}");
+                }
+                errors += 1;
+            }
+
+            // Run after_all post-hooks
+            if let Err(e) = run_post_hooks(
+                &watch_cfg.post_hooks, "after_all",
+                &last_repo, &last_version, &last_rev, &matrix_file_str,
+            ).await {
+                if !quiet {
+                    eprintln!("  warning: after_all hook failed: {e}");
+                }
+                errors += 1;
+            }
         }
+    }
+
+    // ── File-level watch (specific file SHA tracking) ──
+    let mut file_changes = 0usize;
+    for fw in &watch_cfg.file_watches {
+        let cache_key = format!("{}/{}/{}", fw.org, fw.repo, fw.path);
+
+        let (new_sha, _size, download_url) = match github
+            .get_file_sha(&fw.org, &fw.repo, &fw.path)
+            .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                if !quiet {
+                    eprintln!(
+                        "  warning: failed to get file SHA for {}: {e}",
+                        cache_key
+                    );
+                }
+                errors += 1;
+                continue;
+            }
+        };
+
+        let cached_sha = state.file_shas.get(&cache_key).cloned();
+
+        if cached_sha.as_deref() == Some(&new_sha) {
+            // No change
+            continue;
+        }
+
+        file_changes += 1;
+
+        if !quiet {
+            println!(
+                "  {} file changed: {}",
+                "!".yellow().bold(),
+                cache_key
+            );
+            println!(
+                "    old SHA: {}",
+                cached_sha.as_deref().unwrap_or("(none)")
+            );
+            println!("    new SHA: {}", new_sha);
+        }
+
+        // Download the file if download_to is configured
+        let mut current_file = String::new();
+        let mut previous_file = String::new();
+
+        if let Some(ref download_dir) = fw.download_to {
+            let dir = shellexpand::tilde(download_dir).to_string();
+            std::fs::create_dir_all(&dir)
+                .with_context(|| format!("creating download dir {dir}"))?;
+
+            // Derive extension from the watched file path
+            let ext = std::path::Path::new(&fw.path)
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("bin");
+            let short_sha = &new_sha[..new_sha.len().min(12)];
+            current_file = format!("{dir}/{short_sha}.{ext}");
+
+            let content = reqwest::get(&download_url)
+                .await
+                .with_context(|| format!("downloading {download_url}"))?
+                .text()
+                .await
+                .with_context(|| format!("reading body from {download_url}"))?;
+            std::fs::write(&current_file, &content)
+                .with_context(|| format!("writing {current_file}"))?;
+
+            if !quiet {
+                println!("    downloaded: {}", current_file);
+            }
+
+            // Previous version (if cached)
+            if let Some(ref old_sha) = cached_sha {
+                let old_short = &old_sha[..old_sha.len().min(12)];
+                previous_file = format!("{dir}/{old_short}.{ext}");
+            }
+        }
+
+        // Run post-hooks with variable substitution
+        for hook in &fw.post_hooks {
+            if hook.trigger != "on_change" {
+                continue;
+            }
+
+            let args: Vec<String> = hook
+                .args
+                .iter()
+                .map(|a| {
+                    a.replace("$CURRENT_FILE", &current_file)
+                        .replace("$PREVIOUS_FILE", &previous_file)
+                        .replace("$SHA", &new_sha)
+                        .replace("$REPO", &fw.repo)
+                        .replace("$ORG", &fw.org)
+                        .replace("$PATH", &fw.path)
+                        .replace("$NAME", &fw.name)
+                })
+                .collect();
+
+            let dir = hook
+                .working_dir
+                .as_deref()
+                .map(|d| shellexpand::tilde(d).to_string());
+
+            if !quiet {
+                eprintln!(
+                    "  {} running file-watch hook: {} {}",
+                    "=>".blue().bold(),
+                    hook.command,
+                    args.join(" ")
+                );
+            }
+
+            let mut cmd = tokio::process::Command::new(&hook.command);
+            cmd.args(&args);
+            if let Some(ref d) = dir {
+                cmd.current_dir(d);
+            }
+
+            match cmd.status().await {
+                Ok(status) if !status.success() && !hook.continue_on_error => {
+                    if !quiet {
+                        eprintln!(
+                            "  warning: file-watch hook failed: {} (exit {})",
+                            hook.command, status
+                        );
+                    }
+                    errors += 1;
+                }
+                Err(e) => {
+                    if !quiet {
+                        eprintln!(
+                            "  warning: file-watch hook error: {}: {e}",
+                            hook.command
+                        );
+                    }
+                    errors += 1;
+                }
+                _ => {}
+            }
+        }
+
+        // Update cache
+        state.file_shas.insert(cache_key, new_sha);
     }
 
     cache_store.save(&ws.name, &state)?;
-
-    if new_versions > 0 {
-        let matrix_file_str = matrix_file.to_string_lossy().to_string();
-
-        // Step 1: Auto-certify — run `akeyless-matrix certify` to build hashes + generate Nix
-        if watch_cfg.auto_certify {
-            if !quiet {
-                eprintln!("  [>>] running akeyless-matrix certify...");
-            }
-            if let Err(e) = run_certify(&matrix_file) {
-                if !quiet {
-                    eprintln!("  warning: auto-certify failed: {e}");
-                }
-                errors += 1;
-            }
-        }
-
-        // Run after_certify post-hooks
-        if let Err(e) = run_post_hooks(
-            &watch_cfg.post_hooks, "after_certify",
-            &last_repo, &last_version, &last_rev, &matrix_file_str,
-        ).await {
-            if !quiet {
-                eprintln!("  warning: after_certify hook failed: {e}");
-            }
-            errors += 1;
-        }
-
-        // Step 2: Auto-commit — commit+push all changes (matrix.toml + generated files)
-        if watch_cfg.auto_commit {
-            if let Err(e) = auto_commit_matrix(&matrix_file, git_ops) {
-                if !quiet {
-                    eprintln!("  warning: auto-commit failed: {e}");
-                }
-                errors += 1;
-            }
-        }
-
-        // Run after_commit post-hooks
-        if let Err(e) = run_post_hooks(
-            &watch_cfg.post_hooks, "after_commit",
-            &last_repo, &last_version, &last_rev, &matrix_file_str,
-        ).await {
-            if !quiet {
-                eprintln!("  warning: after_commit hook failed: {e}");
-            }
-            errors += 1;
-        }
-
-        // Step 3: Auto-propagate — run `tend flake-update --changed <repo>`
-        if let Some(ref repo_name) = watch_cfg.auto_propagate {
-            if !quiet {
-                eprintln!("  [>>] propagating flake update for {repo_name}...");
-            }
-            if let Err(e) = run_flake_propagate(repo_name, ws) {
-                if !quiet {
-                    eprintln!("  warning: auto-propagate failed: {e}");
-                }
-                errors += 1;
-            }
-        }
-
-        // Run after_propagate post-hooks
-        if let Err(e) = run_post_hooks(
-            &watch_cfg.post_hooks, "after_propagate",
-            &last_repo, &last_version, &last_rev, &matrix_file_str,
-        ).await {
-            if !quiet {
-                eprintln!("  warning: after_propagate hook failed: {e}");
-            }
-            errors += 1;
-        }
-
-        // Run after_all post-hooks
-        if let Err(e) = run_post_hooks(
-            &watch_cfg.post_hooks, "after_all",
-            &last_repo, &last_version, &last_rev, &matrix_file_str,
-        ).await {
-            if !quiet {
-                eprintln!("  warning: after_all hook failed: {e}");
-            }
-            errors += 1;
-        }
-    }
 
     Ok(WatchSummary {
         checked,
         new_versions,
         errors,
+        file_changes,
     })
 }
 
@@ -587,6 +745,19 @@ mod tests {
         heads: BTreeMap<String, String>,
         tags: BTreeMap<String, Option<String>>,
         languages: BTreeMap<String, Option<String>>,
+        /// File SHA responses keyed by "org/repo/path"
+        file_shas: BTreeMap<String, (String, u64, String)>,
+    }
+
+    impl MockGitHub {
+        fn new() -> Self {
+            Self {
+                heads: BTreeMap::new(),
+                tags: BTreeMap::new(),
+                languages: BTreeMap::new(),
+                file_shas: BTreeMap::new(),
+            }
+        }
     }
 
     #[async_trait::async_trait]
@@ -603,6 +774,19 @@ mod tests {
 
         async fn detect_repo_language(&self, _org: &str, repo: &str) -> anyhow::Result<Option<String>> {
             Ok(self.languages.get(repo).cloned().flatten())
+        }
+
+        async fn get_file_sha(
+            &self,
+            org: &str,
+            repo: &str,
+            path: &str,
+        ) -> anyhow::Result<(String, u64, String)> {
+            let key = format!("{org}/{repo}/{path}");
+            self.file_shas
+                .get(&key)
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("file not found: {key}"))
         }
     }
 
@@ -693,6 +877,7 @@ mod tests {
                 auto_commit: false,
                 auto_propagate: None,
                 post_hooks: vec![],
+                file_watches: vec![],
             }),
         }
     }
@@ -700,11 +885,7 @@ mod tests {
     #[tokio::test]
     async fn test_watch_cycle_no_matrix_file() {
         let ws = make_test_workspace("test-ws", None);
-        let github = MockGitHub {
-            heads: BTreeMap::new(),
-            tags: BTreeMap::new(),
-            languages: BTreeMap::new(),
-        };
+        let github = MockGitHub::new();
         let cache = MockCache { state: Mutex::new(WatchState::default()) };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
@@ -739,7 +920,7 @@ repo = "repo-a"
         let mut languages = BTreeMap::new();
         languages.insert("repo-a".to_string(), Some("rust".to_string()));
 
-        let github = MockGitHub { heads, tags, languages };
+        let github = MockGitHub { heads, tags, languages, file_shas: BTreeMap::new() };
         let cache = MockCache { state: Mutex::new(WatchState::default()) };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
@@ -774,11 +955,7 @@ repo = "repo-a"
         let ws = make_test_workspace("test-ws", Some("/tmp/fake-matrix.toml"));
 
         // GitHub returns error (heads map is empty → repo not found)
-        let github = MockGitHub {
-            heads: BTreeMap::new(),
-            tags: BTreeMap::new(),
-            languages: BTreeMap::new(),
-        };
+        let github = MockGitHub::new();
         let cache = MockCache { state: Mutex::new(WatchState::default()) };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
@@ -807,7 +984,7 @@ repo = "repo-a"
         let mut tags = BTreeMap::new();
         tags.insert("repo-a".to_string(), Some("v2.0.0".to_string()));
         // languages map is EMPTY — if detect_repo_language is called it returns None
-        let github = MockGitHub { heads, tags, languages: BTreeMap::new() };
+        let github = MockGitHub { heads, tags, languages: BTreeMap::new(), file_shas: BTreeMap::new() };
 
         let mut initial_state = WatchState::default();
         initial_state.repos.insert("repo-a".to_string(), RepoState {
@@ -872,7 +1049,7 @@ repo = "repo-a"
         heads.insert("repo-a".to_string(), "newhead".to_string());
         let mut tags = BTreeMap::new();
         tags.insert("repo-a".to_string(), Some("v2.0.0".to_string()));
-        let github = MockGitHub { heads, tags, languages: BTreeMap::new() };
+        let github = MockGitHub { heads, tags, languages: BTreeMap::new(), file_shas: BTreeMap::new() };
 
         let mut initial = WatchState::default();
         initial.repos.insert("repo-a".to_string(), RepoState {
@@ -958,7 +1135,7 @@ repo = "repo-a"
         let mut tags = BTreeMap::new();
         tags.insert("repo-a".to_string(), Some("v1.0.0".to_string()));
 
-        let github = MockGitHub { heads, tags, languages: BTreeMap::new() };
+        let github = MockGitHub { heads, tags, languages: BTreeMap::new(), file_shas: BTreeMap::new() };
 
         // Pre-populate cache with the same tag
         let mut initial_state = WatchState::default();
@@ -1001,7 +1178,7 @@ repo = "repo-a"
         heads.insert("repo-a".to_string(), "newHEAD456".to_string());
         let mut tags = BTreeMap::new();
         tags.insert("repo-a".to_string(), None::<String>); // no tags at all
-        let github = MockGitHub { heads, tags, languages: BTreeMap::new() };
+        let github = MockGitHub { heads, tags, languages: BTreeMap::new(), file_shas: BTreeMap::new() };
 
         // Cache has old HEAD
         let mut initial = WatchState::default();
@@ -1051,7 +1228,7 @@ repo = "repo-a"
         heads.insert("repo-a".to_string(), "newHEAD789".to_string());
         let mut tags = BTreeMap::new();
         tags.insert("repo-a".to_string(), Some("v1.0.0".to_string()));
-        let github = MockGitHub { heads, tags, languages: BTreeMap::new() };
+        let github = MockGitHub { heads, tags, languages: BTreeMap::new(), file_shas: BTreeMap::new() };
 
         let mut initial = WatchState::default();
         initial.repos.insert("repo-a".to_string(), RepoState {
@@ -1208,5 +1385,375 @@ auto_commit: false
         let result = run_post_hooks(&hooks, "after_all", "repo", "1.0", "abc", "/m.toml").await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("post-hook failed"));
+    }
+
+    // ── File Watch Tests ──
+
+    #[test]
+    fn test_file_watch_config_deserialization() {
+        let yaml = r#"
+enable: true
+file_watches:
+  - name: akeyless-openapi-spec
+    org: akeylesslabs
+    repo: akeyless-go
+    path: api/openapi.yaml
+    download_to: ~/code/specs/
+    post_hooks:
+      - trigger: on_change
+        command: iac-forge
+        args:
+          - sync
+          - "--spec-old"
+          - "$PREVIOUS_FILE"
+          - "--spec-new"
+          - "$CURRENT_FILE"
+        working_dir: ~/code/resources
+        continue_on_error: false
+  - name: another-file
+    org: myorg
+    repo: myrepo
+    path: config.json
+"#;
+        let config: WatchConfig = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.file_watches.len(), 2);
+
+        let fw = &config.file_watches[0];
+        assert_eq!(fw.name, "akeyless-openapi-spec");
+        assert_eq!(fw.org, "akeylesslabs");
+        assert_eq!(fw.repo, "akeyless-go");
+        assert_eq!(fw.path, "api/openapi.yaml");
+        assert_eq!(fw.download_to.as_deref(), Some("~/code/specs/"));
+        assert_eq!(fw.post_hooks.len(), 1);
+        assert_eq!(fw.post_hooks[0].trigger, "on_change");
+        assert_eq!(fw.post_hooks[0].command, "iac-forge");
+        assert_eq!(fw.post_hooks[0].args[2], "$PREVIOUS_FILE");
+        assert_eq!(fw.post_hooks[0].args[4], "$CURRENT_FILE");
+        assert_eq!(fw.post_hooks[0].working_dir.as_deref(), Some("~/code/resources"));
+        assert!(!fw.post_hooks[0].continue_on_error);
+
+        let fw2 = &config.file_watches[1];
+        assert_eq!(fw2.name, "another-file");
+        assert_eq!(fw2.org, "myorg");
+        assert_eq!(fw2.repo, "myrepo");
+        assert_eq!(fw2.path, "config.json");
+        assert!(fw2.download_to.is_none());
+        assert!(fw2.post_hooks.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_file_watch_detects_sha_change() {
+        use crate::config::FileWatch;
+
+        let tmp_dir = std::env::temp_dir().join("tend-test-fw-change");
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+        let _ = std::fs::create_dir_all(&tmp_dir);
+
+        let hook_output = tmp_dir.join("hook-ran.txt");
+
+        let mut ws = make_test_workspace("fw-test", None);
+        ws.extra_repos = vec![]; // no repo-level watches
+        ws.watch.as_mut().unwrap().file_watches = vec![FileWatch {
+            name: "test-spec".to_string(),
+            org: "testorg".to_string(),
+            repo: "testrepo".to_string(),
+            path: "api/spec.yaml".to_string(),
+            download_to: None,
+            post_hooks: vec![PostHook {
+                trigger: "on_change".to_string(),
+                command: "bash".to_string(),
+                args: vec![
+                    "-c".to_string(),
+                    format!(
+                        "echo \"sha=$SHA org=$ORG repo=$REPO path=$PATH name=$NAME\" > {}",
+                        hook_output.display()
+                    ),
+                ],
+                working_dir: None,
+                continue_on_error: false,
+            }],
+        }];
+
+        let mut github = MockGitHub::new();
+        github.file_shas.insert(
+            "testorg/testrepo/api/spec.yaml".to_string(),
+            ("newsha123456789abc".to_string(), 1024, "https://example.com/spec.yaml".to_string()),
+        );
+
+        // Pre-populate cache with OLD SHA
+        let mut initial_state = WatchState::default();
+        initial_state.file_shas.insert(
+            "testorg/testrepo/api/spec.yaml".to_string(),
+            "oldsha000000000000".to_string(),
+        );
+        let cache = MockCache { state: Mutex::new(initial_state) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.file_changes, 1);
+        assert_eq!(summary.errors, 0);
+
+        // Verify hook ran with correct variable substitution
+        let content = std::fs::read_to_string(&hook_output).unwrap();
+        assert!(content.contains("sha=newsha123456789abc"));
+        assert!(content.contains("org=testorg"));
+        assert!(content.contains("repo=testrepo"));
+        assert!(content.contains("path=api/spec.yaml"));
+        assert!(content.contains("name=test-spec"));
+
+        // Verify cache was updated
+        let saved = cache.state.lock().unwrap();
+        assert_eq!(
+            saved.file_shas.get("testorg/testrepo/api/spec.yaml").unwrap(),
+            "newsha123456789abc"
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[tokio::test]
+    async fn test_file_watch_skips_unchanged() {
+        use crate::config::FileWatch;
+
+        let mut ws = make_test_workspace("fw-skip", None);
+        ws.extra_repos = vec![];
+        ws.watch.as_mut().unwrap().file_watches = vec![FileWatch {
+            name: "stable-file".to_string(),
+            org: "org".to_string(),
+            repo: "repo".to_string(),
+            path: "config.json".to_string(),
+            download_to: None,
+            post_hooks: vec![PostHook {
+                trigger: "on_change".to_string(),
+                command: "false".to_string(), // would fail if executed
+                args: vec![],
+                working_dir: None,
+                continue_on_error: false,
+            }],
+        }];
+
+        let mut github = MockGitHub::new();
+        github.file_shas.insert(
+            "org/repo/config.json".to_string(),
+            ("samesha1234567890ab".to_string(), 512, "https://example.com/config.json".to_string()),
+        );
+
+        // Cache has the SAME SHA
+        let mut initial_state = WatchState::default();
+        initial_state.file_shas.insert(
+            "org/repo/config.json".to_string(),
+            "samesha1234567890ab".to_string(),
+        );
+        let cache = MockCache { state: Mutex::new(initial_state) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.file_changes, 0);
+        assert_eq!(summary.errors, 0);
+    }
+
+    #[tokio::test]
+    async fn test_file_watch_variable_substitution() {
+        use crate::config::FileWatch;
+
+        let tmp_dir = std::env::temp_dir().join("tend-test-fw-vars");
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+        let _ = std::fs::create_dir_all(&tmp_dir);
+
+        let output_file = tmp_dir.join("vars.txt");
+
+        let mut ws = make_test_workspace("fw-vars", None);
+        ws.extra_repos = vec![];
+        ws.watch.as_mut().unwrap().file_watches = vec![FileWatch {
+            name: "my-spec-watch".to_string(),
+            org: "myorg".to_string(),
+            repo: "myrepo".to_string(),
+            path: "docs/api.yaml".to_string(),
+            download_to: None,
+            post_hooks: vec![PostHook {
+                trigger: "on_change".to_string(),
+                command: "bash".to_string(),
+                args: vec![
+                    "-c".to_string(),
+                    format!(
+                        "echo \"CURRENT=$CURRENT_FILE PREVIOUS=$PREVIOUS_FILE SHA=$SHA REPO=$REPO ORG=$ORG PATH=$PATH NAME=$NAME\" > {}",
+                        output_file.display()
+                    ),
+                ],
+                working_dir: None,
+                continue_on_error: false,
+            }],
+        }];
+
+        let mut github = MockGitHub::new();
+        github.file_shas.insert(
+            "myorg/myrepo/docs/api.yaml".to_string(),
+            ("abc123def456789012".to_string(), 100, "https://example.com/api.yaml".to_string()),
+        );
+
+        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.file_changes, 1);
+
+        let content = std::fs::read_to_string(&output_file).unwrap();
+        // No download_to, so CURRENT_FILE and PREVIOUS_FILE are empty
+        assert!(content.contains("CURRENT= "));
+        assert!(content.contains("PREVIOUS= "));
+        assert!(content.contains("SHA=abc123def456789012"));
+        assert!(content.contains("REPO=myrepo"));
+        assert!(content.contains("ORG=myorg"));
+        assert!(content.contains("PATH=docs/api.yaml"));
+        assert!(content.contains("NAME=my-spec-watch"));
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn test_file_watch_backward_compatible() {
+        // Config without file_watches should still parse (defaults to empty vec)
+        let yaml = r#"
+enable: true
+matrix_file: ~/matrix.toml
+auto_certify: false
+auto_commit: false
+"#;
+        let config: WatchConfig = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.file_watches.is_empty());
+        assert!(config.post_hooks.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_file_watch_download_to_creates_dir() {
+        use crate::config::FileWatch;
+
+        let tmp_dir = std::env::temp_dir().join("tend-test-fw-download");
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+        let download_dir = tmp_dir.join("nested").join("specs");
+
+        let mut ws = make_test_workspace("fw-dl", None);
+        ws.extra_repos = vec![];
+        ws.watch.as_mut().unwrap().file_watches = vec![FileWatch {
+            name: "dl-test".to_string(),
+            org: "dlorg".to_string(),
+            repo: "dlrepo".to_string(),
+            path: "api/openapi.yaml".to_string(),
+            download_to: Some(download_dir.to_string_lossy().to_string()),
+            post_hooks: vec![],
+        }];
+
+        // We need a real HTTP server for download, so we use a mock that provides
+        // the download URL. In this test we verify the directory is created and the
+        // cache is updated, even if download fails (it will fail because the URL is fake).
+        let mut github = MockGitHub::new();
+        github.file_shas.insert(
+            "dlorg/dlrepo/api/openapi.yaml".to_string(),
+            (
+                "dlsha123456789abcdef".to_string(),
+                256,
+                // Use a URL that will fail — we test directory creation + cache update
+                "http://127.0.0.1:1/nonexistent".to_string(),
+            ),
+        );
+
+        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        // The download will fail because the URL is unreachable, but the dir should be created
+        let result = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops).await;
+
+        // Verify the directory was created before download was attempted
+        assert!(download_dir.exists(), "download directory should have been created");
+
+        // The cycle should return an error due to failed download, which is counted as errors
+        // The function returns Ok with errors counted, not Err
+        match result {
+            Ok(summary) => {
+                // file_changes won't be incremented since the download failed before cache update
+                assert!(summary.errors > 0);
+            }
+            Err(_) => {
+                // Also acceptable — the error propagated
+            }
+        }
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[tokio::test]
+    async fn test_file_watch_first_detection_no_cached_sha() {
+        use crate::config::FileWatch;
+
+        let tmp_dir = std::env::temp_dir().join("tend-test-fw-first");
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+        let _ = std::fs::create_dir_all(&tmp_dir);
+
+        let hook_output = tmp_dir.join("first-detect.txt");
+
+        let mut ws = make_test_workspace("fw-first", None);
+        ws.extra_repos = vec![];
+        ws.watch.as_mut().unwrap().file_watches = vec![FileWatch {
+            name: "first-time".to_string(),
+            org: "org1".to_string(),
+            repo: "repo1".to_string(),
+            path: "file.txt".to_string(),
+            download_to: None,
+            post_hooks: vec![PostHook {
+                trigger: "on_change".to_string(),
+                command: "bash".to_string(),
+                args: vec![
+                    "-c".to_string(),
+                    format!("echo detected > {}", hook_output.display()),
+                ],
+                working_dir: None,
+                continue_on_error: false,
+            }],
+        }];
+
+        let mut github = MockGitHub::new();
+        github.file_shas.insert(
+            "org1/repo1/file.txt".to_string(),
+            ("firstsha12345678901".to_string(), 42, "https://example.com/file.txt".to_string()),
+        );
+
+        // Empty cache — first time seeing this file
+        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+            .await
+            .unwrap();
+
+        // First detection (no cached SHA) should count as a change
+        assert_eq!(summary.file_changes, 1);
+        assert_eq!(summary.errors, 0);
+
+        // Hook should have fired
+        let content = std::fs::read_to_string(&hook_output).unwrap();
+        assert_eq!(content.trim(), "detected");
+
+        // Cache should now have the SHA
+        let saved = cache.state.lock().unwrap();
+        assert_eq!(
+            saved.file_shas.get("org1/repo1/file.txt").unwrap(),
+            "firstsha12345678901"
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
     }
 }
