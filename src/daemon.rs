@@ -105,8 +105,9 @@ async fn run_workspace_cycle(
             let cache_store = watch_cache::FsWatchStateStore;
             let matrix_appender = watch::TomlMatrixAppender;
             let git_ops = git::SystemGitOps;
+            let audit = crate::audit::AuditLog::default_path();
 
-            match watch::run_watch_cycle(ws, quiet, &gh, &cache_store, &matrix_appender, &git_ops).await {
+            match watch::run_watch_cycle(ws, quiet, &gh, &cache_store, &matrix_appender, &git_ops, &audit).await {
                 Ok(summary) => {
                     if !quiet {
                         display::print_watch_summary(&ws.name, &summary);

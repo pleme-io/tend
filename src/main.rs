@@ -1,3 +1,4 @@
+mod audit;
 mod cache;
 mod config;
 mod daemon;
@@ -127,6 +128,25 @@ enum Commands {
     /// Generate a starter config file
     Init,
 
+    /// View the structured audit log
+    AuditLog {
+        /// Filter by event type
+        #[arg(long)]
+        event: Option<String>,
+
+        /// Show last N entries
+        #[arg(long, default_value = "20")]
+        last: usize,
+
+        /// Output raw JSON lines
+        #[arg(long)]
+        json: bool,
+
+        /// Filter events since this date (YYYY-MM-DD)
+        #[arg(long)]
+        since: Option<String>,
+    },
+
     /// Propagate nix flake update through the dependency chain
     FlakeUpdate {
         /// Repo that was just pushed (trigger)
@@ -240,6 +260,7 @@ async fn main() -> Result<()> {
             refresh: _refresh,
         } => {
             let cfg = load_config(config_path.as_deref())?;
+            let audit_log = audit::AuditLog::default_path();
             for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
                 if let Some(ref watch_cfg) = ws.watch {
                     if watch_cfg.enable {
@@ -250,10 +271,89 @@ async fn main() -> Result<()> {
 
                         let summary = watch::run_watch_cycle(
                             ws, false, &gh, &cache_store, &matrix_appender, &git_ops,
+                            &audit_log,
                         ).await?;
                         display::print_watch_summary(&ws.name, &summary);
                     }
                 }
+            }
+        }
+
+        Commands::AuditLog {
+            event,
+            last,
+            json,
+            since,
+        } => {
+            let audit_log = audit::AuditLog::default_path();
+            let path = audit_log.path();
+            if !path.exists() {
+                println!("no audit log found at {}", path.display());
+                return Ok(());
+            }
+            let content = std::fs::read_to_string(path)
+                .with_context(|| format!("reading {}", path.display()))?;
+
+            let mut entries: Vec<serde_json::Value> = content
+                .lines()
+                .filter(|l| !l.trim().is_empty())
+                .filter_map(|l| serde_json::from_str(l).ok())
+                .collect();
+
+            // Filter by event type
+            if let Some(ref evt) = event {
+                entries.retain(|e| e.get("event").and_then(|v| v.as_str()) == Some(evt));
+            }
+
+            // Filter by since date
+            if let Some(ref since_date) = since {
+                entries.retain(|e| {
+                    e.get("timestamp")
+                        .and_then(|v| v.as_str())
+                        .is_some_and(|ts| ts >= since_date.as_str())
+                });
+            }
+
+            // Take last N entries
+            let start = entries.len().saturating_sub(last);
+            let entries = &entries[start..];
+
+            if json {
+                for entry in entries {
+                    println!("{}", serde_json::to_string(entry).unwrap_or_default());
+                }
+            } else {
+                for entry in entries {
+                    let ts = entry
+                        .get("timestamp")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("?");
+                    let evt = entry
+                        .get("event")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("?");
+
+                    // Collect data fields (everything except timestamp and event)
+                    let data_fields: Vec<String> = entry
+                        .as_object()
+                        .map(|obj| {
+                            obj.iter()
+                                .filter(|(k, _)| *k != "timestamp" && *k != "event")
+                                .map(|(k, v)| {
+                                    let val = match v {
+                                        serde_json::Value::String(s) => s.clone(),
+                                        serde_json::Value::Null => "null".to_string(),
+                                        other => other.to_string(),
+                                    };
+                                    format!("{k}={val}")
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default();
+
+                    println!("[{ts}] {evt}  {}", data_fields.join(" "));
+                }
+                println!("\n{} entries (from {})", entries.len(), path.display());
             }
         }
 

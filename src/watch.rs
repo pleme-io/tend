@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use std::path::Path;
 
+use crate::audit::AuditLog;
 use crate::config::{PostHook, Workspace};
 use crate::display;
 use crate::git::GitOps;
@@ -122,6 +123,7 @@ pub async fn run_watch_cycle(
     cache_store: &dyn WatchStateStore,
     matrix_appender: &dyn MatrixAppender,
     git_ops: &dyn GitOps,
+    audit: &AuditLog,
 ) -> Result<WatchSummary> {
     let watch_cfg = ws.watch.as_ref()
         .ok_or_else(|| anyhow::anyhow!("watch not configured for workspace {}", ws.name))?;
@@ -239,12 +241,20 @@ pub async fn run_watch_cycle(
                     }
                 };
 
+                // Audit: version detected
+                let tracking_label = match &track_mode {
+                    Some(TrackMode::Tags) | None => "tags",
+                    Some(TrackMode::Commits { .. }) => "commits",
+                };
+                audit.version_detected(org, repo_name, &version, &head, tracking_label);
+
                 // Append entry to matrix.toml (pass HEAD SHA as rev)
                 match matrix_appender.append_entry(matrix_file, repo_name, &version, &head, language.as_deref()) {
                     Ok(true) => {
                         if !quiet {
                             display::print_watch_new_version(repo_name, &version, &display_tag);
                         }
+                        audit.matrix_entry_appended(repo_name, &version, "pending");
                         new_versions += 1;
                         last_repo = repo_name.clone();
                         last_version = version.clone();
@@ -286,11 +296,20 @@ pub async fn run_watch_cycle(
                 if !quiet {
                     eprintln!("  [>>] running akeyless-matrix certify...");
                 }
-                if let Err(e) = run_certify(matrix_file) {
-                    if !quiet {
-                        eprintln!("  warning: auto-certify failed: {e}");
+                let certify_start = std::time::Instant::now();
+                match run_certify(matrix_file) {
+                    Ok(()) => {
+                        let duration_ms = certify_start.elapsed().as_millis() as u64;
+                        audit.certify_complete(&last_repo, &last_version, "verified", duration_ms);
                     }
-                    errors += 1;
+                    Err(e) => {
+                        let duration_ms = certify_start.elapsed().as_millis() as u64;
+                        audit.certify_complete(&last_repo, &last_version, "failed", duration_ms);
+                        if !quiet {
+                            eprintln!("  warning: auto-certify failed: {e}");
+                        }
+                        errors += 1;
+                    }
                 }
             }
 
@@ -298,6 +317,7 @@ pub async fn run_watch_cycle(
             if let Err(e) = run_post_hooks(
                 &watch_cfg.post_hooks, "after_certify",
                 &last_repo, &last_version, &last_rev, &matrix_file_str,
+                audit,
             ).await {
                 if !quiet {
                     eprintln!("  warning: after_certify hook failed: {e}");
@@ -307,11 +327,20 @@ pub async fn run_watch_cycle(
 
             // Step 2: Auto-commit — commit+push all changes (matrix.toml + generated files)
             if watch_cfg.auto_commit {
-                if let Err(e) = auto_commit_matrix(matrix_file, git_ops) {
-                    if !quiet {
-                        eprintln!("  warning: auto-commit failed: {e}");
+                match auto_commit_matrix(matrix_file, git_ops) {
+                    Ok(()) => {
+                        let repo_dir = matrix_file.parent()
+                            .map(|p| p.file_name().unwrap_or_default().to_string_lossy().to_string())
+                            .unwrap_or_default();
+                        let msg = "chore(matrix): certify new upstream versions";
+                        audit.commit_pushed(&repo_dir, "(auto)", msg);
                     }
-                    errors += 1;
+                    Err(e) => {
+                        if !quiet {
+                            eprintln!("  warning: auto-commit failed: {e}");
+                        }
+                        errors += 1;
+                    }
                 }
             }
 
@@ -319,6 +348,7 @@ pub async fn run_watch_cycle(
             if let Err(e) = run_post_hooks(
                 &watch_cfg.post_hooks, "after_commit",
                 &last_repo, &last_version, &last_rev, &matrix_file_str,
+                audit,
             ).await {
                 if !quiet {
                     eprintln!("  warning: after_commit hook failed: {e}");
@@ -343,6 +373,7 @@ pub async fn run_watch_cycle(
             if let Err(e) = run_post_hooks(
                 &watch_cfg.post_hooks, "after_propagate",
                 &last_repo, &last_version, &last_rev, &matrix_file_str,
+                audit,
             ).await {
                 if !quiet {
                     eprintln!("  warning: after_propagate hook failed: {e}");
@@ -354,6 +385,7 @@ pub async fn run_watch_cycle(
             if let Err(e) = run_post_hooks(
                 &watch_cfg.post_hooks, "after_all",
                 &last_repo, &last_version, &last_rev, &matrix_file_str,
+                audit,
             ).await {
                 if !quiet {
                     eprintln!("  warning: after_all hook failed: {e}");
@@ -394,6 +426,16 @@ pub async fn run_watch_cycle(
 
         file_changes += 1;
 
+        // Audit: file change detected
+        audit.file_change_detected(
+            &fw.org,
+            &fw.repo,
+            &fw.path,
+            cached_sha.as_deref(),
+            &new_sha,
+            _size,
+        );
+
         if !quiet {
             println!(
                 "  {} file changed: {}",
@@ -430,8 +472,19 @@ pub async fn run_watch_cycle(
                 .text()
                 .await
                 .with_context(|| format!("reading body from {download_url}"))?;
+            let content_len = content.len() as u64;
             std::fs::write(&current_file, &content)
                 .with_context(|| format!("writing {current_file}"))?;
+
+            // Audit: spec downloaded
+            audit.spec_downloaded(
+                &fw.org,
+                &fw.repo,
+                &fw.path,
+                &new_sha,
+                &current_file,
+                content_len,
+            );
 
             if !quiet {
                 println!("    downloaded: {}", current_file);
@@ -484,17 +537,25 @@ pub async fn run_watch_cycle(
                 cmd.current_dir(d);
             }
 
+            let hook_start = std::time::Instant::now();
             match cmd.status().await {
-                Ok(status) if !status.success() && !hook.continue_on_error => {
-                    if !quiet {
-                        eprintln!(
-                            "  warning: file-watch hook failed: {} (exit {})",
-                            hook.command, status
-                        );
+                Ok(status) => {
+                    let duration_ms = hook_start.elapsed().as_millis() as u64;
+                    let exit_code = status.code().unwrap_or(-1);
+                    audit.hook_executed("on_change", &hook.command, exit_code, duration_ms);
+                    if !status.success() && !hook.continue_on_error {
+                        if !quiet {
+                            eprintln!(
+                                "  warning: file-watch hook failed: {} (exit {})",
+                                hook.command, status
+                            );
+                        }
+                        errors += 1;
                     }
-                    errors += 1;
                 }
                 Err(e) => {
+                    let duration_ms = hook_start.elapsed().as_millis() as u64;
+                    audit.hook_executed("on_change", &hook.command, -1, duration_ms);
                     if !quiet {
                         eprintln!(
                             "  warning: file-watch hook error: {}: {e}",
@@ -503,7 +564,6 @@ pub async fn run_watch_cycle(
                     }
                     errors += 1;
                 }
-                _ => {}
             }
         }
 
@@ -529,6 +589,7 @@ async fn run_post_hooks(
     version: &str,
     rev: &str,
     matrix_file: &str,
+    audit: &AuditLog,
 ) -> Result<()> {
     for hook in hooks.iter().filter(|h| h.trigger == trigger) {
         let args: Vec<String> = hook
@@ -560,7 +621,12 @@ async fn run_post_hooks(
             cmd.current_dir(d);
         }
 
+        let hook_start = std::time::Instant::now();
         let status = cmd.status().await?;
+        let duration_ms = hook_start.elapsed().as_millis() as u64;
+        let exit_code = status.code().unwrap_or(-1);
+        audit.hook_executed(trigger, &hook.command, exit_code, duration_ms);
+
         if !status.success() && !hook.continue_on_error {
             anyhow::bail!(
                 "post-hook failed: {} (exit {})",
@@ -882,6 +948,10 @@ mod tests {
         }
     }
 
+    fn test_audit() -> crate::audit::AuditLog {
+        crate::audit::AuditLog::new(std::path::PathBuf::from("/tmp/tend-test-audit.jsonl"))
+    }
+
     #[tokio::test]
     async fn test_watch_cycle_no_matrix_file() {
         let ws = make_test_workspace("test-ws", None);
@@ -890,7 +960,8 @@ mod tests {
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
-        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
             .await
             .unwrap();
 
@@ -925,7 +996,8 @@ repo = "repo-a"
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
-        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
             .await
             .unwrap();
 
@@ -960,7 +1032,8 @@ repo = "repo-a"
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
-        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
             .await
             .unwrap();
 
@@ -996,7 +1069,8 @@ repo = "repo-a"
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
-        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
             .await
             .unwrap();
 
@@ -1061,7 +1135,8 @@ repo = "repo-a"
         let appender = MockAppender::new();
         let git_ops = RecordingGitOps::new();
 
-        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
             .await
             .unwrap();
 
@@ -1149,7 +1224,8 @@ repo = "repo-a"
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
-        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
             .await
             .unwrap();
 
@@ -1197,7 +1273,8 @@ repo = "repo-a"
 
         let git_ops = MockGitOps;
 
-        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
             .await
             .unwrap();
 
@@ -1244,7 +1321,8 @@ repo = "repo-a"
 
         let git_ops = MockGitOps;
 
-        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
             .await
             .unwrap();
 
@@ -1311,7 +1389,8 @@ post_hooks:
             continue_on_error: false,
         }];
 
-        run_post_hooks(&hooks, "after_certify", "my-repo", "1.2.3", "abc123", "/path/matrix.toml")
+        let audit = test_audit();
+        run_post_hooks(&hooks, "after_certify", "my-repo", "1.2.3", "abc123", "/path/matrix.toml", &audit)
             .await
             .unwrap();
 
@@ -1346,7 +1425,8 @@ auto_commit: false
         }];
 
         // Run with a trigger that doesn't match — should be a no-op
-        let result = run_post_hooks(&hooks, "unknown_trigger", "repo", "1.0", "abc", "/m.toml").await;
+        let audit = test_audit();
+        let result = run_post_hooks(&hooks, "unknown_trigger", "repo", "1.0", "abc", "/m.toml", &audit).await;
         assert!(result.is_ok());
     }
 
@@ -1364,7 +1444,8 @@ auto_commit: false
             },
         ];
 
-        let result = run_post_hooks(&hooks, "after_all", "repo", "1.0", "abc", "/m.toml").await;
+        let audit = test_audit();
+        let result = run_post_hooks(&hooks, "after_all", "repo", "1.0", "abc", "/m.toml", &audit).await;
         assert!(result.is_ok());
     }
 
@@ -1382,7 +1463,8 @@ auto_commit: false
             },
         ];
 
-        let result = run_post_hooks(&hooks, "after_all", "repo", "1.0", "abc", "/m.toml").await;
+        let audit = test_audit();
+        let result = run_post_hooks(&hooks, "after_all", "repo", "1.0", "abc", "/m.toml", &audit).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("post-hook failed"));
     }
@@ -1490,7 +1572,8 @@ file_watches:
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
-        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
             .await
             .unwrap();
 
@@ -1552,7 +1635,8 @@ file_watches:
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
-        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
             .await
             .unwrap();
 
@@ -1603,7 +1687,8 @@ file_watches:
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
-        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
             .await
             .unwrap();
 
@@ -1674,7 +1759,8 @@ auto_commit: false
         let git_ops = MockGitOps;
 
         // The download will fail because the URL is unreachable, but the dir should be created
-        let result = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops).await;
+        let audit = test_audit();
+        let result = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit).await;
 
         // Verify the directory was created before download was attempted
         assert!(download_dir.exists(), "download directory should have been created");
@@ -1735,7 +1821,8 @@ auto_commit: false
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
-        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops)
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
             .await
             .unwrap();
 
