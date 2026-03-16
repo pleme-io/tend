@@ -110,7 +110,7 @@ watch:
       post_hooks:
         - trigger: on_change
           command: iac-forge
-          args: ["sync", "--spec-old", "$OLD_FILE", "--spec-new", "$NEW_FILE",
+          args: ["sync", "--spec-old", "$PREVIOUS_FILE", "--spec-new", "$CURRENT_FILE",
                  "--resources", "resources/", "--output", "out/", "--auto-scaffold"]
           working_dir: ~/code/github/pleme-io/akeyless-terraform-resources
 ```
@@ -130,8 +130,8 @@ Post-hook `args` support these placeholders:
 - `$REPO` -- repository name
 - `$REV` -- git revision/SHA
 - `$MATRIX_FILE` -- path to matrix.toml
-- `$OLD_FILE` -- previous downloaded file path (file watches)
-- `$NEW_FILE` -- newly downloaded file path (file watches)
+- `$PREVIOUS_FILE` -- previous downloaded file path (file watches)
+- `$CURRENT_FILE` -- newly downloaded file path (file watches)
 - `$FILE_SHA` -- new file SHA (file watches)
 
 ## Post-Hooks
