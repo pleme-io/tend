@@ -1,7 +1,8 @@
 use anyhow::{Context, Result};
+use colored::Colorize;
 use std::path::Path;
 
-use crate::config::Workspace;
+use crate::config::{PostHook, Workspace};
 use crate::display;
 use crate::git::GitOps;
 use crate::github::GitHubClient;
@@ -144,6 +145,9 @@ pub async fn run_watch_cycle(
     let mut checked = 0usize;
     let mut new_versions = 0usize;
     let mut errors = 0usize;
+    let mut last_repo = String::new();
+    let mut last_version = String::new();
+    let mut last_rev = String::new();
 
     for repo_name in &repos {
         checked += 1;
@@ -234,6 +238,9 @@ pub async fn run_watch_cycle(
                         display::print_watch_new_version(repo_name, &version, &display_tag);
                     }
                     new_versions += 1;
+                    last_repo = repo_name.clone();
+                    last_version = version.clone();
+                    last_rev = head.clone();
                 }
                 Ok(false) => {
                     // Repo not found in matrix or version already exists
@@ -266,6 +273,8 @@ pub async fn run_watch_cycle(
     cache_store.save(&ws.name, &state)?;
 
     if new_versions > 0 {
+        let matrix_file_str = matrix_file.to_string_lossy().to_string();
+
         // Step 1: Auto-certify — run `akeyless-matrix certify` to build hashes + generate Nix
         if watch_cfg.auto_certify {
             if !quiet {
@@ -279,6 +288,17 @@ pub async fn run_watch_cycle(
             }
         }
 
+        // Run after_certify post-hooks
+        if let Err(e) = run_post_hooks(
+            &watch_cfg.post_hooks, "after_certify",
+            &last_repo, &last_version, &last_rev, &matrix_file_str,
+        ).await {
+            if !quiet {
+                eprintln!("  warning: after_certify hook failed: {e}");
+            }
+            errors += 1;
+        }
+
         // Step 2: Auto-commit — commit+push all changes (matrix.toml + generated files)
         if watch_cfg.auto_commit {
             if let Err(e) = auto_commit_matrix(&matrix_file, git_ops) {
@@ -287,6 +307,17 @@ pub async fn run_watch_cycle(
                 }
                 errors += 1;
             }
+        }
+
+        // Run after_commit post-hooks
+        if let Err(e) = run_post_hooks(
+            &watch_cfg.post_hooks, "after_commit",
+            &last_repo, &last_version, &last_rev, &matrix_file_str,
+        ).await {
+            if !quiet {
+                eprintln!("  warning: after_commit hook failed: {e}");
+            }
+            errors += 1;
         }
 
         // Step 3: Auto-propagate — run `tend flake-update --changed <repo>`
@@ -301,6 +332,28 @@ pub async fn run_watch_cycle(
                 errors += 1;
             }
         }
+
+        // Run after_propagate post-hooks
+        if let Err(e) = run_post_hooks(
+            &watch_cfg.post_hooks, "after_propagate",
+            &last_repo, &last_version, &last_rev, &matrix_file_str,
+        ).await {
+            if !quiet {
+                eprintln!("  warning: after_propagate hook failed: {e}");
+            }
+            errors += 1;
+        }
+
+        // Run after_all post-hooks
+        if let Err(e) = run_post_hooks(
+            &watch_cfg.post_hooks, "after_all",
+            &last_repo, &last_version, &last_rev, &matrix_file_str,
+        ).await {
+            if !quiet {
+                eprintln!("  warning: after_all hook failed: {e}");
+            }
+            errors += 1;
+        }
     }
 
     Ok(WatchSummary {
@@ -308,6 +361,57 @@ pub async fn run_watch_cycle(
         new_versions,
         errors,
     })
+}
+
+/// Run post-hooks that match the given trigger.
+async fn run_post_hooks(
+    hooks: &[PostHook],
+    trigger: &str,
+    repo: &str,
+    version: &str,
+    rev: &str,
+    matrix_file: &str,
+) -> Result<()> {
+    for hook in hooks.iter().filter(|h| h.trigger == trigger) {
+        let args: Vec<String> = hook
+            .args
+            .iter()
+            .map(|a| {
+                a.replace("$VERSION", version)
+                    .replace("$REPO", repo)
+                    .replace("$REV", rev)
+                    .replace("$MATRIX_FILE", matrix_file)
+            })
+            .collect();
+
+        let dir = hook
+            .working_dir
+            .as_deref()
+            .map(|d| shellexpand::tilde(d).to_string());
+
+        eprintln!(
+            "  {} running hook: {} {}",
+            "=>".blue().bold(),
+            hook.command,
+            args.join(" ")
+        );
+
+        let mut cmd = tokio::process::Command::new(&hook.command);
+        cmd.args(&args);
+        if let Some(ref d) = dir {
+            cmd.current_dir(d);
+        }
+
+        let status = cmd.status().await?;
+        if !status.success() && !hook.continue_on_error {
+            anyhow::bail!(
+                "post-hook failed: {} (exit {})",
+                hook.command,
+                status
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Run `akeyless-matrix certify` on the matrix file.
@@ -588,6 +692,7 @@ mod tests {
                 auto_certify: false,
                 auto_commit: false,
                 auto_propagate: None,
+                post_hooks: vec![],
             }),
         }
     }
@@ -971,5 +1076,137 @@ repo = "repo-a"
         assert_eq!(appended.len(), 0);
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn test_post_hook_deserialization_from_yaml() {
+        let yaml = r#"
+enable: true
+matrix_file: ~/matrix.toml
+auto_certify: false
+auto_commit: false
+post_hooks:
+  - trigger: after_certify
+    command: echo
+    args:
+      - "$VERSION"
+      - "$REPO"
+    working_dir: ~/code
+    continue_on_error: true
+  - trigger: after_all
+    command: notify-send
+    args:
+      - "done: $REV"
+"#;
+        let config: WatchConfig = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.post_hooks.len(), 2);
+        assert_eq!(config.post_hooks[0].trigger, "after_certify");
+        assert_eq!(config.post_hooks[0].command, "echo");
+        assert_eq!(config.post_hooks[0].args, vec!["$VERSION", "$REPO"]);
+        assert_eq!(config.post_hooks[0].working_dir.as_deref(), Some("~/code"));
+        assert!(config.post_hooks[0].continue_on_error);
+        assert_eq!(config.post_hooks[1].trigger, "after_all");
+        assert_eq!(config.post_hooks[1].command, "notify-send");
+        assert_eq!(config.post_hooks[1].args, vec!["done: $REV"]);
+        assert_eq!(config.post_hooks[1].working_dir, None);
+        assert!(!config.post_hooks[1].continue_on_error);
+    }
+
+    #[tokio::test]
+    async fn test_post_hook_variable_substitution() {
+        use crate::config::PostHook;
+
+        let tmp_dir = std::env::temp_dir().join("tend-test-hook-vars");
+        let _ = std::fs::create_dir_all(&tmp_dir);
+        let output_file = tmp_dir.join("hook-output.txt");
+
+        let hooks = vec![PostHook {
+            trigger: "after_certify".to_string(),
+            command: "bash".to_string(),
+            args: vec![
+                "-c".to_string(),
+                format!(
+                    "echo \"$VERSION $REPO $REV $MATRIX_FILE\" > {}",
+                    output_file.display()
+                ),
+            ],
+            working_dir: None,
+            continue_on_error: false,
+        }];
+
+        run_post_hooks(&hooks, "after_certify", "my-repo", "1.2.3", "abc123", "/path/matrix.toml")
+            .await
+            .unwrap();
+
+        let content = std::fs::read_to_string(&output_file).unwrap();
+        assert_eq!(content.trim(), "1.2.3 my-repo abc123 /path/matrix.toml");
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn test_empty_post_hooks_backward_compatible() {
+        let yaml = r#"
+enable: true
+matrix_file: ~/matrix.toml
+auto_certify: false
+auto_commit: false
+"#;
+        let config: WatchConfig = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.post_hooks.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_unknown_trigger_silently_skipped() {
+        use crate::config::PostHook;
+
+        let hooks = vec![PostHook {
+            trigger: "after_certify".to_string(),
+            command: "false".to_string(), // would fail if executed
+            args: vec![],
+            working_dir: None,
+            continue_on_error: false,
+        }];
+
+        // Run with a trigger that doesn't match — should be a no-op
+        let result = run_post_hooks(&hooks, "unknown_trigger", "repo", "1.0", "abc", "/m.toml").await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_continue_on_error_allows_pipeline_to_continue() {
+        use crate::config::PostHook;
+
+        let hooks = vec![
+            PostHook {
+                trigger: "after_all".to_string(),
+                command: "false".to_string(), // exits with code 1
+                args: vec![],
+                working_dir: None,
+                continue_on_error: true, // should NOT bail
+            },
+        ];
+
+        let result = run_post_hooks(&hooks, "after_all", "repo", "1.0", "abc", "/m.toml").await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_continue_on_error_false_stops_pipeline() {
+        use crate::config::PostHook;
+
+        let hooks = vec![
+            PostHook {
+                trigger: "after_all".to_string(),
+                command: "false".to_string(), // exits with code 1
+                args: vec![],
+                working_dir: None,
+                continue_on_error: false, // should bail
+            },
+        ];
+
+        let result = run_post_hooks(&hooks, "after_all", "repo", "1.0", "abc", "/m.toml").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("post-hook failed"));
     }
 }

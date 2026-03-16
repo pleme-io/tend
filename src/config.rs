@@ -46,6 +46,26 @@ pub struct WatchConfig {
     /// Run `tend flake-update --changed <repo>` to propagate to dependent flakes
     #[serde(default)]
     pub auto_propagate: Option<String>,
+    /// Post-hooks to run after watch cycle steps
+    #[serde(default)]
+    pub post_hooks: Vec<PostHook>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostHook {
+    /// When to trigger: "after_certify", "after_commit", "after_propagate", "after_all"
+    pub trigger: String,
+    /// Shell command to run
+    pub command: String,
+    /// Arguments (supports $VERSION, $REPO, $REV, $MATRIX_FILE placeholders)
+    #[serde(default)]
+    pub args: Vec<String>,
+    /// Working directory (supports ~ expansion)
+    #[serde(default)]
+    pub working_dir: Option<String>,
+    /// Continue if this hook fails
+    #[serde(default)]
+    pub continue_on_error: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
