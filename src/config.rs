@@ -113,8 +113,25 @@ impl Config {
         Ok(config)
     }
 
+    /// Discover the default config file path using shikumi.
+    ///
+    /// Precedence:
+    /// 1. `$TEND_CONFIG` environment variable
+    /// 2. Standard shikumi paths: `$XDG_CONFIG_HOME/tend/tend.yaml`, `~/.config/tend/tend.yaml`, etc.
+    /// 3. Legacy fallback: `~/.config/tend/config.yaml` (backward compat)
     pub fn default_path() -> PathBuf {
-        // Use XDG_CONFIG_HOME or ~/.config (not macOS ~/Library/Application Support)
+        use shikumi::{ConfigDiscovery, Format};
+
+        // Try shikumi discovery first (TEND_CONFIG env, then tend/tend.yaml, etc.)
+        if let Ok(path) = ConfigDiscovery::new("tend")
+            .env_override("TEND_CONFIG")
+            .formats(&[Format::Yaml])
+            .discover()
+        {
+            return path;
+        }
+
+        // Legacy fallback: tend/config.yaml (pre-shikumi convention)
         let config_dir = std::env::var("XDG_CONFIG_HOME")
             .map(PathBuf::from)
             .unwrap_or_else(|_| {
