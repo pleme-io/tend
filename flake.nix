@@ -36,7 +36,7 @@
       inherit self;
       serviceName = "tend";
       registry = "ghcr.io/pleme-io/tend";
-      packageName = "tend";
+      packageName = "pleme-tend";
       namespace = "forge-system";
       architectures = ["amd64" "arm64"];
       ports = { health = 8081; metrics = 9090; };
