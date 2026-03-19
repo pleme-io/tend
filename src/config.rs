@@ -109,7 +109,7 @@ impl Config {
         let contents =
             std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
         let config: Config =
-            serde_yaml::from_str(&contents).with_context(|| format!("parsing {}", path.display()))?;
+            serde_yaml_ng::from_str(&contents).with_context(|| format!("parsing {}", path.display()))?;
         Ok(config)
     }
 
@@ -176,5 +176,5 @@ pub fn generate_starter_config() -> String {
             watch: None,
         }],
     };
-    serde_yaml::to_string(&config).unwrap()
+    serde_yaml_ng::to_string(&config).unwrap()
 }
