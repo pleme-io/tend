@@ -1,3 +1,4 @@
 {
-  "git+https://github.com/pleme-io/shikumi#0.1.0": "144498r41xp32kd4w2sr6wjk2z3xb09vypj2k09cflqibwnyzn32"
+  "git+https://github.com/pleme-io/shikumi#0.1.0": "144498r41xp32kd4w2sr6wjk2z3xb09vypj2k09cflqibwnyzn32",
+  "git+https://github.com/pleme-io/todoku#0.1.0": "07sa7mknln8fm2d2grif7sh8k6gp8q988mkl9hflzbj4hl1bfd22"
 }
