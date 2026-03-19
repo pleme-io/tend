@@ -3,7 +3,7 @@ use async_trait::async_trait;
 
 /// Trait abstracting GitHub API interactions for testability.
 ///
-/// Production code uses `HttpGitHubClient`, which makes real HTTP requests.
+/// Production code uses `HttpGitHubClient`, which delegates to todoku's GitHub client.
 /// Tests can substitute a mock that returns predetermined responses.
 #[async_trait]
 pub trait GitHubClient: Send + Sync {
@@ -26,32 +26,44 @@ pub trait GitHubClient: Send + Sync {
     ) -> Result<(String, u64, String)>;
 }
 
-/// Real implementation using reqwest HTTP client.
+/// Real implementation backed by todoku's GitHub client.
 pub struct HttpGitHubClient {
-    client: reqwest::Client,
-    token: Option<String>,
+    inner: todoku::GitHubClient,
 }
 
 impl HttpGitHubClient {
     pub fn new() -> Result<Self> {
-        let client = crate::provider::build_github_client()?;
         let token = crate::provider::github_token();
-        Ok(Self { client, token })
+        let inner = todoku::GitHubClient::new(token.as_deref())
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        Ok(Self { inner })
     }
 }
 
 #[async_trait]
 impl GitHubClient for HttpGitHubClient {
     async fn get_repo_head(&self, org: &str, repo: &str) -> Result<String> {
-        crate::provider::get_repo_head(&self.client, self.token.as_deref(), org, repo).await
+        use todoku::GitHubApi;
+        self.inner
+            .get_repo_head(org, repo)
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))
     }
 
     async fn get_latest_tag(&self, org: &str, repo: &str) -> Result<Option<String>> {
-        crate::provider::get_latest_tag(&self.client, self.token.as_deref(), org, repo).await
+        use todoku::GitHubApi;
+        self.inner
+            .get_latest_tag(org, repo)
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))
     }
 
     async fn detect_repo_language(&self, org: &str, repo: &str) -> Result<Option<String>> {
-        crate::provider::detect_repo_language(&self.client, self.token.as_deref(), org, repo).await
+        use todoku::GitHubApi;
+        self.inner
+            .get_primary_language(org, repo)
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))
     }
 
     async fn get_file_sha(
@@ -60,6 +72,12 @@ impl GitHubClient for HttpGitHubClient {
         repo: &str,
         path: &str,
     ) -> Result<(String, u64, String)> {
-        crate::provider::get_file_sha(&self.client, self.token.as_deref(), org, repo, path).await
+        use todoku::GitHubApi;
+        let info = self
+            .inner
+            .get_file_info(org, repo, path)
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        Ok((info.sha, info.size, info.download_url))
     }
 }

@@ -466,9 +466,16 @@ pub async fn run_watch_cycle(
             let short_sha = &new_sha[..new_sha.len().min(12)];
             current_file = format!("{dir}/{short_sha}.{ext}");
 
-            let content = reqwest::get(&download_url)
+            let http = todoku::HttpClient::builder()
+                .build()
+                .map_err(|e| anyhow::anyhow!("{e}"))
+                .context("building HTTP client for download")?;
+            let resp = http
+                .get_raw(&download_url)
                 .await
-                .with_context(|| format!("downloading {download_url}"))?
+                .map_err(|e| anyhow::anyhow!("{e}"))
+                .with_context(|| format!("downloading {download_url}"))?;
+            let content = resp
                 .text()
                 .await
                 .with_context(|| format!("reading body from {download_url}"))?;
@@ -1353,7 +1360,7 @@ post_hooks:
     args:
       - "done: $REV"
 "#;
-        let config: WatchConfig = serde_yaml::from_str(yaml).unwrap();
+        let config: WatchConfig = serde_yaml_ng::from_str(yaml).unwrap();
         assert_eq!(config.post_hooks.len(), 2);
         assert_eq!(config.post_hooks[0].trigger, "after_certify");
         assert_eq!(config.post_hooks[0].command, "echo");
@@ -1408,7 +1415,7 @@ matrix_file: ~/matrix.toml
 auto_certify: false
 auto_commit: false
 "#;
-        let config: WatchConfig = serde_yaml::from_str(yaml).unwrap();
+        let config: WatchConfig = serde_yaml_ng::from_str(yaml).unwrap();
         assert!(config.post_hooks.is_empty());
     }
 
@@ -1497,7 +1504,7 @@ file_watches:
     repo: myrepo
     path: config.json
 "#;
-        let config: WatchConfig = serde_yaml::from_str(yaml).unwrap();
+        let config: WatchConfig = serde_yaml_ng::from_str(yaml).unwrap();
         assert_eq!(config.file_watches.len(), 2);
 
         let fw = &config.file_watches[0];
@@ -1716,7 +1723,7 @@ matrix_file: ~/matrix.toml
 auto_certify: false
 auto_commit: false
 "#;
-        let config: WatchConfig = serde_yaml::from_str(yaml).unwrap();
+        let config: WatchConfig = serde_yaml_ng::from_str(yaml).unwrap();
         assert!(config.file_watches.is_empty());
         assert!(config.post_hooks.is_empty());
     }
