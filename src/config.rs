@@ -52,6 +52,9 @@ pub struct WatchConfig {
     /// File watches: monitor specific files in GitHub repos for content changes
     #[serde(default)]
     pub file_watches: Vec<FileWatch>,
+    /// Flake input watches: monitor flake.lock inputs against upstream for staleness
+    #[serde(default)]
+    pub flake_input_watches: Vec<FlakeInputWatch>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,6 +90,45 @@ pub struct PostHook {
     /// Continue if this hook fails
     #[serde(default)]
     pub continue_on_error: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FlakeInputWatch {
+    /// Human-readable name for this watch
+    pub name: String,
+    /// Local repo (relative to workspace base_dir) whose flake.lock to check
+    pub repo: String,
+    /// Flake input name in flake.lock
+    pub input: String,
+    /// "owner/repo" on GitHub — derived from flake.lock if omitted
+    #[serde(default)]
+    pub upstream: Option<String>,
+    /// Watch mode: compare HEAD SHA (commits) or latest tag (tags)
+    #[serde(default = "default_flake_input_mode")]
+    pub mode: FlakeInputMode,
+    /// Run `nix flake update <input>` when stale
+    #[serde(default)]
+    pub auto_update: bool,
+    /// Commit + push flake.lock after update
+    #[serde(default)]
+    pub auto_commit: bool,
+    /// Run `tend flake-update --changed <repo>` to propagate
+    #[serde(default)]
+    pub auto_propagate: Option<String>,
+    /// Hooks to run when staleness is detected
+    #[serde(default)]
+    pub post_hooks: Vec<PostHook>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum FlakeInputMode {
+    Commits,
+    Tags,
+}
+
+fn default_flake_input_mode() -> FlakeInputMode {
+    FlakeInputMode::Commits
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

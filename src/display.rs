@@ -183,7 +183,7 @@ pub fn print_flake_chain_complete(updated: usize) {
 }
 
 pub fn print_watch_summary(workspace_name: &str, summary: &watch::WatchSummary) {
-    if summary.new_versions == 0 && summary.file_changes == 0 {
+    if summary.new_versions == 0 && summary.file_changes == 0 && summary.flake_input_updates == 0 {
         println!(
             "{}: watched {} repos, no new versions",
             workspace_name.bold(),
@@ -196,6 +196,9 @@ pub fn print_watch_summary(workspace_name: &str, summary: &watch::WatchSummary) 
         }
         if summary.file_changes > 0 {
             parts.push(format!("{} file changes", summary.file_changes.to_string().green()));
+        }
+        if summary.flake_input_updates > 0 {
+            parts.push(format!("{} flake input updates", summary.flake_input_updates.to_string().green()));
         }
         println!(
             "{}: watched {} repos, {} detected",

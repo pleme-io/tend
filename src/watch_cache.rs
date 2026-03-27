@@ -16,6 +16,9 @@ pub struct WatchState {
     /// Cached file blob SHAs for file watches. Key: "org/repo/path" → SHA.
     #[serde(default)]
     pub file_shas: BTreeMap<String, String>,
+    /// Cached upstream state for flake input watches. Key: watch name.
+    #[serde(default)]
+    pub flake_inputs: BTreeMap<String, FlakeInputCacheEntry>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -23,6 +26,13 @@ pub struct RepoState {
     pub head: String,
     pub latest_tag: Option<String>,
     pub language: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct FlakeInputCacheEntry {
+    pub upstream_rev: String,
+    #[serde(default)]
+    pub upstream_tag: Option<String>,
 }
 
 /// Real implementation backed by the filesystem.

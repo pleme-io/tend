@@ -17,6 +17,8 @@ pub struct WatchSummary {
     pub errors: usize,
     /// Number of file watches that detected changes.
     pub file_changes: usize,
+    /// Number of flake input watches that detected staleness.
+    pub flake_input_updates: usize,
 }
 
 /// Tracking mode read from matrix.toml for a package.
@@ -136,13 +138,14 @@ pub async fn run_watch_cycle(
         None => None,
     };
 
-    // If there's no matrix_file and no file_watches, nothing to do
-    if matrix_file.is_none() && watch_cfg.file_watches.is_empty() {
+    // If there's no matrix_file and no file_watches and no flake_input_watches, nothing to do
+    if matrix_file.is_none() && watch_cfg.file_watches.is_empty() && watch_cfg.flake_input_watches.is_empty() {
         return Ok(WatchSummary {
             checked: 0,
             new_versions: 0,
             errors: 0,
             file_changes: 0,
+            flake_input_updates: 0,
         });
     }
 
@@ -578,6 +581,251 @@ pub async fn run_watch_cycle(
         state.file_shas.insert(cache_key, new_sha);
     }
 
+    // ── Flake input watch (flake.lock input staleness tracking) ──
+    let mut flake_input_updates = 0usize;
+    let base_dir = ws.resolved_base_dir()?;
+
+    for fiw in &watch_cfg.flake_input_watches {
+        let flake_lock_path = base_dir.join(&fiw.repo).join("flake.lock");
+
+        // Parse the locked rev and upstream owner/repo from flake.lock
+        let (locked_rev, lock_owner, lock_repo) = match parse_flake_lock_input(&flake_lock_path, &fiw.input) {
+            Ok(result) => result,
+            Err(e) => {
+                if !quiet {
+                    eprintln!("  warning: failed to parse flake.lock for {}: {e}", fiw.name);
+                }
+                errors += 1;
+                continue;
+            }
+        };
+
+        // Derive upstream owner/repo: explicit config or from flake.lock
+        let (upstream_owner, upstream_repo) = if let Some(ref upstream) = fiw.upstream {
+            match upstream.split_once('/') {
+                Some((o, r)) => (o.to_string(), r.to_string()),
+                None => {
+                    if !quiet {
+                        eprintln!("  warning: invalid upstream format for {}: expected owner/repo", fiw.name);
+                    }
+                    errors += 1;
+                    continue;
+                }
+            }
+        } else {
+            (lock_owner, lock_repo)
+        };
+
+        // Compare locked rev against upstream
+        let (upstream_rev, upstream_tag) = match fiw.mode {
+            crate::config::FlakeInputMode::Commits => {
+                match github.get_repo_head(&upstream_owner, &upstream_repo).await {
+                    Ok(sha) => (sha, None),
+                    Err(e) => {
+                        if !quiet {
+                            eprintln!("  warning: failed to get HEAD for {}/{}: {e}", upstream_owner, upstream_repo);
+                        }
+                        errors += 1;
+                        continue;
+                    }
+                }
+            }
+            crate::config::FlakeInputMode::Tags => {
+                let tag = match github.get_latest_tag(&upstream_owner, &upstream_repo).await {
+                    Ok(t) => t,
+                    Err(e) => {
+                        if !quiet {
+                            eprintln!("  warning: failed to get tags for {}/{}: {e}", upstream_owner, upstream_repo);
+                        }
+                        errors += 1;
+                        continue;
+                    }
+                };
+                let cached = state.flake_inputs.get(&fiw.name);
+                let cached_tag = cached.and_then(|c| c.upstream_tag.as_deref());
+                // Only trigger on new tag (different from cached tag)
+                if tag.as_deref() == cached_tag {
+                    continue;
+                }
+                // Get HEAD SHA for the rev
+                let sha = match github.get_repo_head(&upstream_owner, &upstream_repo).await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        if !quiet {
+                            eprintln!("  warning: failed to get HEAD for {}/{}: {e}", upstream_owner, upstream_repo);
+                        }
+                        errors += 1;
+                        continue;
+                    }
+                };
+                (sha, tag)
+            }
+        };
+
+        // Skip if locked rev matches upstream (already up to date)
+        if locked_rev == upstream_rev {
+            // Update cache even if up-to-date (for tags mode tracking)
+            state.flake_inputs.insert(fiw.name.clone(), crate::watch_cache::FlakeInputCacheEntry {
+                upstream_rev: upstream_rev.clone(),
+                upstream_tag: upstream_tag.clone(),
+            });
+            continue;
+        }
+
+        // Skip if we already processed this upstream rev (cache hit, no auto_update)
+        if let Some(cached) = state.flake_inputs.get(&fiw.name) {
+            if cached.upstream_rev == upstream_rev && !fiw.auto_update {
+                continue;
+            }
+        }
+
+        flake_input_updates += 1;
+
+        // Audit + display
+        audit.flake_input_stale(&fiw.name, &fiw.repo, &fiw.input, &locked_rev, &upstream_rev);
+
+        if !quiet {
+            println!(
+                "  {} flake input stale: {} ({}/{})",
+                "!".yellow().bold(),
+                fiw.name,
+                fiw.repo,
+                fiw.input,
+            );
+            println!("    locked:   {}", &locked_rev[..locked_rev.len().min(12)]);
+            println!("    upstream: {}", &upstream_rev[..upstream_rev.len().min(12)]);
+        }
+
+        // Run on_stale post-hooks
+        for hook in &fiw.post_hooks {
+            if hook.trigger != "on_stale" {
+                continue;
+            }
+
+            let args: Vec<String> = hook
+                .args
+                .iter()
+                .map(|a| {
+                    a.replace("$INPUT", &fiw.input)
+                        .replace("$LOCKED_REV", &locked_rev)
+                        .replace("$UPSTREAM_REV", &upstream_rev)
+                        .replace("$REPO", &fiw.repo)
+                        .replace("$NAME", &fiw.name)
+                })
+                .collect();
+
+            let dir = hook
+                .working_dir
+                .as_deref()
+                .map(|d| shellexpand::tilde(d).to_string());
+
+            if !quiet {
+                eprintln!(
+                    "  {} running flake-input hook: {} {}",
+                    "=>".blue().bold(),
+                    hook.command,
+                    args.join(" ")
+                );
+            }
+
+            let mut cmd = tokio::process::Command::new(&hook.command);
+            cmd.args(&args);
+            if let Some(ref d) = dir {
+                cmd.current_dir(d);
+            }
+
+            let hook_start = std::time::Instant::now();
+            match cmd.status().await {
+                Ok(status) => {
+                    let duration_ms = hook_start.elapsed().as_millis() as u64;
+                    let exit_code = status.code().unwrap_or(-1);
+                    audit.hook_executed("on_stale", &hook.command, exit_code, duration_ms);
+                    if !status.success() && !hook.continue_on_error {
+                        if !quiet {
+                            eprintln!(
+                                "  warning: flake-input hook failed: {} (exit {})",
+                                hook.command, status
+                            );
+                        }
+                        errors += 1;
+                    }
+                }
+                Err(e) => {
+                    let duration_ms = hook_start.elapsed().as_millis() as u64;
+                    audit.hook_executed("on_stale", &hook.command, -1, duration_ms);
+                    if !quiet {
+                        eprintln!("  warning: flake-input hook error: {}: {e}", hook.command);
+                    }
+                    errors += 1;
+                }
+            }
+        }
+
+        // Auto-update: nix flake update <input>
+        if fiw.auto_update {
+            let repo_dir = base_dir.join(&fiw.repo);
+            if !quiet {
+                eprintln!("  [>>] running nix flake update {} in {}...", fiw.input, fiw.repo);
+            }
+            match run_nix_flake_update(&repo_dir, &fiw.input) {
+                Ok(()) => {
+                    if !quiet {
+                        eprintln!("  [{}] flake input {} updated", "ok".green(), fiw.input);
+                    }
+                }
+                Err(e) => {
+                    if !quiet {
+                        eprintln!("  warning: nix flake update failed for {}: {e}", fiw.input);
+                    }
+                    errors += 1;
+                    // Update cache even on failure to avoid re-triggering
+                    state.flake_inputs.insert(fiw.name.clone(), crate::watch_cache::FlakeInputCacheEntry {
+                        upstream_rev: upstream_rev.clone(),
+                        upstream_tag: upstream_tag.clone(),
+                    });
+                    continue;
+                }
+            }
+
+            // Auto-commit: git add flake.lock, commit, push
+            if fiw.auto_commit {
+                let repo_dir = base_dir.join(&fiw.repo);
+                let flake_lock = repo_dir.join("flake.lock");
+                match auto_commit_flake_input(&repo_dir, &flake_lock, &fiw.input, git_ops) {
+                    Ok(()) => {
+                        let msg = format!("chore: update {} flake input", fiw.input);
+                        audit.commit_pushed(&fiw.repo, "(auto)", &msg);
+                    }
+                    Err(e) => {
+                        if !quiet {
+                            eprintln!("  warning: auto-commit failed for {}: {e}", fiw.repo);
+                        }
+                        errors += 1;
+                    }
+                }
+            }
+
+            // Auto-propagate: tend flake-update --changed <repo>
+            if let Some(ref propagate_repo) = fiw.auto_propagate {
+                if !quiet {
+                    eprintln!("  [>>] propagating flake update for {propagate_repo}...");
+                }
+                if let Err(e) = run_flake_propagate(propagate_repo, ws) {
+                    if !quiet {
+                        eprintln!("  warning: auto-propagate failed: {e}");
+                    }
+                    errors += 1;
+                }
+            }
+        }
+
+        // Update cache
+        state.flake_inputs.insert(fiw.name.clone(), crate::watch_cache::FlakeInputCacheEntry {
+            upstream_rev: upstream_rev.clone(),
+            upstream_tag: upstream_tag.clone(),
+        });
+    }
+
     cache_store.save(&ws.name, &state)?;
 
     Ok(WatchSummary {
@@ -585,6 +833,7 @@ pub async fn run_watch_cycle(
         new_versions,
         errors,
         file_changes,
+        flake_input_updates,
     })
 }
 
@@ -656,6 +905,99 @@ fn run_certify(matrix_file: &Path) -> Result<()> {
         let stderr = String::from_utf8_lossy(&output.stderr);
         anyhow::bail!("akeyless-matrix certify failed: {stderr}");
     }
+    Ok(())
+}
+
+/// Parse a flake.lock file to extract the locked rev and upstream owner/repo for a given input.
+///
+/// Returns `(locked_rev, owner, repo)`. Skips inputs using `follows` (JSON array)
+/// with a descriptive error.
+fn parse_flake_lock_input(
+    flake_lock_path: &Path,
+    input_name: &str,
+) -> Result<(String, String, String)> {
+    let content = std::fs::read_to_string(flake_lock_path)
+        .with_context(|| format!("reading {}", flake_lock_path.display()))?;
+    let lock: serde_json::Value = serde_json::from_str(&content)
+        .with_context(|| format!("parsing {}", flake_lock_path.display()))?;
+
+    // Navigate: root.inputs.<input_name> → node name (string or array)
+    let root_inputs = lock
+        .pointer("/root/inputs")
+        .or_else(|| lock.pointer("/nodes/root/inputs"))
+        .ok_or_else(|| anyhow::anyhow!("no root/inputs in flake.lock"))?;
+
+    let node_ref = root_inputs
+        .get(input_name)
+        .ok_or_else(|| anyhow::anyhow!("input '{input_name}' not found in flake.lock"))?;
+
+    // If the input uses `follows`, it's a JSON array — skip
+    let node_name = match node_ref {
+        serde_json::Value::String(s) => s.as_str(),
+        serde_json::Value::Array(_) => {
+            anyhow::bail!("input '{input_name}' uses follows (not independently updatable)");
+        }
+        _ => anyhow::bail!("unexpected type for input '{input_name}' in flake.lock"),
+    };
+
+    // Navigate: nodes.<node_name>.locked
+    let locked = lock
+        .pointer(&format!("/nodes/{node_name}/locked"))
+        .ok_or_else(|| anyhow::anyhow!("no locked data for node '{node_name}' in flake.lock"))?;
+
+    let rev = locked
+        .get("rev")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("no rev in locked data for '{node_name}'"))?
+        .to_string();
+
+    let owner = locked
+        .get("owner")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("no owner in locked data for '{node_name}'"))?
+        .to_string();
+
+    let repo = locked
+        .get("repo")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("no repo in locked data for '{node_name}'"))?
+        .to_string();
+
+    Ok((rev, owner, repo))
+}
+
+/// Run `nix flake update <input>` in a repo directory.
+fn run_nix_flake_update(repo_dir: &Path, input_name: &str) -> Result<()> {
+    let output = std::process::Command::new("nix")
+        .args(["flake", "update", input_name])
+        .current_dir(repo_dir)
+        .output()
+        .context("running nix flake update")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("nix flake update {input_name} failed: {stderr}");
+    }
+    Ok(())
+}
+
+/// Auto commit and push flake.lock after a flake input update.
+fn auto_commit_flake_input(
+    repo_dir: &Path,
+    flake_lock: &Path,
+    input_name: &str,
+    git_ops: &dyn GitOps,
+) -> Result<()> {
+    git_ops.add(repo_dir, flake_lock)?;
+
+    if !git_ops.has_staged_changes(repo_dir)? {
+        return Ok(());
+    }
+
+    let msg = format!("chore: update {input_name} flake input");
+    git_ops.commit(repo_dir, &msg)?;
+    git_ops.push(repo_dir)?;
+
     Ok(())
 }
 
@@ -951,6 +1293,7 @@ mod tests {
                 auto_propagate: None,
                 post_hooks: vec![],
                 file_watches: vec![],
+                flake_input_watches: vec![],
             }),
         }
     }
@@ -1849,5 +2192,794 @@ auto_commit: false
         );
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    // ── Flake Input Watch Tests ──
+
+    /// Helper: write a minimal flake.lock JSON for testing
+    fn write_test_flake_lock(dir: &std::path::Path, input_name: &str, rev: &str, owner: &str, repo: &str) {
+        let lock = serde_json::json!({
+            "nodes": {
+                "root": {
+                    "inputs": {
+                        input_name: input_name
+                    }
+                },
+                input_name: {
+                    "locked": {
+                        "rev": rev,
+                        "owner": owner,
+                        "repo": repo,
+                        "type": "github"
+                    },
+                    "original": {
+                        "owner": owner,
+                        "repo": repo,
+                        "type": "github"
+                    }
+                }
+            },
+            "root": "root",
+            "version": 7
+        });
+        let lock_path = dir.join("flake.lock");
+        std::fs::write(&lock_path, serde_json::to_string_pretty(&lock).unwrap()).unwrap();
+    }
+
+    /// Helper: write a flake.lock with a follows input (JSON array)
+    fn write_test_flake_lock_follows(dir: &std::path::Path, input_name: &str) {
+        let lock = serde_json::json!({
+            "nodes": {
+                "root": {
+                    "inputs": {
+                        input_name: ["other-input", "nixpkgs"]
+                    }
+                }
+            },
+            "root": "root",
+            "version": 7
+        });
+        let lock_path = dir.join("flake.lock");
+        std::fs::write(&lock_path, serde_json::to_string_pretty(&lock).unwrap()).unwrap();
+    }
+
+    #[test]
+    fn test_parse_flake_lock_input_basic() {
+        let tmp = std::env::temp_dir().join("tend-test-flake-parse");
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        write_test_flake_lock(&tmp, "claude-code", "abc123def456", "sadjow", "claude-code-nix");
+
+        let (rev, owner, repo) = parse_flake_lock_input(&tmp.join("flake.lock"), "claude-code").unwrap();
+        assert_eq!(rev, "abc123def456");
+        assert_eq!(owner, "sadjow");
+        assert_eq!(repo, "claude-code-nix");
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_parse_flake_lock_input_not_found() {
+        let tmp = std::env::temp_dir().join("tend-test-flake-parse-notfound");
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        write_test_flake_lock(&tmp, "nixpkgs", "abc123", "NixOS", "nixpkgs");
+
+        let result = parse_flake_lock_input(&tmp.join("flake.lock"), "nonexistent");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_parse_flake_lock_input_follows_skipped() {
+        let tmp = std::env::temp_dir().join("tend-test-flake-parse-follows");
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        write_test_flake_lock_follows(&tmp, "nixpkgs");
+
+        let result = parse_flake_lock_input(&tmp.join("flake.lock"), "nixpkgs");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("follows"));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_parse_flake_lock_input_missing_file() {
+        let result = parse_flake_lock_input(std::path::Path::new("/nonexistent/flake.lock"), "foo");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_flake_input_watch_config_deserialization() {
+        let yaml = r#"
+enable: true
+flake_input_watches:
+  - name: claude-code
+    repo: blackmatter-claude
+    input: claude-code
+    upstream: sadjow/claude-code-nix
+    mode: commits
+    auto_update: true
+    auto_commit: true
+    auto_propagate: blackmatter-claude
+    post_hooks:
+      - trigger: on_stale
+        command: echo
+        args:
+          - "$INPUT stale: $LOCKED_REV -> $UPSTREAM_REV"
+  - name: nixpkgs
+    repo: blackmatter
+    input: nixpkgs
+    mode: tags
+"#;
+        let config: WatchConfig = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(config.flake_input_watches.len(), 2);
+
+        let fw = &config.flake_input_watches[0];
+        assert_eq!(fw.name, "claude-code");
+        assert_eq!(fw.repo, "blackmatter-claude");
+        assert_eq!(fw.input, "claude-code");
+        assert_eq!(fw.upstream.as_deref(), Some("sadjow/claude-code-nix"));
+        assert_eq!(fw.mode, crate::config::FlakeInputMode::Commits);
+        assert!(fw.auto_update);
+        assert!(fw.auto_commit);
+        assert_eq!(fw.auto_propagate.as_deref(), Some("blackmatter-claude"));
+        assert_eq!(fw.post_hooks.len(), 1);
+        assert_eq!(fw.post_hooks[0].trigger, "on_stale");
+
+        let fw2 = &config.flake_input_watches[1];
+        assert_eq!(fw2.name, "nixpkgs");
+        assert_eq!(fw2.mode, crate::config::FlakeInputMode::Tags);
+        assert!(!fw2.auto_update);
+        assert!(!fw2.auto_commit);
+        assert!(fw2.auto_propagate.is_none());
+        assert!(fw2.upstream.is_none());
+    }
+
+    #[test]
+    fn test_flake_input_watch_config_defaults() {
+        let yaml = r#"
+enable: true
+flake_input_watches:
+  - name: test
+    repo: some-repo
+    input: some-input
+"#;
+        let config: WatchConfig = serde_yaml_ng::from_str(yaml).unwrap();
+        let fw = &config.flake_input_watches[0];
+        assert_eq!(fw.mode, crate::config::FlakeInputMode::Commits);
+        assert!(!fw.auto_update);
+        assert!(!fw.auto_commit);
+        assert!(fw.auto_propagate.is_none());
+        assert!(fw.upstream.is_none());
+        assert!(fw.post_hooks.is_empty());
+    }
+
+    #[test]
+    fn test_flake_input_watch_backward_compatible() {
+        // Config without flake_input_watches should still parse
+        let yaml = r#"
+enable: true
+matrix_file: ~/matrix.toml
+auto_certify: false
+auto_commit: false
+"#;
+        let config: WatchConfig = serde_yaml_ng::from_str(yaml).unwrap();
+        assert!(config.flake_input_watches.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_flake_input_watch_detects_staleness() {
+        use crate::config::FlakeInputWatch;
+
+        let tmp = std::env::temp_dir().join("tend-test-fiw-stale");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let repo_dir = tmp.join("my-repo");
+        std::fs::create_dir_all(&repo_dir).unwrap();
+
+        // Write flake.lock with locked rev
+        write_test_flake_lock(&repo_dir, "my-input", "locked111222333", "someowner", "somerepo");
+
+        let mut ws = make_test_workspace("fiw-test", None);
+        ws.base_dir = tmp.to_string_lossy().to_string();
+        ws.extra_repos = vec![];
+        ws.watch.as_mut().unwrap().flake_input_watches = vec![FlakeInputWatch {
+            name: "test-input".to_string(),
+            repo: "my-repo".to_string(),
+            input: "my-input".to_string(),
+            upstream: None, // derive from flake.lock
+            mode: crate::config::FlakeInputMode::Commits,
+            auto_update: false,
+            auto_commit: false,
+            auto_propagate: None,
+            post_hooks: vec![],
+        }];
+
+        let mut github = MockGitHub::new();
+        // Upstream HEAD is different from locked rev
+        github.heads.insert("somerepo".to_string(), "upstream999888777".to_string());
+
+        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.flake_input_updates, 1);
+        assert_eq!(summary.errors, 0);
+
+        // Verify cache was updated
+        let saved = cache.state.lock().unwrap();
+        let entry = saved.flake_inputs.get("test-input").unwrap();
+        assert_eq!(entry.upstream_rev, "upstream999888777");
+        assert!(entry.upstream_tag.is_none());
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn test_flake_input_watch_skips_when_up_to_date() {
+        use crate::config::FlakeInputWatch;
+
+        let tmp = std::env::temp_dir().join("tend-test-fiw-uptodate");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let repo_dir = tmp.join("my-repo");
+        std::fs::create_dir_all(&repo_dir).unwrap();
+
+        // Locked rev matches upstream HEAD
+        write_test_flake_lock(&repo_dir, "my-input", "samerev123456789", "owner", "repo");
+
+        let mut ws = make_test_workspace("fiw-uptodate", None);
+        ws.base_dir = tmp.to_string_lossy().to_string();
+        ws.extra_repos = vec![];
+        ws.watch.as_mut().unwrap().flake_input_watches = vec![FlakeInputWatch {
+            name: "up-to-date".to_string(),
+            repo: "my-repo".to_string(),
+            input: "my-input".to_string(),
+            upstream: None,
+            mode: crate::config::FlakeInputMode::Commits,
+            auto_update: false,
+            auto_commit: false,
+            auto_propagate: None,
+            post_hooks: vec![],
+        }];
+
+        let mut github = MockGitHub::new();
+        github.heads.insert("repo".to_string(), "samerev123456789".to_string());
+
+        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.flake_input_updates, 0);
+        assert_eq!(summary.errors, 0);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn test_flake_input_watch_explicit_upstream() {
+        use crate::config::FlakeInputWatch;
+
+        let tmp = std::env::temp_dir().join("tend-test-fiw-explicit");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let repo_dir = tmp.join("my-repo");
+        std::fs::create_dir_all(&repo_dir).unwrap();
+
+        write_test_flake_lock(&repo_dir, "my-input", "locked000", "flakeowner", "flakerepo");
+
+        let mut ws = make_test_workspace("fiw-explicit", None);
+        ws.base_dir = tmp.to_string_lossy().to_string();
+        ws.extra_repos = vec![];
+        ws.watch.as_mut().unwrap().flake_input_watches = vec![FlakeInputWatch {
+            name: "explicit-upstream".to_string(),
+            repo: "my-repo".to_string(),
+            input: "my-input".to_string(),
+            upstream: Some("explicit-owner/explicit-repo".to_string()),
+            mode: crate::config::FlakeInputMode::Commits,
+            auto_update: false,
+            auto_commit: false,
+            auto_propagate: None,
+            post_hooks: vec![],
+        }];
+
+        let mut github = MockGitHub::new();
+        // Only the explicit upstream has a head entry
+        github.heads.insert("explicit-repo".to_string(), "upstreamHEAD".to_string());
+
+        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.flake_input_updates, 1);
+        assert_eq!(summary.errors, 0);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn test_flake_input_watch_cache_prevents_retrigger() {
+        use crate::config::FlakeInputWatch;
+
+        let tmp = std::env::temp_dir().join("tend-test-fiw-cache");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let repo_dir = tmp.join("my-repo");
+        std::fs::create_dir_all(&repo_dir).unwrap();
+
+        write_test_flake_lock(&repo_dir, "my-input", "locked111", "owner", "repo");
+
+        let mut ws = make_test_workspace("fiw-cache", None);
+        ws.base_dir = tmp.to_string_lossy().to_string();
+        ws.extra_repos = vec![];
+        ws.watch.as_mut().unwrap().flake_input_watches = vec![FlakeInputWatch {
+            name: "cached-input".to_string(),
+            repo: "my-repo".to_string(),
+            input: "my-input".to_string(),
+            upstream: None,
+            mode: crate::config::FlakeInputMode::Commits,
+            auto_update: false, // no auto_update → cache should prevent retrigger
+            auto_commit: false,
+            auto_propagate: None,
+            post_hooks: vec![],
+        }];
+
+        let mut github = MockGitHub::new();
+        github.heads.insert("repo".to_string(), "upstream222".to_string());
+
+        // Pre-populate cache with the same upstream rev
+        let mut initial = WatchState::default();
+        initial.flake_inputs.insert(
+            "cached-input".to_string(),
+            crate::watch_cache::FlakeInputCacheEntry {
+                upstream_rev: "upstream222".to_string(),
+                upstream_tag: None,
+            },
+        );
+        let cache = MockCache { state: Mutex::new(initial) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
+            .await
+            .unwrap();
+
+        // Should not trigger because cache has same upstream_rev
+        assert_eq!(summary.flake_input_updates, 0);
+        assert_eq!(summary.errors, 0);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn test_flake_input_watch_tags_mode_detects_new_tag() {
+        use crate::config::FlakeInputWatch;
+
+        let tmp = std::env::temp_dir().join("tend-test-fiw-tags");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let repo_dir = tmp.join("my-repo");
+        std::fs::create_dir_all(&repo_dir).unwrap();
+
+        write_test_flake_lock(&repo_dir, "my-input", "locked000", "owner", "repo");
+
+        let mut ws = make_test_workspace("fiw-tags", None);
+        ws.base_dir = tmp.to_string_lossy().to_string();
+        ws.extra_repos = vec![];
+        ws.watch.as_mut().unwrap().flake_input_watches = vec![FlakeInputWatch {
+            name: "tags-input".to_string(),
+            repo: "my-repo".to_string(),
+            input: "my-input".to_string(),
+            upstream: None,
+            mode: crate::config::FlakeInputMode::Tags,
+            auto_update: false,
+            auto_commit: false,
+            auto_propagate: None,
+            post_hooks: vec![],
+        }];
+
+        let mut github = MockGitHub::new();
+        github.tags.insert("repo".to_string(), Some("v2.0.0".to_string()));
+        github.heads.insert("repo".to_string(), "taggedHEAD456".to_string());
+
+        // Cache has old tag
+        let mut initial = WatchState::default();
+        initial.flake_inputs.insert(
+            "tags-input".to_string(),
+            crate::watch_cache::FlakeInputCacheEntry {
+                upstream_rev: "oldrev".to_string(),
+                upstream_tag: Some("v1.0.0".to_string()),
+            },
+        );
+        let cache = MockCache { state: Mutex::new(initial) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.flake_input_updates, 1);
+        assert_eq!(summary.errors, 0);
+
+        // Verify cache updated with new tag
+        let saved = cache.state.lock().unwrap();
+        let entry = saved.flake_inputs.get("tags-input").unwrap();
+        assert_eq!(entry.upstream_rev, "taggedHEAD456");
+        assert_eq!(entry.upstream_tag.as_deref(), Some("v2.0.0"));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn test_flake_input_watch_tags_mode_skips_same_tag() {
+        use crate::config::FlakeInputWatch;
+
+        let tmp = std::env::temp_dir().join("tend-test-fiw-tags-same");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let repo_dir = tmp.join("my-repo");
+        std::fs::create_dir_all(&repo_dir).unwrap();
+
+        write_test_flake_lock(&repo_dir, "my-input", "locked000", "owner", "repo");
+
+        let mut ws = make_test_workspace("fiw-tags-same", None);
+        ws.base_dir = tmp.to_string_lossy().to_string();
+        ws.extra_repos = vec![];
+        ws.watch.as_mut().unwrap().flake_input_watches = vec![FlakeInputWatch {
+            name: "tags-same".to_string(),
+            repo: "my-repo".to_string(),
+            input: "my-input".to_string(),
+            upstream: None,
+            mode: crate::config::FlakeInputMode::Tags,
+            auto_update: false,
+            auto_commit: false,
+            auto_propagate: None,
+            post_hooks: vec![],
+        }];
+
+        let mut github = MockGitHub::new();
+        github.tags.insert("repo".to_string(), Some("v1.0.0".to_string()));
+
+        // Cache has the SAME tag — should not trigger
+        let mut initial = WatchState::default();
+        initial.flake_inputs.insert(
+            "tags-same".to_string(),
+            crate::watch_cache::FlakeInputCacheEntry {
+                upstream_rev: "oldrev".to_string(),
+                upstream_tag: Some("v1.0.0".to_string()),
+            },
+        );
+        let cache = MockCache { state: Mutex::new(initial) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.flake_input_updates, 0);
+        assert_eq!(summary.errors, 0);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn test_flake_input_watch_on_stale_hooks() {
+        use crate::config::FlakeInputWatch;
+
+        let tmp = std::env::temp_dir().join("tend-test-fiw-hooks");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let repo_dir = tmp.join("my-repo");
+        std::fs::create_dir_all(&repo_dir).unwrap();
+
+        write_test_flake_lock(&repo_dir, "my-input", "locked111", "owner", "repo");
+
+        let hook_output = tmp.join("hook-out.txt");
+
+        let mut ws = make_test_workspace("fiw-hooks", None);
+        ws.base_dir = tmp.to_string_lossy().to_string();
+        ws.extra_repos = vec![];
+        ws.watch.as_mut().unwrap().flake_input_watches = vec![FlakeInputWatch {
+            name: "hook-test".to_string(),
+            repo: "my-repo".to_string(),
+            input: "my-input".to_string(),
+            upstream: None,
+            mode: crate::config::FlakeInputMode::Commits,
+            auto_update: false,
+            auto_commit: false,
+            auto_propagate: None,
+            post_hooks: vec![PostHook {
+                trigger: "on_stale".to_string(),
+                command: "bash".to_string(),
+                args: vec![
+                    "-c".to_string(),
+                    format!(
+                        "echo \"INPUT=$INPUT LOCKED=$LOCKED_REV UPSTREAM=$UPSTREAM_REV REPO=$REPO NAME=$NAME\" > {}",
+                        hook_output.display()
+                    ),
+                ],
+                working_dir: None,
+                continue_on_error: false,
+            }],
+        }];
+
+        let mut github = MockGitHub::new();
+        github.heads.insert("repo".to_string(), "upstream999".to_string());
+
+        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.flake_input_updates, 1);
+
+        // Verify hook ran with correct variable substitution
+        let content = std::fs::read_to_string(&hook_output).unwrap();
+        assert!(content.contains("INPUT=my-input"));
+        assert!(content.contains("LOCKED=locked111"));
+        assert!(content.contains("UPSTREAM=upstream999"));
+        assert!(content.contains("REPO=my-repo"));
+        assert!(content.contains("NAME=hook-test"));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn test_flake_input_watch_handles_parse_error() {
+        use crate::config::FlakeInputWatch;
+
+        let tmp = std::env::temp_dir().join("tend-test-fiw-parseerr");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let repo_dir = tmp.join("my-repo");
+        std::fs::create_dir_all(&repo_dir).unwrap();
+
+        // Write invalid flake.lock
+        std::fs::write(repo_dir.join("flake.lock"), "not json").unwrap();
+
+        let mut ws = make_test_workspace("fiw-parseerr", None);
+        ws.base_dir = tmp.to_string_lossy().to_string();
+        ws.extra_repos = vec![];
+        ws.watch.as_mut().unwrap().flake_input_watches = vec![FlakeInputWatch {
+            name: "bad-lock".to_string(),
+            repo: "my-repo".to_string(),
+            input: "whatever".to_string(),
+            upstream: None,
+            mode: crate::config::FlakeInputMode::Commits,
+            auto_update: false,
+            auto_commit: false,
+            auto_propagate: None,
+            post_hooks: vec![],
+        }];
+
+        let github = MockGitHub::new();
+        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.flake_input_updates, 0);
+        assert_eq!(summary.errors, 1);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn test_flake_input_watch_handles_github_error() {
+        use crate::config::FlakeInputWatch;
+
+        let tmp = std::env::temp_dir().join("tend-test-fiw-apierr");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let repo_dir = tmp.join("my-repo");
+        std::fs::create_dir_all(&repo_dir).unwrap();
+
+        write_test_flake_lock(&repo_dir, "my-input", "locked000", "owner", "repo");
+
+        let mut ws = make_test_workspace("fiw-apierr", None);
+        ws.base_dir = tmp.to_string_lossy().to_string();
+        ws.extra_repos = vec![];
+        ws.watch.as_mut().unwrap().flake_input_watches = vec![FlakeInputWatch {
+            name: "api-fail".to_string(),
+            repo: "my-repo".to_string(),
+            input: "my-input".to_string(),
+            upstream: None,
+            mode: crate::config::FlakeInputMode::Commits,
+            auto_update: false,
+            auto_commit: false,
+            auto_propagate: None,
+            post_hooks: vec![],
+        }];
+
+        // GitHub has no HEAD for this repo → error
+        let github = MockGitHub::new();
+        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.flake_input_updates, 0);
+        assert_eq!(summary.errors, 1);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn test_flake_input_watch_invalid_upstream_format() {
+        use crate::config::FlakeInputWatch;
+
+        let tmp = std::env::temp_dir().join("tend-test-fiw-badupstream");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let repo_dir = tmp.join("my-repo");
+        std::fs::create_dir_all(&repo_dir).unwrap();
+
+        write_test_flake_lock(&repo_dir, "my-input", "locked000", "owner", "repo");
+
+        let mut ws = make_test_workspace("fiw-badupstream", None);
+        ws.base_dir = tmp.to_string_lossy().to_string();
+        ws.extra_repos = vec![];
+        ws.watch.as_mut().unwrap().flake_input_watches = vec![FlakeInputWatch {
+            name: "bad-format".to_string(),
+            repo: "my-repo".to_string(),
+            input: "my-input".to_string(),
+            upstream: Some("no-slash-here".to_string()), // invalid: no /
+            mode: crate::config::FlakeInputMode::Commits,
+            auto_update: false,
+            auto_commit: false,
+            auto_propagate: None,
+            post_hooks: vec![],
+        }];
+
+        let github = MockGitHub::new();
+        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.flake_input_updates, 0);
+        assert_eq!(summary.errors, 1);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_watch_state_flake_inputs_roundtrip() {
+        let mut state = WatchState::default();
+        state.flake_inputs.insert(
+            "test-input".to_string(),
+            crate::watch_cache::FlakeInputCacheEntry {
+                upstream_rev: "abc123".to_string(),
+                upstream_tag: Some("v1.0.0".to_string()),
+            },
+        );
+
+        let serialized = toml::to_string_pretty(&state).unwrap();
+        let deserialized: WatchState = toml::from_str(&serialized).unwrap();
+
+        assert_eq!(deserialized.flake_inputs.len(), 1);
+        let entry = &deserialized.flake_inputs["test-input"];
+        assert_eq!(entry.upstream_rev, "abc123");
+        assert_eq!(entry.upstream_tag.as_deref(), Some("v1.0.0"));
+    }
+
+    #[test]
+    fn test_watch_state_flake_inputs_backward_compatible() {
+        // Old cache files without flake_inputs should still parse
+        let toml_str = r#"
+[repos.some-repo]
+head = "abc123"
+language = "go"
+"#;
+        let state: WatchState = toml::from_str(toml_str).unwrap();
+        assert!(state.flake_inputs.is_empty());
+        assert_eq!(state.repos.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_flake_input_watch_no_watches_early_exit() {
+        // A workspace with no matrix_file, no file_watches, and no flake_input_watches
+        // should return immediately with zeros
+        let mut ws = make_test_workspace("fiw-empty", None);
+        ws.extra_repos = vec![];
+
+        let github = MockGitHub::new();
+        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let appender = MockAppender::new();
+        let git_ops = MockGitOps;
+
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.checked, 0);
+        assert_eq!(summary.new_versions, 0);
+        assert_eq!(summary.file_changes, 0);
+        assert_eq!(summary.flake_input_updates, 0);
+        assert_eq!(summary.errors, 0);
+    }
+
+    #[tokio::test]
+    async fn test_flake_input_watch_auto_commit_records_git_ops() {
+        use crate::config::FlakeInputWatch;
+
+        let tmp = std::env::temp_dir().join("tend-test-fiw-autocommit");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let repo_dir = tmp.join("my-repo");
+        std::fs::create_dir_all(&repo_dir).unwrap();
+
+        write_test_flake_lock(&repo_dir, "my-input", "locked111", "owner", "repo");
+
+        // Create a fake flake.lock that auto_commit_flake_input will stage
+        // (we already have it from write_test_flake_lock)
+
+        let mut ws = make_test_workspace("fiw-autocommit", None);
+        ws.base_dir = tmp.to_string_lossy().to_string();
+        ws.extra_repos = vec![];
+        ws.watch.as_mut().unwrap().flake_input_watches = vec![FlakeInputWatch {
+            name: "ac-test".to_string(),
+            repo: "my-repo".to_string(),
+            input: "my-input".to_string(),
+            upstream: None,
+            mode: crate::config::FlakeInputMode::Commits,
+            auto_update: false, // can't actually run nix flake update in tests
+            auto_commit: false,
+            auto_propagate: None,
+            post_hooks: vec![],
+        }];
+
+        let mut github = MockGitHub::new();
+        github.heads.insert("repo".to_string(), "upstream999".to_string());
+
+        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let appender = MockAppender::new();
+        let git_ops = RecordingGitOps::new();
+
+        let audit = test_audit();
+        let summary = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.flake_input_updates, 1);
+
+        // auto_update=false, so no git operations should have been called
+        let calls = git_ops.calls.lock().unwrap();
+        assert!(calls.is_empty());
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

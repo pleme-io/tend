@@ -161,6 +161,27 @@ impl AuditLog {
         );
     }
 
+    /// Log a flake input staleness detection event.
+    pub fn flake_input_stale(
+        &self,
+        name: &str,
+        repo: &str,
+        input: &str,
+        locked_rev: &str,
+        upstream_rev: &str,
+    ) {
+        self.log(
+            "flake_input_stale",
+            serde_json::json!({
+                "name": name,
+                "repo": repo,
+                "input": input,
+                "locked_rev": locked_rev,
+                "upstream_rev": upstream_rev,
+            }),
+        );
+    }
+
     /// Log a certify completion event.
     pub fn certify_complete(&self, package: &str, version: &str, status: &str, duration_ms: u64) {
         self.log(
