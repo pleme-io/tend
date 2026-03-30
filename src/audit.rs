@@ -182,6 +182,25 @@ impl AuditLog {
         );
     }
 
+    /// Log a flake refresh event.
+    pub fn flake_refreshed(
+        &self,
+        workspace: &str,
+        repo: &str,
+        updated: bool,
+        duration_ms: u64,
+    ) {
+        self.log(
+            "flake_refreshed",
+            serde_json::json!({
+                "workspace": workspace,
+                "repo": repo,
+                "updated": updated,
+                "duration_ms": duration_ms,
+            }),
+        );
+    }
+
     /// Log a certify completion event.
     pub fn certify_complete(&self, package: &str, version: &str, status: &str, duration_ms: u64) {
         self.log(

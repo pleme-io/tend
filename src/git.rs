@@ -15,6 +15,15 @@ pub trait GitOps: Send + Sync {
 
     /// Push to remote.
     fn push(&self, repo_dir: &Path) -> Result<()>;
+
+    /// Get the current branch name.
+    fn current_branch(&self, repo_dir: &Path) -> Result<String>;
+
+    /// Pull from remote for the given branch.
+    fn pull(&self, repo_dir: &Path, branch: &str) -> Result<()>;
+
+    /// Check if the working tree is clean (no uncommitted changes).
+    fn is_clean(&self, repo_dir: &Path) -> Result<bool>;
 }
 
 /// Real implementation using system git commands.
@@ -70,5 +79,47 @@ impl GitOps for SystemGitOps {
             anyhow::bail!("git push failed: {stderr}");
         }
         Ok(())
+    }
+
+    fn current_branch(&self, repo_dir: &Path) -> Result<String> {
+        let output = Command::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(repo_dir)
+            .output()
+            .context("running git rev-parse --abbrev-ref HEAD")?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            anyhow::bail!("git rev-parse failed: {stderr}");
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    }
+
+    fn pull(&self, repo_dir: &Path, branch: &str) -> Result<()> {
+        let output = Command::new("git")
+            .args(["pull", "origin", branch])
+            .current_dir(repo_dir)
+            .output()
+            .context("running git pull")?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            anyhow::bail!("git pull failed: {stderr}");
+        }
+        Ok(())
+    }
+
+    fn is_clean(&self, repo_dir: &Path) -> Result<bool> {
+        let output = Command::new("git")
+            .args(["status", "--porcelain"])
+            .current_dir(repo_dir)
+            .output()
+            .context("running git status --porcelain")?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            anyhow::bail!("git status failed: {stderr}");
+        }
+        Ok(output.stdout.is_empty())
     }
 }

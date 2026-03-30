@@ -55,6 +55,9 @@ pub struct WatchConfig {
     /// Flake input watches: monitor flake.lock inputs against upstream for staleness
     #[serde(default)]
     pub flake_input_watches: Vec<FlakeInputWatch>,
+    /// Flake refresh: periodically run `nix flake update` on all repos with flake.nix
+    #[serde(default)]
+    pub flake_refresh: Option<FlakeRefreshConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -118,6 +121,70 @@ pub struct FlakeInputWatch {
     /// Hooks to run when staleness is detected
     #[serde(default)]
     pub post_hooks: Vec<PostHook>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FlakeRefreshConfig {
+    /// Enable flake refresh for this workspace
+    #[serde(default)]
+    pub enable: bool,
+    /// Cooldown per repo in seconds before re-running (default: 3600 = 1 hour)
+    #[serde(default = "default_refresh_interval")]
+    pub interval: u64,
+    /// Required branch — repos not on this branch are skipped (default: "main")
+    #[serde(default = "default_branch")]
+    pub branch: String,
+    /// Run `git pull origin <branch>` before updating (default: true)
+    #[serde(default = "default_true")]
+    pub pull_before_update: bool,
+    /// Shell command to run for updating the flake lock (default: "nix flake update")
+    #[serde(default = "default_update_command")]
+    pub update_command: String,
+    /// Timeout in seconds for the update command (default: 600 = 10 minutes)
+    #[serde(default = "default_update_timeout")]
+    pub update_timeout: u64,
+    /// Commit message template — supports $REPO placeholder (default: "chore: update flake.lock")
+    #[serde(default = "default_commit_message")]
+    pub commit_message: String,
+    /// Commit and push after a successful update (default: true)
+    #[serde(default = "default_true")]
+    pub auto_commit: bool,
+    /// Trigger `tend flake-update --changed <repo>` after each committed repo
+    #[serde(default)]
+    pub auto_propagate: bool,
+    /// Only refresh these repos (empty = all repos with flake.nix)
+    #[serde(default)]
+    pub include: Vec<String>,
+    /// Skip these repos (applied after include, on top of workspace exclude)
+    #[serde(default)]
+    pub exclude: Vec<String>,
+    /// Post-hooks to run after each repo refresh (trigger: "after_refresh")
+    #[serde(default)]
+    pub post_hooks: Vec<PostHook>,
+}
+
+fn default_refresh_interval() -> u64 {
+    3600
+}
+
+fn default_branch() -> String {
+    "main".to_string()
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_update_command() -> String {
+    "nix flake update".to_string()
+}
+
+fn default_update_timeout() -> u64 {
+    600
+}
+
+fn default_commit_message() -> String {
+    "chore: update flake.lock".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

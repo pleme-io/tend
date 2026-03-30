@@ -183,7 +183,7 @@ pub fn print_flake_chain_complete(updated: usize) {
 }
 
 pub fn print_watch_summary(workspace_name: &str, summary: &watch::WatchSummary) {
-    if summary.new_versions == 0 && summary.file_changes == 0 && summary.flake_input_updates == 0 {
+    if summary.new_versions == 0 && summary.file_changes == 0 && summary.flake_input_updates == 0 && summary.flake_refreshed == 0 {
         println!(
             "{}: watched {} repos, no new versions",
             workspace_name.bold(),
@@ -200,6 +200,9 @@ pub fn print_watch_summary(workspace_name: &str, summary: &watch::WatchSummary) 
         if summary.flake_input_updates > 0 {
             parts.push(format!("{} flake input updates", summary.flake_input_updates.to_string().green()));
         }
+        if summary.flake_refreshed > 0 {
+            parts.push(format!("{} flake refreshed", summary.flake_refreshed.to_string().green()));
+        }
         println!(
             "{}: watched {} repos, {} detected",
             workspace_name.bold(),
@@ -213,6 +216,32 @@ pub fn print_watch_summary(workspace_name: &str, summary: &watch::WatchSummary) 
             summary.errors.to_string().yellow(),
         );
     }
+}
+
+pub fn print_flake_refresh_skip(repo: &str, reason: &str) {
+    println!(
+        "  [{}] {} ({})",
+        "--".cyan(),
+        repo,
+        reason,
+    );
+}
+
+pub fn print_flake_refresh_updated(repo: &str) {
+    println!("  [{}] {} refreshed and pushed", "ok".green(), repo.bold());
+}
+
+pub fn print_flake_refresh_no_changes(repo: &str) {
+    println!("  [{}] {} flake.lock unchanged", "==".cyan(), repo);
+}
+
+pub fn print_flake_refresh_error(repo: &str, err: &str) {
+    eprintln!(
+        "  [{}] {} {}",
+        "!!".red(),
+        repo,
+        err,
+    );
 }
 
 pub fn print_watch_new_version(repo: &str, version: &str, tag: &str) {

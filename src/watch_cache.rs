@@ -19,6 +19,9 @@ pub struct WatchState {
     /// Cached upstream state for flake input watches. Key: watch name.
     #[serde(default)]
     pub flake_inputs: BTreeMap<String, FlakeInputCacheEntry>,
+    /// Last successful flake refresh timestamp per repo (Unix epoch seconds).
+    #[serde(default)]
+    pub flake_refresh_at: BTreeMap<String, u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -19,6 +19,8 @@ pub struct WatchSummary {
     pub file_changes: usize,
     /// Number of flake input watches that detected staleness.
     pub flake_input_updates: usize,
+    /// Number of repos whose flake.lock was refreshed.
+    pub flake_refreshed: usize,
 }
 
 /// Tracking mode read from matrix.toml for a package.
@@ -138,14 +140,21 @@ pub async fn run_watch_cycle(
         None => None,
     };
 
-    // If there's no matrix_file and no file_watches and no flake_input_watches, nothing to do
-    if matrix_file.is_none() && watch_cfg.file_watches.is_empty() && watch_cfg.flake_input_watches.is_empty() {
+    // Check if flake_refresh is enabled
+    let has_flake_refresh = watch_cfg
+        .flake_refresh
+        .as_ref()
+        .is_some_and(|fr| fr.enable);
+
+    // If there's no matrix_file and no file_watches and no flake_input_watches and no flake_refresh, nothing to do
+    if matrix_file.is_none() && watch_cfg.file_watches.is_empty() && watch_cfg.flake_input_watches.is_empty() && !has_flake_refresh {
         return Ok(WatchSummary {
             checked: 0,
             new_versions: 0,
             errors: 0,
             file_changes: 0,
             flake_input_updates: 0,
+            flake_refreshed: 0,
         });
     }
 
@@ -826,6 +835,294 @@ pub async fn run_watch_cycle(
         });
     }
 
+    // ── Flake refresh (blanket nix flake update on all repos with flake.nix) ──
+    let mut flake_refreshed = 0usize;
+
+    if let Some(ref refresh_cfg) = watch_cfg.flake_refresh {
+        if refresh_cfg.enable {
+            let all_repos = match sync::resolve_repos(ws, false).await {
+                Ok(r) => r,
+                Err(e) => {
+                    if !quiet {
+                        eprintln!("  warning: failed to resolve repos for flake refresh: {e}");
+                    }
+                    errors += 1;
+                    vec![]
+                }
+            };
+
+            // Filter repos: apply include (if non-empty), then exclude
+            let eligible: Vec<&str> = all_repos
+                .iter()
+                .filter(|r| {
+                    if !refresh_cfg.include.is_empty() {
+                        refresh_cfg.include.iter().any(|i| i == *r)
+                    } else {
+                        true
+                    }
+                })
+                .filter(|r| !refresh_cfg.exclude.iter().any(|e| e == *r))
+                .map(|r| r.as_str())
+                .collect();
+
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+
+            for repo_name in &eligible {
+                let repo_dir = base_dir.join(repo_name);
+
+                // Must have flake.nix
+                if !repo_dir.join("flake.nix").exists() {
+                    continue;
+                }
+
+                // Check cooldown
+                if let Some(&last_at) = state.flake_refresh_at.get(*repo_name) {
+                    if now.saturating_sub(last_at) < refresh_cfg.interval {
+                        continue;
+                    }
+                }
+
+                // Check branch
+                match git_ops.current_branch(&repo_dir) {
+                    Ok(branch) if branch == refresh_cfg.branch => {}
+                    Ok(branch) => {
+                        if !quiet {
+                            display::print_flake_refresh_skip(
+                                repo_name,
+                                &format!("on branch {branch}, expected {}", refresh_cfg.branch),
+                            );
+                        }
+                        continue;
+                    }
+                    Err(e) => {
+                        if !quiet {
+                            display::print_flake_refresh_error(
+                                repo_name,
+                                &format!("failed to get branch: {e}"),
+                            );
+                        }
+                        errors += 1;
+                        continue;
+                    }
+                }
+
+                // Check clean working tree
+                match git_ops.is_clean(&repo_dir) {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        if !quiet {
+                            display::print_flake_refresh_skip(repo_name, "dirty working tree");
+                        }
+                        continue;
+                    }
+                    Err(e) => {
+                        if !quiet {
+                            display::print_flake_refresh_error(
+                                repo_name,
+                                &format!("failed to check clean: {e}"),
+                            );
+                        }
+                        errors += 1;
+                        continue;
+                    }
+                }
+
+                let refresh_start = std::time::Instant::now();
+
+                // Pull before update
+                if refresh_cfg.pull_before_update {
+                    if let Err(e) = git_ops.pull(&repo_dir, &refresh_cfg.branch) {
+                        if !quiet {
+                            display::print_flake_refresh_error(
+                                repo_name,
+                                &format!("pull failed: {e}"),
+                            );
+                        }
+                        errors += 1;
+                        continue;
+                    }
+                }
+
+                // Run update command via sh -c
+                let update_result = tokio::time::timeout(
+                    std::time::Duration::from_secs(refresh_cfg.update_timeout),
+                    tokio::process::Command::new("sh")
+                        .args(["-c", &refresh_cfg.update_command])
+                        .current_dir(&repo_dir)
+                        .output(),
+                )
+                .await;
+
+                match update_result {
+                    Ok(Ok(output)) if output.status.success() => {}
+                    Ok(Ok(output)) => {
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        if !quiet {
+                            display::print_flake_refresh_error(
+                                repo_name,
+                                &format!("update command failed: {stderr}"),
+                            );
+                        }
+                        errors += 1;
+                        continue;
+                    }
+                    Ok(Err(e)) => {
+                        if !quiet {
+                            display::print_flake_refresh_error(
+                                repo_name,
+                                &format!("update command error: {e}"),
+                            );
+                        }
+                        errors += 1;
+                        continue;
+                    }
+                    Err(_) => {
+                        if !quiet {
+                            display::print_flake_refresh_error(
+                                repo_name,
+                                &format!("update command timed out ({}s)", refresh_cfg.update_timeout),
+                            );
+                        }
+                        errors += 1;
+                        continue;
+                    }
+                }
+
+                // Stage flake.lock and check if anything changed
+                let flake_lock = repo_dir.join("flake.lock");
+                if let Err(e) = git_ops.add(&repo_dir, &flake_lock) {
+                    if !quiet {
+                        display::print_flake_refresh_error(repo_name, &format!("git add failed: {e}"));
+                    }
+                    errors += 1;
+                    continue;
+                }
+
+                let has_changes = match git_ops.has_staged_changes(&repo_dir) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        if !quiet {
+                            display::print_flake_refresh_error(
+                                repo_name,
+                                &format!("failed to check staged changes: {e}"),
+                            );
+                        }
+                        errors += 1;
+                        continue;
+                    }
+                };
+
+                let duration_ms = refresh_start.elapsed().as_millis() as u64;
+
+                if has_changes && refresh_cfg.auto_commit {
+                    let msg = refresh_cfg.commit_message.replace("$REPO", repo_name);
+                    if let Err(e) = git_ops.commit(&repo_dir, &msg) {
+                        if !quiet {
+                            display::print_flake_refresh_error(repo_name, &format!("commit failed: {e}"));
+                        }
+                        errors += 1;
+                        continue;
+                    }
+                    if let Err(e) = git_ops.push(&repo_dir) {
+                        if !quiet {
+                            display::print_flake_refresh_error(repo_name, &format!("push failed: {e}"));
+                        }
+                        errors += 1;
+                        continue;
+                    }
+
+                    flake_refreshed += 1;
+                    audit.flake_refreshed(&ws.name, repo_name, true, duration_ms);
+
+                    if !quiet {
+                        display::print_flake_refresh_updated(repo_name);
+                    }
+
+                    // Auto-propagate
+                    if refresh_cfg.auto_propagate {
+                        if let Err(e) = run_flake_propagate(repo_name, ws) {
+                            if !quiet {
+                                eprintln!("  warning: auto-propagate failed for {repo_name}: {e}");
+                            }
+                            errors += 1;
+                        }
+                    }
+                } else {
+                    audit.flake_refreshed(&ws.name, repo_name, false, duration_ms);
+                    if !quiet && has_changes {
+                        // has_changes but auto_commit is false
+                        display::print_flake_refresh_skip(repo_name, "changes detected but auto_commit disabled");
+                    } else if !quiet {
+                        display::print_flake_refresh_no_changes(repo_name);
+                    }
+                }
+
+                // Record timestamp on success (including no-changes)
+                state.flake_refresh_at.insert(repo_name.to_string(), now);
+
+                // Run after_refresh post-hooks
+                for hook in &refresh_cfg.post_hooks {
+                    if hook.trigger != "after_refresh" {
+                        continue;
+                    }
+                    let args: Vec<String> = hook
+                        .args
+                        .iter()
+                        .map(|a| a.replace("$REPO", repo_name))
+                        .collect();
+                    let dir = hook
+                        .working_dir
+                        .as_deref()
+                        .map(|d| shellexpand::tilde(d).to_string());
+
+                    if !quiet {
+                        eprintln!(
+                            "  {} running refresh hook: {} {}",
+                            "=>".blue().bold(),
+                            hook.command,
+                            args.join(" ")
+                        );
+                    }
+
+                    let mut cmd = tokio::process::Command::new(&hook.command);
+                    cmd.args(&args);
+                    if let Some(ref d) = dir {
+                        cmd.current_dir(d);
+                    }
+
+                    let hook_start = std::time::Instant::now();
+                    match cmd.status().await {
+                        Ok(status) => {
+                            let hook_dur = hook_start.elapsed().as_millis() as u64;
+                            let exit_code = status.code().unwrap_or(-1);
+                            audit.hook_executed("after_refresh", &hook.command, exit_code, hook_dur);
+                            if !status.success() && !hook.continue_on_error {
+                                if !quiet {
+                                    eprintln!(
+                                        "  warning: refresh hook failed: {} (exit {})",
+                                        hook.command, status
+                                    );
+                                }
+                                errors += 1;
+                            }
+                        }
+                        Err(e) => {
+                            let hook_dur = hook_start.elapsed().as_millis() as u64;
+                            audit.hook_executed("after_refresh", &hook.command, -1, hook_dur);
+                            if !quiet {
+                                eprintln!("  warning: refresh hook error: {}: {e}", hook.command);
+                            }
+                            errors += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     cache_store.save(&ws.name, &state)?;
 
     Ok(WatchSummary {
@@ -834,6 +1131,7 @@ pub async fn run_watch_cycle(
         errors,
         file_changes,
         flake_input_updates,
+        flake_refreshed,
     })
 }
 
@@ -1272,6 +1570,9 @@ mod tests {
         fn has_staged_changes(&self, _repo_dir: &std::path::Path) -> anyhow::Result<bool> { Ok(false) }
         fn commit(&self, _repo_dir: &std::path::Path, _message: &str) -> anyhow::Result<()> { Ok(()) }
         fn push(&self, _repo_dir: &std::path::Path) -> anyhow::Result<()> { Ok(()) }
+        fn current_branch(&self, _repo_dir: &std::path::Path) -> anyhow::Result<String> { Ok("main".to_string()) }
+        fn pull(&self, _repo_dir: &std::path::Path, _branch: &str) -> anyhow::Result<()> { Ok(()) }
+        fn is_clean(&self, _repo_dir: &std::path::Path) -> anyhow::Result<bool> { Ok(true) }
     }
 
     fn make_test_workspace(name: &str, matrix_file: Option<&str>) -> Workspace {
@@ -1294,6 +1595,7 @@ mod tests {
                 post_hooks: vec![],
                 file_watches: vec![],
                 flake_input_watches: vec![],
+                flake_refresh: None,
             }),
         }
     }
@@ -1456,6 +1758,15 @@ repo = "repo-a"
         }
         fn push(&self, _: &std::path::Path) -> anyhow::Result<()> {
             self.calls.lock().unwrap().push("push".into()); Ok(())
+        }
+        fn current_branch(&self, _: &std::path::Path) -> anyhow::Result<String> {
+            self.calls.lock().unwrap().push("current_branch".into()); Ok("main".to_string())
+        }
+        fn pull(&self, _: &std::path::Path, _: &str) -> anyhow::Result<()> {
+            self.calls.lock().unwrap().push("pull".into()); Ok(())
+        }
+        fn is_clean(&self, _: &std::path::Path) -> anyhow::Result<bool> {
+            self.calls.lock().unwrap().push("is_clean".into()); Ok(true)
         }
     }
 
