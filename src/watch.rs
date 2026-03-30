@@ -878,9 +878,15 @@ pub async fn run_watch_cycle(
                     continue;
                 }
 
-                // Check cooldown
+                // Adaptive cooldown: base interval grows with consecutive no-change misses
+                let misses = state.flake_refresh_misses.get(*repo_name).copied().unwrap_or(0);
+                let effective_interval = adaptive_interval(
+                    refresh_cfg.interval,
+                    refresh_cfg.max_interval,
+                    misses,
+                );
                 if let Some(&last_at) = state.flake_refresh_at.get(*repo_name) {
-                    if now.saturating_sub(last_at) < refresh_cfg.interval {
+                    if now.saturating_sub(last_at) < effective_interval {
                         continue;
                     }
                 }
@@ -943,6 +949,46 @@ pub async fn run_watch_cycle(
                         }
                         errors += 1;
                         continue;
+                    }
+                }
+
+                // Staleness pre-check: parse flake.lock and compare against local git refs.
+                // Avoids expensive `nix flake update` when all inputs are already current.
+                if refresh_cfg.staleness_check {
+                    let flake_lock_path = repo_dir.join("flake.lock");
+                    if flake_lock_path.exists() {
+                        match check_flake_staleness(&flake_lock_path, &base_dir, &refresh_cfg.branch) {
+                            Ok(false) => {
+                                // All inputs are fresh — skip update, record timestamp, bump backoff
+                                let miss_count = state.flake_refresh_misses.entry(repo_name.to_string()).or_insert(0);
+                                *miss_count = miss_count.saturating_add(1);
+                                state.flake_refresh_at.insert(repo_name.to_string(), now);
+                                if !quiet {
+                                    let next_interval = adaptive_interval(
+                                        refresh_cfg.interval,
+                                        refresh_cfg.max_interval,
+                                        *miss_count,
+                                    );
+                                    display::print_flake_refresh_skip(
+                                        repo_name,
+                                        &format!("all inputs fresh (next check in {}s)", next_interval),
+                                    );
+                                }
+                                continue;
+                            }
+                            Ok(true) => {
+                                // At least one input is stale — proceed with update
+                                if !quiet {
+                                    eprintln!("  [{}] {} has stale inputs, updating...", ">>".yellow(), repo_name);
+                                }
+                            }
+                            Err(e) => {
+                                // Can't determine staleness — proceed with update anyway
+                                if !quiet {
+                                    eprintln!("  warning: staleness check failed for {repo_name}: {e}, updating anyway");
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -1037,6 +1083,9 @@ pub async fn run_watch_cycle(
                     flake_refreshed += 1;
                     audit.flake_refreshed(&ws.name, repo_name, true, duration_ms);
 
+                    // Reset backoff counter — changes were found
+                    state.flake_refresh_misses.remove(*repo_name);
+
                     if !quiet {
                         display::print_flake_refresh_updated(repo_name);
                     }
@@ -1052,8 +1101,12 @@ pub async fn run_watch_cycle(
                     }
                 } else {
                     audit.flake_refreshed(&ws.name, repo_name, false, duration_ms);
+
+                    // Increment backoff counter — no changes
+                    let miss_count = state.flake_refresh_misses.entry(repo_name.to_string()).or_insert(0);
+                    *miss_count = miss_count.saturating_add(1);
+
                     if !quiet && has_changes {
-                        // has_changes but auto_commit is false
                         display::print_flake_refresh_skip(repo_name, "changes detected but auto_commit disabled");
                     } else if !quiet {
                         display::print_flake_refresh_no_changes(repo_name);
@@ -1262,6 +1315,148 @@ fn parse_flake_lock_input(
         .to_string();
 
     Ok((rev, owner, repo))
+}
+
+/// Parsed flake input info from flake.lock.
+struct FlakeLockInput {
+    owner: String,
+    repo: String,
+    locked_rev: String,
+}
+
+/// Parse ALL GitHub-type inputs from a flake.lock file.
+/// Returns a list of (owner, repo, locked_rev) for inputs that are GitHub repos.
+/// Silently skips inputs using `follows` or non-GitHub sources.
+fn parse_all_flake_lock_inputs(flake_lock_path: &Path) -> Result<Vec<FlakeLockInput>> {
+    let content = std::fs::read_to_string(flake_lock_path)
+        .with_context(|| format!("reading {}", flake_lock_path.display()))?;
+    let lock: serde_json::Value = serde_json::from_str(&content)
+        .with_context(|| format!("parsing {}", flake_lock_path.display()))?;
+
+    let root_inputs = lock
+        .pointer("/root/inputs")
+        .or_else(|| lock.pointer("/nodes/root/inputs"));
+
+    let root_inputs = match root_inputs {
+        Some(v) => v,
+        None => return Ok(vec![]),
+    };
+
+    let inputs_obj = match root_inputs.as_object() {
+        Some(o) => o,
+        None => return Ok(vec![]),
+    };
+
+    let mut result = Vec::new();
+
+    for (_input_name, node_ref) in inputs_obj {
+        // Skip follows (arrays)
+        let node_name = match node_ref {
+            serde_json::Value::String(s) => s.as_str(),
+            _ => continue,
+        };
+
+        let locked = match lock.pointer(&format!("/nodes/{node_name}/locked")) {
+            Some(v) => v,
+            None => continue,
+        };
+
+        // Only handle GitHub-type inputs
+        let lock_type = locked.get("type").and_then(|v| v.as_str()).unwrap_or("");
+        if lock_type != "github" {
+            continue;
+        }
+
+        let rev = match locked.get("rev").and_then(|v| v.as_str()) {
+            Some(r) => r,
+            None => continue,
+        };
+        let owner = match locked.get("owner").and_then(|v| v.as_str()) {
+            Some(o) => o,
+            None => continue,
+        };
+        let repo = match locked.get("repo").and_then(|v| v.as_str()) {
+            Some(r) => r,
+            None => continue,
+        };
+
+        result.push(FlakeLockInput {
+            owner: owner.to_string(),
+            repo: repo.to_string(),
+            locked_rev: rev.to_string(),
+        });
+    }
+
+    Ok(result)
+}
+
+/// Check if any flake input is stale by comparing locked revs against local git refs.
+///
+/// For inputs whose repos are cloned locally (in `base_dir`), checks
+/// `refs/remotes/origin/<branch>` — zero network calls since `git fetch` already ran.
+/// For external repos, falls back to `git ls-remote` (1 call per unique upstream).
+///
+/// Returns `true` if at least one input's upstream has diverged from the locked rev.
+fn check_flake_staleness(
+    flake_lock_path: &Path,
+    base_dir: &Path,
+    default_branch: &str,
+) -> Result<bool> {
+    let inputs = parse_all_flake_lock_inputs(flake_lock_path)?;
+
+    if inputs.is_empty() {
+        return Ok(false);
+    }
+
+    for input in &inputs {
+        // Try local repo first (zero network)
+        let local_repo = base_dir.join(&input.repo);
+        let upstream_rev = if local_repo.join(".git").exists() {
+            // Check local remote ref (already fresh from git fetch)
+            let output = std::process::Command::new("git")
+                .args(["rev-parse", &format!("refs/remotes/origin/{default_branch}")])
+                .current_dir(&local_repo)
+                .output();
+
+            match output {
+                Ok(o) if o.status.success() => {
+                    String::from_utf8_lossy(&o.stdout).trim().to_string()
+                }
+                _ => continue, // Can't resolve — skip this input
+            }
+        } else {
+            // External repo — use git ls-remote (1 network call)
+            let url = format!("https://github.com/{}/{}", input.owner, input.repo);
+            let output = std::process::Command::new("git")
+                .args(["ls-remote", "--heads", &url, default_branch])
+                .output();
+
+            match output {
+                Ok(o) if o.status.success() => {
+                    let stdout = String::from_utf8_lossy(&o.stdout);
+                    match stdout.split_whitespace().next() {
+                        Some(sha) => sha.to_string(),
+                        None => continue,
+                    }
+                }
+                _ => continue, // Can't resolve — skip this input
+            }
+        };
+
+        if upstream_rev != input.locked_rev {
+            return Ok(true); // At least one input is stale
+        }
+    }
+
+    Ok(false)
+}
+
+/// Compute adaptive cooldown interval with exponential backoff.
+/// Returns `min(base_interval * 2^misses, max_interval)`.
+fn adaptive_interval(base_interval: u64, max_interval: u64, misses: u32) -> u64 {
+    let exponent = misses.min(20); // cap to avoid overflow
+    let backoff = base_interval.saturating_mul(1u64 << exponent);
+    backoff.min(max_interval)
 }
 
 /// Run `nix flake update <input>` in a repo directory.

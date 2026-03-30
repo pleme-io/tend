@@ -128,9 +128,13 @@ pub struct FlakeRefreshConfig {
     /// Enable flake refresh for this workspace
     #[serde(default)]
     pub enable: bool,
-    /// Cooldown per repo in seconds before re-running (default: 3600 = 1 hour)
+    /// Base cooldown per repo in seconds (default: 3600 = 1 hour).
+    /// Actual interval grows via adaptive backoff when no changes are found.
     #[serde(default = "default_refresh_interval")]
     pub interval: u64,
+    /// Maximum cooldown per repo in seconds after adaptive backoff (default: 86400 = 24 hours)
+    #[serde(default = "default_max_interval")]
+    pub max_interval: u64,
     /// Required branch — repos not on this branch are skipped (default: "main")
     #[serde(default = "default_branch")]
     pub branch: String,
@@ -161,10 +165,18 @@ pub struct FlakeRefreshConfig {
     /// Post-hooks to run after each repo refresh (trigger: "after_refresh")
     #[serde(default)]
     pub post_hooks: Vec<PostHook>,
+    /// Skip `nix flake update` when local git refs show no inputs are stale (default: true).
+    /// Uses zero GitHub API calls — relies on `git fetch` already done by the daemon.
+    #[serde(default = "default_true")]
+    pub staleness_check: bool,
 }
 
 fn default_refresh_interval() -> u64 {
     3600
+}
+
+fn default_max_interval() -> u64 {
+    86400
 }
 
 fn default_branch() -> String {

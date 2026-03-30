@@ -22,6 +22,9 @@ pub struct WatchState {
     /// Last successful flake refresh timestamp per repo (Unix epoch seconds).
     #[serde(default)]
     pub flake_refresh_at: BTreeMap<String, u64>,
+    /// Consecutive no-change count per repo for adaptive backoff.
+    #[serde(default)]
+    pub flake_refresh_misses: BTreeMap<String, u32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
