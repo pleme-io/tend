@@ -58,6 +58,33 @@ pub struct WatchConfig {
     /// Flake refresh: periodically run `nix flake update` on all repos with flake.nix
     #[serde(default)]
     pub flake_refresh: Option<FlakeRefreshConfig>,
+    /// Nix audit: run nix-audit convergence loop in daemon cycle
+    #[serde(default)]
+    pub nix_audit: Option<NixAuditConfig>,
+}
+
+/// Configuration for nix-audit integration in the tend daemon.
+///
+/// When enabled, the daemon runs `nix-audit check --all` after the watch cycle,
+/// optionally auto-fixes violations and propagates fixes across the flake graph.
+/// Results are tracked in a convergence database for trend analysis.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NixAuditConfig {
+    /// Enable nix-audit integration in daemon cycle
+    #[serde(default)]
+    pub enable: bool,
+    /// Path to convergence.db (default: ~/.local/share/nix-audit/convergence.db)
+    #[serde(default)]
+    pub db_path: Option<String>,
+    /// Run `nix-audit fix --all --commit` when violations found
+    #[serde(default)]
+    pub auto_fix: bool,
+    /// Trigger `tend flake-update` propagation after fixes
+    #[serde(default)]
+    pub auto_propagate: bool,
+    /// Post-hooks with new triggers: "after_audit", "on_violation", "on_convergence"
+    #[serde(default)]
+    pub post_hooks: Vec<PostHook>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

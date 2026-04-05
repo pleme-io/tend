@@ -118,7 +118,148 @@ async fn run_workspace_cycle(
                 }
             }
         }
+
+        // Nix audit: run convergence loop if enabled
+        if let Some(ref audit_cfg) = watch_cfg.nix_audit {
+            if audit_cfg.enable {
+                match run_nix_audit_cycle(ws, audit_cfg, quiet).await {
+                    Ok(()) => {}
+                    Err(e) => {
+                        display::print_daemon_error(&ws.name, &e);
+                    }
+                }
+            }
+        }
     }
 
     Ok(())
+}
+
+/// Run the nix-audit convergence cycle for a workspace.
+///
+/// Steps:
+/// 1. Run `nix-audit check --all --format json` to observe violations
+/// 2. If auto_fix: run `nix-audit fix --all --commit` to correct violations
+/// 3. If auto_propagate: run `tend flake-update` to propagate fixes
+/// 4. Run post-hooks with triggers: after_audit, on_violation, on_convergence
+async fn run_nix_audit_cycle(
+    ws: &crate::config::Workspace,
+    cfg: &crate::config::NixAuditConfig,
+    quiet: bool,
+) -> Result<()> {
+    let base_dir = ws.resolved_base_dir()?;
+    let audit = crate::audit::AuditLog::default_path();
+
+    // Step 1: Observe — run nix-audit check
+    let check_output = tokio::process::Command::new("nix-audit")
+        .args(["check", "--all", "--format", "json"])
+        .arg(base_dir.to_str().unwrap_or("."))
+        .output()
+        .await;
+
+    let check_result = match check_output {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            // Parse JSON output lines to count findings
+            let mut total_repos = 0usize;
+            let mut passing_repos = 0usize;
+            let mut total_findings = 0usize;
+            for line in stdout.lines() {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
+                    total_repos += 1;
+                    let findings = v.get("findings")
+                        .and_then(|f| f.as_array())
+                        .map(|a| a.len())
+                        .unwrap_or(0);
+                    total_findings += findings;
+                    if findings == 0 {
+                        passing_repos += 1;
+                    }
+                }
+            }
+            audit.nix_audit_completed(total_repos, passing_repos, total_findings);
+            if !quiet {
+                eprintln!(
+                    "  nix-audit: {passing_repos}/{total_repos} repos passing, {total_findings} findings"
+                );
+            }
+            (total_repos, passing_repos, total_findings)
+        }
+        Err(e) => {
+            if !quiet {
+                eprintln!("  nix-audit: check failed: {e}");
+            }
+            return Ok(());
+        }
+    };
+
+    let (total_repos, passing_repos, total_findings) = check_result;
+
+    // Run after_audit hooks
+    for hook in &cfg.post_hooks {
+        if hook.trigger == "after_audit" {
+            run_hook(hook, &audit).await;
+        }
+    }
+
+    // Run on_violation hooks if there are findings
+    if total_findings > 0 {
+        for hook in &cfg.post_hooks {
+            if hook.trigger == "on_violation" {
+                run_hook(hook, &audit).await;
+            }
+        }
+    }
+
+    // Step 2: Fix — auto-repair if configured
+    if cfg.auto_fix && total_findings > 0 {
+        let fix_output = tokio::process::Command::new("nix-audit")
+            .args(["fix", "--all", "--commit"])
+            .arg(base_dir.to_str().unwrap_or("."))
+            .output()
+            .await;
+
+        if let Ok(output) = fix_output {
+            if !quiet && !output.status.success() {
+                eprintln!("  nix-audit: fix returned non-zero");
+            }
+        }
+    }
+
+    // Step 3: Propagate — flake-update if configured
+    if cfg.auto_propagate && cfg.auto_fix && total_findings > 0 {
+        let _ = tokio::process::Command::new("tend")
+            .args(["flake-update"])
+            .output()
+            .await;
+    }
+
+    // Check for convergence
+    if total_repos > 0 && passing_repos == total_repos {
+        let ratio = passing_repos as f64 / total_repos as f64;
+        audit.convergence_achieved(ratio);
+        for hook in &cfg.post_hooks {
+            if hook.trigger == "on_convergence" {
+                run_hook(hook, &audit).await;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Execute a single post-hook, logging the result.
+async fn run_hook(hook: &crate::config::PostHook, audit: &crate::audit::AuditLog) {
+    let start = std::time::Instant::now();
+    let result = tokio::process::Command::new(&hook.command)
+        .args(&hook.args)
+        .output()
+        .await;
+
+    let (exit_code, duration_ms) = match result {
+        Ok(output) => (output.status.code().unwrap_or(-1), start.elapsed().as_millis() as u64),
+        Err(_) => (-1, start.elapsed().as_millis() as u64),
+    };
+
+    audit.hook_executed(&hook.trigger, &hook.command, exit_code, duration_ms);
 }

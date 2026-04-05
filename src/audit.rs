@@ -213,6 +213,41 @@ impl AuditLog {
             }),
         );
     }
+
+    /// Log a nix-audit completion event (convergence loop integration).
+    pub fn nix_audit_completed(&self, total: usize, passing: usize, findings: usize) {
+        self.log(
+            "nix_audit_completed",
+            serde_json::json!({
+                "total_repos": total,
+                "passing_repos": passing,
+                "total_findings": findings,
+                "compliance_ratio": if total > 0 { passing as f64 / total as f64 } else { 1.0 },
+            }),
+        );
+    }
+
+    /// Log a nix-audit auto-fix event.
+    pub fn nix_audit_fixed(&self, repo: &str, category: &str, message: &str) {
+        self.log(
+            "nix_audit_fixed",
+            serde_json::json!({
+                "repo": repo,
+                "category": category,
+                "message": message,
+            }),
+        );
+    }
+
+    /// Log convergence achievement (compliance_ratio reached 1.0).
+    pub fn convergence_achieved(&self, compliance_ratio: f64) {
+        self.log(
+            "convergence_achieved",
+            serde_json::json!({
+                "compliance_ratio": compliance_ratio,
+            }),
+        );
+    }
 }
 
 #[cfg(test)]
