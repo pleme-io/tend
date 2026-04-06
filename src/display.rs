@@ -1,6 +1,6 @@
 use colored::Colorize;
 
-use crate::sync::{RepoEntry, RepoStatus};
+use crate::sync::{PullSummary, RepoEntry, RepoStatus};
 use crate::watch;
 
 pub fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
@@ -97,6 +97,18 @@ pub fn print_daemon_cycle_done(cycle: u64, workspaces: usize) {
         "daemon:".bold(),
         cycle,
         workspaces.to_string().green()
+    );
+}
+
+pub fn print_pull_summary(workspace_name: &str, summary: &PullSummary) {
+    println!(
+        "{}: {} updated, {} up-to-date, {} dirty skipped, {} missing, {} failed",
+        workspace_name.bold(),
+        summary.updated.to_string().green(),
+        summary.up_to_date.to_string().cyan(),
+        summary.dirty_skipped.to_string().yellow(),
+        summary.missing_skipped.to_string().red(),
+        summary.failed.to_string().red(),
     );
 }
 

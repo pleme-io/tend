@@ -43,6 +43,25 @@ enum Commands {
         refresh: bool,
     },
 
+    /// Fast-forward every clean repo in the workspace (git pull --ff-only)
+    Pull {
+        /// Path to config file
+        #[arg(long)]
+        config: Option<PathBuf>,
+
+        /// Only pull a specific workspace by name
+        #[arg(long)]
+        workspace: Option<String>,
+
+        /// Suppress per-repo output, only show summary
+        #[arg(long)]
+        quiet: bool,
+
+        /// Bypass discovery cache and always hit the GitHub API
+        #[arg(long)]
+        refresh: bool,
+    },
+
     /// Show repo status (clean/dirty/missing/unknown)
     Status {
         /// Path to config file
@@ -189,6 +208,20 @@ async fn main() -> Result<()> {
                 if !quiet || cloned > 0 {
                     display::print_sync_summary(&ws.name, cloned, present);
                 }
+            }
+        }
+
+        Commands::Pull {
+            config: config_path,
+            workspace: ws_filter,
+            quiet,
+            refresh,
+        } => {
+            let cfg = load_config(config_path.as_deref())?;
+            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+                let repos = sync::resolve_repos(ws, refresh).await?;
+                let summary = sync::pull_repos(ws, &repos, quiet).await?;
+                display::print_pull_summary(&ws.name, &summary);
             }
         }
 

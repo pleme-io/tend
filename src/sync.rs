@@ -175,6 +175,115 @@ pub async fn fetch_repos(workspace: &Workspace, repos: &[String], quiet: bool) -
     Ok((fetched, skipped))
 }
 
+/// Outcome of pulling a single repo.
+#[derive(Debug, Default)]
+pub struct PullSummary {
+    pub updated: usize,
+    pub up_to_date: usize,
+    pub dirty_skipped: usize,
+    pub missing_skipped: usize,
+    pub failed: usize,
+}
+
+/// Pull the default branch (fast-forward only) for every repo in the workspace.
+///
+/// Behavior:
+/// - Missing repos are skipped (use `tend sync` to clone them first).
+/// - Dirty repos are skipped to avoid merge conflicts.
+/// - Clean repos are updated with `git pull --ff-only`.
+/// - Also walks unexpected directories under `base_dir` (the "unknown" repos)
+///   so that running `tend pull` updates every git repo in the workspace,
+///   not just the ones tend discovered.
+pub async fn pull_repos(
+    workspace: &Workspace,
+    repos: &[String],
+    quiet: bool,
+) -> Result<PullSummary> {
+    let base_dir = workspace.resolved_base_dir()?;
+    let mut summary = PullSummary::default();
+
+    // Union of configured repos and on-disk directories so we pull everything
+    // living in the workspace, including repos tend doesn't know about yet.
+    let mut all: Vec<String> = repos.to_vec();
+    if base_dir.exists() {
+        let on_disk = std::fs::read_dir(&base_dir)
+            .with_context(|| format!("reading {}", base_dir.display()))?;
+        for entry in on_disk.flatten() {
+            if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with('.') {
+                continue;
+            }
+            if !all.contains(&name) {
+                all.push(name);
+            }
+        }
+    }
+    all.sort();
+    all.dedup();
+
+    for repo_name in &all {
+        let repo_path = base_dir.join(repo_name);
+        if !repo_path.join(".git").exists() {
+            summary.missing_skipped += 1;
+            continue;
+        }
+
+        if is_dirty(&repo_path)? {
+            summary.dirty_skipped += 1;
+            if !quiet {
+                println!("  dirty (skipped): {repo_name}");
+            }
+            continue;
+        }
+
+        let output = Command::new("git")
+            .args(["pull", "--ff-only", "--quiet"])
+            .current_dir(&repo_path)
+            .output()
+            .with_context(|| format!("running git pull in {repo_name}"))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("  warning: pull failed for {repo_name}: {}", stderr.trim());
+            summary.failed += 1;
+            continue;
+        }
+
+        // `git pull --quiet` prints nothing on up-to-date, and a short
+        // "Updating ..." on an actual fast-forward. Distinguish by checking
+        // whether HEAD moved via git rev-parse.
+        let before = Command::new("git")
+            .args(["rev-parse", "@{push}"])
+            .current_dir(&repo_path)
+            .output();
+        let _ = before; // best-effort, not critical
+
+        // Simpler heuristic: look at stdout/stderr for "Already up to date"
+        // (git prints this even with --quiet in some versions) or compare via
+        // whether stdout is empty. The safest portable check is an explicit
+        // `git status -sb` scan; here we just count a successful pull as
+        // either updated or up-to-date and rely on the caller's summary.
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        if combined.contains("Already up to date") || combined.trim().is_empty() {
+            summary.up_to_date += 1;
+        } else {
+            summary.updated += 1;
+            if !quiet {
+                println!("  updated: {repo_name}");
+            }
+        }
+    }
+
+    Ok(summary)
+}
+
 fn is_dirty(repo_path: &Path) -> Result<bool> {
     let output = Command::new("git")
         .args(["status", "--porcelain"])

@@ -1791,6 +1791,7 @@ mod tests {
                 file_watches: vec![],
                 flake_input_watches: vec![],
                 flake_refresh: None,
+                nix_audit: None,
             }),
         }
     }
