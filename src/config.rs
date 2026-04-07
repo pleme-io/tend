@@ -287,6 +287,7 @@ impl Config {
     /// 1. `$TEND_CONFIG` environment variable
     /// 2. Standard shikumi paths: `$XDG_CONFIG_HOME/tend/tend.yaml`, `~/.config/tend/tend.yaml`, etc.
     /// 3. Legacy fallback: `~/.config/tend/config.yaml` (backward compat)
+    #[must_use]
     pub fn default_path() -> PathBuf {
         use shikumi::{ConfigDiscovery, Format};
 
@@ -319,6 +320,7 @@ impl Workspace {
     }
 
     /// Build the clone URL for a repo name
+    #[must_use]
     pub fn clone_url(&self, repo_name: &str) -> String {
         let org = self.org.as_deref().unwrap_or(&self.name);
         match self.clone_method {

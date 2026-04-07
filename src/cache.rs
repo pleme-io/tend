@@ -13,6 +13,7 @@ struct CacheEntry {
 }
 
 /// Resolve the `tend` cache root: `$XDG_CACHE_HOME/tend` or `~/.cache/tend`.
+#[must_use]
 pub(crate) fn tend_cache_root() -> PathBuf {
     std::env::var("XDG_CACHE_HOME")
         .map(PathBuf::from)
@@ -33,6 +34,7 @@ fn cache_path(org: &str) -> PathBuf {
 }
 
 /// Read cached discovery results for an org, returning `None` if missing or expired.
+#[must_use]
 pub(crate) fn read(org: &str) -> Option<Vec<String>> {
     let path = cache_path(org);
     let content = std::fs::read_to_string(&path).ok()?;

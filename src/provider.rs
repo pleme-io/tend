@@ -60,6 +60,7 @@ pub async fn discover_github_repos(org: &str) -> Result<Vec<String>> {
 }
 
 /// Get the auth token from environment (TEND_GITHUB_TOKEN or GITHUB_TOKEN).
+#[must_use]
 pub fn github_token() -> Option<String> {
     std::env::var("TEND_GITHUB_TOKEN")
         .or_else(|_| std::env::var("GITHUB_TOKEN"))

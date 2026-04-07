@@ -1454,6 +1454,7 @@ fn check_flake_staleness(
 
 /// Compute adaptive cooldown interval with exponential backoff.
 /// Returns `min(base_interval * 2^misses, max_interval)`.
+#[must_use]
 fn adaptive_interval(base_interval: u64, max_interval: u64, misses: u32) -> u64 {
     let exponent = misses.min(20); // cap to avoid overflow
     let backoff = base_interval.saturating_mul(1u64 << exponent);

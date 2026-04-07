@@ -19,6 +19,7 @@ pub struct AuditLog {
 }
 
 impl AuditLog {
+    #[must_use]
     pub fn new(path: PathBuf) -> Self {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).ok();
@@ -27,6 +28,7 @@ impl AuditLog {
     }
 
     /// Default audit log location: ~/.local/share/tend/audit.jsonl
+    #[must_use]
     pub fn default_path() -> Self {
         let dir = dirs::data_local_dir()
             .unwrap_or_else(|| PathBuf::from(".local/share"))
@@ -35,6 +37,7 @@ impl AuditLog {
     }
 
     /// Return the path of the audit log file.
+    #[must_use]
     pub fn path(&self) -> &std::path::Path {
         &self.path
     }
