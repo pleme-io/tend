@@ -254,12 +254,11 @@ pub async fn run_watch_cycle(
                     }
                 };
 
-                // Audit: version detected
-                let tracking_label = match &track_mode {
-                    Some(TrackMode::Tags) | None => "tags",
-                    Some(TrackMode::Commits { .. }) => "commits",
-                };
-                audit.version_detected(org, repo_name, &version, &head, tracking_label);
+                let tracking_label = track_mode
+                    .as_ref()
+                    .map(|m| m.to_string())
+                    .unwrap_or_else(|| "tags".to_string());
+                audit.version_detected(org, repo_name, &version, &head, &tracking_label);
 
                 // Append entry to matrix.toml (pass HEAD SHA as rev)
                 match matrix_appender.append_entry(matrix_file, repo_name, &version, &head, language.as_deref()) {
@@ -1638,6 +1637,26 @@ mod tests {
     use crate::watch_cache::{RepoState, WatchState};
     use std::collections::{BTreeMap, HashMap};
     use std::sync::Mutex;
+
+    #[test]
+    fn test_track_mode_display() {
+        assert_eq!(TrackMode::Tags.to_string(), "tags");
+        assert_eq!(
+            TrackMode::Commits { unstable_base: "0.1.0".to_string() }.to_string(),
+            "commits(base=0.1.0)"
+        );
+    }
+
+    #[test]
+    fn test_watch_summary_default() {
+        let s = WatchSummary::default();
+        assert_eq!(s.checked, 0);
+        assert_eq!(s.new_versions, 0);
+        assert_eq!(s.errors, 0);
+        assert_eq!(s.file_changes, 0);
+        assert_eq!(s.flake_input_updates, 0);
+        assert_eq!(s.flake_refreshed, 0);
+    }
 
     struct MockGitHub {
         heads: BTreeMap<String, String>,
