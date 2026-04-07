@@ -68,7 +68,7 @@ pub struct WatchConfig {
 /// When enabled, the daemon runs `nix-audit check --all` after the watch cycle,
 /// optionally auto-fixes violations and propagates fixes across the flake graph.
 /// Results are tracked in a convergence database for trend analysis.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct NixAuditConfig {
     /// Enable nix-audit integration in daemon cycle
     #[serde(default)]
@@ -148,6 +148,27 @@ pub struct FlakeInputWatch {
     /// Hooks to run when staleness is detected
     #[serde(default)]
     pub post_hooks: Vec<PostHook>,
+}
+
+impl Default for FlakeRefreshConfig {
+    fn default() -> Self {
+        Self {
+            enable: false,
+            interval: default_refresh_interval(),
+            max_interval: default_max_interval(),
+            branch: default_branch(),
+            pull_before_update: true,
+            update_command: default_update_command(),
+            update_timeout: default_update_timeout(),
+            commit_message: default_commit_message(),
+            auto_commit: true,
+            auto_propagate: false,
+            include: Vec::new(),
+            exclude: Vec::new(),
+            post_hooks: Vec::new(),
+            staleness_check: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -639,6 +660,32 @@ workspaces:
         assert!(!nix_audit.auto_propagate);
         assert!(nix_audit.db_path.is_none());
         assert!(nix_audit.post_hooks.is_empty());
+    }
+
+    #[test]
+    fn test_flake_refresh_config_default_impl_matches_serde() {
+        let fr = FlakeRefreshConfig::default();
+        assert!(!fr.enable);
+        assert_eq!(fr.interval, 3600);
+        assert_eq!(fr.max_interval, 86400);
+        assert_eq!(fr.branch, "main");
+        assert!(fr.pull_before_update);
+        assert_eq!(fr.update_command, "nix flake update");
+        assert_eq!(fr.update_timeout, 600);
+        assert_eq!(fr.commit_message, "chore: update flake.lock");
+        assert!(fr.auto_commit);
+        assert!(!fr.auto_propagate);
+        assert!(fr.staleness_check);
+    }
+
+    #[test]
+    fn test_nix_audit_config_default_impl() {
+        let cfg = NixAuditConfig::default();
+        assert!(!cfg.enable);
+        assert!(!cfg.auto_fix);
+        assert!(!cfg.auto_propagate);
+        assert!(cfg.db_path.is_none());
+        assert!(cfg.post_hooks.is_empty());
     }
 
     #[test]
