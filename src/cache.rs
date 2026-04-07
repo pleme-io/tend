@@ -28,7 +28,8 @@ fn cache_path(org: &str) -> PathBuf {
     cache_dir().join(format!("{org}.json"))
 }
 
-pub fn read(org: &str) -> Option<Vec<String>> {
+/// Read cached discovery results for an org, returning `None` if missing or expired.
+pub(crate) fn read(org: &str) -> Option<Vec<String>> {
     let path = cache_path(org);
     let content = std::fs::read_to_string(&path).ok()?;
     let entry: CacheEntry = serde_json::from_str(&content).ok()?;
@@ -44,7 +45,8 @@ pub fn read(org: &str) -> Option<Vec<String>> {
     Some(entry.repos)
 }
 
-pub fn write(org: &str, repos: &[String]) -> Result<()> {
+/// Write discovery results for an org to the cache directory.
+pub(crate) fn write(org: &str, repos: &[String]) -> Result<()> {
     let dir = cache_dir();
     std::fs::create_dir_all(&dir)?;
 

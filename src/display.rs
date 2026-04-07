@@ -3,7 +3,8 @@ use colored::Colorize;
 use crate::sync::{PullSummary, RepoEntry, RepoStatus};
 use crate::watch;
 
-pub fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
+/// Print colored status table for all repos in a workspace.
+pub(crate) fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
     let clean = entries
         .iter()
         .filter(|e| matches!(e.status, RepoStatus::Clean))
@@ -44,7 +45,8 @@ pub fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
     );
 }
 
-pub fn print_sync_summary(workspace_name: &str, cloned: usize, present: usize) {
+/// Print sync summary (cloned vs already-present counts).
+pub(crate) fn print_sync_summary(workspace_name: &str, cloned: usize, present: usize) {
     if cloned == 0 {
         println!(
             "{}: all {} repos present",
@@ -61,14 +63,16 @@ pub fn print_sync_summary(workspace_name: &str, cloned: usize, present: usize) {
     }
 }
 
-pub fn print_repo_list(workspace_name: &str, repos: &[String]) {
+/// Print the full list of repos in a workspace.
+pub(crate) fn print_repo_list(workspace_name: &str, repos: &[String]) {
     println!("{} ({} repos):", workspace_name.bold(), repos.len());
     for repo in repos {
         println!("  {repo}");
     }
 }
 
-pub fn print_discover_results(org: &str, repos: &[String]) {
+/// Print discovered repos for a GitHub org.
+pub(crate) fn print_discover_results(org: &str, repos: &[String]) {
     println!(
         "discovered {} repos in {}:",
         repos.len().to_string().green(),
@@ -79,7 +83,8 @@ pub fn print_discover_results(org: &str, repos: &[String]) {
     }
 }
 
-pub fn print_daemon_cycle_start(cycle: u64) {
+/// Print daemon cycle start banner with timestamp.
+pub(crate) fn print_daemon_cycle_start(cycle: u64) {
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
     println!(
         "[{}] {} cycle {}",
@@ -89,7 +94,8 @@ pub fn print_daemon_cycle_start(cycle: u64) {
     );
 }
 
-pub fn print_daemon_cycle_done(cycle: u64, workspaces: usize) {
+/// Print daemon cycle completion with workspace count.
+pub(crate) fn print_daemon_cycle_done(cycle: u64, workspaces: usize) {
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
     println!(
         "[{}] {} cycle {} done ({} workspaces)",
@@ -100,7 +106,8 @@ pub fn print_daemon_cycle_done(cycle: u64, workspaces: usize) {
     );
 }
 
-pub fn print_pull_summary(workspace_name: &str, summary: &PullSummary) {
+/// Print pull summary (updated, up-to-date, dirty-skipped, etc.).
+pub(crate) fn print_pull_summary(workspace_name: &str, summary: &PullSummary) {
     println!(
         "{}: {} updated, {} up-to-date, {} dirty skipped, {} missing, {} failed",
         workspace_name.bold(),
@@ -112,7 +119,8 @@ pub fn print_pull_summary(workspace_name: &str, summary: &PullSummary) {
     );
 }
 
-pub fn print_fetch_summary(workspace_name: &str, fetched: usize, skipped: usize) {
+/// Print fetch summary (fetched vs skipped counts).
+pub(crate) fn print_fetch_summary(workspace_name: &str, fetched: usize, skipped: usize) {
     if fetched == 0 && skipped == 0 {
         return;
     }
@@ -124,7 +132,8 @@ pub fn print_fetch_summary(workspace_name: &str, fetched: usize, skipped: usize)
     );
 }
 
-pub fn print_daemon_error(workspace_name: &str, err: &anyhow::Error) {
+/// Print a daemon-level error for a workspace.
+pub(crate) fn print_daemon_error(workspace_name: &str, err: &anyhow::Error) {
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
     eprintln!(
         "[{}] {}: {} {}",
@@ -135,7 +144,8 @@ pub fn print_daemon_error(workspace_name: &str, err: &anyhow::Error) {
     );
 }
 
-pub fn print_daemon_sleeping(interval: u64) {
+/// Print daemon sleep interval.
+pub(crate) fn print_daemon_sleeping(interval: u64) {
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
     println!(
         "[{}] {} sleeping {}s",
@@ -145,7 +155,8 @@ pub fn print_daemon_sleeping(interval: u64) {
     );
 }
 
-pub fn print_flake_chain_header(workspace_name: &str, changed: &str, steps: &[crate::flake::UpdateStep]) {
+/// Print the header for a flake update chain.
+pub(crate) fn print_flake_chain_header(workspace_name: &str, changed: &str, steps: &[crate::flake::UpdateStep]) {
     println!("{}", format!("workspace: {workspace_name}").bold());
     println!("  changed: {}", changed.cyan());
     println!("  chain ({} steps):", steps.len().to_string().green());
@@ -160,7 +171,8 @@ pub fn print_flake_chain_header(workspace_name: &str, changed: &str, steps: &[cr
     println!();
 }
 
-pub fn print_flake_step_start(step: usize, total: usize, repo: &str, inputs: &[String]) {
+/// Print a flake update step starting.
+pub(crate) fn print_flake_step_start(step: usize, total: usize, repo: &str, inputs: &[String]) {
     println!(
         "  [{}/{}] {} nix flake update {}",
         step,
@@ -170,19 +182,23 @@ pub fn print_flake_step_start(step: usize, total: usize, repo: &str, inputs: &[S
     );
 }
 
-pub fn print_flake_step_done(repo: &str) {
+/// Print a successful flake update step.
+pub(crate) fn print_flake_step_done(repo: &str) {
     println!("  [{}] {} committed and pushed", "ok".green(), repo);
 }
 
-pub fn print_flake_step_dry_run() {
+/// Print a dry-run skip indicator.
+pub(crate) fn print_flake_step_dry_run() {
     println!("  [{}] (dry-run, skipped)", ">>".yellow());
 }
 
-pub fn print_flake_step_no_changes(repo: &str) {
+/// Print indicator that flake.lock was unchanged.
+pub(crate) fn print_flake_step_no_changes(repo: &str) {
     println!("  [{}] {} flake.lock unchanged", "==".cyan(), repo);
 }
 
-pub fn print_flake_chain_complete(updated: usize) {
+/// Print chain completion summary.
+pub(crate) fn print_flake_chain_complete(updated: usize) {
     if updated == 0 {
         println!("\n  {}", "no repos needed updating".cyan());
     } else {
@@ -194,7 +210,8 @@ pub fn print_flake_chain_complete(updated: usize) {
     }
 }
 
-pub fn print_watch_summary(workspace_name: &str, summary: &watch::WatchSummary) {
+/// Print watch cycle summary.
+pub(crate) fn print_watch_summary(workspace_name: &str, summary: &watch::WatchSummary) {
     if summary.new_versions == 0 && summary.file_changes == 0 && summary.flake_input_updates == 0 && summary.flake_refreshed == 0 {
         println!(
             "{}: watched {} repos, no new versions",
@@ -230,7 +247,8 @@ pub fn print_watch_summary(workspace_name: &str, summary: &watch::WatchSummary) 
     }
 }
 
-pub fn print_flake_refresh_skip(repo: &str, reason: &str) {
+/// Print a flake refresh skip with reason.
+pub(crate) fn print_flake_refresh_skip(repo: &str, reason: &str) {
     println!(
         "  [{}] {} ({})",
         "--".cyan(),
@@ -239,15 +257,18 @@ pub fn print_flake_refresh_skip(repo: &str, reason: &str) {
     );
 }
 
-pub fn print_flake_refresh_updated(repo: &str) {
+/// Print a successful flake refresh.
+pub(crate) fn print_flake_refresh_updated(repo: &str) {
     println!("  [{}] {} refreshed and pushed", "ok".green(), repo.bold());
 }
 
-pub fn print_flake_refresh_no_changes(repo: &str) {
+/// Print indicator that flake.lock was unchanged after refresh.
+pub(crate) fn print_flake_refresh_no_changes(repo: &str) {
     println!("  [{}] {} flake.lock unchanged", "==".cyan(), repo);
 }
 
-pub fn print_flake_refresh_error(repo: &str, err: &str) {
+/// Print a flake refresh error.
+pub(crate) fn print_flake_refresh_error(repo: &str, err: &str) {
     eprintln!(
         "  [{}] {} {}",
         "!!".red(),
@@ -256,7 +277,8 @@ pub fn print_flake_refresh_error(repo: &str, err: &str) {
     );
 }
 
-pub fn print_watch_new_version(repo: &str, version: &str, tag: &str) {
+/// Print a newly detected version.
+pub(crate) fn print_watch_new_version(repo: &str, version: &str, tag: &str) {
     println!(
         "  [{}] {} {} (tag: {})",
         "new".green(),
