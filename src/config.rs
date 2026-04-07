@@ -309,6 +309,12 @@ impl Workspace {
 }
 
 /// Generate a starter config file.
+///
+/// # Errors
+///
+/// Returns an error if YAML serialization fails (should not happen with
+/// the well-known starter config, but callers get a typed error instead
+/// of a panic).
 pub(crate) fn generate_starter_config() -> Result<String> {
     let config = Config {
         workspaces: vec![Workspace {

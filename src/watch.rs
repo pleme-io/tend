@@ -221,7 +221,7 @@ pub async fn run_watch_cycle(
 
             if should_act {
                 // Detect language (use cached if available and HEAD hasn't changed)
-                let language = if let Some(c) = cached.filter(|_| !head_changed) {
+                let language = if let Some(c) = cached.filter(|_| !head_changed).filter(|c| c.language.is_some()) {
                     c.language.clone()
                 } else {
                     match github.detect_repo_language(org, repo_name).await {
