@@ -6184,7 +6184,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/todoku";
           rev = "6376ed31596516f6f07474e456eae7b37cadd7c8";
-          sha256 = "07sa7mknln8fm2d2grif7sh8k6gp8q988mkl9hflzbj4hl1bfd22";
+          sha256 = "0cq5qx8waspnrlk6alry7fihnfgf33aj03lffl77b60g5yvgc6yj";
         };
         dependencies = [
           {
