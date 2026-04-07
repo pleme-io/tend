@@ -402,4 +402,60 @@ mod tests {
         assert!(chain[1].inputs.contains(&"root".to_string()));
         assert!(chain[1].inputs.contains(&"a".to_string()));
     }
+
+    #[test]
+    fn test_compute_update_chain_partial_dependency_only_changed_inputs() {
+        let mut deps = HashMap::new();
+        deps.insert("a".to_string(), vec!["lib-x".to_string(), "lib-y".to_string()]);
+        deps.insert("b".to_string(), vec!["lib-y".to_string()]);
+
+        let chain = compute_update_chain("lib-x", &deps).unwrap();
+        assert_eq!(chain.len(), 1);
+        assert_eq!(chain[0].repo, "a");
+        assert_eq!(chain[0].inputs, vec!["lib-x".to_string()]);
+    }
+
+    #[test]
+    fn test_compute_update_chain_wide_fan_out() {
+        let mut deps = HashMap::new();
+        deps.insert("a".to_string(), vec!["root".to_string()]);
+        deps.insert("b".to_string(), vec!["root".to_string()]);
+        deps.insert("c".to_string(), vec!["root".to_string()]);
+        deps.insert("d".to_string(), vec!["root".to_string()]);
+
+        let chain = compute_update_chain("root", &deps).unwrap();
+        assert_eq!(chain.len(), 4);
+        let repos: Vec<&str> = chain.iter().map(|s| s.repo.as_str()).collect();
+        assert!(repos.contains(&"a"));
+        assert!(repos.contains(&"b"));
+        assert!(repos.contains(&"c"));
+        assert!(repos.contains(&"d"));
+        for step in &chain {
+            assert_eq!(step.inputs, vec!["root".to_string()]);
+        }
+    }
+
+    #[test]
+    fn test_compute_update_chain_changed_is_not_in_output() {
+        let mut deps = HashMap::new();
+        deps.insert("a".to_string(), vec!["root".to_string()]);
+
+        let chain = compute_update_chain("root", &deps).unwrap();
+        for step in &chain {
+            assert_ne!(step.repo, "root", "changed repo should not appear as an update step");
+        }
+    }
+
+    #[test]
+    fn test_compute_update_chain_three_level_cycle_detection() {
+        let mut deps = HashMap::new();
+        deps.insert("a".to_string(), vec!["b".to_string()]);
+        deps.insert("b".to_string(), vec!["c".to_string()]);
+        deps.insert("c".to_string(), vec!["a".to_string()]);
+
+        let result = compute_update_chain("a", &deps);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("cycle detected"));
+    }
 }

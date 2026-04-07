@@ -252,4 +252,53 @@ mod tests {
 
         let _ = std::fs::remove_file(cache_path(ws_name));
     }
+
+    #[test]
+    fn test_watch_state_default_is_empty() {
+        let state = WatchState::default();
+        assert!(state.repos.is_empty());
+        assert!(state.file_shas.is_empty());
+        assert!(state.flake_inputs.is_empty());
+        assert!(state.flake_refresh_at.is_empty());
+        assert!(state.flake_refresh_misses.is_empty());
+    }
+
+    #[test]
+    fn test_repo_state_with_no_optional_fields() {
+        let state = RepoState {
+            head: "abc".to_string(),
+            latest_tag: None,
+            language: None,
+        };
+        let mut ws = WatchState::default();
+        ws.repos.insert("bare".to_string(), state);
+        let serialized = toml::to_string_pretty(&ws).unwrap();
+        let deserialized: WatchState = toml::from_str(&serialized).unwrap();
+        assert!(deserialized.repos["bare"].latest_tag.is_none());
+        assert!(deserialized.repos["bare"].language.is_none());
+    }
+
+    #[test]
+    fn test_flake_input_cache_entry_roundtrip() {
+        let entry = FlakeInputCacheEntry {
+            upstream_rev: "abc123".to_string(),
+            upstream_tag: Some("v1.0.0".to_string()),
+        };
+        let serialized = toml::to_string(&entry).unwrap();
+        let deserialized: FlakeInputCacheEntry = toml::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.upstream_rev, "abc123");
+        assert_eq!(deserialized.upstream_tag.as_deref(), Some("v1.0.0"));
+    }
+
+    #[test]
+    fn test_cache_path_uses_workspace_name() {
+        let path = cache_path("my-workspace");
+        assert!(path.ends_with("my-workspace.toml"));
+    }
+
+    #[test]
+    fn test_cache_dir_ends_with_tend_watch() {
+        let dir = cache_dir();
+        assert!(dir.ends_with("tend/watch"));
+    }
 }
