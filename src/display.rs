@@ -26,13 +26,13 @@ pub(crate) fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
     println!();
 
     for entry in entries {
-        let (icon, label) = match &entry.status {
-            RepoStatus::Clean => ("ok".green().to_string(), "clean"),
-            RepoStatus::Dirty => ("!!".yellow().to_string(), "dirty"),
-            RepoStatus::Missing => ("--".red().to_string(), "missing"),
-            RepoStatus::Unknown => ("??".cyan().to_string(), "unknown"),
+        let icon = match &entry.status {
+            RepoStatus::Clean => "ok".green().to_string(),
+            RepoStatus::Dirty => "!!".yellow().to_string(),
+            RepoStatus::Missing => "--".red().to_string(),
+            RepoStatus::Unknown => "??".cyan().to_string(),
         };
-        println!("  [{icon}] {:<40} {label}", entry.name);
+        println!("  [{icon}] {:<40} {}", entry.name, entry.status);
     }
 
     println!();
