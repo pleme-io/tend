@@ -77,15 +77,7 @@ impl WatchStateStore for FsWatchStateStore {
 }
 
 fn cache_dir() -> PathBuf {
-    std::env::var("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(".cache")
-        })
-        .join("tend")
-        .join("watch")
+    crate::cache::tend_cache_root().join("watch")
 }
 
 fn cache_path(workspace_name: &str) -> PathBuf {

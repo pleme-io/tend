@@ -12,7 +12,8 @@ struct CacheEntry {
     timestamp: u64, // unix epoch seconds
 }
 
-fn cache_dir() -> PathBuf {
+/// Resolve the `tend` cache root: `$XDG_CACHE_HOME/tend` or `~/.cache/tend`.
+pub(crate) fn tend_cache_root() -> PathBuf {
     std::env::var("XDG_CACHE_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
@@ -21,7 +22,10 @@ fn cache_dir() -> PathBuf {
                 .join(".cache")
         })
         .join("tend")
-        .join("discovery")
+}
+
+fn cache_dir() -> PathBuf {
+    tend_cache_root().join("discovery")
 }
 
 fn cache_path(org: &str) -> PathBuf {
