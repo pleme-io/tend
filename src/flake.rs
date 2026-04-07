@@ -62,8 +62,11 @@ pub fn compute_update_chain(
         in_degree.entry(repo).or_insert(0);
         if let Some(deps) = flake_deps.get(repo) {
             for dep in deps {
-                // Only count edges from affected repos or the changed repo
-                if affected.contains(dep.as_str()) || dep == changed {
+                // Only count ordering edges between affected repos.
+                // The `changed` node is the external trigger and is not part of
+                // the topological sort — edges from it must not inflate in-degree
+                // (they would never be decremented, causing false cycle errors).
+                if affected.contains(dep.as_str()) {
                     forward.entry(dep.as_str()).or_default().push(repo);
                     *in_degree.entry(repo).or_insert(0) += 1;
                 }
@@ -249,4 +252,152 @@ fn ensure_clean(repo_path: &Path) -> Result<()> {
         bail!("working tree is dirty");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_compute_update_chain_empty_deps() {
+        let deps: HashMap<String, Vec<String>> = HashMap::new();
+        let chain = compute_update_chain("foo", &deps).unwrap();
+        assert!(chain.is_empty());
+    }
+
+    #[test]
+    fn test_compute_update_chain_no_dependents() {
+        let mut deps = HashMap::new();
+        deps.insert("repo-a".to_string(), vec!["unrelated".to_string()]);
+        let chain = compute_update_chain("foo", &deps).unwrap();
+        assert!(chain.is_empty());
+    }
+
+    #[test]
+    fn test_compute_update_chain_single_dependent() {
+        let mut deps = HashMap::new();
+        deps.insert("repo-a".to_string(), vec!["lib-x".to_string()]);
+        let chain = compute_update_chain("lib-x", &deps).unwrap();
+        assert_eq!(chain.len(), 1);
+        assert_eq!(chain[0].repo, "repo-a");
+        assert_eq!(chain[0].inputs, vec!["lib-x".to_string()]);
+    }
+
+    #[test]
+    fn test_compute_update_chain_transitive_deps() {
+        // lib-x → repo-a → repo-b (repo-a depends on lib-x, repo-b depends on repo-a)
+        let mut deps = HashMap::new();
+        deps.insert("repo-a".to_string(), vec!["lib-x".to_string()]);
+        deps.insert("repo-b".to_string(), vec!["repo-a".to_string()]);
+
+        let chain = compute_update_chain("lib-x", &deps).unwrap();
+        assert_eq!(chain.len(), 2);
+        assert_eq!(chain[0].repo, "repo-a");
+        assert_eq!(chain[0].inputs, vec!["lib-x".to_string()]);
+        assert_eq!(chain[1].repo, "repo-b");
+        assert_eq!(chain[1].inputs, vec!["repo-a".to_string()]);
+    }
+
+    #[test]
+    fn test_compute_update_chain_diamond_dependency() {
+        // lib-x → repo-a, lib-x → repo-b, repo-a → repo-c, repo-b → repo-c
+        let mut deps = HashMap::new();
+        deps.insert("repo-a".to_string(), vec!["lib-x".to_string()]);
+        deps.insert("repo-b".to_string(), vec!["lib-x".to_string()]);
+        deps.insert("repo-c".to_string(), vec!["repo-a".to_string(), "repo-b".to_string()]);
+
+        let chain = compute_update_chain("lib-x", &deps).unwrap();
+        assert_eq!(chain.len(), 3);
+
+        // repo-a and repo-b must come before repo-c
+        let positions: HashMap<&str, usize> = chain.iter().enumerate()
+            .map(|(i, s)| (s.repo.as_str(), i))
+            .collect();
+        assert!(positions["repo-a"] < positions["repo-c"]);
+        assert!(positions["repo-b"] < positions["repo-c"]);
+
+        // repo-c should list both repo-a and repo-b as inputs
+        let repo_c_step = chain.iter().find(|s| s.repo == "repo-c").unwrap();
+        assert!(repo_c_step.inputs.contains(&"repo-a".to_string()));
+        assert!(repo_c_step.inputs.contains(&"repo-b".to_string()));
+    }
+
+    #[test]
+    fn test_compute_update_chain_cycle_detection() {
+        // A → B → A (cycle)
+        let mut deps = HashMap::new();
+        deps.insert("repo-a".to_string(), vec!["repo-b".to_string()]);
+        deps.insert("repo-b".to_string(), vec!["repo-a".to_string()]);
+
+        let result = compute_update_chain("repo-a", &deps);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("cycle detected"), "expected cycle error, got: {err_msg}");
+    }
+
+    #[test]
+    fn test_compute_update_chain_multiple_inputs_per_repo() {
+        // repo-a depends on both lib-x and lib-y; only lib-x changed
+        let mut deps = HashMap::new();
+        deps.insert("repo-a".to_string(), vec!["lib-x".to_string(), "lib-y".to_string()]);
+
+        let chain = compute_update_chain("lib-x", &deps).unwrap();
+        assert_eq!(chain.len(), 1);
+        assert_eq!(chain[0].repo, "repo-a");
+        assert_eq!(chain[0].inputs, vec!["lib-x".to_string()]);
+    }
+
+    #[test]
+    fn test_compute_update_chain_changed_repo_not_in_deps() {
+        // The changed repo itself isn't listed as anyone's dependency
+        let mut deps = HashMap::new();
+        deps.insert("repo-a".to_string(), vec!["other".to_string()]);
+        let chain = compute_update_chain("nobody-uses-this", &deps).unwrap();
+        assert!(chain.is_empty());
+    }
+
+    #[test]
+    fn test_compute_update_chain_deep_chain() {
+        // Linear chain: root → a → b → c → d
+        let mut deps = HashMap::new();
+        deps.insert("a".to_string(), vec!["root".to_string()]);
+        deps.insert("b".to_string(), vec!["a".to_string()]);
+        deps.insert("c".to_string(), vec!["b".to_string()]);
+        deps.insert("d".to_string(), vec!["c".to_string()]);
+
+        let chain = compute_update_chain("root", &deps).unwrap();
+        assert_eq!(chain.len(), 4);
+        assert_eq!(chain[0].repo, "a");
+        assert_eq!(chain[1].repo, "b");
+        assert_eq!(chain[2].repo, "c");
+        assert_eq!(chain[3].repo, "d");
+    }
+
+    #[test]
+    fn test_compute_update_chain_self_dependency_not_triggered() {
+        // repo-a depends on itself (odd but shouldn't panic)
+        let mut deps = HashMap::new();
+        deps.insert("repo-a".to_string(), vec!["repo-a".to_string()]);
+        // "lib-x" has no dependents
+        let chain = compute_update_chain("lib-x", &deps).unwrap();
+        assert!(chain.is_empty());
+    }
+
+    #[test]
+    fn test_update_step_inputs_reflect_transitive_updates() {
+        // a depends on root, b depends on root AND a
+        let mut deps = HashMap::new();
+        deps.insert("a".to_string(), vec!["root".to_string()]);
+        deps.insert("b".to_string(), vec!["root".to_string(), "a".to_string()]);
+
+        let chain = compute_update_chain("root", &deps).unwrap();
+        assert_eq!(chain.len(), 2);
+        assert_eq!(chain[0].repo, "a");
+        assert_eq!(chain[0].inputs, vec!["root".to_string()]);
+        // b should see both root and a as updated inputs
+        assert_eq!(chain[1].repo, "b");
+        assert!(chain[1].inputs.contains(&"root".to_string()));
+        assert!(chain[1].inputs.contains(&"a".to_string()));
+    }
 }
