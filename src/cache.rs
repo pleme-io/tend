@@ -33,42 +33,56 @@ fn cache_path(org: &str) -> PathBuf {
     cache_dir().join(format!("{org}.json"))
 }
 
-/// Read cached discovery results for an org, returning `None` if missing or expired.
-#[must_use]
-pub(crate) fn read(org: &str) -> Option<Vec<String>> {
-    let path = cache_path(org);
-    let content = std::fs::read_to_string(&path).ok()?;
-    let entry: CacheEntry = serde_json::from_str(&content).ok()?;
+/// Filesystem-backed discovery cache with configurable TTL.
+pub struct DiscoveryCache;
 
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .ok()?
-        .as_secs();
-    if now.saturating_sub(entry.timestamp) > DEFAULT_TTL_SECS {
-        return None;
+impl DiscoveryCache {
+    #[must_use]
+    pub fn read(org: &str) -> Option<Vec<String>> {
+        let path = cache_path(org);
+        let content = std::fs::read_to_string(&path).ok()?;
+        let entry: CacheEntry = serde_json::from_str(&content).ok()?;
+
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .ok()?
+            .as_secs();
+        if now.saturating_sub(entry.timestamp) > DEFAULT_TTL_SECS {
+            return None;
+        }
+
+        Some(entry.repos)
     }
 
-    Some(entry.repos)
+    pub fn write(org: &str, repos: &[String]) -> Result<()> {
+        let dir = cache_dir();
+        std::fs::create_dir_all(&dir)?;
+
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)?
+            .as_secs();
+
+        let entry = CacheEntry {
+            org: org.to_string(),
+            repos: repos.to_vec(),
+            timestamp: now,
+        };
+
+        let json = serde_json::to_string_pretty(&entry)?;
+        std::fs::write(cache_path(org), json)?;
+        Ok(())
+    }
 }
 
-/// Write discovery results for an org to the cache directory.
+/// Convenience wrapper — calls [`DiscoveryCache::read`].
+#[must_use]
+pub(crate) fn read(org: &str) -> Option<Vec<String>> {
+    DiscoveryCache::read(org)
+}
+
+/// Convenience wrapper — calls [`DiscoveryCache::write`].
 pub(crate) fn write(org: &str, repos: &[String]) -> Result<()> {
-    let dir = cache_dir();
-    std::fs::create_dir_all(&dir)?;
-
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)?
-        .as_secs();
-
-    let entry = CacheEntry {
-        org: org.to_string(),
-        repos: repos.to_vec(),
-        timestamp: now,
-    };
-
-    let json = serde_json::to_string_pretty(&entry)?;
-    std::fs::write(cache_path(org), json)?;
-    Ok(())
+    DiscoveryCache::write(org, repos)
 }
 
 #[cfg(test)]
