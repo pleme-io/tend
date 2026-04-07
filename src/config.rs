@@ -331,6 +331,31 @@ impl Config {
             });
         config_dir.join("tend").join("config.yaml")
     }
+
+    /// Generate a starter config file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if YAML serialization fails (should not happen with
+    /// the well-known starter config, but callers get a typed error instead
+    /// of a panic).
+    pub fn generate_starter() -> Result<String> {
+        let config = Config {
+            workspaces: vec![Workspace {
+                name: "my-org".to_string(),
+                provider: "github".to_string(),
+                base_dir: "~/code/github/my-org".to_string(),
+                clone_method: CloneMethod::Ssh,
+                discover: true,
+                org: Some("my-org".to_string()),
+                exclude: vec![".github".to_string()],
+                extra_repos: vec![],
+                flake_deps: HashMap::new(),
+                watch: None,
+            }],
+        };
+        serde_yaml_ng::to_string(&config).context("serializing starter config")
+    }
 }
 
 impl Workspace {
@@ -351,29 +376,9 @@ impl Workspace {
     }
 }
 
-/// Generate a starter config file.
-///
-/// # Errors
-///
-/// Returns an error if YAML serialization fails (should not happen with
-/// the well-known starter config, but callers get a typed error instead
-/// of a panic).
+/// Convenience wrapper — calls `Config::generate_starter()`.
 pub(crate) fn generate_starter_config() -> Result<String> {
-    let config = Config {
-        workspaces: vec![Workspace {
-            name: "my-org".to_string(),
-            provider: "github".to_string(),
-            base_dir: "~/code/github/my-org".to_string(),
-            clone_method: CloneMethod::Ssh,
-            discover: true,
-            org: Some("my-org".to_string()),
-            exclude: vec![".github".to_string()],
-            extra_repos: vec![],
-            flake_deps: HashMap::new(),
-            watch: None,
-        }],
-    };
-    serde_yaml_ng::to_string(&config).context("serializing starter config")
+    Config::generate_starter()
 }
 
 #[cfg(test)]
