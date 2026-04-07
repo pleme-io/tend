@@ -326,3 +326,350 @@ pub fn generate_starter_config() -> String {
     };
     serde_yaml_ng::to_string(&config).unwrap()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_config_load_valid_yaml() {
+        let dir = std::env::temp_dir().join("tend-config-test");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("test-config.yaml");
+        let yaml = r#"
+workspaces:
+  - name: test-ws
+    base_dir: /tmp/repos
+    discover: false
+"#;
+        std::fs::write(&path, yaml).unwrap();
+        let cfg = Config::load(&path).unwrap();
+        assert_eq!(cfg.workspaces.len(), 1);
+        assert_eq!(cfg.workspaces[0].name, "test-ws");
+        assert_eq!(cfg.workspaces[0].base_dir, "/tmp/repos");
+        assert!(!cfg.workspaces[0].discover);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_config_load_nonexistent_file() {
+        let result = Config::load(std::path::Path::new("/nonexistent/path/config.yaml"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_load_invalid_yaml() {
+        let dir = std::env::temp_dir().join("tend-config-test");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("bad-config.yaml");
+        std::fs::write(&path, "{{{{ not valid yaml").unwrap();
+        let result = Config::load(&path);
+        assert!(result.is_err());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_serde_defaults_provider() {
+        let yaml = r#"
+workspaces:
+  - name: test
+    base_dir: /tmp
+"#;
+        let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(cfg.workspaces[0].provider, "github");
+    }
+
+    #[test]
+    fn test_serde_defaults_clone_method() {
+        let yaml = r#"
+workspaces:
+  - name: test
+    base_dir: /tmp
+"#;
+        let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(cfg.workspaces[0].clone_method, CloneMethod::Ssh);
+    }
+
+    #[test]
+    fn test_serde_explicit_clone_method_https() {
+        let yaml = r#"
+workspaces:
+  - name: test
+    base_dir: /tmp
+    clone_method: https
+"#;
+        let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(cfg.workspaces[0].clone_method, CloneMethod::Https);
+    }
+
+    #[test]
+    fn test_serde_defaults_discover_false() {
+        let yaml = r#"
+workspaces:
+  - name: test
+    base_dir: /tmp
+"#;
+        let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        assert!(!cfg.workspaces[0].discover);
+    }
+
+    #[test]
+    fn test_serde_defaults_empty_collections() {
+        let yaml = r#"
+workspaces:
+  - name: test
+    base_dir: /tmp
+"#;
+        let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        let ws = &cfg.workspaces[0];
+        assert!(ws.exclude.is_empty());
+        assert!(ws.extra_repos.is_empty());
+        assert!(ws.flake_deps.is_empty());
+        assert!(ws.watch.is_none());
+        assert!(ws.org.is_none());
+    }
+
+    #[test]
+    fn test_clone_url_ssh() {
+        let ws = Workspace {
+            name: "my-org".to_string(),
+            provider: "github".to_string(),
+            base_dir: "/tmp".to_string(),
+            clone_method: CloneMethod::Ssh,
+            discover: false,
+            org: Some("acme".to_string()),
+            exclude: vec![],
+            extra_repos: vec![],
+            flake_deps: HashMap::new(),
+            watch: None,
+        };
+        assert_eq!(ws.clone_url("my-repo"), "git@github.com:acme/my-repo.git");
+    }
+
+    #[test]
+    fn test_clone_url_https() {
+        let ws = Workspace {
+            name: "my-org".to_string(),
+            provider: "github".to_string(),
+            base_dir: "/tmp".to_string(),
+            clone_method: CloneMethod::Https,
+            discover: false,
+            org: Some("acme".to_string()),
+            exclude: vec![],
+            extra_repos: vec![],
+            flake_deps: HashMap::new(),
+            watch: None,
+        };
+        assert_eq!(
+            ws.clone_url("my-repo"),
+            "https://github.com/acme/my-repo.git"
+        );
+    }
+
+    #[test]
+    fn test_clone_url_falls_back_to_name_when_org_is_none() {
+        let ws = Workspace {
+            name: "fallback-org".to_string(),
+            provider: "github".to_string(),
+            base_dir: "/tmp".to_string(),
+            clone_method: CloneMethod::Ssh,
+            discover: false,
+            org: None,
+            exclude: vec![],
+            extra_repos: vec![],
+            flake_deps: HashMap::new(),
+            watch: None,
+        };
+        assert_eq!(
+            ws.clone_url("repo"),
+            "git@github.com:fallback-org/repo.git"
+        );
+    }
+
+    #[test]
+    fn test_resolved_base_dir_tilde_expansion() {
+        let ws = Workspace {
+            name: "test".to_string(),
+            provider: "github".to_string(),
+            base_dir: "~/repos".to_string(),
+            clone_method: CloneMethod::Ssh,
+            discover: false,
+            org: None,
+            exclude: vec![],
+            extra_repos: vec![],
+            flake_deps: HashMap::new(),
+            watch: None,
+        };
+        let resolved = ws.resolved_base_dir().unwrap();
+        assert!(!resolved.to_string_lossy().contains('~'));
+        assert!(resolved.to_string_lossy().ends_with("/repos"));
+    }
+
+    #[test]
+    fn test_resolved_base_dir_absolute_path_unchanged() {
+        let ws = Workspace {
+            name: "test".to_string(),
+            provider: "github".to_string(),
+            base_dir: "/absolute/path".to_string(),
+            clone_method: CloneMethod::Ssh,
+            discover: false,
+            org: None,
+            exclude: vec![],
+            extra_repos: vec![],
+            flake_deps: HashMap::new(),
+            watch: None,
+        };
+        let resolved = ws.resolved_base_dir().unwrap();
+        assert_eq!(resolved, PathBuf::from("/absolute/path"));
+    }
+
+    #[test]
+    fn test_generate_starter_config_is_valid_yaml() {
+        let yaml = generate_starter_config();
+        let parsed: Config = serde_yaml_ng::from_str(&yaml).unwrap();
+        assert_eq!(parsed.workspaces.len(), 1);
+        assert_eq!(parsed.workspaces[0].name, "my-org");
+        assert!(parsed.workspaces[0].discover);
+        assert_eq!(parsed.workspaces[0].exclude, vec![".github".to_string()]);
+    }
+
+    #[test]
+    fn test_watch_config_defaults() {
+        let yaml = r#"
+workspaces:
+  - name: test
+    base_dir: /tmp
+    watch:
+      enable: true
+"#;
+        let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        let watch = cfg.workspaces[0].watch.as_ref().unwrap();
+        assert!(watch.enable);
+        assert!(!watch.auto_certify);
+        assert!(!watch.auto_commit);
+        assert!(watch.auto_propagate.is_none());
+        assert!(watch.matrix_file.is_none());
+        assert!(watch.post_hooks.is_empty());
+        assert!(watch.file_watches.is_empty());
+        assert!(watch.flake_input_watches.is_empty());
+    }
+
+    #[test]
+    fn test_flake_input_mode_default_is_commits() {
+        assert_eq!(default_flake_input_mode(), FlakeInputMode::Commits);
+    }
+
+    #[test]
+    fn test_flake_input_mode_serde_roundtrip() {
+        let yaml = "commits";
+        let mode: FlakeInputMode = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(mode, FlakeInputMode::Commits);
+
+        let yaml = "tags";
+        let mode: FlakeInputMode = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(mode, FlakeInputMode::Tags);
+    }
+
+    #[test]
+    fn test_clone_method_serde_roundtrip() {
+        let yaml = "ssh";
+        let method: CloneMethod = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(method, CloneMethod::Ssh);
+
+        let yaml = "https";
+        let method: CloneMethod = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(method, CloneMethod::Https);
+    }
+
+    #[test]
+    fn test_nix_audit_config_defaults() {
+        let yaml = r#"
+workspaces:
+  - name: test
+    base_dir: /tmp
+    watch:
+      enable: true
+      nix_audit:
+        enable: true
+"#;
+        let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        let nix_audit = cfg.workspaces[0].watch.as_ref().unwrap().nix_audit.as_ref().unwrap();
+        assert!(nix_audit.enable);
+        assert!(!nix_audit.auto_fix);
+        assert!(!nix_audit.auto_propagate);
+        assert!(nix_audit.db_path.is_none());
+        assert!(nix_audit.post_hooks.is_empty());
+    }
+
+    #[test]
+    fn test_flake_refresh_config_defaults() {
+        let yaml = r#"
+workspaces:
+  - name: test
+    base_dir: /tmp
+    watch:
+      enable: true
+      flake_refresh:
+        enable: true
+"#;
+        let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        let fr = cfg.workspaces[0].watch.as_ref().unwrap().flake_refresh.as_ref().unwrap();
+        assert!(fr.enable);
+        assert_eq!(fr.interval, 3600);
+        assert_eq!(fr.max_interval, 86400);
+        assert_eq!(fr.branch, "main");
+        assert!(fr.pull_before_update);
+        assert_eq!(fr.update_command, "nix flake update");
+        assert_eq!(fr.update_timeout, 600);
+        assert_eq!(fr.commit_message, "chore: update flake.lock");
+        assert!(fr.auto_commit);
+        assert!(!fr.auto_propagate);
+        assert!(fr.include.is_empty());
+        assert!(fr.exclude.is_empty());
+        assert!(fr.post_hooks.is_empty());
+        assert!(fr.staleness_check);
+    }
+
+    #[test]
+    fn test_config_full_watch_config_with_all_fields() {
+        let yaml = r#"
+workspaces:
+  - name: test
+    base_dir: /tmp
+    clone_method: https
+    discover: true
+    org: my-org
+    exclude:
+      - .github
+    extra_repos:
+      - special-repo
+    watch:
+      enable: true
+      matrix_file: ~/matrix.toml
+      auto_certify: true
+      auto_commit: true
+      auto_propagate: my-nix-repo
+      post_hooks:
+        - trigger: after_certify
+          command: echo
+          args: ["done"]
+          continue_on_error: true
+      file_watches:
+        - name: openapi
+          org: myorg
+          repo: myrepo
+          path: spec.yaml
+"#;
+        let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        let ws = &cfg.workspaces[0];
+        let watch = ws.watch.as_ref().unwrap();
+        assert!(watch.auto_certify);
+        assert!(watch.auto_commit);
+        assert_eq!(watch.auto_propagate.as_deref(), Some("my-nix-repo"));
+        assert_eq!(watch.post_hooks.len(), 1);
+        assert_eq!(watch.post_hooks[0].trigger, "after_certify");
+        assert!(watch.post_hooks[0].continue_on_error);
+        assert_eq!(watch.file_watches.len(), 1);
+        assert_eq!(watch.file_watches[0].name, "openapi");
+    }
+}
