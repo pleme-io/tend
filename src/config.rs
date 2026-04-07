@@ -247,10 +247,11 @@ fn default_commit_message() -> String {
     "chore: update flake.lock".to_string()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum FlakeInputMode {
+    #[default]
     Commits,
     Tags,
 }
@@ -268,10 +269,11 @@ fn default_flake_input_mode() -> FlakeInputMode {
     FlakeInputMode::Commits
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum CloneMethod {
+    #[default]
     Ssh,
     Https,
 }
@@ -589,6 +591,16 @@ workspaces:
         let yaml = "tags";
         let mode: FlakeInputMode = serde_yaml_ng::from_str(yaml).unwrap();
         assert_eq!(mode, FlakeInputMode::Tags);
+    }
+
+    #[test]
+    fn test_clone_method_default_is_ssh() {
+        assert_eq!(CloneMethod::default(), CloneMethod::Ssh);
+    }
+
+    #[test]
+    fn test_flake_input_mode_default_is_commits_via_default() {
+        assert_eq!(FlakeInputMode::default(), FlakeInputMode::Commits);
     }
 
     #[test]

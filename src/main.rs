@@ -542,9 +542,9 @@ mod tests {
     #[test]
     fn test_filter_workspaces_preserves_order() {
         let workspaces = vec![
-            make_workspace("charlie"),
-            make_workspace("alpha"),
-            make_workspace("bravo"),
+            config::Workspace::test_default("charlie"),
+            config::Workspace::test_default("alpha"),
+            config::Workspace::test_default("bravo"),
         ];
         let filtered = filter_workspaces(&workspaces, None);
         assert_eq!(filtered[0].name, "charlie");
@@ -554,7 +554,7 @@ mod tests {
 
     #[test]
     fn test_filter_workspaces_returns_references() {
-        let workspaces = vec![make_workspace("ws-a")];
+        let workspaces = vec![config::Workspace::test_default("ws-a")];
         let filtered = filter_workspaces(&workspaces, None);
         assert!(std::ptr::eq(filtered[0], &workspaces[0]));
     }
