@@ -306,3 +306,26 @@ fn is_dirty(repo_path: &Path) -> Result<bool> {
 
     Ok(!output.stdout.is_empty())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_repo_status_display() {
+        assert_eq!(RepoStatus::Clean.to_string(), "clean");
+        assert_eq!(RepoStatus::Dirty.to_string(), "dirty");
+        assert_eq!(RepoStatus::Missing.to_string(), "missing");
+        assert_eq!(RepoStatus::Unknown.to_string(), "unknown");
+    }
+
+    #[test]
+    fn test_pull_summary_default() {
+        let s = PullSummary::default();
+        assert_eq!(s.updated, 0);
+        assert_eq!(s.up_to_date, 0);
+        assert_eq!(s.dirty_skipped, 0);
+        assert_eq!(s.missing_skipped, 0);
+        assert_eq!(s.failed, 0);
+    }
+}
