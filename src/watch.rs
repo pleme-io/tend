@@ -91,28 +91,26 @@ impl MatrixAppender for TomlMatrixAppender {
             None => return Ok(None),
         };
 
-        for (_pkg_name, pkg_value) in packages.iter() {
-            if let Some(table) = pkg_value.as_table() {
-                if table.get("repo").and_then(|v| v.as_str()) == Some(repo_name) {
-                    let track = table
-                        .get("track")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("tags");
-                    return Ok(Some(match track {
-                        "commits" => {
-                            let base = table
-                                .get("unstable_base")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("0.1.0")
-                                .to_string();
-                            TrackMode::Commits { unstable_base: base }
-                        }
-                        _ => TrackMode::Tags,
-                    }));
-                }
+        let mode = packages.iter().find_map(|(_pkg_name, pkg_value)| {
+            let table = pkg_value.as_table()?;
+            let repo_field = table.get("repo")?.as_str()?;
+            if repo_field != repo_name {
+                return None;
             }
-        }
-        Ok(None)
+            let track = table.get("track").and_then(|v| v.as_str()).unwrap_or("tags");
+            Some(match track {
+                "commits" => {
+                    let base = table
+                        .get("unstable_base")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("0.1.0")
+                        .to_string();
+                    TrackMode::Commits { unstable_base: base }
+                }
+                _ => TrackMode::Tags,
+            })
+        });
+        Ok(mode)
     }
 }
 
@@ -1547,22 +1545,10 @@ fn append_matrix_entry(
         None => return Ok(false),
     };
 
-    // Find the package name whose `repo` field matches repo_name
-    let mut target_pkg = None;
-    for (pkg_name, pkg_value) in packages_table.iter() {
-        if let Some(table) = pkg_value.as_table() {
-            if let Some(repo_val) = table.get("repo") {
-                if let Some(repo_str) = repo_val.as_str() {
-                    if repo_str == repo_name {
-                        target_pkg = Some(pkg_name.to_string());
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    let pkg_name = match target_pkg {
+    let pkg_name = match packages_table.iter().find_map(|(pkg_name, pkg_value)| {
+        let repo_field = pkg_value.as_table()?.get("repo")?.as_str()?;
+        (repo_field == repo_name).then(|| pkg_name.to_string())
+    }) {
         Some(name) => name,
         None => return Ok(false),
     };
