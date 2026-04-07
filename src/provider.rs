@@ -66,82 +66,9 @@ pub fn github_token() -> Option<String> {
         .ok()
 }
 
-/// Normalize a GitHub language name to lowercase conventions.
-pub(crate) fn normalize_language(lang: &str) -> String {
-    match lang {
-        "Go" => "go".to_string(),
-        "Rust" => "rust".to_string(),
-        "Python" => "python".to_string(),
-        "TypeScript" | "JavaScript" => "typescript".to_string(),
-        "Java" => "java".to_string(),
-        "C#" => "csharp".to_string(),
-        "C++" => "cpp".to_string(),
-        "C" => "c".to_string(),
-        "Ruby" => "ruby".to_string(),
-        "Shell" => "shell".to_string(),
-        "Nix" => "nix".to_string(),
-        "HCL" => "hcl".to_string(),
-        other => other.to_lowercase(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_normalize_language() {
-        assert_eq!(normalize_language("Go"), "go");
-        assert_eq!(normalize_language("Rust"), "rust");
-        assert_eq!(normalize_language("TypeScript"), "typescript");
-        assert_eq!(normalize_language("JavaScript"), "typescript");
-        assert_eq!(normalize_language("Python"), "python");
-        assert_eq!(normalize_language("Java"), "java");
-        assert_eq!(normalize_language("C#"), "csharp");
-        assert_eq!(normalize_language("Fortran"), "fortran");
-    }
-
-    #[test]
-    fn test_normalize_language_cpp() {
-        assert_eq!(normalize_language("C++"), "cpp");
-    }
-
-    #[test]
-    fn test_normalize_language_c() {
-        assert_eq!(normalize_language("C"), "c");
-    }
-
-    #[test]
-    fn test_normalize_language_ruby() {
-        assert_eq!(normalize_language("Ruby"), "ruby");
-    }
-
-    #[test]
-    fn test_normalize_language_shell() {
-        assert_eq!(normalize_language("Shell"), "shell");
-    }
-
-    #[test]
-    fn test_normalize_language_nix() {
-        assert_eq!(normalize_language("Nix"), "nix");
-    }
-
-    #[test]
-    fn test_normalize_language_hcl() {
-        assert_eq!(normalize_language("HCL"), "hcl");
-    }
-
-    #[test]
-    fn test_normalize_language_unknown_lowercased() {
-        assert_eq!(normalize_language("Kotlin"), "kotlin");
-        assert_eq!(normalize_language("SCALA"), "scala");
-        assert_eq!(normalize_language("Elixir"), "elixir");
-    }
-
-    #[test]
-    fn test_normalize_language_empty_string() {
-        assert_eq!(normalize_language(""), "");
-    }
 
     use std::sync::Mutex;
 

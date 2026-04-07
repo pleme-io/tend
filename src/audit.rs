@@ -227,18 +227,6 @@ impl AuditLog {
         );
     }
 
-    /// Log a nix-audit auto-fix event.
-    pub fn nix_audit_fixed(&self, repo: &str, category: &str, message: &str) {
-        self.log(
-            "nix_audit_fixed",
-            serde_json::json!({
-                "repo": repo,
-                "category": category,
-                "message": message,
-            }),
-        );
-    }
-
     /// Log convergence achievement (compliance_ratio reached 1.0).
     pub fn convergence_achieved(&self, compliance_ratio: f64) {
         self.log(
@@ -437,21 +425,6 @@ mod tests {
         assert_eq!(parsed["event"], "nix_audit_completed");
         let ratio = parsed["compliance_ratio"].as_f64().unwrap();
         assert!((ratio - 1.0).abs() < f64::EPSILON, "zero repos should yield ratio=1.0");
-        let _ = std::fs::remove_file(&path);
-    }
-
-    #[test]
-    fn test_audit_log_nix_audit_fixed() {
-        let path = temp_audit_path();
-        let audit = AuditLog::new(path.clone());
-        audit.nix_audit_fixed("my-repo", "formatting", "fixed indentation");
-
-        let content = std::fs::read_to_string(&path).unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
-        assert_eq!(parsed["event"], "nix_audit_fixed");
-        assert_eq!(parsed["repo"], "my-repo");
-        assert_eq!(parsed["category"], "formatting");
-        assert_eq!(parsed["message"], "fixed indentation");
         let _ = std::fs::remove_file(&path);
     }
 
