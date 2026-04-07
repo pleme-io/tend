@@ -672,4 +672,156 @@ workspaces:
         assert_eq!(watch.file_watches.len(), 1);
         assert_eq!(watch.file_watches[0].name, "openapi");
     }
+
+    #[test]
+    fn test_config_multiple_workspaces() {
+        let yaml = r#"
+workspaces:
+  - name: ws-a
+    base_dir: /tmp/a
+  - name: ws-b
+    base_dir: /tmp/b
+    clone_method: https
+"#;
+        let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(cfg.workspaces.len(), 2);
+        assert_eq!(cfg.workspaces[0].name, "ws-a");
+        assert_eq!(cfg.workspaces[1].name, "ws-b");
+        assert_eq!(cfg.workspaces[1].clone_method, CloneMethod::Https);
+    }
+
+    #[test]
+    fn test_workspace_flake_deps_parsing() {
+        let yaml = r#"
+workspaces:
+  - name: test
+    base_dir: /tmp
+    flake_deps:
+      repo-a:
+        - lib-x
+        - lib-y
+      repo-b:
+        - repo-a
+"#;
+        let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        let ws = &cfg.workspaces[0];
+        assert_eq!(ws.flake_deps.len(), 2);
+        assert_eq!(ws.flake_deps["repo-a"], vec!["lib-x", "lib-y"]);
+        assert_eq!(ws.flake_deps["repo-b"], vec!["repo-a"]);
+    }
+
+    #[test]
+    fn test_workspace_extra_repos_and_exclude() {
+        let yaml = r#"
+workspaces:
+  - name: test
+    base_dir: /tmp
+    exclude:
+      - .github
+      - old-repo
+    extra_repos:
+      - special-repo
+      - another-special
+"#;
+        let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        let ws = &cfg.workspaces[0];
+        assert_eq!(ws.exclude, vec![".github", "old-repo"]);
+        assert_eq!(ws.extra_repos, vec!["special-repo", "another-special"]);
+    }
+
+    #[test]
+    fn test_post_hook_all_fields() {
+        let yaml = r#"
+workspaces:
+  - name: test
+    base_dir: /tmp
+    watch:
+      enable: true
+      post_hooks:
+        - trigger: after_all
+          command: ./my-script.sh
+          args: ["$REPO", "$VERSION", "--flag"]
+          working_dir: ~/scripts
+          continue_on_error: false
+"#;
+        let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        let hook = &cfg.workspaces[0].watch.as_ref().unwrap().post_hooks[0];
+        assert_eq!(hook.trigger, "after_all");
+        assert_eq!(hook.command, "./my-script.sh");
+        assert_eq!(hook.args, vec!["$REPO", "$VERSION", "--flag"]);
+        assert_eq!(hook.working_dir.as_deref(), Some("~/scripts"));
+        assert!(!hook.continue_on_error);
+    }
+
+    #[test]
+    fn test_file_watch_all_fields() {
+        let yaml = r#"
+workspaces:
+  - name: test
+    base_dir: /tmp
+    watch:
+      enable: true
+      file_watches:
+        - name: my-spec
+          org: myorg
+          repo: myrepo
+          path: api/openapi.yaml
+          download_to: ~/specs
+          post_hooks:
+            - trigger: on_change
+              command: regenerate
+              args: ["$CURRENT_FILE"]
+"#;
+        let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        let fw = &cfg.workspaces[0].watch.as_ref().unwrap().file_watches[0];
+        assert_eq!(fw.name, "my-spec");
+        assert_eq!(fw.org, "myorg");
+        assert_eq!(fw.repo, "myrepo");
+        assert_eq!(fw.path, "api/openapi.yaml");
+        assert_eq!(fw.download_to.as_deref(), Some("~/specs"));
+        assert_eq!(fw.post_hooks.len(), 1);
+        assert_eq!(fw.post_hooks[0].trigger, "on_change");
+    }
+
+    #[test]
+    fn test_flake_input_watch_all_fields() {
+        let yaml = r#"
+workspaces:
+  - name: test
+    base_dir: /tmp
+    watch:
+      enable: true
+      flake_input_watches:
+        - name: claude
+          repo: my-repo
+          input: claude-code
+          upstream: pleme-io/claude-code
+          mode: tags
+          auto_update: true
+          auto_commit: true
+          auto_propagate: nix-repo
+"#;
+        let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
+        let fiw = &cfg.workspaces[0].watch.as_ref().unwrap().flake_input_watches[0];
+        assert_eq!(fiw.name, "claude");
+        assert_eq!(fiw.repo, "my-repo");
+        assert_eq!(fiw.input, "claude-code");
+        assert_eq!(fiw.upstream.as_deref(), Some("pleme-io/claude-code"));
+        assert_eq!(fiw.mode, FlakeInputMode::Tags);
+        assert!(fiw.auto_update);
+        assert!(fiw.auto_commit);
+        assert_eq!(fiw.auto_propagate.as_deref(), Some("nix-repo"));
+    }
+
+    #[test]
+    fn test_config_load_returns_error_context_on_invalid_yaml() {
+        let dir = std::env::temp_dir().join("tend-config-test-ctx");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("bad-ctx.yaml");
+        std::fs::write(&path, "{{{{ not valid yaml").unwrap();
+        let result = Config::load(&path);
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("parsing"), "error should mention parsing context: {err}");
+        let _ = std::fs::remove_file(&path);
+    }
 }

@@ -163,4 +163,20 @@ mod tests {
         assert!(loaded.is_empty());
         let _ = std::fs::remove_file(cache_path(org));
     }
+
+    #[test]
+    fn test_write_overwrites_previous_cache() {
+        let org = &format!("tend-test-cache-ow-{}", std::process::id());
+        write(org, &["first".to_string()]).unwrap();
+        write(org, &["second".to_string(), "third".to_string()]).unwrap();
+        let loaded = read(org).unwrap();
+        assert_eq!(loaded, vec!["second", "third"]);
+        let _ = std::fs::remove_file(cache_path(org));
+    }
+
+    #[test]
+    fn test_cache_path_special_characters() {
+        let path = cache_path("org-with-dashes_and_underscores");
+        assert!(path.ends_with("org-with-dashes_and_underscores.json"));
+    }
 }

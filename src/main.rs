@@ -529,4 +529,46 @@ mod tests {
         assert_eq!(cfg.workspaces[0].name, "test");
         let _ = std::fs::remove_file(&path);
     }
+
+    #[test]
+    fn test_load_config_invalid_yaml_returns_error() {
+        let dir = std::env::temp_dir().join("tend-main-test");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("bad-main-config.yaml");
+        std::fs::write(&path, "not: [valid: yaml: here").unwrap();
+        let result = load_config(Some(&path));
+        assert!(result.is_err());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_filter_workspaces_preserves_order() {
+        let workspaces = vec![
+            make_workspace("charlie"),
+            make_workspace("alpha"),
+            make_workspace("bravo"),
+        ];
+        let filtered = filter_workspaces(&workspaces, None);
+        assert_eq!(filtered[0].name, "charlie");
+        assert_eq!(filtered[1].name, "alpha");
+        assert_eq!(filtered[2].name, "bravo");
+    }
+
+    #[test]
+    fn test_filter_workspaces_returns_references() {
+        let workspaces = vec![make_workspace("ws-a")];
+        let filtered = filter_workspaces(&workspaces, None);
+        assert!(std::ptr::eq(filtered[0], &workspaces[0]));
+    }
+
+    #[test]
+    fn test_load_config_with_multiple_workspaces() {
+        let dir = std::env::temp_dir().join("tend-main-test-multi");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("multi-config.yaml");
+        std::fs::write(&path, "workspaces:\n  - name: a\n    base_dir: /a\n  - name: b\n    base_dir: /b\n").unwrap();
+        let cfg = load_config(Some(&path)).unwrap();
+        assert_eq!(cfg.workspaces.len(), 2);
+        let _ = std::fs::remove_file(&path);
+    }
 }

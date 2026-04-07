@@ -468,4 +468,77 @@ mod tests {
         assert_eq!(parsed["new_sha"], "new-sha");
         let _ = std::fs::remove_file(&path);
     }
+
+    #[test]
+    fn test_audit_event_serialization_flattens_data() {
+        let event = AuditEvent {
+            timestamp: "2026-04-07T00:00:00Z".to_string(),
+            event: "test".to_string(),
+            data: serde_json::json!({"key": "val", "num": 42}),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["timestamp"], "2026-04-07T00:00:00Z");
+        assert_eq!(parsed["event"], "test");
+        assert_eq!(parsed["key"], "val");
+        assert_eq!(parsed["num"], 42);
+    }
+
+    #[test]
+    fn test_audit_log_to_nonexistent_dir_creates_parent() {
+        let dir = std::env::temp_dir()
+            .join("tend-audit-test-nested")
+            .join(format!("deep-{}", std::process::id()));
+        let path = dir.join("audit.jsonl");
+        let audit = AuditLog::new(path.clone());
+        audit.log("test", serde_json::json!({}));
+        assert!(path.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_audit_log_hook_executed_with_negative_exit_code() {
+        let path = temp_audit_path();
+        let audit = AuditLog::new(path.clone());
+        audit.hook_executed("after_certify", "failing-cmd", -1, 100);
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
+        assert_eq!(parsed["exit_code"], -1);
+        assert_eq!(parsed["duration_ms"], 100);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_audit_log_spec_downloaded_all_fields() {
+        let path = temp_audit_path();
+        let audit = AuditLog::new(path.clone());
+        audit.spec_downloaded("myorg", "myrepo", "api/spec.yaml", "sha256", "/tmp/spec.yaml", 1_048_576);
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
+        assert_eq!(parsed["event"], "spec_downloaded");
+        assert_eq!(parsed["org"], "myorg");
+        assert_eq!(parsed["repo"], "myrepo");
+        assert_eq!(parsed["path"], "api/spec.yaml");
+        assert_eq!(parsed["sha"], "sha256");
+        assert_eq!(parsed["local_path"], "/tmp/spec.yaml");
+        assert_eq!(parsed["size"], 1_048_576);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_audit_log_commit_pushed_all_fields() {
+        let path = temp_audit_path();
+        let audit = AuditLog::new(path.clone());
+        audit.commit_pushed("my-repo", "abc123", "chore: certify");
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
+        assert_eq!(parsed["event"], "commit_pushed");
+        assert_eq!(parsed["repo"], "my-repo");
+        assert_eq!(parsed["commit"], "abc123");
+        assert_eq!(parsed["message"], "chore: certify");
+        let _ = std::fs::remove_file(&path);
+    }
 }
