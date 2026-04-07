@@ -233,6 +233,15 @@ pub enum FlakeInputMode {
     Tags,
 }
 
+impl std::fmt::Display for FlakeInputMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Commits => f.write_str("commits"),
+            Self::Tags => f.write_str("tags"),
+        }
+    }
+}
+
 fn default_flake_input_mode() -> FlakeInputMode {
     FlakeInputMode::Commits
 }
@@ -242,6 +251,15 @@ fn default_flake_input_mode() -> FlakeInputMode {
 pub enum CloneMethod {
     Ssh,
     Https,
+}
+
+impl std::fmt::Display for CloneMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Ssh => f.write_str("ssh"),
+            Self::Https => f.write_str("https"),
+        }
+    }
 }
 
 fn default_provider() -> String {
@@ -574,6 +592,18 @@ workspaces:
         let yaml = "tags";
         let mode: FlakeInputMode = serde_yaml_ng::from_str(yaml).unwrap();
         assert_eq!(mode, FlakeInputMode::Tags);
+    }
+
+    #[test]
+    fn test_clone_method_display() {
+        assert_eq!(CloneMethod::Ssh.to_string(), "ssh");
+        assert_eq!(CloneMethod::Https.to_string(), "https");
+    }
+
+    #[test]
+    fn test_flake_input_mode_display() {
+        assert_eq!(FlakeInputMode::Commits.to_string(), "commits");
+        assert_eq!(FlakeInputMode::Tags.to_string(), "tags");
     }
 
     #[test]

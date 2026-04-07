@@ -32,6 +32,15 @@ pub enum TrackMode {
     Commits { unstable_base: String },
 }
 
+impl std::fmt::Display for TrackMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Tags => f.write_str("tags"),
+            Self::Commits { unstable_base } => write!(f, "commits(base={unstable_base})"),
+        }
+    }
+}
+
 /// Trait abstracting matrix.toml appending for testability.
 pub trait MatrixAppender: Send + Sync {
     /// Append a pending version entry for a repo. Returns Ok(true) if appended,

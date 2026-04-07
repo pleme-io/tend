@@ -19,6 +19,17 @@ pub(crate) enum RepoStatus {
     Unknown,
 }
 
+impl std::fmt::Display for RepoStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Clean => f.write_str("clean"),
+            Self::Dirty => f.write_str("dirty"),
+            Self::Missing => f.write_str("missing"),
+            Self::Unknown => f.write_str("unknown"),
+        }
+    }
+}
+
 /// A repo name paired with its status.
 #[derive(Debug)]
 pub(crate) struct RepoEntry {
