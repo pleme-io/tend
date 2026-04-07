@@ -5,7 +5,7 @@ use std::time::Duration;
 use crate::{display, git, github, load_config, filter_workspaces, sync, watch, watch_cache};
 
 /// Options for the daemon command.
-pub struct DaemonOpts {
+pub(crate) struct DaemonOpts {
     pub config: Option<PathBuf>,
     pub workspace: Option<String>,
     pub interval: u64,
@@ -16,7 +16,7 @@ pub struct DaemonOpts {
 /// Run the daemon loop: sync + fetch + watch on interval, re-reading config each cycle.
 ///
 /// Workspaces are processed in parallel using tokio tasks.
-pub async fn run(opts: DaemonOpts) -> Result<()> {
+pub(crate) async fn run(opts: DaemonOpts) -> Result<()> {
     let mut cycle = 0u64;
 
     loop {

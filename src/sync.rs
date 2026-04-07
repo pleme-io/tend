@@ -7,26 +7,28 @@ use crate::provider;
 
 /// Status of a single repo in the workspace
 #[derive(Debug)]
-pub enum RepoStatus {
-    /// Repo exists and has no uncommitted changes
+/// Status of a single repo in the workspace.
+pub(crate) enum RepoStatus {
+    /// Repo exists and has no uncommitted changes.
     Clean,
-    /// Repo exists but has uncommitted changes
+    /// Repo exists but has uncommitted changes.
     Dirty,
-    /// Repo is expected but not cloned
+    /// Repo is expected but not cloned.
     Missing,
-    /// Repo exists on disk but not in config
+    /// Repo exists on disk but not in config.
     Unknown,
 }
 
+/// A repo name paired with its status.
 #[derive(Debug)]
-pub struct RepoEntry {
+pub(crate) struct RepoEntry {
     pub name: String,
     pub status: RepoStatus,
 }
 
 /// Resolve the full list of repos for a workspace (discover + extras - excludes).
 /// When `refresh` is true, the discovery cache is bypassed and the GitHub API is always called.
-pub async fn resolve_repos(workspace: &Workspace, refresh: bool) -> Result<Vec<String>> {
+pub(crate) async fn resolve_repos(workspace: &Workspace, refresh: bool) -> Result<Vec<String>> {
     let mut repos = Vec::new();
 
     if workspace.discover {
@@ -52,7 +54,7 @@ pub async fn resolve_repos(workspace: &Workspace, refresh: bool) -> Result<Vec<S
 }
 
 /// Clone missing repos. Returns (cloned, already_present) counts.
-pub async fn sync_repos(workspace: &Workspace, repos: &[String], quiet: bool) -> Result<(usize, usize)> {
+pub(crate) async fn sync_repos(workspace: &Workspace, repos: &[String], quiet: bool) -> Result<(usize, usize)> {
     let base_dir = workspace.resolved_base_dir()?;
     std::fs::create_dir_all(&base_dir)
         .with_context(|| format!("creating {}", base_dir.display()))?;
@@ -90,7 +92,7 @@ pub async fn sync_repos(workspace: &Workspace, repos: &[String], quiet: bool) ->
 }
 
 /// Check status of all repos in a workspace
-pub async fn check_status(workspace: &Workspace, repos: &[String]) -> Result<Vec<RepoEntry>> {
+pub(crate) async fn check_status(workspace: &Workspace, repos: &[String]) -> Result<Vec<RepoEntry>> {
     let base_dir = workspace.resolved_base_dir()?;
     let mut entries = Vec::new();
 
@@ -142,7 +144,7 @@ pub async fn check_status(workspace: &Workspace, repos: &[String]) -> Result<Vec
 }
 
 /// Fetch all remotes for existing repos. Returns (fetched, skipped) counts.
-pub async fn fetch_repos(workspace: &Workspace, repos: &[String], quiet: bool) -> Result<(usize, usize)> {
+pub(crate) async fn fetch_repos(workspace: &Workspace, repos: &[String], quiet: bool) -> Result<(usize, usize)> {
     let base_dir = workspace.resolved_base_dir()?;
     let mut fetched = 0usize;
     let mut skipped = 0usize;
@@ -175,9 +177,9 @@ pub async fn fetch_repos(workspace: &Workspace, repos: &[String], quiet: bool) -
     Ok((fetched, skipped))
 }
 
-/// Outcome of pulling a single repo.
+/// Aggregate outcome of pulling all repos in a workspace.
 #[derive(Debug, Default)]
-pub struct PullSummary {
+pub(crate) struct PullSummary {
     pub updated: usize,
     pub up_to_date: usize,
     pub dirty_skipped: usize,
@@ -194,7 +196,7 @@ pub struct PullSummary {
 /// - Also walks unexpected directories under `base_dir` (the "unknown" repos)
 ///   so that running `tend pull` updates every git repo in the workspace,
 ///   not just the ones tend discovered.
-pub async fn pull_repos(
+pub(crate) async fn pull_repos(
     workspace: &Workspace,
     repos: &[String],
     quiet: bool,

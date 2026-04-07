@@ -8,7 +8,7 @@ use crate::display;
 
 /// A single step in the update chain.
 #[derive(Debug)]
-pub struct UpdateStep {
+pub(crate) struct UpdateStep {
     /// Repo to update (directory name under base_dir)
     pub repo: String,
     /// Flake inputs to pass to `nix flake update`
@@ -22,7 +22,7 @@ pub struct UpdateStep {
 /// 2. BFS from `changed` to find all transitively affected repos
 /// 3. Topological sort (Kahn's) the affected repos
 /// 4. For each repo, compute which inputs were updated earlier in the chain
-pub fn compute_update_chain(
+pub(crate) fn compute_update_chain(
     changed: &str,
     flake_deps: &HashMap<String, Vec<String>>,
 ) -> Result<Vec<UpdateStep>> {
@@ -132,7 +132,7 @@ pub fn compute_update_chain(
 }
 
 /// Execute the update chain: for each step, run nix flake update, commit, push.
-pub fn execute_update_chain(
+pub(crate) fn execute_update_chain(
     workspace: &Workspace,
     chain: &[UpdateStep],
     dry_run: bool,
