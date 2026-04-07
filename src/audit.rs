@@ -375,4 +375,124 @@ mod tests {
         );
         let _ = std::fs::remove_file(&path);
     }
+
+    #[test]
+    fn test_audit_log_flake_input_stale() {
+        let path = temp_audit_path();
+        let audit = AuditLog::new(path.clone());
+        audit.flake_input_stale("my-watch", "my-repo", "nixpkgs", "old-rev", "new-rev");
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
+        assert_eq!(parsed["event"], "flake_input_stale");
+        assert_eq!(parsed["name"], "my-watch");
+        assert_eq!(parsed["repo"], "my-repo");
+        assert_eq!(parsed["input"], "nixpkgs");
+        assert_eq!(parsed["locked_rev"], "old-rev");
+        assert_eq!(parsed["upstream_rev"], "new-rev");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_audit_log_flake_refreshed() {
+        let path = temp_audit_path();
+        let audit = AuditLog::new(path.clone());
+        audit.flake_refreshed("my-workspace", "my-repo", true, 5000);
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
+        assert_eq!(parsed["event"], "flake_refreshed");
+        assert_eq!(parsed["workspace"], "my-workspace");
+        assert_eq!(parsed["repo"], "my-repo");
+        assert_eq!(parsed["updated"], true);
+        assert_eq!(parsed["duration_ms"], 5000);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_audit_log_nix_audit_completed() {
+        let path = temp_audit_path();
+        let audit = AuditLog::new(path.clone());
+        audit.nix_audit_completed(10, 8, 5);
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
+        assert_eq!(parsed["event"], "nix_audit_completed");
+        assert_eq!(parsed["total_repos"], 10);
+        assert_eq!(parsed["passing_repos"], 8);
+        assert_eq!(parsed["total_findings"], 5);
+        let ratio = parsed["compliance_ratio"].as_f64().unwrap();
+        assert!((ratio - 0.8).abs() < f64::EPSILON);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_audit_log_nix_audit_completed_zero_repos() {
+        let path = temp_audit_path();
+        let audit = AuditLog::new(path.clone());
+        audit.nix_audit_completed(0, 0, 0);
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
+        assert_eq!(parsed["event"], "nix_audit_completed");
+        let ratio = parsed["compliance_ratio"].as_f64().unwrap();
+        assert!((ratio - 1.0).abs() < f64::EPSILON, "zero repos should yield ratio=1.0");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_audit_log_nix_audit_fixed() {
+        let path = temp_audit_path();
+        let audit = AuditLog::new(path.clone());
+        audit.nix_audit_fixed("my-repo", "formatting", "fixed indentation");
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
+        assert_eq!(parsed["event"], "nix_audit_fixed");
+        assert_eq!(parsed["repo"], "my-repo");
+        assert_eq!(parsed["category"], "formatting");
+        assert_eq!(parsed["message"], "fixed indentation");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_audit_log_convergence_achieved() {
+        let path = temp_audit_path();
+        let audit = AuditLog::new(path.clone());
+        audit.convergence_achieved(1.0);
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
+        assert_eq!(parsed["event"], "convergence_achieved");
+        let ratio = parsed["compliance_ratio"].as_f64().unwrap();
+        assert!((ratio - 1.0).abs() < f64::EPSILON);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_audit_log_version_detected_fields_complete() {
+        let path = temp_audit_path();
+        let audit = AuditLog::new(path.clone());
+        audit.version_detected("org", "repo", "1.2.3", "abc123def", "commits");
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
+        assert_eq!(parsed["tracking"], "commits");
+        assert!(parsed["timestamp"].as_str().unwrap().len() > 10, "timestamp should be RFC3339");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_audit_log_file_change_with_no_old_sha() {
+        let path = temp_audit_path();
+        let audit = AuditLog::new(path.clone());
+        audit.file_change_detected("org", "repo", "path.yaml", None, "new-sha", 1024);
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
+        assert_eq!(parsed["event"], "file_change_detected");
+        assert!(parsed["old_sha"].is_null(), "old_sha should be null when None");
+        assert_eq!(parsed["new_sha"], "new-sha");
+        let _ = std::fs::remove_file(&path);
+    }
 }

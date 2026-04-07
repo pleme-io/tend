@@ -452,3 +452,81 @@ pub(crate) fn filter_workspaces<'a>(
         None => workspaces.iter().collect(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn make_workspace(name: &str) -> config::Workspace {
+        config::Workspace {
+            name: name.to_string(),
+            provider: "github".to_string(),
+            base_dir: "/tmp".to_string(),
+            clone_method: config::CloneMethod::Ssh,
+            discover: false,
+            org: None,
+            exclude: vec![],
+            extra_repos: vec![],
+            flake_deps: HashMap::new(),
+            watch: None,
+        }
+    }
+
+    #[test]
+    fn test_filter_workspaces_no_filter_returns_all() {
+        let workspaces = vec![make_workspace("ws-a"), make_workspace("ws-b"), make_workspace("ws-c")];
+        let filtered = filter_workspaces(&workspaces, None);
+        assert_eq!(filtered.len(), 3);
+    }
+
+    #[test]
+    fn test_filter_workspaces_with_matching_name() {
+        let workspaces = vec![make_workspace("ws-a"), make_workspace("ws-b"), make_workspace("ws-c")];
+        let filtered = filter_workspaces(&workspaces, Some("ws-b"));
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].name, "ws-b");
+    }
+
+    #[test]
+    fn test_filter_workspaces_with_nonexistent_name() {
+        let workspaces = vec![make_workspace("ws-a"), make_workspace("ws-b")];
+        let filtered = filter_workspaces(&workspaces, Some("ws-z"));
+        assert!(filtered.is_empty());
+    }
+
+    #[test]
+    fn test_filter_workspaces_empty_input() {
+        let workspaces: Vec<config::Workspace> = vec![];
+        let filtered = filter_workspaces(&workspaces, None);
+        assert!(filtered.is_empty());
+
+        let filtered = filter_workspaces(&workspaces, Some("anything"));
+        assert!(filtered.is_empty());
+    }
+
+    #[test]
+    fn test_filter_workspaces_duplicate_names() {
+        let workspaces = vec![make_workspace("dup"), make_workspace("dup")];
+        let filtered = filter_workspaces(&workspaces, Some("dup"));
+        assert_eq!(filtered.len(), 2, "should return all matching entries");
+    }
+
+    #[test]
+    fn test_load_config_nonexistent_path() {
+        let result = load_config(Some(std::path::Path::new("/nonexistent/tend.yaml")));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_config_valid_file() {
+        let dir = std::env::temp_dir().join("tend-main-test");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("valid-config.yaml");
+        std::fs::write(&path, "workspaces:\n  - name: test\n    base_dir: /tmp\n").unwrap();
+        let cfg = load_config(Some(&path)).unwrap();
+        assert_eq!(cfg.workspaces.len(), 1);
+        assert_eq!(cfg.workspaces[0].name, "test");
+        let _ = std::fs::remove_file(&path);
+    }
+}

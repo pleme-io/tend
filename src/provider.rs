@@ -100,4 +100,92 @@ mod tests {
         assert_eq!(normalize_language("C#"), "csharp");
         assert_eq!(normalize_language("Fortran"), "fortran");
     }
+
+    #[test]
+    fn test_normalize_language_cpp() {
+        assert_eq!(normalize_language("C++"), "cpp");
+    }
+
+    #[test]
+    fn test_normalize_language_c() {
+        assert_eq!(normalize_language("C"), "c");
+    }
+
+    #[test]
+    fn test_normalize_language_ruby() {
+        assert_eq!(normalize_language("Ruby"), "ruby");
+    }
+
+    #[test]
+    fn test_normalize_language_shell() {
+        assert_eq!(normalize_language("Shell"), "shell");
+    }
+
+    #[test]
+    fn test_normalize_language_nix() {
+        assert_eq!(normalize_language("Nix"), "nix");
+    }
+
+    #[test]
+    fn test_normalize_language_hcl() {
+        assert_eq!(normalize_language("HCL"), "hcl");
+    }
+
+    #[test]
+    fn test_normalize_language_unknown_lowercased() {
+        assert_eq!(normalize_language("Kotlin"), "kotlin");
+        assert_eq!(normalize_language("SCALA"), "scala");
+        assert_eq!(normalize_language("Elixir"), "elixir");
+    }
+
+    #[test]
+    fn test_normalize_language_empty_string() {
+        assert_eq!(normalize_language(""), "");
+    }
+
+    use std::sync::Mutex;
+
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn test_github_token_prefers_tend_token() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let orig_tend = std::env::var("TEND_GITHUB_TOKEN").ok();
+        let orig_gh = std::env::var("GITHUB_TOKEN").ok();
+
+        std::env::set_var("TEND_GITHUB_TOKEN", "tend-token-123");
+        std::env::set_var("GITHUB_TOKEN", "gh-token-456");
+        assert_eq!(github_token(), Some("tend-token-123".to_string()));
+
+        // Restore
+        match orig_tend {
+            Some(v) => std::env::set_var("TEND_GITHUB_TOKEN", v),
+            None => std::env::remove_var("TEND_GITHUB_TOKEN"),
+        }
+        match orig_gh {
+            Some(v) => std::env::set_var("GITHUB_TOKEN", v),
+            None => std::env::remove_var("GITHUB_TOKEN"),
+        }
+    }
+
+    #[test]
+    fn test_github_token_falls_back_to_github_token() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let orig_tend = std::env::var("TEND_GITHUB_TOKEN").ok();
+        let orig_gh = std::env::var("GITHUB_TOKEN").ok();
+
+        std::env::remove_var("TEND_GITHUB_TOKEN");
+        std::env::set_var("GITHUB_TOKEN", "gh-token-789");
+        assert_eq!(github_token(), Some("gh-token-789".to_string()));
+
+        // Restore
+        match orig_tend {
+            Some(v) => std::env::set_var("TEND_GITHUB_TOKEN", v),
+            None => std::env::remove_var("TEND_GITHUB_TOKEN"),
+        }
+        match orig_gh {
+            Some(v) => std::env::set_var("GITHUB_TOKEN", v),
+            None => std::env::remove_var("GITHUB_TOKEN"),
+        }
+    }
 }

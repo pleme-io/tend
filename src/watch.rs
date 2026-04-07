@@ -3489,4 +3489,243 @@ language = "go"
 
         let _ = std::fs::remove_dir_all(&tmp);
     }
+
+    // ── TomlMatrixAppender production implementation tests ──
+
+    fn write_matrix_toml(dir: &std::path::Path, content: &str) -> std::path::PathBuf {
+        let path = dir.join("matrix.toml");
+        std::fs::write(&path, content).unwrap();
+        path
+    }
+
+    #[test]
+    fn test_toml_appender_creates_version_entry() {
+        let tmp = std::env::temp_dir().join(format!("tend-toml-app-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+
+        let matrix = write_matrix_toml(&tmp, r#"
+[packages.my-sdk]
+repo = "my-repo"
+"#);
+
+        let appender = TomlMatrixAppender;
+        let result = appender.append_entry(&matrix, "my-repo", "1.0.0", "abc123", Some("go")).unwrap();
+        assert!(result, "should append new entry");
+
+        let content = std::fs::read_to_string(&matrix).unwrap();
+        assert!(content.contains("1.0.0"), "version key should exist");
+        assert!(content.contains("abc123"), "rev should be in file");
+        assert!(content.contains("pending"), "status should be pending");
+        assert!(content.contains("go"), "language should be set");
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_toml_appender_skips_duplicate_version() {
+        let tmp = std::env::temp_dir().join(format!("tend-toml-dup-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+
+        let matrix = write_matrix_toml(&tmp, r#"
+[packages.my-sdk]
+repo = "my-repo"
+[packages.my-sdk.versions."1.0.0"]
+rev = "old-rev"
+status = "verified"
+"#);
+
+        let appender = TomlMatrixAppender;
+        let result = appender.append_entry(&matrix, "my-repo", "1.0.0", "new-rev", None).unwrap();
+        assert!(!result, "should not overwrite existing version");
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_toml_appender_returns_false_for_unknown_repo() {
+        let tmp = std::env::temp_dir().join(format!("tend-toml-unk-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+
+        let matrix = write_matrix_toml(&tmp, r#"
+[packages.my-sdk]
+repo = "my-repo"
+"#);
+
+        let appender = TomlMatrixAppender;
+        let result = appender.append_entry(&matrix, "other-repo", "1.0.0", "abc", None).unwrap();
+        assert!(!result);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_toml_appender_returns_false_for_missing_file() {
+        let appender = TomlMatrixAppender;
+        let result = appender.append_entry(
+            std::path::Path::new("/nonexistent/matrix.toml"),
+            "repo", "1.0.0", "abc", None,
+        ).unwrap();
+        assert!(!result);
+    }
+
+    #[test]
+    fn test_toml_appender_returns_false_for_no_packages_table() {
+        let tmp = std::env::temp_dir().join(format!("tend-toml-nopkg-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+
+        let matrix = write_matrix_toml(&tmp, "# empty matrix\n");
+        let appender = TomlMatrixAppender;
+        let result = appender.append_entry(&matrix, "repo", "1.0.0", "abc", None).unwrap();
+        assert!(!result);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_toml_appender_without_language() {
+        let tmp = std::env::temp_dir().join(format!("tend-toml-nolang-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+
+        let matrix = write_matrix_toml(&tmp, r#"
+[packages.my-sdk]
+repo = "my-repo"
+"#);
+
+        let appender = TomlMatrixAppender;
+        appender.append_entry(&matrix, "my-repo", "2.0.0", "def456", None).unwrap();
+
+        let content = std::fs::read_to_string(&matrix).unwrap();
+        assert!(!content.contains("language"), "language field should not be present when None");
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_toml_appender_get_track_mode_tags() {
+        let tmp = std::env::temp_dir().join(format!("tend-toml-track-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+
+        let matrix = write_matrix_toml(&tmp, r#"
+[packages.my-sdk]
+repo = "my-repo"
+track = "tags"
+"#);
+
+        let appender = TomlMatrixAppender;
+        let mode = appender.get_track_mode(&matrix, "my-repo").unwrap();
+        assert_eq!(mode, Some(TrackMode::Tags));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_toml_appender_get_track_mode_commits() {
+        let tmp = std::env::temp_dir().join(format!("tend-toml-commits-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+
+        let matrix = write_matrix_toml(&tmp, r#"
+[packages.my-sdk]
+repo = "my-repo"
+track = "commits"
+unstable_base = "0.2.0"
+"#);
+
+        let appender = TomlMatrixAppender;
+        let mode = appender.get_track_mode(&matrix, "my-repo").unwrap();
+        assert_eq!(mode, Some(TrackMode::Commits { unstable_base: "0.2.0".to_string() }));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_toml_appender_get_track_mode_default_tags() {
+        let tmp = std::env::temp_dir().join(format!("tend-toml-def-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+
+        let matrix = write_matrix_toml(&tmp, r#"
+[packages.my-sdk]
+repo = "my-repo"
+"#);
+
+        let appender = TomlMatrixAppender;
+        let mode = appender.get_track_mode(&matrix, "my-repo").unwrap();
+        assert_eq!(mode, Some(TrackMode::Tags));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_toml_appender_get_track_mode_commits_default_base() {
+        let tmp = std::env::temp_dir().join(format!("tend-toml-defbase-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+
+        let matrix = write_matrix_toml(&tmp, r#"
+[packages.my-sdk]
+repo = "my-repo"
+track = "commits"
+"#);
+
+        let appender = TomlMatrixAppender;
+        let mode = appender.get_track_mode(&matrix, "my-repo").unwrap();
+        assert_eq!(mode, Some(TrackMode::Commits { unstable_base: "0.1.0".to_string() }));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_toml_appender_get_track_mode_unknown_repo() {
+        let tmp = std::env::temp_dir().join(format!("tend-toml-unk2-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+
+        let matrix = write_matrix_toml(&tmp, r#"
+[packages.my-sdk]
+repo = "my-repo"
+"#);
+
+        let appender = TomlMatrixAppender;
+        let mode = appender.get_track_mode(&matrix, "nonexistent").unwrap();
+        assert_eq!(mode, None);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_toml_appender_get_track_mode_missing_file() {
+        let appender = TomlMatrixAppender;
+        let mode = appender.get_track_mode(
+            std::path::Path::new("/nonexistent/matrix.toml"),
+            "repo",
+        ).unwrap();
+        assert_eq!(mode, None);
+    }
+
+    #[test]
+    fn test_toml_appender_multiple_packages() {
+        let tmp = std::env::temp_dir().join(format!("tend-toml-multi-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+
+        let matrix = write_matrix_toml(&tmp, r#"
+[packages.sdk-a]
+repo = "repo-a"
+track = "tags"
+
+[packages.sdk-b]
+repo = "repo-b"
+track = "commits"
+unstable_base = "0.3.0"
+"#);
+
+        let appender = TomlMatrixAppender;
+
+        // Append to repo-a
+        assert!(appender.append_entry(&matrix, "repo-a", "1.0.0", "rev-a", None).unwrap());
+        // Append to repo-b
+        assert!(appender.append_entry(&matrix, "repo-b", "0.3.0-unstable.2026-01-01.abcd", "rev-b", Some("go")).unwrap());
+
+        let content = std::fs::read_to_string(&matrix).unwrap();
+        assert!(content.contains("rev-a"));
+        assert!(content.contains("rev-b"));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 }
