@@ -359,6 +359,23 @@ impl Config {
 }
 
 impl Workspace {
+    /// Create a minimal workspace for testing.
+    #[cfg(test)]
+    pub(crate) fn test_default(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            provider: "github".to_string(),
+            base_dir: "/tmp".to_string(),
+            clone_method: CloneMethod::Ssh,
+            discover: false,
+            org: None,
+            exclude: vec![],
+            extra_repos: vec![],
+            flake_deps: HashMap::new(),
+            watch: None,
+        }
+    }
+
     /// Resolve base_dir with shell expansion (~ → home dir)
     pub fn resolved_base_dir(&self) -> Result<PathBuf> {
         let expanded = shellexpand::tilde(&self.base_dir);
@@ -485,35 +502,16 @@ workspaces:
 
     #[test]
     fn test_clone_url_ssh() {
-        let ws = Workspace {
-            name: "my-org".to_string(),
-            provider: "github".to_string(),
-            base_dir: "/tmp".to_string(),
-            clone_method: CloneMethod::Ssh,
-            discover: false,
-            org: Some("acme".to_string()),
-            exclude: vec![],
-            extra_repos: vec![],
-            flake_deps: HashMap::new(),
-            watch: None,
-        };
+        let mut ws = Workspace::test_default("my-org");
+        ws.org = Some("acme".to_string());
         assert_eq!(ws.clone_url("my-repo"), "git@github.com:acme/my-repo.git");
     }
 
     #[test]
     fn test_clone_url_https() {
-        let ws = Workspace {
-            name: "my-org".to_string(),
-            provider: "github".to_string(),
-            base_dir: "/tmp".to_string(),
-            clone_method: CloneMethod::Https,
-            discover: false,
-            org: Some("acme".to_string()),
-            exclude: vec![],
-            extra_repos: vec![],
-            flake_deps: HashMap::new(),
-            watch: None,
-        };
+        let mut ws = Workspace::test_default("my-org");
+        ws.clone_method = CloneMethod::Https;
+        ws.org = Some("acme".to_string());
         assert_eq!(
             ws.clone_url("my-repo"),
             "https://github.com/acme/my-repo.git"
@@ -522,18 +520,7 @@ workspaces:
 
     #[test]
     fn test_clone_url_falls_back_to_name_when_org_is_none() {
-        let ws = Workspace {
-            name: "fallback-org".to_string(),
-            provider: "github".to_string(),
-            base_dir: "/tmp".to_string(),
-            clone_method: CloneMethod::Ssh,
-            discover: false,
-            org: None,
-            exclude: vec![],
-            extra_repos: vec![],
-            flake_deps: HashMap::new(),
-            watch: None,
-        };
+        let ws = Workspace::test_default("fallback-org");
         assert_eq!(
             ws.clone_url("repo"),
             "git@github.com:fallback-org/repo.git"
@@ -542,18 +529,8 @@ workspaces:
 
     #[test]
     fn test_resolved_base_dir_tilde_expansion() {
-        let ws = Workspace {
-            name: "test".to_string(),
-            provider: "github".to_string(),
-            base_dir: "~/repos".to_string(),
-            clone_method: CloneMethod::Ssh,
-            discover: false,
-            org: None,
-            exclude: vec![],
-            extra_repos: vec![],
-            flake_deps: HashMap::new(),
-            watch: None,
-        };
+        let mut ws = Workspace::test_default("test");
+        ws.base_dir = "~/repos".to_string();
         let resolved = ws.resolved_base_dir().unwrap();
         assert!(!resolved.to_string_lossy().contains('~'));
         assert!(resolved.to_string_lossy().ends_with("/repos"));
@@ -561,18 +538,8 @@ workspaces:
 
     #[test]
     fn test_resolved_base_dir_absolute_path_unchanged() {
-        let ws = Workspace {
-            name: "test".to_string(),
-            provider: "github".to_string(),
-            base_dir: "/absolute/path".to_string(),
-            clone_method: CloneMethod::Ssh,
-            discover: false,
-            org: None,
-            exclude: vec![],
-            extra_repos: vec![],
-            flake_deps: HashMap::new(),
-            watch: None,
-        };
+        let mut ws = Workspace::test_default("test");
+        ws.base_dir = "/absolute/path".to_string();
         let resolved = ws.resolved_base_dir().unwrap();
         assert_eq!(resolved, PathBuf::from("/absolute/path"));
     }

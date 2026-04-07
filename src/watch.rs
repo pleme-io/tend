@@ -1780,29 +1780,23 @@ mod tests {
     }
 
     fn make_test_workspace(name: &str, matrix_file: Option<&str>) -> Workspace {
-        Workspace {
-            name: name.to_string(),
-            provider: "github".to_string(),
-            base_dir: "/tmp/test-tend".to_string(),
-            clone_method: CloneMethod::Ssh,
-            discover: false,
-            org: Some("test-org".to_string()),
-            exclude: vec![],
-            extra_repos: vec!["repo-a".to_string()],
-            flake_deps: HashMap::new(),
-            watch: Some(WatchConfig {
-                enable: true,
-                matrix_file: matrix_file.map(|s| s.to_string()),
-                auto_certify: false,
-                auto_commit: false,
-                auto_propagate: None,
-                post_hooks: vec![],
-                file_watches: vec![],
-                flake_input_watches: vec![],
-                flake_refresh: None,
-                nix_audit: None,
-            }),
-        }
+        let mut ws = Workspace::test_default(name);
+        ws.base_dir = "/tmp/test-tend".to_string();
+        ws.org = Some("test-org".to_string());
+        ws.extra_repos = vec!["repo-a".to_string()];
+        ws.watch = Some(WatchConfig {
+            enable: true,
+            matrix_file: matrix_file.map(|s| s.to_string()),
+            auto_certify: false,
+            auto_commit: false,
+            auto_propagate: None,
+            post_hooks: vec![],
+            file_watches: vec![],
+            flake_input_watches: vec![],
+            flake_refresh: None,
+            nix_audit: None,
+        });
+        ws
     }
 
     fn test_audit() -> crate::audit::AuditLog {

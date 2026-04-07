@@ -456,33 +456,25 @@ pub(crate) fn filter_workspaces<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
-
-    fn make_workspace(name: &str) -> config::Workspace {
-        config::Workspace {
-            name: name.to_string(),
-            provider: "github".to_string(),
-            base_dir: "/tmp".to_string(),
-            clone_method: config::CloneMethod::Ssh,
-            discover: false,
-            org: None,
-            exclude: vec![],
-            extra_repos: vec![],
-            flake_deps: HashMap::new(),
-            watch: None,
-        }
-    }
 
     #[test]
     fn test_filter_workspaces_no_filter_returns_all() {
-        let workspaces = vec![make_workspace("ws-a"), make_workspace("ws-b"), make_workspace("ws-c")];
+        let workspaces = vec![
+            config::Workspace::test_default("ws-a"),
+            config::Workspace::test_default("ws-b"),
+            config::Workspace::test_default("ws-c"),
+        ];
         let filtered = filter_workspaces(&workspaces, None);
         assert_eq!(filtered.len(), 3);
     }
 
     #[test]
     fn test_filter_workspaces_with_matching_name() {
-        let workspaces = vec![make_workspace("ws-a"), make_workspace("ws-b"), make_workspace("ws-c")];
+        let workspaces = vec![
+            config::Workspace::test_default("ws-a"),
+            config::Workspace::test_default("ws-b"),
+            config::Workspace::test_default("ws-c"),
+        ];
         let filtered = filter_workspaces(&workspaces, Some("ws-b"));
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].name, "ws-b");
@@ -490,7 +482,10 @@ mod tests {
 
     #[test]
     fn test_filter_workspaces_with_nonexistent_name() {
-        let workspaces = vec![make_workspace("ws-a"), make_workspace("ws-b")];
+        let workspaces = vec![
+            config::Workspace::test_default("ws-a"),
+            config::Workspace::test_default("ws-b"),
+        ];
         let filtered = filter_workspaces(&workspaces, Some("ws-z"));
         assert!(filtered.is_empty());
     }
@@ -507,7 +502,10 @@ mod tests {
 
     #[test]
     fn test_filter_workspaces_duplicate_names() {
-        let workspaces = vec![make_workspace("dup"), make_workspace("dup")];
+        let workspaces = vec![
+            config::Workspace::test_default("dup"),
+            config::Workspace::test_default("dup"),
+        ];
         let filtered = filter_workspaces(&workspaces, Some("dup"));
         assert_eq!(filtered.len(), 2, "should return all matching entries");
     }
