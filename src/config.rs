@@ -228,6 +228,7 @@ fn default_commit_message() -> String {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum FlakeInputMode {
     Commits,
     Tags,
@@ -248,6 +249,7 @@ fn default_flake_input_mode() -> FlakeInputMode {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum CloneMethod {
     Ssh,
     Https,

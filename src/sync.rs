@@ -5,9 +5,9 @@ use std::process::Command;
 use crate::config::Workspace;
 use crate::provider;
 
-/// Status of a single repo in the workspace
-#[derive(Debug)]
 /// Status of a single repo in the workspace.
+#[derive(Debug)]
+#[non_exhaustive]
 pub(crate) enum RepoStatus {
     /// Repo exists and has no uncommitted changes.
     Clean,

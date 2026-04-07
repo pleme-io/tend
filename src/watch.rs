@@ -11,6 +11,7 @@ use crate::sync;
 use crate::watch_cache::{RepoState, WatchStateStore};
 
 /// Summary of a watch cycle run.
+#[derive(Default)]
 pub struct WatchSummary {
     pub checked: usize,
     pub new_versions: usize,
@@ -25,6 +26,7 @@ pub struct WatchSummary {
 
 /// Tracking mode read from matrix.toml for a package.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TrackMode {
     /// Detect new semver tags. Version = tag (strip v prefix).
     Tags,
@@ -155,16 +157,8 @@ pub async fn run_watch_cycle(
         .as_ref()
         .is_some_and(|fr| fr.enable);
 
-    // If there's no matrix_file and no file_watches and no flake_input_watches and no flake_refresh, nothing to do
     if matrix_file.is_none() && watch_cfg.file_watches.is_empty() && watch_cfg.flake_input_watches.is_empty() && !has_flake_refresh {
-        return Ok(WatchSummary {
-            checked: 0,
-            new_versions: 0,
-            errors: 0,
-            file_changes: 0,
-            flake_input_updates: 0,
-            flake_refreshed: 0,
-        });
+        return Ok(WatchSummary::default());
     }
 
     let mut state = cache_store.load(&ws.name)?;
