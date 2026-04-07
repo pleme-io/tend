@@ -25,7 +25,6 @@ pub async fn discover_github_repos(org: &str) -> Result<Vec<String>> {
 
     let token = github_token();
     let client = todoku::GitHubClient::new(token.as_deref())
-        .map_err(|e| anyhow::anyhow!("{e}"))
         .context("building GitHub client")?;
 
     // Try org endpoint first, then user endpoint on 404
@@ -42,21 +41,20 @@ pub async fn discover_github_repos(org: &str) -> Result<Vec<String>> {
         Err(todoku::TodokuError::Http { status: 404, .. }) => {
             // org endpoint returned 404, try user endpoint
         }
-        Err(e) => return Err(anyhow::anyhow!("{e}").context("fetching org repos")),
+        Err(e) => return Err(anyhow::Error::from(e).context("fetching org repos")),
     }
 
-    match client.list_repos(org, OwnerType::User).await {
-        Ok(repos) => {
-            let mut names: Vec<String> = repos
-                .into_iter()
-                .filter(|r| !r.archived)
-                .map(|r| r.name)
-                .collect();
-            names.sort();
-            Ok(names)
-        }
-        Err(e) => Err(anyhow::anyhow!("{e}").context("fetching user repos")),
-    }
+    let repos = client
+        .list_repos(org, OwnerType::User)
+        .await
+        .context("fetching user repos")?;
+    let mut names: Vec<String> = repos
+        .into_iter()
+        .filter(|r| !r.archived)
+        .map(|r| r.name)
+        .collect();
+    names.sort();
+    Ok(names)
 }
 
 /// Get the auth token from environment (TEND_GITHUB_TOKEN or GITHUB_TOKEN).

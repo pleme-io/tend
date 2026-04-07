@@ -34,8 +34,7 @@ pub struct HttpGitHubClient {
 impl HttpGitHubClient {
     pub fn new() -> Result<Self> {
         let token = crate::provider::github_token();
-        let inner = todoku::GitHubClient::new(token.as_deref())
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let inner = todoku::GitHubClient::new(token.as_deref())?;
         Ok(Self { inner })
     }
 }
@@ -44,26 +43,17 @@ impl HttpGitHubClient {
 impl GitHubClient for HttpGitHubClient {
     async fn get_repo_head(&self, org: &str, repo: &str) -> Result<String> {
         use todoku::GitHubApi;
-        self.inner
-            .get_repo_head(org, repo)
-            .await
-            .map_err(|e| anyhow::anyhow!("{e}"))
+        Ok(self.inner.get_repo_head(org, repo).await?)
     }
 
     async fn get_latest_tag(&self, org: &str, repo: &str) -> Result<Option<String>> {
         use todoku::GitHubApi;
-        self.inner
-            .get_latest_tag(org, repo)
-            .await
-            .map_err(|e| anyhow::anyhow!("{e}"))
+        Ok(self.inner.get_latest_tag(org, repo).await?)
     }
 
     async fn detect_repo_language(&self, org: &str, repo: &str) -> Result<Option<String>> {
         use todoku::GitHubApi;
-        self.inner
-            .get_primary_language(org, repo)
-            .await
-            .map_err(|e| anyhow::anyhow!("{e}"))
+        Ok(self.inner.get_primary_language(org, repo).await?)
     }
 
     async fn get_file_sha(
@@ -73,11 +63,7 @@ impl GitHubClient for HttpGitHubClient {
         path: &str,
     ) -> Result<(String, u64, String)> {
         use todoku::GitHubApi;
-        let info = self
-            .inner
-            .get_file_info(org, repo, path)
-            .await
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let info = self.inner.get_file_info(org, repo, path).await?;
         Ok((info.sha, info.size, info.download_url))
     }
 }

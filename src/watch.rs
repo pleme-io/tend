@@ -480,12 +480,10 @@ pub async fn run_watch_cycle(
 
             let http = todoku::HttpClient::builder()
                 .build()
-                .map_err(|e| anyhow::anyhow!("{e}"))
                 .context("building HTTP client for download")?;
             let resp = http
                 .get_raw(&download_url)
                 .await
-                .map_err(|e| anyhow::anyhow!("{e}"))
                 .with_context(|| format!("downloading {download_url}"))?;
             let content = resp
                 .text()
