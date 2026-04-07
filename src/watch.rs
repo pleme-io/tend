@@ -3728,4 +3728,175 @@ unstable_base = "0.3.0"
 
         let _ = std::fs::remove_dir_all(&tmp);
     }
+
+    #[test]
+    fn test_adaptive_interval_zero_misses() {
+        assert_eq!(adaptive_interval(3600, 86400, 0), 3600);
+    }
+
+    #[test]
+    fn test_adaptive_interval_one_miss() {
+        assert_eq!(adaptive_interval(3600, 86400, 1), 7200);
+    }
+
+    #[test]
+    fn test_adaptive_interval_clamped_to_max() {
+        assert_eq!(adaptive_interval(3600, 86400, 10), 86400);
+    }
+
+    #[test]
+    fn test_adaptive_interval_high_misses_no_overflow() {
+        let result = adaptive_interval(3600, 86400, 100);
+        assert!(result <= 86400);
+    }
+
+    #[test]
+    fn test_adaptive_interval_zero_base() {
+        assert_eq!(adaptive_interval(0, 86400, 5), 0);
+    }
+
+    #[test]
+    fn test_parse_all_flake_lock_inputs_basic() {
+        let tmp = std::env::temp_dir().join(format!("tend-test-alfi-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        let lock = serde_json::json!({
+            "nodes": {
+                "root": {
+                    "inputs": {
+                        "nixpkgs": "nixpkgs"
+                    }
+                },
+                "nixpkgs": {
+                    "locked": {
+                        "type": "github",
+                        "owner": "NixOS",
+                        "repo": "nixpkgs",
+                        "rev": "abc123"
+                    }
+                }
+            },
+            "root": "root",
+            "version": 7
+        });
+        let lock_path = tmp.join("flake.lock");
+        std::fs::write(&lock_path, serde_json::to_string_pretty(&lock).unwrap()).unwrap();
+
+        let inputs = parse_all_flake_lock_inputs(&lock_path).unwrap();
+        assert_eq!(inputs.len(), 1);
+        assert_eq!(inputs[0].owner, "NixOS");
+        assert_eq!(inputs[0].repo, "nixpkgs");
+        assert_eq!(inputs[0].locked_rev, "abc123");
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_parse_all_flake_lock_inputs_skips_follows() {
+        let tmp = std::env::temp_dir().join(format!("tend-test-alfi-f-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        let lock = serde_json::json!({
+            "nodes": {
+                "root": {
+                    "inputs": {
+                        "nixpkgs": "nixpkgs",
+                        "flake-utils": ["nixpkgs"]
+                    }
+                },
+                "nixpkgs": {
+                    "locked": {
+                        "type": "github",
+                        "owner": "NixOS",
+                        "repo": "nixpkgs",
+                        "rev": "abc123"
+                    }
+                }
+            },
+            "root": "root",
+            "version": 7
+        });
+        let lock_path = tmp.join("flake.lock");
+        std::fs::write(&lock_path, serde_json::to_string_pretty(&lock).unwrap()).unwrap();
+
+        let inputs = parse_all_flake_lock_inputs(&lock_path).unwrap();
+        assert_eq!(inputs.len(), 1, "follows inputs should be skipped");
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_parse_all_flake_lock_inputs_skips_non_github() {
+        let tmp = std::env::temp_dir().join(format!("tend-test-alfi-ng-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        let lock = serde_json::json!({
+            "nodes": {
+                "root": {
+                    "inputs": {
+                        "my-input": "my-input"
+                    }
+                },
+                "my-input": {
+                    "locked": {
+                        "type": "gitlab",
+                        "owner": "someorg",
+                        "repo": "somerepo",
+                        "rev": "xyz789"
+                    }
+                }
+            },
+            "root": "root",
+            "version": 7
+        });
+        let lock_path = tmp.join("flake.lock");
+        std::fs::write(&lock_path, serde_json::to_string_pretty(&lock).unwrap()).unwrap();
+
+        let inputs = parse_all_flake_lock_inputs(&lock_path).unwrap();
+        assert!(inputs.is_empty(), "non-GitHub inputs should be skipped");
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_parse_all_flake_lock_inputs_empty_lock() {
+        let tmp = std::env::temp_dir().join(format!("tend-test-alfi-e-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        let lock = serde_json::json!({
+            "nodes": {
+                "root": {}
+            },
+            "root": "root",
+            "version": 7
+        });
+        let lock_path = tmp.join("flake.lock");
+        std::fs::write(&lock_path, serde_json::to_string_pretty(&lock).unwrap()).unwrap();
+
+        let inputs = parse_all_flake_lock_inputs(&lock_path).unwrap();
+        assert!(inputs.is_empty());
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_parse_all_flake_lock_inputs_missing_file() {
+        let result = parse_all_flake_lock_inputs(std::path::Path::new("/nonexistent/flake.lock"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_watch_summary_default_fields() {
+        let summary = WatchSummary {
+            checked: 10,
+            new_versions: 2,
+            errors: 1,
+            file_changes: 0,
+            flake_input_updates: 0,
+            flake_refreshed: 0,
+        };
+        assert_eq!(summary.checked, 10);
+        assert_eq!(summary.new_versions, 2);
+        assert_eq!(summary.errors, 1);
+    }
 }
