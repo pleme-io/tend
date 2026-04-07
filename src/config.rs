@@ -308,8 +308,8 @@ impl Workspace {
     }
 }
 
-/// Generate a starter config file
-pub fn generate_starter_config() -> String {
+/// Generate a starter config file.
+pub(crate) fn generate_starter_config() -> Result<String> {
     let config = Config {
         workspaces: vec![Workspace {
             name: "my-org".to_string(),
@@ -324,7 +324,7 @@ pub fn generate_starter_config() -> String {
             watch: None,
         }],
     };
-    serde_yaml_ng::to_string(&config).unwrap()
+    serde_yaml_ng::to_string(&config).context("serializing starter config")
 }
 
 #[cfg(test)]
@@ -525,7 +525,7 @@ workspaces:
 
     #[test]
     fn test_generate_starter_config_is_valid_yaml() {
-        let yaml = generate_starter_config();
+        let yaml = generate_starter_config().unwrap();
         let parsed: Config = serde_yaml_ng::from_str(&yaml).unwrap();
         assert_eq!(parsed.workspaces.len(), 1);
         assert_eq!(parsed.workspaces[0].name, "my-org");

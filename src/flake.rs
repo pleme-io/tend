@@ -112,7 +112,9 @@ pub(crate) fn compute_update_chain(
 
     let mut steps = Vec::new();
     for &repo in &sorted {
-        let deps = flake_deps.get(repo).unwrap();
+        let Some(deps) = flake_deps.get(repo) else {
+            continue;
+        };
         let inputs: Vec<String> = deps
             .iter()
             .filter(|d| updated_so_far.contains(d.as_str()))

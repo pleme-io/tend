@@ -425,7 +425,7 @@ async fn main() -> Result<()> {
                 std::fs::create_dir_all(parent)
                     .with_context(|| format!("creating {}", parent.display()))?;
             }
-            let content = config::generate_starter_config();
+            let content = config::generate_starter_config()?;
             std::fs::write(&path, &content)
                 .with_context(|| format!("writing {}", path.display()))?;
             println!("config written to {}", path.display());
