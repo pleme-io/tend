@@ -168,9 +168,15 @@ enum Commands {
 
     /// Propagate nix flake update through the dependency chain
     FlakeUpdate {
-        /// Repo that was just pushed (trigger)
-        #[arg(long)]
-        changed: String,
+        /// Repo that was just pushed (trigger). Mutually exclusive with --all.
+        #[arg(long, conflicts_with = "all")]
+        changed: Option<String>,
+
+        /// Treat every repo with flake_deps as changed; rebuild the union DAG and
+        /// execute each affected repo exactly once across every workspace that
+        /// has flake_deps configured.
+        #[arg(long, conflicts_with = "changed")]
+        all: bool,
 
         /// Path to config file
         #[arg(long)]
@@ -187,6 +193,14 @@ enum Commands {
         /// Suppress per-step output
         #[arg(long)]
         quiet: bool,
+
+        /// Skip git pull --ff-only before each nix flake update
+        #[arg(long)]
+        no_pull: bool,
+
+        /// Fail (instead of cloning) when a chain repo isn't on disk
+        #[arg(long)]
+        no_clone: bool,
     },
 }
 
@@ -257,33 +271,68 @@ async fn main() -> Result<()> {
 
         Commands::FlakeUpdate {
             changed,
+            all,
             config: config_path,
             workspace: ws_filter,
             dry_run,
             quiet,
+            no_pull,
+            no_clone,
         } => {
+            if !all && changed.is_none() {
+                anyhow::bail!("flake-update requires either --changed <repo> or --all");
+            }
+
             let cfg = load_config(config_path.as_deref())?;
+            let opts = flake::ExecOptions {
+                dry_run,
+                quiet,
+                auto_clone: !no_clone,
+                pull_before_update: !no_pull,
+            };
+
+            let mut total_steps = 0usize;
+            let mut workspaces_with_deps = 0usize;
+
             for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
                 if ws.flake_deps.is_empty() {
                     continue;
                 }
-                let chain = flake::compute_update_chain(&changed, &ws.flake_deps)?;
+                workspaces_with_deps += 1;
+
+                let (label, chain) = if all {
+                    ("(all)".to_string(), flake::compute_update_chain_all(&ws.flake_deps)?)
+                } else {
+                    let trigger = changed.as_deref().expect("validated above");
+                    (
+                        trigger.to_string(),
+                        flake::compute_update_chain(trigger, &ws.flake_deps)?,
+                    )
+                };
+
                 if chain.is_empty() {
                     if !quiet {
-                        println!(
-                            "{}: {} has no dependents in flake_deps",
-                            ws.name, changed
-                        );
+                        println!("{}: no work for {}", ws.name, label);
                     }
                     continue;
                 }
                 if !quiet {
-                    display::print_flake_chain_header(&ws.name, &changed, &chain);
+                    display::print_flake_chain_header(&ws.name, &label, &chain);
                 }
-                flake::execute_update_chain(ws, &chain, dry_run, quiet)?;
+                flake::execute_update_chain(ws, &chain, opts)?;
                 if !quiet {
                     display::print_flake_chain_complete(chain.len());
                 }
+                total_steps += chain.len();
+            }
+
+            if all && workspaces_with_deps == 0 && !quiet {
+                println!("no workspaces have flake_deps configured — nothing to do");
+            } else if all && !quiet {
+                println!(
+                    "\n{} workspaces processed, {} total steps",
+                    workspaces_with_deps, total_steps
+                );
             }
         }
 

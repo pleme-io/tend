@@ -6,6 +6,17 @@ use std::process::Command;
 use crate::config::Workspace;
 use crate::display;
 
+/// Options that govern execution of an update chain.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct ExecOptions {
+    pub dry_run: bool,
+    pub quiet: bool,
+    /// Clone the repo from its workspace's git host if it's not on disk.
+    pub auto_clone: bool,
+    /// Run `git pull --ff-only` before `nix flake update`.
+    pub pull_before_update: bool,
+}
+
 /// A single step in the update chain.
 #[derive(Debug)]
 pub(crate) struct UpdateStep {
@@ -132,12 +143,85 @@ pub(crate) fn compute_update_chain(
     Ok(steps)
 }
 
+/// Compute the update chain assuming every repo in `flake_deps` was just changed.
+///
+/// Emits one step per repo (in topological dependency order), with that repo's full set
+/// of inputs to update. Used by `--all` mode to perform a single union pass without
+/// duplicating work across multiple per-trigger invocations.
+pub(crate) fn compute_update_chain_all(
+    flake_deps: &HashMap<String, Vec<String>>,
+) -> Result<Vec<UpdateStep>> {
+    if flake_deps.is_empty() {
+        return Ok(vec![]);
+    }
+
+    // Collect every node referenced by the graph (sources + leaves).
+    let mut all_nodes: HashSet<&str> = HashSet::new();
+    let mut reverse: HashMap<&str, Vec<&str>> = HashMap::new();
+    let mut in_degree: HashMap<&str, usize> = HashMap::new();
+
+    for (repo, deps) in flake_deps {
+        all_nodes.insert(repo.as_str());
+        in_degree.entry(repo.as_str()).or_insert(0);
+        for dep in deps {
+            all_nodes.insert(dep.as_str());
+            in_degree.entry(dep.as_str()).or_insert(0);
+            reverse.entry(dep.as_str()).or_default().push(repo.as_str());
+            *in_degree.get_mut(repo.as_str()).unwrap() += 1;
+        }
+    }
+
+    // Kahn's topological sort over the full DAG.
+    let mut queue: VecDeque<&str> = in_degree
+        .iter()
+        .filter_map(|(&k, &v)| if v == 0 { Some(k) } else { None })
+        .collect();
+    let mut sorted: Vec<&str> = Vec::new();
+
+    while let Some(node) = queue.pop_front() {
+        sorted.push(node);
+        if let Some(dependents) = reverse.get(node) {
+            for &dep in dependents {
+                if let Some(deg) = in_degree.get_mut(dep) {
+                    *deg -= 1;
+                    if *deg == 0 {
+                        queue.push_back(dep);
+                    }
+                }
+            }
+        }
+    }
+
+    if sorted.len() != all_nodes.len() {
+        let missing: HashSet<&str> = all_nodes
+            .difference(&sorted.iter().copied().collect())
+            .copied()
+            .collect();
+        bail!("cycle detected in flake_deps among: {:?}", missing);
+    }
+
+    // Emit a step for every node that has flake_deps. Each step carries that
+    // repo's full input list, since all of them are considered updated.
+    let mut steps = Vec::new();
+    for node in sorted {
+        if let Some(deps) = flake_deps.get(node) {
+            if !deps.is_empty() {
+                steps.push(UpdateStep {
+                    repo: node.to_string(),
+                    inputs: deps.clone(),
+                });
+            }
+        }
+    }
+
+    Ok(steps)
+}
+
 /// Execute the update chain: for each step, run nix flake update, commit, push.
 pub(crate) fn execute_update_chain(
     workspace: &Workspace,
     chain: &[UpdateStep],
-    dry_run: bool,
-    quiet: bool,
+    opts: ExecOptions,
 ) -> Result<()> {
     let base_dir = workspace.resolved_base_dir()?;
     let total = chain.len();
@@ -146,16 +230,25 @@ pub(crate) fn execute_update_chain(
         let step_num = i + 1;
         let repo_path = base_dir.join(&step.repo);
 
-        if !repo_path.exists() {
-            bail!("repo directory does not exist: {}", repo_path.display());
-        }
-
-        if !quiet {
+        if !opts.quiet {
             display::print_flake_step_start(step_num, total, &step.repo, &step.inputs);
         }
 
-        if dry_run {
-            if !quiet {
+        if !repo_path.exists() {
+            if !opts.auto_clone {
+                bail!("repo directory does not exist: {}", repo_path.display());
+            }
+            if opts.dry_run {
+                if !opts.quiet {
+                    println!("    would clone {} into {}", step.repo, base_dir.display());
+                }
+            } else {
+                clone_repo(workspace, &step.repo, &base_dir, opts.quiet)?;
+            }
+        }
+
+        if opts.dry_run {
+            if !opts.quiet {
                 display::print_flake_step_dry_run();
             }
             continue;
@@ -164,6 +257,10 @@ pub(crate) fn execute_update_chain(
         // Check for clean working tree
         ensure_clean(&repo_path)
             .with_context(|| format!("{} has uncommitted changes", step.repo))?;
+
+        if opts.pull_before_update {
+            git_pull_ff(&repo_path, &step.repo, opts.quiet)?;
+        }
 
         // nix flake update <inputs...>
         let mut args = vec!["flake", "update"];
@@ -203,7 +300,7 @@ pub(crate) fn execute_update_chain(
 
         if diff.success() {
             // No changes staged — lock file unchanged
-            if !quiet {
+            if !opts.quiet {
                 display::print_flake_step_no_changes(&step.repo);
             }
             continue;
@@ -234,11 +331,53 @@ pub(crate) fn execute_update_chain(
             bail!("git push failed in {}: {}", step.repo, stderr);
         }
 
-        if !quiet {
+        if !opts.quiet {
             display::print_flake_step_done(&step.repo);
         }
     }
 
+    Ok(())
+}
+
+fn clone_repo(workspace: &Workspace, repo: &str, base_dir: &Path, quiet: bool) -> Result<()> {
+    std::fs::create_dir_all(base_dir)
+        .with_context(|| format!("creating {}", base_dir.display()))?;
+    let url = workspace.clone_url(repo);
+    let target = base_dir.join(repo);
+    if !quiet {
+        println!("    cloning {url} → {}", target.display());
+    }
+    let output = Command::new("git")
+        .args(["clone", &url, &target.to_string_lossy()])
+        .output()
+        .with_context(|| format!("git clone {url}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("git clone failed for {repo}: {}", stderr.trim());
+    }
+    Ok(())
+}
+
+fn git_pull_ff(repo_path: &Path, repo: &str, quiet: bool) -> Result<()> {
+    let output = Command::new("git")
+        .args(["pull", "--ff-only", "--quiet"])
+        .current_dir(repo_path)
+        .output()
+        .with_context(|| format!("git pull --ff-only in {repo}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("git pull --ff-only failed in {repo}: {}", stderr.trim());
+    }
+    if !quiet {
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        if !combined.trim().is_empty() && !combined.contains("Already up to date") {
+            println!("    pulled origin into {repo}");
+        }
+    }
     Ok(())
 }
 
@@ -456,5 +595,104 @@ mod tests {
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("cycle detected"));
+    }
+
+    #[test]
+    fn test_compute_update_chain_all_empty() {
+        let deps: HashMap<String, Vec<String>> = HashMap::new();
+        let chain = compute_update_chain_all(&deps).unwrap();
+        assert!(chain.is_empty());
+    }
+
+    #[test]
+    fn test_compute_update_chain_all_single_repo() {
+        let mut deps = HashMap::new();
+        deps.insert("a".to_string(), vec!["lib-x".to_string()]);
+        let chain = compute_update_chain_all(&deps).unwrap();
+        // a is the only repo with deps; lib-x has no deps so no step emitted
+        assert_eq!(chain.len(), 1);
+        assert_eq!(chain[0].repo, "a");
+        assert_eq!(chain[0].inputs, vec!["lib-x".to_string()]);
+    }
+
+    #[test]
+    fn test_compute_update_chain_all_topological_order() {
+        // lib-x → repo-a → repo-b
+        let mut deps = HashMap::new();
+        deps.insert("repo-a".to_string(), vec!["lib-x".to_string()]);
+        deps.insert("repo-b".to_string(), vec!["repo-a".to_string()]);
+
+        let chain = compute_update_chain_all(&deps).unwrap();
+        assert_eq!(chain.len(), 2);
+        assert_eq!(chain[0].repo, "repo-a");
+        assert_eq!(chain[1].repo, "repo-b");
+    }
+
+    #[test]
+    fn test_compute_update_chain_all_deduplicates_work() {
+        // Same DAG as the diamond case: lib-x is shared by repo-a and repo-b,
+        // both feed into repo-c. compute_update_chain_all should emit each repo
+        // exactly once.
+        let mut deps = HashMap::new();
+        deps.insert("repo-a".to_string(), vec!["lib-x".to_string()]);
+        deps.insert("repo-b".to_string(), vec!["lib-x".to_string()]);
+        deps.insert(
+            "repo-c".to_string(),
+            vec!["repo-a".to_string(), "repo-b".to_string()],
+        );
+
+        let chain = compute_update_chain_all(&deps).unwrap();
+        assert_eq!(chain.len(), 3);
+        let repos: Vec<&str> = chain.iter().map(|s| s.repo.as_str()).collect();
+        // All three repos appear, exactly once
+        assert!(repos.contains(&"repo-a"));
+        assert!(repos.contains(&"repo-b"));
+        assert!(repos.contains(&"repo-c"));
+        let positions: HashMap<&str, usize> = chain
+            .iter()
+            .enumerate()
+            .map(|(i, s)| (s.repo.as_str(), i))
+            .collect();
+        assert!(positions["repo-a"] < positions["repo-c"]);
+        assert!(positions["repo-b"] < positions["repo-c"]);
+    }
+
+    #[test]
+    fn test_compute_update_chain_all_full_inputs_per_repo() {
+        // repo-c depends on both lib-x and repo-a; in --all mode it should
+        // update both inputs, not just one.
+        let mut deps = HashMap::new();
+        deps.insert("repo-a".to_string(), vec!["lib-x".to_string()]);
+        deps.insert(
+            "repo-c".to_string(),
+            vec!["lib-x".to_string(), "repo-a".to_string()],
+        );
+
+        let chain = compute_update_chain_all(&deps).unwrap();
+        let repo_c_step = chain.iter().find(|s| s.repo == "repo-c").unwrap();
+        assert_eq!(repo_c_step.inputs.len(), 2);
+        assert!(repo_c_step.inputs.contains(&"lib-x".to_string()));
+        assert!(repo_c_step.inputs.contains(&"repo-a".to_string()));
+    }
+
+    #[test]
+    fn test_compute_update_chain_all_cycle_detection() {
+        let mut deps = HashMap::new();
+        deps.insert("a".to_string(), vec!["b".to_string()]);
+        deps.insert("b".to_string(), vec!["a".to_string()]);
+        let result = compute_update_chain_all(&deps);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("cycle detected"));
+    }
+
+    #[test]
+    fn test_compute_update_chain_all_skips_pure_leaves() {
+        // lib-x is a leaf with no flake_deps entry — it shouldn't get a step
+        let mut deps = HashMap::new();
+        deps.insert("repo-a".to_string(), vec!["lib-x".to_string()]);
+        let chain = compute_update_chain_all(&deps).unwrap();
+        for step in &chain {
+            assert_ne!(step.repo, "lib-x");
+        }
     }
 }
