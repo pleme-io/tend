@@ -5,6 +5,8 @@ use std::process::Command;
 
 use crate::config::Workspace;
 use crate::display;
+use crate::flake_lock::FlakeLock;
+use crate::head_cache::{self, UpstreamHead};
 
 /// Options that govern execution of an update chain.
 #[derive(Debug, Clone, Copy, Default)]
@@ -15,6 +17,44 @@ pub(crate) struct ExecOptions {
     pub auto_clone: bool,
     /// Run `git pull --ff-only` before `nix flake update`.
     pub pull_before_update: bool,
+    /// After git-push, if the remote rejected the push for non-ff, rebase
+    /// against origin once and retry. Handles the two-node race where a
+    /// peer daemon pushed a newer commit between our pull and our push.
+    pub retry_on_push_reject: bool,
+}
+
+/// Outcome of a single chain step's execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StepOutcome {
+    /// Lockfile was updated, committed, and pushed.
+    Updated,
+    /// Step ran but lockfile didn't actually change.
+    NoChange,
+    /// Step was skipped entirely (dry-run or converged pre-flight).
+    Skipped,
+}
+
+/// Aggregate result of executing a chain.
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct ExecSummary {
+    pub updated: usize,
+    pub no_change: usize,
+    pub skipped: usize,
+}
+
+impl ExecSummary {
+    pub fn record(&mut self, outcome: StepOutcome) {
+        match outcome {
+            StepOutcome::Updated => self.updated += 1,
+            StepOutcome::NoChange => self.no_change += 1,
+            StepOutcome::Skipped => self.skipped += 1,
+        }
+    }
+
+    /// Total work actually performed (lockfile pushes).
+    pub fn work(&self) -> usize {
+        self.updated
+    }
 }
 
 /// A single step in the update chain.
@@ -218,13 +258,18 @@ pub(crate) fn compute_update_chain_all(
 }
 
 /// Execute the update chain: for each step, run nix flake update, commit, push.
+///
+/// Returns an `ExecSummary` describing how many steps updated, no-op'd, or
+/// were skipped — callers (notably the daemon loop) use `summary.work()` to
+/// drive backoff and convergence detection.
 pub(crate) fn execute_update_chain(
     workspace: &Workspace,
     chain: &[UpdateStep],
     opts: ExecOptions,
-) -> Result<()> {
+) -> Result<ExecSummary> {
     let base_dir = workspace.resolved_base_dir()?;
     let total = chain.len();
+    let mut summary = ExecSummary::default();
 
     for (i, step) in chain.iter().enumerate() {
         let step_num = i + 1;
@@ -251,6 +296,7 @@ pub(crate) fn execute_update_chain(
             if !opts.quiet {
                 display::print_flake_step_dry_run();
             }
+            summary.record(StepOutcome::Skipped);
             continue;
         }
 
@@ -303,6 +349,7 @@ pub(crate) fn execute_update_chain(
             if !opts.quiet {
                 display::print_flake_step_no_changes(&step.repo);
             }
+            summary.record(StepOutcome::NoChange);
             continue;
         }
 
@@ -319,23 +366,166 @@ pub(crate) fn execute_update_chain(
             bail!("git commit failed in {}: {}", step.repo, stderr);
         }
 
-        // Push
-        let output = Command::new("git")
-            .args(["push"])
-            .current_dir(&repo_path)
-            .output()
-            .with_context(|| format!("git push in {}", step.repo))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            bail!("git push failed in {}: {}", step.repo, stderr);
-        }
+        push_with_retry(&repo_path, &step.repo, opts)?;
+        invalidate_head_cache_after_push(workspace, &step.repo, &repo_path);
 
         if !opts.quiet {
             display::print_flake_step_done(&step.repo);
         }
+        summary.record(StepOutcome::Updated);
     }
 
+    Ok(summary)
+}
+
+/// Filter a chain down to steps whose flake.lock has at least one input whose
+/// locked rev differs from its upstream HEAD SHA. Steps whose local lockfile
+/// is missing (never built) pass through untouched so `nix flake update` gets
+/// a chance to materialize them.
+///
+/// When `upstream` is `None`, the filter is a no-op (all steps returned).
+/// Intended for offline / --no-preflight runs.
+pub(crate) async fn filter_to_divergent(
+    workspace: &Workspace,
+    chain: Vec<UpdateStep>,
+    upstream: Option<&dyn UpstreamHead>,
+) -> Result<(Vec<UpdateStep>, Vec<UpdateStep>)> {
+    let Some(upstream) = upstream else {
+        return Ok((chain, Vec::new()));
+    };
+    let base_dir = workspace.resolved_base_dir()?;
+    let mut keep = Vec::new();
+    let mut dropped = Vec::new();
+
+    for step in chain {
+        let repo_path = base_dir.join(&step.repo);
+        let lock_path = repo_path.join("flake.lock");
+        // If the repo isn't resident, or its lock is missing, leave the step
+        // in. `nix flake update` will handle bootstrapping after auto-clone.
+        if !lock_path.exists() {
+            keep.push(step);
+            continue;
+        }
+        let Ok(lock) = FlakeLock::read(&lock_path) else {
+            // Corrupt / unparseable — don't silently drop work.
+            keep.push(step);
+            continue;
+        };
+
+        let mut divergent = Vec::new();
+        let mut unknown = Vec::new();
+        for input in &step.inputs {
+            match lock.locked_input(input) {
+                Some(locked) => {
+                    let upstream_rev = upstream
+                        .head_sha(&locked.owner, &locked.repo, &locked.tracked_ref)
+                        .await?;
+                    if upstream_rev != locked.rev {
+                        divergent.push(input.clone());
+                    }
+                }
+                None => {
+                    // Non-github input or input not yet locked — can't prove
+                    // convergence, so keep it.
+                    unknown.push(input.clone());
+                }
+            }
+        }
+
+        if divergent.is_empty() && unknown.is_empty() {
+            dropped.push(step);
+        } else {
+            let mut narrowed = step;
+            narrowed.inputs = divergent
+                .into_iter()
+                .chain(unknown)
+                .collect();
+            keep.push(narrowed);
+        }
+    }
+
+    Ok((keep, dropped))
+}
+
+/// After pushing a new commit for `repo`, prime the head_cache with the local
+/// HEAD SHA so the next cycle's pre-flight sees the new upstream rev instead
+/// of the stale value left over from before the push.
+///
+/// Best-effort: cache-write failures are ignored. If the cache can't be
+/// written, the next cycle just has to wait out the TTL (default 60s).
+fn invalidate_head_cache_after_push(workspace: &Workspace, repo: &str, repo_path: &Path) {
+    let Some(org) = workspace.org.as_deref().or(Some(&workspace.name)) else {
+        return;
+    };
+    let Ok(output) = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(repo_path)
+        .output()
+    else {
+        return;
+    };
+    if !output.status.success() {
+        return;
+    }
+    let new_rev = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if new_rev.is_empty() {
+        return;
+    }
+    // Cover both "main" (most common) and whatever branch is currently checked
+    // out, so `filter_to_divergent` hits cache regardless of the tracked ref
+    // in the consuming lockfile.
+    let _ = head_cache::write(org, repo, "main", &new_rev);
+    if let Ok(branch_out) = Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .current_dir(repo_path)
+        .output()
+    {
+        if branch_out.status.success() {
+            let branch = String::from_utf8_lossy(&branch_out.stdout).trim().to_string();
+            if !branch.is_empty() && branch != "main" {
+                let _ = head_cache::write(org, repo, &branch, &new_rev);
+            }
+        }
+    }
+}
+
+fn push_with_retry(repo_path: &Path, repo: &str, opts: ExecOptions) -> Result<()> {
+    let first = Command::new("git")
+        .args(["push"])
+        .current_dir(repo_path)
+        .output()
+        .with_context(|| format!("git push in {repo}"))?;
+    if first.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&first.stderr);
+    let is_non_ff = stderr.contains("non-fast-forward")
+        || stderr.contains("(fetch first)")
+        || stderr.contains("rejected");
+    if !(opts.retry_on_push_reject && is_non_ff) {
+        bail!("git push failed in {repo}: {}", stderr.trim());
+    }
+    if !opts.quiet {
+        println!("    push rejected; rebasing on origin and retrying");
+    }
+    let pull = Command::new("git")
+        .args(["pull", "--rebase", "--autostash", "origin"])
+        .current_dir(repo_path)
+        .output()
+        .with_context(|| format!("git pull --rebase in {repo}"))?;
+    if !pull.status.success() {
+        let stderr = String::from_utf8_lossy(&pull.stderr);
+        bail!("git pull --rebase failed in {repo}: {}", stderr.trim());
+    }
+    let second = Command::new("git")
+        .args(["push"])
+        .current_dir(repo_path)
+        .output()
+        .with_context(|| format!("git push retry in {repo}"))?;
+    if !second.status.success() {
+        let stderr = String::from_utf8_lossy(&second.stderr);
+        bail!("git push retry failed in {repo}: {}", stderr.trim());
+    }
     Ok(())
 }
 

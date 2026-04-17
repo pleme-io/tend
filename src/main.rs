@@ -4,8 +4,10 @@ mod config;
 mod daemon;
 mod display;
 mod flake;
+mod flake_lock;
 mod git;
 mod github;
+mod head_cache;
 mod provider;
 mod sync;
 mod watch;
@@ -201,6 +203,40 @@ enum Commands {
         /// Fail (instead of cloning) when a chain repo isn't on disk
         #[arg(long)]
         no_clone: bool,
+
+        /// Skip the flake.lock vs upstream-HEAD pre-flight check. By default,
+        /// steps whose lockfile already matches the upstream HEAD on every
+        /// dep are dropped from the chain without running nix flake update.
+        #[arg(long)]
+        no_preflight: bool,
+    },
+
+    /// Run flake-update --all continuously with exponential backoff.
+    /// Idempotent: cycles where every workspace is converged do no work.
+    FlakeUpdateDaemon {
+        /// Path to config file
+        #[arg(long)]
+        config: Option<PathBuf>,
+
+        /// Only process a specific workspace
+        #[arg(long)]
+        workspace: Option<String>,
+
+        /// Minimum sleep between cycles, in seconds (reset interval after work).
+        #[arg(long, default_value = "60")]
+        min_interval: u64,
+
+        /// Maximum sleep between cycles when converged, in seconds.
+        #[arg(long, default_value = "3600")]
+        max_interval: u64,
+
+        /// Suppress per-step output
+        #[arg(long)]
+        quiet: bool,
+
+        /// Path to file containing GitHub token (for launchd environments)
+        #[arg(long)]
+        github_token_file: Option<PathBuf>,
     },
 }
 
@@ -278,6 +314,7 @@ async fn main() -> Result<()> {
             quiet,
             no_pull,
             no_clone,
+            no_preflight,
         } => {
             if !all && changed.is_none() {
                 anyhow::bail!("flake-update requires either --changed <repo> or --all");
@@ -289,16 +326,20 @@ async fn main() -> Result<()> {
                 quiet,
                 auto_clone: !no_clone,
                 pull_before_update: !no_pull,
+                retry_on_push_reject: true,
             };
 
-            let mut total_steps = 0usize;
-            let mut workspaces_with_deps = 0usize;
+            let github_client = github::HttpGitHubClient::new()?;
+            let upstream = head_cache::CachedGitHubHead::new(&github_client);
+            let use_preflight = !no_preflight;
+
+            let audit_log = audit::AuditLog::default_path();
+            let mut summary = flake::ExecSummary::default();
 
             for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
                 if ws.flake_deps.is_empty() {
                     continue;
                 }
-                workspaces_with_deps += 1;
 
                 let (label, chain) = if all {
                     ("(all)".to_string(), flake::compute_update_chain_all(&ws.flake_deps)?)
@@ -316,24 +357,83 @@ async fn main() -> Result<()> {
                     }
                     continue;
                 }
+
+                let (chain, dropped) = if use_preflight {
+                    flake::filter_to_divergent(ws, chain, Some(&upstream)).await?
+                } else {
+                    (chain, Vec::new())
+                };
+
+                if !quiet && !dropped.is_empty() {
+                    println!(
+                        "{}: pre-flight skipped {} converged step(s)",
+                        ws.name,
+                        dropped.len()
+                    );
+                }
+                if chain.is_empty() {
+                    if !quiet {
+                        println!("{}: converged — no work to do", ws.name);
+                    }
+                    audit_log.log(
+                        "flake_update_converged",
+                        serde_json::json!({ "workspace": ws.name }),
+                    );
+                    continue;
+                }
+
                 if !quiet {
                     display::print_flake_chain_header(&ws.name, &label, &chain);
                 }
-                flake::execute_update_chain(ws, &chain, opts)?;
+                let ws_summary = flake::execute_update_chain(ws, &chain, opts)?;
+                summary.updated += ws_summary.updated;
+                summary.no_change += ws_summary.no_change;
+                summary.skipped += ws_summary.skipped;
+
+                audit_log.log(
+                    "flake_update_workspace_complete",
+                    serde_json::json!({
+                        "workspace": ws.name,
+                        "updated": ws_summary.updated,
+                        "no_change": ws_summary.no_change,
+                        "skipped": ws_summary.skipped,
+                    }),
+                );
                 if !quiet {
                     display::print_flake_chain_complete(chain.len());
                 }
-                total_steps += chain.len();
             }
 
-            if all && workspaces_with_deps == 0 && !quiet {
-                println!("no workspaces have flake_deps configured — nothing to do");
-            } else if all && !quiet {
+            if all && !quiet {
                 println!(
-                    "\n{} workspaces processed, {} total steps",
-                    workspaces_with_deps, total_steps
+                    "\nsummary: {} updated, {} no-change, {} skipped",
+                    summary.updated, summary.no_change, summary.skipped
                 );
             }
+        }
+
+        Commands::FlakeUpdateDaemon {
+            config: config_path,
+            workspace: ws_filter,
+            min_interval,
+            max_interval,
+            quiet,
+            github_token_file,
+        } => {
+            if let Some(ref token_path) = github_token_file {
+                let token = std::fs::read_to_string(token_path)
+                    .with_context(|| format!("reading token from {}", token_path.display()))?;
+                std::env::set_var("GITHUB_TOKEN", token.trim());
+            }
+
+            run_flake_update_daemon(
+                config_path,
+                ws_filter,
+                min_interval,
+                max_interval,
+                quiet,
+            )
+            .await?;
         }
 
         Commands::Watch {
@@ -490,6 +590,108 @@ pub(crate) fn load_config(path: Option<&std::path::Path>) -> Result<config::Conf
         None => config::Config::default_path(),
     };
     config::Config::load(&config_path)
+}
+
+async fn run_flake_update_daemon(
+    config_path: Option<PathBuf>,
+    ws_filter: Option<String>,
+    min_interval: u64,
+    max_interval: u64,
+    quiet: bool,
+) -> Result<()> {
+    let min = min_interval.max(1);
+    let max = max_interval.max(min);
+    let mut interval = min;
+    let audit_log = audit::AuditLog::default_path();
+
+    if !quiet {
+        println!(
+            "flake-update daemon starting (min={min}s max={max}s). Ctrl-C to stop."
+        );
+    }
+
+    loop {
+        let cycle_start = std::time::Instant::now();
+        audit_log.log(
+            "flake_update_cycle_start",
+            serde_json::json!({ "interval_secs": interval }),
+        );
+
+        match run_flake_update_cycle(config_path.as_deref(), ws_filter.as_deref(), quiet).await
+        {
+            Ok(summary) => {
+                let duration_ms = cycle_start.elapsed().as_millis() as u64;
+                audit_log.log(
+                    "flake_update_cycle_complete",
+                    serde_json::json!({
+                        "duration_ms": duration_ms,
+                        "updated": summary.updated,
+                        "no_change": summary.no_change,
+                        "skipped": summary.skipped,
+                    }),
+                );
+                if summary.work() > 0 {
+                    interval = min;
+                } else {
+                    interval = (interval.saturating_mul(2)).min(max);
+                }
+            }
+            Err(e) => {
+                eprintln!("flake-update daemon cycle failed: {e:#}");
+                audit_log.log(
+                    "flake_update_cycle_error",
+                    serde_json::json!({ "error": format!("{e:#}") }),
+                );
+                interval = min;
+            }
+        }
+
+        if !quiet {
+            println!("flake-update daemon sleeping {interval}s");
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
+    }
+}
+
+async fn run_flake_update_cycle(
+    config_path: Option<&std::path::Path>,
+    ws_filter: Option<&str>,
+    quiet: bool,
+) -> Result<flake::ExecSummary> {
+    let cfg = load_config(config_path)?;
+    let opts = flake::ExecOptions {
+        dry_run: false,
+        quiet,
+        auto_clone: true,
+        pull_before_update: true,
+        retry_on_push_reject: true,
+    };
+    let github_client = github::HttpGitHubClient::new()?;
+    let upstream = head_cache::CachedGitHubHead::new(&github_client);
+
+    let mut summary = flake::ExecSummary::default();
+    for ws in filter_workspaces(&cfg.workspaces, ws_filter) {
+        if ws.flake_deps.is_empty() {
+            continue;
+        }
+        let chain = flake::compute_update_chain_all(&ws.flake_deps)?;
+        if chain.is_empty() {
+            continue;
+        }
+        let (chain, _dropped) =
+            flake::filter_to_divergent(ws, chain, Some(&upstream)).await?;
+        if chain.is_empty() {
+            continue;
+        }
+        if !quiet {
+            display::print_flake_chain_header(&ws.name, "(daemon cycle)", &chain);
+        }
+        let ws_summary = flake::execute_update_chain(ws, &chain, opts)?;
+        summary.updated += ws_summary.updated;
+        summary.no_change += ws_summary.no_change;
+        summary.skipped += ws_summary.skipped;
+    }
+    Ok(summary)
 }
 
 pub(crate) fn filter_workspaces<'a>(
