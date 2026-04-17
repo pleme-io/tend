@@ -549,14 +549,36 @@ fn clone_repo(workspace: &Workspace, repo: &str, base_dir: &Path, quiet: bool) -
 }
 
 fn git_pull_ff(repo_path: &Path, repo: &str, quiet: bool) -> Result<()> {
-    let output = Command::new("git")
-        .args(["pull", "--ff-only", "--quiet"])
+    // Determine the current branch and pull from origin/<branch> explicitly.
+    // `git pull --ff-only` without args fails with "Cannot fast-forward to
+    // multiple branches" when the repo has remote-tracking configuration for
+    // more than one branch (common in worktrees or after manual fetches).
+    let branch_out = Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
         .current_dir(repo_path)
         .output()
-        .with_context(|| format!("git pull --ff-only in {repo}"))?;
+        .with_context(|| format!("git rev-parse HEAD in {repo}"))?;
+    if !branch_out.status.success() {
+        let stderr = String::from_utf8_lossy(&branch_out.stderr);
+        bail!("detecting branch in {repo}: {}", stderr.trim());
+    }
+    let branch = String::from_utf8_lossy(&branch_out.stdout).trim().to_string();
+    if branch.is_empty() || branch == "HEAD" {
+        // Detached HEAD — skip pulling; nothing well-defined to fast-forward.
+        return Ok(());
+    }
+
+    let output = Command::new("git")
+        .args(["pull", "--ff-only", "--quiet", "origin", &branch])
+        .current_dir(repo_path)
+        .output()
+        .with_context(|| format!("git pull --ff-only origin {branch} in {repo}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("git pull --ff-only failed in {repo}: {}", stderr.trim());
+        bail!(
+            "git pull --ff-only origin {branch} failed in {repo}: {}",
+            stderr.trim()
+        );
     }
     if !quiet {
         let combined = format!(
@@ -565,7 +587,7 @@ fn git_pull_ff(repo_path: &Path, repo: &str, quiet: bool) -> Result<()> {
             String::from_utf8_lossy(&output.stderr),
         );
         if !combined.trim().is_empty() && !combined.contains("Already up to date") {
-            println!("    pulled origin into {repo}");
+            println!("    pulled origin/{branch} into {repo}");
         }
     }
     Ok(())
