@@ -19,17 +19,26 @@ pub(crate) struct DaemonOpts {
 pub(crate) async fn run(opts: DaemonOpts) -> Result<()> {
     let mut cycle = 0u64;
 
+    // Single drain coordinator for the whole loop — handles SIGTERM and
+    // SIGINT. `tokio::signal::ctrl_c` alone misses SIGTERM from launchd.
+    let shutdown = tsunagu::ShutdownController::install();
+
     loop {
         cycle += 1;
+
+        if shutdown.is_triggered() {
+            break;
+        }
 
         // Re-read config each cycle so nix rebuild changes are picked up
         let cfg = match load_config(opts.config.as_deref()) {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("daemon: failed to load config: {e}");
+                let mut tok = shutdown.token();
                 tokio::select! {
                     _ = tokio::time::sleep(Duration::from_secs(opts.interval)) => continue,
-                    _ = tokio::signal::ctrl_c() => break,
+                    () = tok.wait_ref() => break,
                 }
             }
         };
@@ -70,9 +79,10 @@ pub(crate) async fn run(opts: DaemonOpts) -> Result<()> {
             display::print_daemon_sleeping(opts.interval);
         }
 
+        let mut tok = shutdown.token();
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_secs(opts.interval)) => {}
-            _ = tokio::signal::ctrl_c() => break,
+            () = tok.wait_ref() => break,
         }
     }
 

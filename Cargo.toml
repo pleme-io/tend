@@ -32,6 +32,7 @@ toml = "0.8"
 toml_edit = "0.22"
 async-trait = "0.1"
 shikumi = { git = "https://github.com/pleme-io/shikumi" }
+tsunagu = { git = "https://github.com/pleme-io/tsunagu" }
 
 [profile.release]
 opt-level = "z"
