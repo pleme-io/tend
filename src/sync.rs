@@ -173,7 +173,7 @@ pub(crate) async fn fetch_repos(workspace: &Workspace, repos: &[String], quiet: 
 
     for repo_name in repos {
         let repo_path = base_dir.join(repo_name);
-        if !repo_path.join(".git").exists() {
+        if !is_git_worktree(&repo_path) {
             skipped += 1;
             continue;
         }
@@ -250,7 +250,7 @@ pub(crate) async fn pull_repos(
 
     for repo_name in &all {
         let repo_path = base_dir.join(repo_name);
-        if !repo_path.join(".git").exists() {
+        if !is_git_worktree(&repo_path) {
             summary.missing_skipped += 1;
             continue;
         }
