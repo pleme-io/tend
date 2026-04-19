@@ -76,6 +76,14 @@ pub(crate) async fn sync_repos(workspace: &Workspace, repos: &[String], quiet: b
     for repo_name in repos {
         let repo_path = base_dir.join(repo_name);
         if repo_path.exists() {
+            // Stub dir with files but no .git — warn rather than silently counting as present.
+            // Destroying user content would be unsafe, so the operator must remove it manually.
+            if !is_git_worktree(&repo_path) {
+                eprintln!(
+                    "  warning: {repo_name} exists without .git — remove {} to re-clone",
+                    repo_path.display()
+                );
+            }
             present += 1;
             continue;
         }
@@ -110,7 +118,10 @@ pub(crate) async fn check_status(workspace: &Workspace, repos: &[String]) -> Res
     // Check expected repos
     for repo_name in repos {
         let repo_path = base_dir.join(repo_name);
-        let status = if !repo_path.exists() {
+        // A directory without .git is a broken clone stub — classify as Missing
+        // so `tend sync` highlights it and `is_dirty` doesn't walk up to a parent
+        // git repo (e.g., a workspace-level flake) and mis-report untracked files.
+        let status = if !is_git_worktree(&repo_path) {
             RepoStatus::Missing
         } else if is_dirty(&repo_path)? {
             RepoStatus::Dirty
@@ -297,6 +308,17 @@ pub(crate) async fn pull_repos(
     Ok(summary)
 }
 
+/// Returns true iff `path` is an existing directory containing a `.git`
+/// entry (file or directory — supports both regular clones and worktrees).
+///
+/// A bare directory under the workspace without `.git` is treated as an
+/// uncloned stub; tend must not call `git status` against it because git
+/// would walk up the filesystem and confuse the caller with a parent repo's
+/// state (e.g., a workspace-level flake repo).
+fn is_git_worktree(path: &Path) -> bool {
+    path.is_dir() && path.join(".git").exists()
+}
+
 fn is_dirty(repo_path: &Path) -> Result<bool> {
     let output = Command::new("git")
         .args(["status", "--porcelain"])
@@ -327,5 +349,32 @@ mod tests {
         assert_eq!(s.dirty_skipped, 0);
         assert_eq!(s.missing_skipped, 0);
         assert_eq!(s.failed, 0);
+    }
+
+    /// Regression: a clone stub (directory with files but no `.git`) must
+    /// NOT be treated as a real worktree. Previously `check_status` would
+    /// call `is_dirty` on such a stub, causing git to walk up to a parent
+    /// repo and mis-report unrelated state.
+    #[test]
+    fn is_git_worktree_requires_dotgit() {
+        let tmp = std::env::temp_dir().join(format!("tend-test-{}", std::process::id()));
+        let stub = tmp.join("stub-repo");
+        std::fs::create_dir_all(&stub).unwrap();
+        std::fs::write(stub.join("README.md"), "hello").unwrap();
+
+        assert!(!is_git_worktree(&stub), "stub without .git must not be a worktree");
+        assert!(!is_git_worktree(&tmp.join("does-not-exist")), "missing dir must not be a worktree");
+
+        // Create `.git` dir and re-check.
+        std::fs::create_dir_all(stub.join(".git")).unwrap();
+        assert!(is_git_worktree(&stub), "dir with .git must be a worktree");
+
+        // And `.git` as a file (worktree pointer) also counts.
+        let wt = tmp.join("worktree-repo");
+        std::fs::create_dir_all(&wt).unwrap();
+        std::fs::write(wt.join(".git"), "gitdir: ../real/.git/worktrees/wt\n").unwrap();
+        assert!(is_git_worktree(&wt), "dir with .git file pointer must be a worktree");
+
+        std::fs::remove_dir_all(&tmp).ok();
     }
 }
