@@ -3936,6 +3936,10 @@ rec {
             name = "toml_edit";
             packageId = "toml_edit";
           }
+          {
+            name = "tsunagu";
+            packageId = "tsunagu";
+          }
         ];
 
       };
@@ -6987,6 +6991,56 @@ rec {
           "Sean McArthur <sean@seanmonstar.com>"
         ];
 
+      };
+      "tsunagu" = rec {
+        crateName = "tsunagu";
+        version = "0.1.0";
+        edition = "2024";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/pleme-io/tsunagu";
+          rev = "abc9944a8b0fc46db7d0f50e0fde9a4aeed8afb5";
+          sha256 = "0mmp5a6qbnmdqxwsj37gmhyvaz6mx0axj101jlvbrhal69pvbagw";
+        };
+        dependencies = [
+          {
+            name = "dirs";
+            packageId = "dirs";
+          }
+          {
+            name = "serde";
+            packageId = "serde";
+            features = [ "derive" ];
+          }
+          {
+            name = "serde_json";
+            packageId = "serde_json";
+          }
+          {
+            name = "thiserror";
+            packageId = "thiserror";
+          }
+          {
+            name = "tokio";
+            packageId = "tokio";
+            features = [ "rt" "net" "signal" "sync" "macros" "time" "io-util" ];
+          }
+          {
+            name = "tracing";
+            packageId = "tracing";
+          }
+        ];
+        devDependencies = [
+          {
+            name = "tokio";
+            packageId = "tokio";
+            features = [ "rt-multi-thread" "test-util" "macros" ];
+          }
+        ];
+        features = {
+          "axum" = [ "dep:axum" ];
+        };
+        resolvedDefaultFeatures = [ "default" ];
       };
       "uncased" = rec {
         crateName = "uncased";
