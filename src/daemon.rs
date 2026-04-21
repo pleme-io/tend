@@ -2,7 +2,8 @@ use anyhow::Result;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::{display, git, github, load_config, filter_workspaces, sync, watch, watch_cache};
+use crate::{display, git, github, load_config, filter_workspaces, planner, sync, watch, watch_cache};
+use crate::planner::{ExecutionPlan, WorkItem, WorkKind};
 
 /// Options for the daemon command.
 pub(crate) struct DaemonOpts {
@@ -46,8 +47,20 @@ pub(crate) async fn run(opts: DaemonOpts) -> Result<()> {
         let workspaces = filter_workspaces(&cfg.workspaces, opts.workspace.as_deref());
         let ws_count = workspaces.len();
 
+        // Build the DAG of configured work BEFORE touching repos or the network.
+        // Empty plan → nothing's wired up this cycle → silent sleep.
+        let plan = build_plan(&workspaces, opts.fetch);
+        if plan.is_empty() {
+            let mut tok = shutdown.token();
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_secs(opts.interval)) => continue,
+                () = tok.wait_ref() => break,
+            }
+        }
+
         if !opts.quiet {
             display::print_daemon_cycle_start(cycle);
+            eprintln!("  plan: {}", plan.summary());
         }
 
         // Process all workspaces in parallel
@@ -256,6 +269,36 @@ async fn run_nix_audit_cycle(
     }
 
     Ok(())
+}
+
+/// Build an ExecutionPlan from workspace config. Pure — no IO.
+///
+/// Each configured concern becomes a WorkItem. The planner stages them
+/// by dependency. An empty plan means no workspace has any concern
+/// enabled — the daemon then sleeps silently until the next tick.
+fn build_plan(workspaces: &[&crate::config::Workspace], fetch: bool) -> ExecutionPlan {
+    let mut items: Vec<WorkItem> = Vec::new();
+    for ws in workspaces {
+        // Sync is always potentially-useful: resolves missing repos. Cheap
+        // to enumerate, cheap to no-op when nothing's missing.
+        items.push(WorkItem::workspace(WorkKind::Sync, &ws.name));
+
+        if fetch {
+            items.push(WorkItem::workspace(WorkKind::Pull, &ws.name));
+        }
+
+        if let Some(wcfg) = &ws.watch {
+            if wcfg.enable {
+                items.push(WorkItem::workspace(WorkKind::Watch, &ws.name));
+            }
+            if let Some(ncfg) = &wcfg.nix_audit {
+                if ncfg.enable {
+                    items.push(WorkItem::workspace(WorkKind::NixAudit, &ws.name));
+                }
+            }
+        }
+    }
+    planner::plan(items)
 }
 
 /// Execute a single post-hook, logging the result.

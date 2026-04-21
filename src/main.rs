@@ -9,6 +9,7 @@ mod flake_lock;
 mod git;
 mod github;
 mod head_cache;
+mod planner;
 mod provider;
 mod release_swarm;
 mod sync;
