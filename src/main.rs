@@ -12,6 +12,7 @@ mod head_cache;
 mod planner;
 mod provider;
 mod release_swarm;
+mod release_swarm_http;
 mod sync;
 mod watch;
 mod watch_cache;
@@ -662,17 +663,22 @@ async fn main() -> Result<()> {
                     Some(s) if s.enable => s,
                     _ => continue,
                 };
-                // Mock API in dry-run; real HTTP API not yet implemented, so
-                // we refuse to non-dry-run until it lands.
-                if !dry_run {
-                    anyhow::bail!(
-                        "real GitHub API impl for release-swarm apply is not yet wired; \
-                         run with --dry-run (default) for now"
-                    );
-                }
-                let mock = MockReleaseSwarmApi;
-                let reports =
-                    release_swarm::apply_swarm(&mock, swarm_cfg, dry_run, render).await?;
+                // In dry-run, skip GitHub entirely via the in-process mock;
+                // otherwise construct the real HTTP client (requires
+                // GITHUB_TOKEN env or equivalent).
+                let reports = if dry_run {
+                    let mock = MockReleaseSwarmApi;
+                    release_swarm::apply_swarm(&mock, swarm_cfg, dry_run, render).await?
+                } else {
+                    let token = provider::github_token().ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "GITHUB_TOKEN not set — release-swarm apply needs a PAT \
+                             with repo write scope"
+                        )
+                    })?;
+                    let api = release_swarm_http::HttpReleaseSwarmApi::new(token)?;
+                    release_swarm::apply_swarm(&api, swarm_cfg, dry_run, render).await?
+                };
                 for r in &reports {
                     match &r.outcome {
                         release_swarm::ApplyOutcome::DryRun { rendered_bytes } => {
