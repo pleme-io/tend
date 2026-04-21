@@ -1790,6 +1790,7 @@ mod tests {
             auto_propagate: None,
             post_hooks: vec![],
             ci_hygiene: None,
+            release_swarm: None,
             file_watches: vec![],
             flake_input_watches: vec![],
             flake_refresh: None,

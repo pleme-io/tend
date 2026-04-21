@@ -67,6 +67,13 @@ pub struct WatchConfig {
     /// duplicate queued runs on the same tag/branch. Opt-in per workspace.
     #[serde(default)]
     pub ci_hygiene: Option<CiHygieneConfig>,
+    /// Release swarm — apply the canonical `rust-tool-public-release`
+    /// workflow across eligible Rust repos in this workspace's org.
+    /// DENY by default at both the org level AND per-repo level —
+    /// nothing is applied unless BOTH flags are explicitly `true`.
+    /// See `src/release_swarm.rs` for policy + apply logic.
+    #[serde(default)]
+    pub release_swarm: Option<crate::release_swarm::OrgReleaseSwarmConfig>,
 }
 
 /// Per-workspace CI hygiene configuration. See `src/ci_trim.rs` for the

@@ -10,6 +10,7 @@ mod git;
 mod github;
 mod head_cache;
 mod provider;
+mod release_swarm;
 mod sync;
 mod watch;
 mod watch_cache;
