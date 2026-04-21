@@ -74,6 +74,14 @@ pub struct RepoReleaseConfig {
 }
 
 impl OrgReleaseSwarmConfig {
+    /// Substring patterns that are STRUCTURALLY forbidden from the
+    /// public-release swarm. Mirror of
+    /// `arch_synthesizer::rust_tool_release::swarm::OrgReleaseSwarmConfig::FORBIDDEN_PATTERNS`
+    /// — kept in lockstep by convention (cargo test asserts the
+    /// contents). Any repo name containing any of these is ineligible
+    /// regardless of config; the two-flag opt-in CANNOT override.
+    pub const FORBIDDEN_PATTERNS: &'static [&'static str] = &["akeyless"];
+
     pub fn enabled(org: impl Into<String>) -> Self {
         Self { org: org.into(), enable: true, ..Self::default() }
     }
@@ -91,21 +99,25 @@ impl OrgReleaseSwarmConfig {
     }
 
     pub fn is_eligible(&self, repo: &str) -> bool {
+        for pat in Self::FORBIDDEN_PATTERNS {
+            if repo.contains(pat) {
+                return false;
+            }
+        }
         if !self.enable {
             return false;
         }
         self.repos.get(repo).map(|r| r.enable).unwrap_or(false)
     }
 
-    /// Deterministic sorted list of eligible repos.
+    /// Deterministic sorted list of eligible repos. Goes through
+    /// `is_eligible()` so `FORBIDDEN_PATTERNS` + both-flags gates
+    /// apply uniformly.
     pub fn eligible_repos(&self) -> Vec<String> {
-        if !self.enable {
-            return Vec::new();
-        }
         self.repos
-            .iter()
-            .filter(|(_, r)| r.enable)
-            .map(|(n, _)| n.clone())
+            .keys()
+            .filter(|n| self.is_eligible(n))
+            .cloned()
             .collect()
     }
 
@@ -218,7 +230,7 @@ where
         return Ok(reports);
     }
 
-    for (repo_name, repo_cfg) in cfg.repos.iter().filter(|(_, r)| r.enable) {
+    for (repo_name, repo_cfg) in cfg.repos.iter().filter(|(n, _)| cfg.is_eligible(n)) {
         let rendered = render_workflow_yaml_fn(repo_name, repo_cfg);
         let outcome = if dry_run {
             ApplyOutcome::DryRun { rendered_bytes: rendered.len() }
@@ -280,6 +292,39 @@ mod tests {
         );
         assert!(c.is_eligible("dq"));
         assert_eq!(c.eligible_repos(), vec!["dq".to_string()]);
+    }
+
+    #[test]
+    fn akeyless_is_structurally_forbidden_regardless_of_config() {
+        // Even when BOTH flags are explicitly true, any repo name
+        // matching FORBIDDEN_PATTERNS is denied. No config override.
+        let mut c = OrgReleaseSwarmConfig::enabled("pleme-io");
+        for name in [
+            "akeyless-nix",
+            "akeyless-matrix",
+            "pangea-akeyless",
+            "blackmatter-akeyless",
+            "akeyless-terraform-resources",
+            "inspec-akeyless",
+        ] {
+            c = c.with_enabled_repo(name, RepoReleaseConfig::default());
+            assert!(
+                !c.is_eligible(name),
+                "{name} must be structurally forbidden"
+            );
+        }
+        assert!(c.eligible_repos().is_empty());
+    }
+
+    #[test]
+    fn forbidden_patterns_list_mirrors_arch_synthesizer() {
+        // Guard: this list must stay in lockstep with the
+        // arch-synthesizer source of truth at
+        // `rust_tool_release::swarm::OrgReleaseSwarmConfig::FORBIDDEN_PATTERNS`.
+        assert_eq!(
+            OrgReleaseSwarmConfig::FORBIDDEN_PATTERNS,
+            &["akeyless"]
+        );
     }
 
     #[test]
