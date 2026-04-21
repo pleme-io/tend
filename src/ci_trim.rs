@@ -24,6 +24,26 @@
 
 use serde::{Deserialize, Serialize};
 
+#[async_trait::async_trait]
+pub trait CiTrimApi: Send + Sync {
+    /// List recent workflow runs for a repo, most recent first.
+    async fn list_recent_workflow_runs(
+        &self,
+        org: &str,
+        repo: &str,
+        limit: u32,
+    ) -> anyhow::Result<Vec<WorkflowRun>>;
+
+    /// Cancel a specific workflow run by ID. Idempotent — cancelling
+    /// an already-cancelled run is a no-op success.
+    async fn cancel_workflow_run(
+        &self,
+        org: &str,
+        repo: &str,
+        run_id: u64,
+    ) -> anyhow::Result<()>;
+}
+
 /// A single workflow run identity — the minimal shape the trim policy
 /// needs. Richer GitHub API response objects decompose into this.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -126,6 +146,30 @@ impl TrimReport {
     }
 }
 
+/// One-shot trim pass over a single (org, repo): list recent runs,
+/// identify duplicates, optionally cancel them. Returns the report so
+/// the caller can log + audit. `dry_run: true` skips the cancel API
+/// call and emits the report with `cancelled_ids` still populated
+/// (semantics: "these WOULD have been cancelled").
+pub async fn run_single_repo(
+    api: &dyn CiTrimApi,
+    org: &str,
+    repo: &str,
+    limit: u32,
+    dry_run: bool,
+) -> anyhow::Result<TrimReport> {
+    let runs = api.list_recent_workflow_runs(org, repo, limit).await?;
+    let report = TrimReport::from_runs(org, repo, &runs);
+
+    if !dry_run {
+        for run_id in &report.cancelled_ids {
+            api.cancel_workflow_run(org, repo, *run_id).await?;
+        }
+    }
+
+    Ok(report)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,5 +268,84 @@ mod tests {
         assert_eq!(r.total_queued_before, 3);
         assert_eq!(r.cancelled_ids, vec![1, 2]);
         assert_eq!(r.queued_kept, vec![3]);
+    }
+
+    // ── Mock API for runner tests ────────────────────────────────────
+
+    use std::sync::Mutex;
+
+    struct MockApi {
+        runs: Vec<WorkflowRun>,
+        cancelled: Mutex<Vec<u64>>,
+    }
+
+    impl MockApi {
+        fn new(runs: Vec<WorkflowRun>) -> Self {
+            Self { runs, cancelled: Mutex::new(Vec::new()) }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl CiTrimApi for MockApi {
+        async fn list_recent_workflow_runs(
+            &self,
+            _org: &str,
+            _repo: &str,
+            _limit: u32,
+        ) -> anyhow::Result<Vec<WorkflowRun>> {
+            Ok(self.runs.clone())
+        }
+
+        async fn cancel_workflow_run(
+            &self,
+            _org: &str,
+            _repo: &str,
+            run_id: u64,
+        ) -> anyhow::Result<()> {
+            self.cancelled.lock().unwrap().push(run_id);
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn run_single_repo_cancels_duplicates() {
+        let api = MockApi::new(vec![
+            run(100, 1, "v1", "a", RunStatus::Queued, "2026-04-20T10:00:00Z"),
+            run(200, 1, "v1", "b", RunStatus::Queued, "2026-04-20T10:05:00Z"),
+            run(300, 1, "v1", "c", RunStatus::Queued, "2026-04-20T10:10:00Z"),
+        ]);
+        let report = run_single_repo(&api, "pleme-io", "dq", 50, false)
+            .await
+            .expect("runner ok");
+        assert_eq!(report.cancelled_ids, vec![100, 200]);
+        assert_eq!(*api.cancelled.lock().unwrap(), vec![100, 200]);
+    }
+
+    #[tokio::test]
+    async fn run_single_repo_dry_run_skips_cancel() {
+        let api = MockApi::new(vec![
+            run(100, 1, "v1", "a", RunStatus::Queued, "2026-04-20T10:00:00Z"),
+            run(200, 1, "v1", "b", RunStatus::Queued, "2026-04-20T10:05:00Z"),
+        ]);
+        let report = run_single_repo(&api, "pleme-io", "dq", 50, true)
+            .await
+            .expect("runner ok");
+        // Report still shows what WOULD be cancelled…
+        assert_eq!(report.cancelled_ids, vec![100]);
+        // …but no actual cancel API calls happened.
+        assert!(api.cancelled.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn run_single_repo_no_duplicates_noop() {
+        let api = MockApi::new(vec![
+            run(1, 1, "main", "a", RunStatus::Queued, "2026-04-20T10:00:00Z"),
+            run(2, 1, "feat", "b", RunStatus::Queued, "2026-04-20T10:00:00Z"),
+        ]);
+        let report = run_single_repo(&api, "pleme-io", "dq", 50, false)
+            .await
+            .expect("runner ok");
+        assert!(report.cancelled_ids.is_empty());
+        assert!(api.cancelled.lock().unwrap().is_empty());
     }
 }

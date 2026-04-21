@@ -61,6 +61,52 @@ pub struct WatchConfig {
     /// Nix audit: run nix-audit convergence loop in daemon cycle
     #[serde(default)]
     pub nix_audit: Option<NixAuditConfig>,
+    /// CI hygiene — tend's little tree trimmer for GitHub Actions queues.
+    /// When enabled, the daemon (or the one-shot `tend ci-trim` command)
+    /// scans workflow runs across the workspace's repos and cancels
+    /// duplicate queued runs on the same tag/branch. Opt-in per workspace.
+    #[serde(default)]
+    pub ci_hygiene: Option<CiHygieneConfig>,
+}
+
+/// Per-workspace CI hygiene configuration. See `src/ci_trim.rs` for the
+/// pure trim policy. When `enable: true`, the runner lists recent
+/// workflow runs for each repo in the workspace + applies the policy.
+///
+/// Safe default: `auto_cancel_duplicate_queued: true` but `enable:
+/// false` at the top level — the feature ships off-by-default and
+/// each workspace opts in.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CiHygieneConfig {
+    /// Enable CI hygiene for this workspace.
+    #[serde(default)]
+    pub enable: bool,
+    /// Auto-cancel duplicate queued runs (older ones, keeping the
+    /// newest). Default true when `enable: true`. Set false to
+    /// observe + log only (the dry-run equivalent at config level).
+    #[serde(default = "default_true")]
+    pub auto_cancel_duplicate_queued: bool,
+    /// Max number of recent workflow runs per repo to inspect each
+    /// pass. Higher = more thorough but more API calls. Default 50.
+    #[serde(default = "default_recent_run_limit")]
+    pub recent_run_limit: u32,
+    /// Optional allowlist of repo names. When set, only these repos
+    /// (within the workspace's org) are scanned. When unset, every
+    /// discovered repo in the org is scanned.
+    #[serde(default)]
+    pub repo_filter: Option<Vec<String>>,
+    /// Alert after a queued run has been stuck for N minutes without
+    /// allocation (observability; does not auto-cancel). Default 30.
+    #[serde(default = "default_stale_queue_minutes")]
+    pub stale_queue_alert_minutes: u32,
+}
+
+fn default_recent_run_limit() -> u32 {
+    50
+}
+
+fn default_stale_queue_minutes() -> u32 {
+    30
 }
 
 /// Configuration for nix-audit integration in the tend daemon.
