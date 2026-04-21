@@ -1,5 +1,6 @@
 mod audit;
 mod cache;
+mod ci_trim;
 mod config;
 mod daemon;
 mod display;
