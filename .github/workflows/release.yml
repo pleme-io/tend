@@ -1,0 +1,108 @@
+# Build + publish `tend` binaries for macOS and Linux on every tag push
+# and via manual dispatch.
+#
+# Runners:
+#   - macos-14           → aarch64-darwin (Apple Silicon)
+#   - ubuntu-24.04       → x86_64-linux (glibc)
+#   - ubuntu-24.04-arm   → aarch64-linux (glibc)
+#
+# macos-13 x86_64-darwin is intentionally omitted — Apple EOL'd Intel
+# Macs and GitHub's macos-13 runner pool is chronically saturated (dq
+# v0.1.0 sat 4h+ with no allocation). Add the target back if/when an
+# Intel-Mac consumer appears.
+#
+# Pattern: canonical `rust-tool-public-release` archetype — second
+# empirical proof after pleme-io/dq v0.1.1 (2026-04-20).
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    name: ${{ matrix.slug }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: darwin-arm64
+            runner: macos-14
+            rust_target: aarch64-apple-darwin
+          - slug: linux-x86_64
+            runner: ubuntu-24.04
+            rust_target: x86_64-unknown-linux-gnu
+          - slug: linux-arm64
+            runner: ubuntu-24.04-arm
+            rust_target: aarch64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ matrix.slug }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ matrix.slug }}-
+
+      - name: Build release
+        run: |
+          cargo build --release --bin tend \
+            --target ${{ matrix.rust_target }}
+          cp target/${{ matrix.rust_target }}/release/tend tend-${{ matrix.slug }}
+          shasum -a 256 tend-${{ matrix.slug }} > tend-${{ matrix.slug }}.sha256
+
+      - name: Sanity-check the binary
+        # Verify the binary runs on the native runner. Subcommand
+        # coverage is tested by `cargo test`; the release workflow
+        # only confirms the build is executable.
+        run: |
+          ./tend-${{ matrix.slug }} --help > /dev/null
+
+      - name: Upload artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tend-${{ matrix.slug }}
+          path: |
+            tend-${{ matrix.slug }}
+            tend-${{ matrix.slug }}.sha256
+          retention-days: 90
+
+  publish-release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Flatten artefact tree
+        run: |
+          mkdir -p release
+          find dist -type f \( -name 'tend-*' -o -name 'tend-*.sha256' \) -exec cp {} release/ \;
+          ls -la release/
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
