@@ -214,6 +214,36 @@ enum Commands {
         no_preflight: bool,
     },
 
+    /// Preview the org-level release-swarm without touching GitHub.
+    /// Lists eligible repos per workspace (deny-by-default at both
+    /// org and repo level).
+    ReleaseSwarmPlan {
+        /// Path to config file
+        #[arg(long)]
+        config: Option<PathBuf>,
+
+        /// Only process a specific workspace
+        #[arg(long)]
+        workspace: Option<String>,
+    },
+
+    /// Apply the release-swarm — for each eligible repo, render the
+    /// canonical release.yml and open a PR. Dry-run by default so
+    /// nothing mutates without explicit opt-in.
+    ReleaseSwarmApply {
+        /// Path to config file
+        #[arg(long)]
+        config: Option<PathBuf>,
+
+        /// Only process a specific workspace
+        #[arg(long)]
+        workspace: Option<String>,
+
+        /// If true (default), render but skip the PR-open call.
+        #[arg(long, default_value_t = true)]
+        dry_run: bool,
+    },
+
     /// Run flake-update --all continuously with exponential backoff.
     /// Idempotent: cycles where every workspace is converged do no work.
     FlakeUpdateDaemon {
@@ -568,6 +598,120 @@ async fn main() -> Result<()> {
             .await?;
         }
 
+        Commands::ReleaseSwarmPlan {
+            config: config_path,
+            workspace: ws_filter,
+        } => {
+            let cfg = load_config(config_path.as_deref())?;
+            let audit_log = audit::AuditLog::default_path();
+            let mut total_eligible = 0usize;
+            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+                let swarm_cfg = match ws.watch.as_ref().and_then(|w| w.release_swarm.as_ref()) {
+                    Some(s) if s.enable => s,
+                    _ => continue,
+                };
+                let plan = release_swarm::plan_swarm(swarm_cfg);
+                total_eligible += plan.eligible_count;
+                println!(
+                    "workspace: {} — org: {} — enabled: {} — eligible: {} — declared-but-disabled: {}",
+                    ws.name,
+                    plan.org,
+                    plan.org_enabled,
+                    plan.eligible_count,
+                    plan.declared_but_disabled.len()
+                );
+                for repo in &plan.eligible_repos {
+                    println!("  + {}/{repo}", plan.org);
+                }
+                for repo in &plan.declared_but_disabled {
+                    println!("  - {}/{repo} (enable: false)", plan.org);
+                }
+                audit_log.log(
+                    "release_swarm_plan_computed",
+                    serde_json::json!({
+                        "workspace": ws.name,
+                        "org": plan.org,
+                        "eligible_count": plan.eligible_count,
+                        "eligible_repos": plan.eligible_repos,
+                        "declared_but_disabled": plan.declared_but_disabled,
+                    }),
+                );
+            }
+            if total_eligible == 0 {
+                println!("no eligible repos across workspaces — deny-by-default holds");
+            }
+        }
+
+        Commands::ReleaseSwarmApply {
+            config: config_path,
+            workspace: ws_filter,
+            dry_run,
+        } => {
+            let cfg = load_config(config_path.as_deref())?;
+            let audit_log = audit::AuditLog::default_path();
+            // Render fn stub — produces the canonical 3-target workflow YAML
+            // derived from repo_name + binary_name. Later swapped for a call
+            // into arch-synthesizer's RustToolPublicReleaseDecl::render().
+            let render =
+                |repo_name: &str, repo_cfg: &release_swarm::RepoReleaseConfig| {
+                    render_rust_tool_release_workflow_yaml(repo_name, repo_cfg)
+                };
+
+            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+                let swarm_cfg = match ws.watch.as_ref().and_then(|w| w.release_swarm.as_ref()) {
+                    Some(s) if s.enable => s,
+                    _ => continue,
+                };
+                // Mock API in dry-run; real HTTP API not yet implemented, so
+                // we refuse to non-dry-run until it lands.
+                if !dry_run {
+                    anyhow::bail!(
+                        "real GitHub API impl for release-swarm apply is not yet wired; \
+                         run with --dry-run (default) for now"
+                    );
+                }
+                let mock = MockReleaseSwarmApi;
+                let reports =
+                    release_swarm::apply_swarm(&mock, swarm_cfg, dry_run, render).await?;
+                for r in &reports {
+                    match &r.outcome {
+                        release_swarm::ApplyOutcome::DryRun { rendered_bytes } => {
+                            println!(
+                                "[dry-run] {}/{} — would render {rendered_bytes} bytes of release.yml",
+                                r.org, r.repo
+                            );
+                        }
+                        release_swarm::ApplyOutcome::PrOpened { pr_number } => {
+                            println!("[applied] {}/{} — PR #{pr_number} opened", r.org, r.repo);
+                            audit_log.log(
+                                "release_swarm_pr_opened",
+                                serde_json::json!({
+                                    "workspace": ws.name,
+                                    "org": r.org,
+                                    "repo": r.repo,
+                                    "pr_number": pr_number,
+                                }),
+                            );
+                        }
+                        release_swarm::ApplyOutcome::AlreadyInSync => {
+                            println!("[in-sync] {}/{} — workflow already matches", r.org, r.repo);
+                        }
+                        release_swarm::ApplyOutcome::IneligibleSkipped => {
+                            audit_log.log(
+                                "release_swarm_repo_skipped",
+                                serde_json::json!({
+                                    "workspace": ws.name,
+                                    "org": r.org,
+                                    "repo": r.repo,
+                                    "reason": "ineligible",
+                                }),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
         Commands::Init => {
             let path = config::Config::default_path();
             if path.exists() {
@@ -704,6 +848,86 @@ pub(crate) fn filter_workspaces<'a>(
     match filter {
         Some(name) => workspaces.iter().filter(|ws| ws.name == name).collect(),
         None => workspaces.iter().collect(),
+    }
+}
+
+/// Local stub renderer for the canonical rust-tool-public-release
+/// workflow. Upstream source of truth is
+/// `arch-synthesizer/src/rust_tool_release/render.rs`
+/// (`RustToolPublicReleaseDecl::render()`). This stub produces a
+/// structurally-compatible workflow — 3-target matrix derived from
+/// repo + binary name — until we extract that renderer into a shared
+/// crate or shell out to `pangea_render`.
+fn render_rust_tool_release_workflow_yaml(
+    repo_name: &str,
+    repo_cfg: &release_swarm::RepoReleaseConfig,
+) -> String {
+    let binary_name = repo_cfg.binary_name.clone().unwrap_or_else(|| repo_name.to_string());
+    let features = if repo_cfg.features.is_empty() {
+        String::new()
+    } else {
+        format!(" --features {}", repo_cfg.features.join(","))
+    };
+    format!(
+        "# AUTO-GENERATED by `tend release-swarm apply`.\n\
+         # Source: arch-synthesizer RustToolPublicReleaseDecl (local stub).\n\
+         name: Release\n\
+         on:\n  \
+           push:\n    \
+             tags: ['v*.*.*']\n\
+         jobs:\n  \
+           release:\n    \
+             runs-on: ${{{{ matrix.os }}}}\n    \
+             strategy:\n      \
+               matrix:\n        \
+                 include:\n          \
+                   - os: macos-14\n            \
+                     target: aarch64-apple-darwin\n          \
+                   - os: ubuntu-24.04\n            \
+                     target: x86_64-unknown-linux-gnu\n          \
+                   - os: ubuntu-24.04-arm\n            \
+                     target: aarch64-unknown-linux-gnu\n    \
+             steps:\n      \
+               - uses: actions/checkout@v4\n      \
+               - uses: dtolnay/rust-toolchain@stable\n        \
+                 with:\n          \
+                   targets: ${{{{ matrix.target }}}}\n      \
+               - run: cargo build --release --target ${{{{ matrix.target }}}}{features}\n      \
+               - uses: softprops/action-gh-release@v2\n        \
+                 with:\n          \
+                   files: target/${{{{ matrix.target }}}}/release/{binary_name}\n\
+         # binary: {binary_name} • repo: {repo_name}\n",
+    )
+}
+
+/// In-tend mock ReleaseSwarmApi for `--dry-run`. Open-PR call is
+/// never reached in dry-run. Real `HttpReleaseSwarmApi` lands in
+/// the next iteration.
+struct MockReleaseSwarmApi;
+
+#[async_trait::async_trait]
+impl release_swarm::ReleaseSwarmApi for MockReleaseSwarmApi {
+    async fn get_workflow_file_sha(
+        &self,
+        _org: &str,
+        _repo: &str,
+        _path: &str,
+    ) -> Result<Option<String>> {
+        Ok(None)
+    }
+
+    async fn open_workflow_pr(
+        &self,
+        _org: &str,
+        _repo: &str,
+        _branch: &str,
+        _path: &str,
+        _content: &str,
+        _commit_message: &str,
+        _pr_title: &str,
+        _pr_body: &str,
+    ) -> Result<u64> {
+        anyhow::bail!("MockReleaseSwarmApi: apply requires real HTTP API (not yet wired)")
     }
 }
 
