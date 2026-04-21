@@ -121,12 +121,26 @@ impl OrgReleaseSwarmConfig {
             .collect()
     }
 
+    /// Does the repo name match `FORBIDDEN_PATTERNS`? Structural deny
+    /// — independent of the opt-in flags. Use to distinguish
+    /// "user chose not to ship" from "structurally forbidden"
+    /// (misconfiguration).
+    pub fn is_forbidden(&self, repo: &str) -> bool {
+        Self::FORBIDDEN_PATTERNS.iter().any(|p| repo.contains(p))
+    }
+
     pub fn plan(&self) -> SwarmPlan {
         let eligible = self.eligible_repos();
+        let declared_but_forbidden: Vec<String> = self
+            .repos
+            .keys()
+            .filter(|n| self.is_forbidden(n))
+            .cloned()
+            .collect();
         let declared_but_disabled: Vec<String> = self
             .repos
             .iter()
-            .filter(|(_, r)| !r.enable)
+            .filter(|(n, r)| !r.enable && !self.is_forbidden(n))
             .map(|(n, _)| n.clone())
             .collect();
         SwarmPlan {
@@ -135,6 +149,7 @@ impl OrgReleaseSwarmConfig {
             eligible_count: eligible.len(),
             eligible_repos: eligible,
             declared_but_disabled,
+            declared_but_forbidden,
         }
     }
 }
@@ -147,6 +162,10 @@ pub struct SwarmPlan {
     pub eligible_count: usize,
     pub eligible_repos: Vec<String>,
     pub declared_but_disabled: Vec<String>,
+    /// Repos listed in config whose names match `FORBIDDEN_PATTERNS`.
+    /// These are MISCONFIGURATIONS — surface loudly.
+    #[serde(default)]
+    pub declared_but_forbidden: Vec<String>,
 }
 
 /// GitHub API surface the executor needs. Separate trait (not merged

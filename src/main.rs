@@ -614,18 +614,37 @@ async fn main() -> Result<()> {
                 let plan = release_swarm::plan_swarm(swarm_cfg);
                 total_eligible += plan.eligible_count;
                 println!(
-                    "workspace: {} — org: {} — enabled: {} — eligible: {} — declared-but-disabled: {}",
+                    "workspace: {} — org: {} — enabled: {} — eligible: {} — disabled: {} — forbidden: {}",
                     ws.name,
                     plan.org,
                     plan.org_enabled,
                     plan.eligible_count,
-                    plan.declared_but_disabled.len()
+                    plan.declared_but_disabled.len(),
+                    plan.declared_but_forbidden.len(),
                 );
                 for repo in &plan.eligible_repos {
                     println!("  + {}/{repo}", plan.org);
                 }
                 for repo in &plan.declared_but_disabled {
                     println!("  - {}/{repo} (enable: false)", plan.org);
+                }
+                for repo in &plan.declared_but_forbidden {
+                    // Loud — this is a misconfiguration. User listed a
+                    // name that FORBIDDEN_PATTERNS forbids; config cannot
+                    // override.
+                    eprintln!(
+                        "  ! {}/{repo} (FORBIDDEN — matches FORBIDDEN_PATTERNS; remove from config)",
+                        plan.org
+                    );
+                    audit_log.log(
+                        "release_swarm_repo_forbidden",
+                        serde_json::json!({
+                            "workspace": ws.name,
+                            "org": plan.org,
+                            "repo": repo,
+                            "reason": "matches FORBIDDEN_PATTERNS",
+                        }),
+                    );
                 }
                 audit_log.log(
                     "release_swarm_plan_computed",
@@ -635,6 +654,7 @@ async fn main() -> Result<()> {
                         "eligible_count": plan.eligible_count,
                         "eligible_repos": plan.eligible_repos,
                         "declared_but_disabled": plan.declared_but_disabled,
+                        "declared_but_forbidden": plan.declared_but_forbidden,
                     }),
                 );
             }
