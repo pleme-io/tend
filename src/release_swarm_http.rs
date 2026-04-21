@@ -63,8 +63,15 @@ impl ReleaseSwarmApi for HttpReleaseSwarmApi {
         match self.client.get::<ContentsResponse>(&url).await {
             Ok(resp) => Ok(Some(resp.sha)),
             Err(e) => {
-                // 404 → file doesn't exist; map to Ok(None)
-                if e.status() == Some(404) {
+                // 404 → file doesn't exist; map to Ok(None).
+                // `TodokuError` in the version pinned here doesn't
+                // expose a structured `.status()`; match on the
+                // Display output which contains "HTTP 404" for HTTP
+                // errors. Good enough for this lookup; bump todoku
+                // version and switch to structured match when the
+                // workspace lock is next updated.
+                let msg = e.to_string();
+                if msg.contains("404") {
                     Ok(None)
                 } else {
                     Err(anyhow::Error::from(e))
