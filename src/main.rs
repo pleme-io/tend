@@ -1,3 +1,9 @@
+mod ai_cron;
+mod ai_executor;
+mod ai_flow;
+mod ai_lisp;
+mod ai_models;
+mod ai_planner;
 mod audit;
 mod cache;
 mod ci_trim;
