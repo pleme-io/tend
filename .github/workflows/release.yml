@@ -1,0 +1,73 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    name: ${{ matrix.slug }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: darwin-arm64
+            runner: macos-14
+            rust_target: aarch64-apple-darwin
+          - slug: linux-x86_64
+            runner: ubuntu-24.04
+            rust_target: x86_64-unknown-linux-gnu
+          - slug: linux-arm64
+            runner: ubuntu-24.04-arm
+            rust_target: aarch64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Build release
+        run: |
+          cargo build --release --bin pleme-tend --target ${{ matrix.rust_target }}
+          cp target/${{ matrix.rust_target }}/release/pleme-tend pleme-tend-${{ matrix.slug }}
+          shasum -a 256 pleme-tend-${{ matrix.slug }} > pleme-tend-${{ matrix.slug }}.sha256
+
+      - name: Upload artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pleme-tend-${{ matrix.slug }}
+          path: |
+            pleme-tend-${{ matrix.slug }}
+            pleme-tend-${{ matrix.slug }}.sha256
+
+  publish-release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Flatten artefact tree
+        run: |
+          mkdir -p release
+          find dist -type f \( -name 'pleme-tend-*' -o -name 'pleme-tend-*.sha256' \) -exec cp {} release/ \;
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
