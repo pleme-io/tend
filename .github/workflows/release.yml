@@ -32,17 +32,17 @@ jobs:
 
       - name: Build release
         run: |
-          cargo build --release --bin pleme-tend --target ${{ matrix.rust_target }}
-          cp target/${{ matrix.rust_target }}/release/pleme-tend pleme-tend-${{ matrix.slug }}
-          shasum -a 256 pleme-tend-${{ matrix.slug }} > pleme-tend-${{ matrix.slug }}.sha256
+          cargo build --release --bin tend --target ${{ matrix.rust_target }}
+          cp target/${{ matrix.rust_target }}/release/tend tend-${{ matrix.slug }}
+          shasum -a 256 tend-${{ matrix.slug }} > tend-${{ matrix.slug }}.sha256
 
       - name: Upload artefact
         uses: actions/upload-artifact@v4
         with:
-          name: pleme-tend-${{ matrix.slug }}
+          name: tend-${{ matrix.slug }}
           path: |
-            pleme-tend-${{ matrix.slug }}
-            pleme-tend-${{ matrix.slug }}.sha256
+            tend-${{ matrix.slug }}
+            tend-${{ matrix.slug }}.sha256
 
   publish-release:
     name: Publish release
@@ -62,7 +62,7 @@ jobs:
       - name: Flatten artefact tree
         run: |
           mkdir -p release
-          find dist -type f \( -name 'pleme-tend-*' -o -name 'pleme-tend-*.sha256' \) -exec cp {} release/ \;
+          find dist -type f \( -name 'tend-*' -o -name 'tend-*.sha256' \) -exec cp {} release/ \;
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
