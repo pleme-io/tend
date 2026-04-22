@@ -378,6 +378,114 @@ pub(crate) fn execute_update_chain(
     Ok(summary)
 }
 
+pub(crate) fn execute_cargo_update(
+    workspace: &Workspace,
+    chain: &[UpdateStep],
+    opts: ExecOptions,
+) -> Result<ExecSummary> {
+    let base_dir = workspace.resolved_base_dir()?;
+    let total = chain.len();
+    let mut summary = ExecSummary::default();
+
+    for (i, step) in chain.iter().enumerate() {
+        let step_num = i + 1;
+        let repo_path = base_dir.join(&step.repo);
+
+        if !repo_path.exists() {
+            continue;
+        }
+
+        // Check if this repo has Cargo.lock
+        let cargo_lock_path = repo_path.join("Cargo.lock");
+        if !cargo_lock_path.exists() {
+            continue;
+        }
+
+        if !opts.quiet {
+            display::print_flake_step_start(step_num, total, &step.repo, &["cargo".to_string()]);
+        }
+
+        if opts.dry_run {
+            if !opts.quiet {
+                display::print_flake_step_dry_run();
+            }
+            summary.record(StepOutcome::Skipped);
+            continue;
+        }
+
+        // Check for clean working tree
+        if let Err(_) = ensure_clean(&repo_path) {
+            // Repo has uncommitted changes - skip cargo update to avoid conflicts
+            continue;
+        }
+
+        if opts.pull_before_update {
+            let _ = git_pull_ff(&repo_path, &step.repo, opts.quiet);
+        }
+
+        // Run cargo update
+        let output = Command::new("cargo")
+            .args(["update"])
+            .current_dir(&repo_path)
+            .output()
+            .with_context(|| format!("running cargo update in {}", step.repo))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("cargo update failed in {}: {}", step.repo, stderr);
+            summary.record(StepOutcome::Skipped);
+            continue;
+        }
+
+        // git add Cargo.lock
+        let output = Command::new("git")
+            .args(["add", "Cargo.lock"])
+            .current_dir(&repo_path)
+            .output()
+            .with_context(|| format!("git add Cargo.lock in {}", step.repo))?;
+
+        if !output.status.success() {
+            continue;
+        }
+
+        // Check if Cargo.lock actually changed
+        let diff = Command::new("git")
+            .args(["diff", "--cached", "--quiet"])
+            .current_dir(&repo_path)
+            .status()?;
+
+        if diff.success() {
+            if !opts.quiet {
+                display::print_flake_step_no_changes(&step.repo);
+            }
+            summary.record(StepOutcome::NoChange);
+            continue;
+        }
+
+        // Commit
+        let msg = "chore: update Cargo.lock".to_string();
+        let output = Command::new("git")
+            .args(["commit", "-m", &msg])
+            .current_dir(&repo_path)
+            .output()
+            .with_context(|| format!("git commit in {}", step.repo))?;
+
+        if !output.status.success() {
+            summary.record(StepOutcome::Skipped);
+            continue;
+        }
+
+        push_with_retry(&repo_path, &step.repo, opts)?;
+
+        if !opts.quiet {
+            display::print_flake_step_done(&step.repo);
+        }
+        summary.record(StepOutcome::Updated);
+    }
+
+    Ok(summary)
+}
+
 /// Filter a chain down to steps whose flake.lock has at least one input whose
 /// locked rev differs from its upstream HEAD SHA. Steps whose local lockfile
 /// is missing (never built) pass through untouched so `nix flake update` gets
@@ -432,7 +540,12 @@ pub(crate) async fn filter_to_divergent(
             }
         }
 
-        if divergent.is_empty() && unknown.is_empty() {
+        // Don't drop steps with dirty working trees — they need to be committed
+        // regardless of whether inputs are converged.
+        let is_dirty = check_repo_dirty(&repo_path)?;
+        if is_dirty {
+            keep.push(step);
+        } else if divergent.is_empty() && unknown.is_empty() {
             dropped.push(step);
         } else {
             let mut narrowed = step;
@@ -548,7 +661,7 @@ fn clone_repo(workspace: &Workspace, repo: &str, base_dir: &Path, quiet: bool) -
     Ok(())
 }
 
-fn git_pull_ff(repo_path: &Path, repo: &str, quiet: bool) -> Result<()> {
+pub(crate) fn git_pull_ff(repo_path: &Path, repo: &str, quiet: bool) -> Result<()> {
     // Determine the current branch and pull from origin/<branch> explicitly.
     // `git pull --ff-only` without args fails with "Cannot fast-forward to
     // multiple branches" when the repo has remote-tracking configuration for
@@ -604,6 +717,69 @@ fn ensure_clean(repo_path: &Path) -> Result<()> {
         bail!("working tree is dirty");
     }
     Ok(())
+}
+
+fn check_repo_dirty(repo_path: &Path) -> Result<bool> {
+    let output = Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(repo_path)
+        .output()
+        .with_context(|| format!("checking git status in {}", repo_path.display()))?;
+
+    Ok(!output.stdout.is_empty())
+}
+
+pub(crate) fn find_dirty_repos(workspace: &Workspace) -> Result<Vec<String>> {
+    let base_dir = workspace.resolved_base_dir()?;
+    let mut dirty = Vec::new();
+
+    let entries = std::fs::read_dir(&base_dir)
+        .with_context(|| format!("reading workspace dir {}", base_dir.display()))?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        // Skip .git directories and non-repo dirs
+        if !path.join(".git").exists() {
+            continue;
+        }
+        if let Ok(true) = check_repo_dirty(&path) {
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                dirty.push(name.to_string());
+            }
+        }
+    }
+
+    Ok(dirty)
+}
+
+pub(crate) fn find_cargo_lock_repos(workspace: &Workspace) -> Result<Vec<String>> {
+    let base_dir = workspace.resolved_base_dir()?;
+    let mut repos = Vec::new();
+
+    let entries = std::fs::read_dir(&base_dir)
+        .with_context(|| format!("reading workspace dir {}", base_dir.display()))?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        // Skip .git directories and non-repo dirs
+        if !path.join(".git").exists() {
+            continue;
+        }
+        // Check if this repo has Cargo.lock
+        if path.join("Cargo.lock").exists() {
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                repos.push(name.to_string());
+            }
+        }
+    }
+
+    Ok(repos)
 }
 
 #[cfg(test)]
