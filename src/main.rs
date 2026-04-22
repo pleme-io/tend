@@ -408,26 +408,17 @@ async fn main() -> Result<()> {
                 // Check for dirty repos that need attention before declaring convergence
                 let dirty_repos = flake::find_dirty_repos(ws)?;
                 if !dirty_repos.is_empty() && chain.is_empty() {
+                    // Still try cargo updates for dirty repos before declaring no work to do
                     if !quiet {
                         eprintln!(
-                            "{}: found {} dirty repos: {}",
+                            "{}: found {} dirty repos (running cargo updates first): {}",
                             ws.name,
                             dirty_repos.len(),
                             dirty_repos.join(", ")
                         );
-                        eprintln!("  run 'git status' in these repos to review changes");
                     }
-                    summary.skipped += dirty_repos.len();
-                    audit_log.log(
-                        "flake_update_dirty_repos",
-                        serde_json::json!({
-                            "workspace": ws.name,
-                            "dirty_repos": dirty_repos
-                        }),
-                    );
-                    continue;
                 }
-                if chain.is_empty() {
+                if chain.is_empty() && dirty_repos.is_empty() {
                     if !quiet {
                         println!("{}: converged — no work to do", ws.name);
                     }
@@ -446,21 +437,32 @@ async fn main() -> Result<()> {
                 summary.no_change += ws_summary.no_change;
                 summary.skipped += ws_summary.skipped;
 
-                // Also run cargo updates for all Rust repos in the workspace
-                let cargo_repos = flake::find_cargo_lock_repos(ws)?;
-                if !cargo_repos.is_empty() && !opts.dry_run {
+                // Also run cargo updates for Rust repos that are dirty (have uncommitted changes)
+                // This catches repos that aren't in flake_deps but have Cargo.lock changes
+                let dirty_repos = flake::find_dirty_repos(ws)?;
+                let dirty_cargo_repos: Vec<String> = dirty_repos
+                    .into_iter()
+                    .filter(|r| {
+                        if let Ok(base_dir) = ws.resolved_base_dir() {
+                            base_dir.join(r).join("Cargo.lock").exists()
+                        } else {
+                            false
+                        }
+                    })
+                    .collect();
+                if !dirty_cargo_repos.is_empty() && !opts.dry_run {
                     if !quiet {
-                        println!("{}: running cargo updates for {} repos", ws.name, cargo_repos.len());
+                        println!("{}: running cargo updates for {} dirty Rust repos", ws.name, dirty_cargo_repos.len());
                     }
-                    // Pull first
+                    // Pull first for each dirty cargo repo
                     let base_dir = ws.resolved_base_dir()?;
-                    for repo in &cargo_repos {
+                    for repo in &dirty_cargo_repos {
                         let repo_path = base_dir.join(repo);
                         if repo_path.exists() {
                             let _ = flake::git_pull_ff(&repo_path, repo, true);
                         }
                     }
-                    let cargo_steps: Vec<flake::UpdateStep> = cargo_repos
+                    let cargo_steps: Vec<flake::UpdateStep> = dirty_cargo_repos
                         .iter()
                         .map(|r| flake::UpdateStep {
                             repo: r.clone(),

@@ -413,14 +413,12 @@ pub(crate) fn execute_cargo_update(
             continue;
         }
 
-        // Check for clean working tree
-        if let Err(_) = ensure_clean(&repo_path) {
-            // Repo has uncommitted changes - skip cargo update to avoid conflicts
-            continue;
-        }
-
+        // Skip pulling if repo is dirty - we'll commit on top of current state
         if opts.pull_before_update {
-            let _ = git_pull_ff(&repo_path, &step.repo, opts.quiet);
+            let is_dirty = check_repo_dirty(&repo_path)?;
+            if !is_dirty {
+                let _ = git_pull_ff(&repo_path, &step.repo, opts.quiet);
+            }
         }
 
         // Run cargo update
@@ -726,7 +724,18 @@ fn check_repo_dirty(repo_path: &Path) -> Result<bool> {
         .output()
         .with_context(|| format!("checking git status in {}", repo_path.display()))?;
 
-    Ok(!output.stdout.is_empty())
+    let changes = String::from_utf8_lossy(&output.stdout);
+    // Filter out build artifacts (target/, node_modules/, etc.)
+    let has_real_changes = changes.lines().any(|line| {
+        let path = line.trim_start_matches("?? ").trim_start_matches("!! ").trim();
+        !path.starts_with("target/")
+            && !path.starts_with("node_modules/")
+            && !path.starts_with(".direnv/")
+            && !path.contains("/target/")
+            && !path.contains("/node_modules/")
+    });
+
+    Ok(has_real_changes)
 }
 
 pub(crate) fn find_dirty_repos(workspace: &Workspace) -> Result<Vec<String>> {
