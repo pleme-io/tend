@@ -1,7 +1,32 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use shikumi::{ConfigDiscovery, Format};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiTaskConfig {
+    pub name: String,
+    pub schedule: String,
+    pub model: String,
+    pub prompt: String,
+    #[serde(default)]
+    pub output: Option<String>,
+    #[serde(default)]
+    pub env: HashMap<String, String>,
+    #[serde(default = "default_retries")]
+    pub retries: u32,
+    #[serde(default = "default_timeout")]
+    pub timeout_secs: u64,
+}
+
+fn default_retries() -> u32 {
+    3
+}
+
+fn default_timeout() -> u64 {
+    120
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -26,8 +51,10 @@ pub struct Workspace {
     pub extra_repos: Vec<String>,
     #[serde(default)]
     pub flake_deps: HashMap<String, Vec<String>>,
-    #[serde(default)]
+#[serde(default)]
     pub watch: Option<WatchConfig>,
+    #[serde(default)]
+    pub ai_tasks: Vec<AiTaskConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -407,6 +434,7 @@ impl Config {
                 extra_repos: vec![],
                 flake_deps: HashMap::new(),
                 watch: None,
+                ai_tasks: vec![],
             }],
         };
         serde_yaml_ng::to_string(&config).context("serializing starter config")
@@ -428,6 +456,7 @@ impl Workspace {
             extra_repos: vec![],
             flake_deps: HashMap::new(),
             watch: None,
+            ai_tasks: vec![],
         }
     }
 

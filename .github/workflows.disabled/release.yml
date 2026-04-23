@@ -1,3 +1,18 @@
+# Build + publish `tend` binaries for macOS and Linux on every tag push
+# and via manual dispatch.
+#
+# Runners:
+#   - macos-14           → aarch64-darwin (Apple Silicon)
+#   - ubuntu-24.04       → x86_64-linux (glibc)
+#   - ubuntu-24.04-arm   → aarch64-linux (glibc)
+#
+# macos-13 x86_64-darwin is intentionally omitted — Apple EOL'd Intel
+# Macs and GitHub's macos-13 runner pool is chronically saturated (dq
+# v0.1.0 sat 4h+ with no allocation). Add the target back if/when an
+# Intel-Mac consumer appears.
+#
+# Pattern: canonical `rust-tool-public-release` archetype — second
+# empirical proof after pleme-io/dq v0.1.1 (2026-04-20).
 name: release
 
 on:
@@ -30,11 +45,29 @@ jobs:
         with:
           targets: ${{ matrix.rust_target }}
 
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ matrix.slug }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ matrix.slug }}-
+
       - name: Build release
         run: |
-          cargo build --release --bin tend --target ${{ matrix.rust_target }}
+          cargo build --release --bin tend \
+            --target ${{ matrix.rust_target }}
           cp target/${{ matrix.rust_target }}/release/tend tend-${{ matrix.slug }}
           shasum -a 256 tend-${{ matrix.slug }} > tend-${{ matrix.slug }}.sha256
+
+      - name: Sanity-check the binary
+        # Verify the binary runs on the native runner. Subcommand
+        # coverage is tested by `cargo test`; the release workflow
+        # only confirms the build is executable.
+        run: |
+          ./tend-${{ matrix.slug }} --help > /dev/null
 
       - name: Upload artefact
         uses: actions/upload-artifact@v4
@@ -43,6 +76,7 @@ jobs:
           path: |
             tend-${{ matrix.slug }}
             tend-${{ matrix.slug }}.sha256
+          retention-days: 90
 
   publish-release:
     name: Publish release
@@ -63,6 +97,7 @@ jobs:
         run: |
           mkdir -p release
           find dist -type f \( -name 'tend-*' -o -name 'tend-*.sha256' \) -exec cp {} release/ \;
+          ls -la release/
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
