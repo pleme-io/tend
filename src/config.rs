@@ -434,6 +434,7 @@ impl Config {
                 extra_repos: vec![],
                 flake_deps: HashMap::new(),
                 watch: None,
+                ai_tasks: vec![],
             }],
         };
         serde_yaml_ng::to_string(&config).context("serializing starter config")

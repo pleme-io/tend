@@ -3,6 +3,7 @@
 //! Implements reconciliation loop for AI flows like Kubernetes controllers.
 //! States: Pending → Running → Verifying → Success | Failed
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -27,7 +28,7 @@ impl Default for StepState {
 pub struct FlowState {
     pub flow_name: String,
     pub step_states: HashMap<String, StepState>,
-    pub last_run: Option<chrono::DateTime<chrono::Utc>>,
+    pub last_run: Option<DateTime<Utc>>,
     pub run_count: u64,
     pub consecutive_failures: u32,
 }

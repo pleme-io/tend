@@ -2,6 +2,7 @@
 //! 
 //! Uses reqwest for HTTP calls to opencode-zen API directly.
 
+use anyhow::Result;
 use crate::ai_flow::{AiFlowPlan, AiStep, AiTaskRef, RetryPolicy};
 use crate::ai_models::ModelRegistry;
 use crate::ai_planner::PlannedFlow;
@@ -10,7 +11,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionPhase {
     Plan,
     Apply,
