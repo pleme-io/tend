@@ -367,6 +367,7 @@ async fn main() -> Result<()> {
                 auto_clone: !no_clone,
                 pull_before_update: !no_pull,
                 retry_on_push_reject: true,
+                prune_direnv: env_flag_enabled("TEND_PRUNE_DIRENV"),
             };
 
             let github_client = github::HttpGitHubClient::new()?;
@@ -817,6 +818,19 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+/// True iff the named environment variable is set to a truthy value
+/// (`1`, `true`, `yes`, `on`, case-insensitive). Used for opt-in feature
+/// gates that default off, like `TEND_PRUNE_DIRENV`.
+pub(crate) fn env_flag_enabled(name: &str) -> bool {
+    match std::env::var(name) {
+        Ok(v) => matches!(
+            v.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        ),
+        Err(_) => false,
+    }
+}
+
 pub(crate) fn load_config(path: Option<&std::path::Path>) -> Result<config::Config> {
     let config_path = match path {
         Some(p) => p.to_path_buf(),
@@ -898,6 +912,7 @@ async fn run_flake_update_cycle(
         auto_clone: true,
         pull_before_update: true,
         retry_on_push_reject: true,
+        prune_direnv: env_flag_enabled("TEND_PRUNE_DIRENV"),
     };
     let github_client = github::HttpGitHubClient::new()?;
     let upstream = head_cache::CachedGitHubHead::new(&github_client);

@@ -21,6 +21,11 @@ pub(crate) struct ExecOptions {
     /// against origin once and retry. Handles the two-node race where a
     /// peer daemon pushed a newer commit between our pull and our push.
     pub retry_on_push_reject: bool,
+    /// After a successful flake.lock bump and push, fire
+    /// `seibi direnv-prune --paths <repo_path> --older-than-days 0` so the
+    /// pinned-by-direnv old closure is released and the next nix-gc can
+    /// reclaim it. Best-effort: silently skipped when `seibi` isn't on PATH.
+    pub prune_direnv: bool,
 }
 
 /// Outcome of a single chain step's execution.
@@ -368,6 +373,7 @@ pub(crate) fn execute_update_chain(
 
         push_with_retry(&repo_path, &step.repo, opts)?;
         invalidate_head_cache_after_push(workspace, &step.repo, &repo_path);
+        maybe_prune_direnv(&repo_path, &step.repo, opts);
 
         if !opts.quiet {
             display::print_flake_step_done(&step.repo);
@@ -376,6 +382,61 @@ pub(crate) fn execute_update_chain(
     }
 
     Ok(summary)
+}
+
+/// Best-effort: after a successful flake.lock bump, release this repo's
+/// `.direnv/flake-profile-*` and `.direnv/flake-inputs/` GC roots so
+/// `nix-collect-garbage` can reclaim the now-stale closures. Silently
+/// skipped when seibi isn't on PATH (so daemons without seibi installed
+/// don't spam warnings every cycle) or when `prune_direnv` is off.
+fn maybe_prune_direnv(repo_path: &Path, repo: &str, opts: ExecOptions) {
+    if opts.dry_run || !opts.prune_direnv {
+        return;
+    }
+    if !seibi_on_path() {
+        return;
+    }
+    let path_str = match repo_path.to_str() {
+        Some(s) => s,
+        None => {
+            if !opts.quiet {
+                eprintln!("    direnv-prune: non-utf8 repo path, skipping");
+            }
+            return;
+        }
+    };
+    let status = Command::new("seibi")
+        .args(["direnv-prune", "--paths", path_str, "--older-than-days", "0"])
+        .status();
+    match status {
+        Ok(s) if s.success() => {
+            if !opts.quiet {
+                println!("    direnv-prune: {repo} ok");
+            }
+        }
+        Ok(s) => {
+            if !opts.quiet {
+                eprintln!(
+                    "    direnv-prune: {repo} exited non-zero ({:?}) — continuing",
+                    s.code()
+                );
+            }
+        }
+        Err(e) => {
+            if !opts.quiet {
+                eprintln!("    direnv-prune: {repo} spawn failed: {e} — continuing");
+            }
+        }
+    }
+}
+
+fn seibi_on_path() -> bool {
+    Command::new("which")
+        .arg("seibi")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
 }
 
 pub(crate) fn execute_cargo_update(
