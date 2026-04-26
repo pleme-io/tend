@@ -11,6 +11,7 @@ pub mod discovery;
 pub mod flake_lock_adapter;
 pub mod gates;
 pub mod lock_format;
+pub mod metrics;
 pub mod reconcile;
 pub mod workspace;
 
@@ -57,6 +58,12 @@ pub async fn run() -> Result<()> {
             .context("building http client")?,
         github_token: load_github_token(),
     });
+
+    // Prometheus metrics endpoint — vmagent scrapes via the chart's
+    // ServiceMonitor (VMOperator converts SM → VMServiceScrape).
+    let metrics_addr = std::env::var("TEND_METRICS_ADDR")
+        .unwrap_or_else(|_| "0.0.0.0:9090".to_string());
+    metrics::spawn_server(&metrics_addr).context("spawning metrics server")?;
 
     let policies: Api<crds::FlakeUpdatePolicy> = Api::all(client.clone());
     let proposals: Api<crds::FlakeUpdateProposal> = Api::all(client.clone());

@@ -18,13 +18,12 @@ use tracing::{info, warn};
 use super::apply;
 use super::crds::{
     Condition, FlakeUpdatePolicy, FlakeUpdatePolicyStatus, FlakeUpdateProposal,
-    FlakeUpdateProposalSpec, FlakeUpdateProposalStatus, ProposalPhase, UpdateMode,
+    FlakeUpdateProposalSpec, ProposalPhase, UpdateMode,
 };
 use super::discovery::{self, ReqwestHeadResolver};
-use super::flake_lock_adapter::FlakeLockAdapter;
 use super::gates;
+use super::metrics::metrics;
 use super::workspace::resolve_repo_dir;
-use super::lock_format::LockFormat;
 use crate::config::Config;
 use crate::flake_lock::ExtendedLockFile;
 
@@ -130,6 +129,7 @@ pub fn policy_error_policy(
     err: &ReconcileError,
     _ctx: Arc<Context>,
 ) -> Action {
+    metrics().reconcile_errors_total.with_label_values(&["FlakeUpdatePolicy"]).inc();
     warn!(error = %err, "FlakeUpdatePolicy reconcile error; retrying");
     Action::requeue(REQUEUE_FAST)
 }
@@ -257,6 +257,13 @@ pub async fn reconcile_proposal(
             let results = gates::run_all(&policy.spec.gates, &repo_dir)
                 .await
                 .map_err(|e| ReconcileError::Other(anyhow::anyhow!("gates: {e}")))?;
+            for r in &results {
+                let outcome = if r.passed { "passed" } else { "failed" };
+                metrics()
+                    .gates_total
+                    .with_label_values(&[&r.name, outcome])
+                    .inc();
+            }
             let all_passed = results.iter().all(|r| r.passed);
             let next = if all_passed { Verified } else { Failed };
             let patch = serde_json::json!({
@@ -269,6 +276,10 @@ pub async fn reconcile_proposal(
             proposals
                 .patch_status(&name, &PatchParams::default(), &Patch::Merge(&patch))
                 .await?;
+            metrics()
+                .proposals_total
+                .with_label_values(&[phase_label(next)])
+                .inc();
             Ok(Action::requeue(Duration::from_secs(1)))
         }
         Verified => {
@@ -282,6 +293,7 @@ pub async fn reconcile_proposal(
             {
                 Ok(o) => o,
                 Err(e) => {
+                    metrics().applies_total.with_label_values(&["failed"]).inc();
                     let patch = serde_json::json!({
                         "status": {
                             "phase": Failed,
@@ -292,9 +304,11 @@ pub async fn reconcile_proposal(
                     proposals
                         .patch_status(&name, &PatchParams::default(), &Patch::Merge(&patch))
                         .await?;
+                    metrics().proposals_total.with_label_values(&["Failed"]).inc();
                     return Ok(Action::requeue(REQUEUE_OK));
                 }
             };
+            metrics().applies_total.with_label_values(&["landed"]).inc();
             let patch = serde_json::json!({
                 "status": {
                     "phase": Applied,
@@ -305,6 +319,7 @@ pub async fn reconcile_proposal(
             proposals
                 .patch_status(&name, &PatchParams::default(), &Patch::Merge(&patch))
                 .await?;
+            metrics().proposals_total.with_label_values(&["Applied"]).inc();
             Ok(Action::await_change())
         }
         Applied | Failed | Stale => Ok(Action::await_change()),
@@ -316,6 +331,7 @@ pub fn proposal_error_policy(
     err: &ReconcileError,
     _ctx: Arc<Context>,
 ) -> Action {
+    metrics().reconcile_errors_total.with_label_values(&["FlakeUpdateProposal"]).inc();
     warn!(error = %err, "FlakeUpdateProposal reconcile error; retrying");
     Action::requeue(REQUEUE_FAST)
 }
@@ -328,7 +344,23 @@ async fn set_phase(
     let patch = serde_json::json!({ "status": { "phase": phase } });
     api.patch_status(name, &PatchParams::default(), &Patch::Merge(&patch))
         .await?;
+    metrics()
+        .proposals_total
+        .with_label_values(&[phase_label(phase)])
+        .inc();
     Ok(())
+}
+
+fn phase_label(p: ProposalPhase) -> &'static str {
+    match p {
+        ProposalPhase::Pending => "Pending",
+        ProposalPhase::Verifying => "Verifying",
+        ProposalPhase::Verified => "Verified",
+        ProposalPhase::Applying => "Applying",
+        ProposalPhase::Applied => "Applied",
+        ProposalPhase::Failed => "Failed",
+        ProposalPhase::Stale => "Stale",
+    }
 }
 
 fn ok_condition(reason: &str, msg: &str) -> Condition {

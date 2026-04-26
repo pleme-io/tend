@@ -3173,6 +3173,11 @@ rec {
             optional = true;
           }
           {
+            name = "httpdate";
+            packageId = "httpdate";
+            optional = true;
+          }
+          {
             name = "itoa";
             packageId = "itoa";
             optional = true;
@@ -3224,7 +3229,7 @@ rec {
           "server" = [ "dep:httpdate" "dep:pin-project-lite" "dep:smallvec" ];
           "tracing" = [ "dep:tracing" ];
         };
-        resolvedDefaultFeatures = [ "client" "default" "http1" "http2" ];
+        resolvedDefaultFeatures = [ "client" "default" "http1" "http2" "server" ];
       };
       "hyper-http-proxy" = rec {
         crateName = "hyper-http-proxy";
@@ -6382,6 +6387,23 @@ rec {
             optional = true;
           }
           {
+            name = "http-body-util";
+            packageId = "http-body-util";
+            optional = true;
+          }
+          {
+            name = "hyper";
+            packageId = "hyper";
+            optional = true;
+            features = [ "server" "http1" ];
+          }
+          {
+            name = "hyper-util";
+            packageId = "hyper-util";
+            optional = true;
+            features = [ "tokio" ];
+          }
+          {
             name = "k8s-openapi";
             packageId = "k8s-openapi";
             optional = true;
@@ -6401,6 +6423,12 @@ rec {
             name = "petgraph";
             packageId = "petgraph";
             optional = true;
+          }
+          {
+            name = "prometheus";
+            packageId = "prometheus";
+            optional = true;
+            usesDefaultFeatures = false;
           }
           {
             name = "reqwest";
@@ -6480,7 +6508,7 @@ rec {
         ];
         features = {
           "default" = [ "operator" ];
-          "operator" = [ "dep:kube" "dep:k8s-openapi" "dep:schemars" "dep:futures" "dep:tracing" "dep:tracing-subscriber" "dep:petgraph" ];
+          "operator" = [ "dep:kube" "dep:k8s-openapi" "dep:schemars" "dep:futures" "dep:tracing" "dep:tracing-subscriber" "dep:petgraph" "dep:prometheus" "dep:hyper" "dep:hyper-util" "dep:http-body-util" ];
         };
         resolvedDefaultFeatures = [ "default" "operator" ];
       };
@@ -6645,6 +6673,55 @@ rec {
           "yansi" = [ "dep:yansi" ];
         };
         resolvedDefaultFeatures = [ "colors" "default" "yansi" ];
+      };
+      "prometheus" = rec {
+        crateName = "prometheus";
+        version = "0.13.4";
+        edition = "2018";
+        sha256 = "1lbymqdsh9v4zk4fjdq2gq6lbxspp1w3z2b9vfb7y7vp625c4crx";
+        authors = [
+          "overvenus@gmail.com"
+          "siddontang@gmail.com"
+          "vistaswx@gmail.com"
+        ];
+        dependencies = [
+          {
+            name = "cfg-if";
+            packageId = "cfg-if";
+          }
+          {
+            name = "fnv";
+            packageId = "fnv";
+          }
+          {
+            name = "lazy_static";
+            packageId = "lazy_static";
+          }
+          {
+            name = "memchr";
+            packageId = "memchr";
+          }
+          {
+            name = "parking_lot";
+            packageId = "parking_lot";
+          }
+          {
+            name = "thiserror";
+            packageId = "thiserror 1.0.69";
+          }
+        ];
+        features = {
+          "default" = [ "protobuf" ];
+          "gen" = [ "protobuf-codegen-pure" ];
+          "libc" = [ "dep:libc" ];
+          "nightly" = [ "libc" ];
+          "process" = [ "libc" "procfs" ];
+          "procfs" = [ "dep:procfs" ];
+          "protobuf" = [ "dep:protobuf" ];
+          "protobuf-codegen-pure" = [ "dep:protobuf-codegen-pure" ];
+          "push" = [ "reqwest" "libc" "protobuf" ];
+          "reqwest" = [ "dep:reqwest" ];
+        };
       };
       "psl-types" = rec {
         crateName = "psl-types";
