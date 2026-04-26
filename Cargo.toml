@@ -43,6 +43,10 @@ schemars = { version = "0.8", features = ["chrono"], optional = true }
 futures = { version = "0.3", optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+petgraph = { version = "0.6", optional = true }
+
+[dev-dependencies]
+tempfile = "3"
 
 [features]
 default = []
@@ -53,6 +57,7 @@ operator = [
     "dep:futures",
     "dep:tracing",
     "dep:tracing-subscriber",
+    "dep:petgraph",
 ]
 
 [profile.release]

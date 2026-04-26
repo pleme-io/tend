@@ -103,6 +103,130 @@ impl FlakeLock {
     }
 }
 
+// ─── Extended view for the operator ────────────────────────────────
+//
+// `FlakeLock` above is intentionally narrow — read-only, GitHub-only,
+// drops fields the watch loop doesn't need. The operator needs:
+//   - narHash + lastModified (for write_pin to update atomically)
+//   - the inputs/follows graph (for DAG edge derivation)
+//   - non-GitHub input types preserved (so write_pin doesn't drop them)
+//
+// `ExtendedFlakeLock` adds those. Existing FlakeLock callers stay
+// untouched.
+
+#[derive(Debug, Clone, Deserialize, serde::Serialize)]
+pub struct ExtendedLockFile {
+    pub nodes: std::collections::BTreeMap<String, ExtendedNode>,
+    pub root: String,
+    pub version: u32,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, serde::Serialize)]
+pub struct ExtendedNode {
+    /// Map of local-input-name → reference into `nodes` (either a
+    /// direct node name string or a `follows` chain). Empty for leaf nodes.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub inputs: std::collections::BTreeMap<String, ExtendedInputRef>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locked: Option<ExtendedLocked>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub original: Option<serde_json::Value>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flake: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize, serde::Serialize)]
+#[serde(untagged)]
+pub enum ExtendedInputRef {
+    /// Direct reference to another node by name.
+    Direct(String),
+    /// `follows` chain — e.g. ["substrate", "nixpkgs"] = follows root.substrate.nixpkgs
+    Follows(Vec<String>),
+}
+
+#[derive(Debug, Clone, Deserialize, serde::Serialize)]
+pub struct ExtendedLocked {
+    /// "github" | "git" | "tarball" | "path" | etc.
+    #[serde(rename = "type")]
+    pub kind: String,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repo: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rev: Option<String>,
+
+    #[serde(rename = "ref", default, skip_serializing_if = "Option::is_none")]
+    pub r#ref: Option<String>,
+
+    #[serde(rename = "narHash", default, skip_serializing_if = "Option::is_none")]
+    pub nar_hash: Option<String>,
+
+    #[serde(rename = "lastModified", default, skip_serializing_if = "Option::is_none")]
+    pub last_modified: Option<i64>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+impl ExtendedLockFile {
+    pub fn parse(content: &str) -> Result<Self> {
+        serde_json::from_str(content).context("parsing flake.lock as JSON (extended)")
+    }
+
+    pub fn read(path: &Path) -> Result<Self> {
+        let content = std::fs::read_to_string(path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        Self::parse(&content)
+    }
+
+    /// Emit `(parent, child)` edges from the inputs graph. Both
+    /// endpoints are node names (lookup keys into `self.nodes`).
+    /// `Follows` chains resolve through the root node.
+    #[must_use]
+    pub fn edges(&self) -> Vec<(String, String)> {
+        let mut out = Vec::new();
+        for (parent_name, parent_node) in &self.nodes {
+            if parent_name == &self.root {
+                // Root node's inputs are the top-level user-declared
+                // inputs; we still emit edges from root so they
+                // participate in the DAG.
+            }
+            for (_local_name, input_ref) in &parent_node.inputs {
+                if let Some(child) = self.resolve_ref(input_ref) {
+                    out.push((parent_name.clone(), child));
+                }
+            }
+        }
+        out
+    }
+
+    /// Resolve an `inputs[*]` ref to the target node name.
+    fn resolve_ref(&self, r: &ExtendedInputRef) -> Option<String> {
+        match r {
+            ExtendedInputRef::Direct(name) => Some(name.clone()),
+            ExtendedInputRef::Follows(chain) => {
+                let mut current = self.root.clone();
+                for hop in chain {
+                    let node = self.nodes.get(&current)?;
+                    let next = node.inputs.get(hop)?;
+                    current = match next {
+                        ExtendedInputRef::Direct(n) => n.clone(),
+                        ExtendedInputRef::Follows(_) => return None,
+                    };
+                }
+                Some(current)
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
