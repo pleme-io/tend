@@ -49,7 +49,12 @@ petgraph = { version = "0.6", optional = true }
 tempfile = "3"
 
 [features]
-default = []
+# `operator` is default — tend ships as a single binary covering both
+# the CLI (sync/watch/daemon/...) AND the K8s controller (`tend operator`).
+# CLI-only users pay ~6MB binary size for kube-rs + k8s-openapi but get
+# a unified deliverable; operators pay no plumbing cost. Disable with
+# `--no-default-features` for a lean CLI build.
+default = ["operator"]
 operator = [
     "dep:kube",
     "dep:k8s-openapi",
