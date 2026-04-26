@@ -67,6 +67,39 @@ pub struct FlakeRev {
     pub last_modified: i64,
 }
 
+// ─── Phase 2: HelmRelease pin types (CRDs come later) ──────────────
+//
+// `HelmRev` is the value type for the `LockFormat<Pin = HelmRev>` impl
+// in operator::helm_release_adapter. The CRD set
+// (HelmUpdatePolicy / HelmUpdateProposal / HelmUpdateRollout) lands
+// once the controller wiring extends to the helm domain.
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct HelmRev {
+    /// Chart name (`spec.chart.spec.chart`).
+    pub chart: String,
+    /// Pinned version or constraint (`spec.chart.spec.version`).
+    /// Constraints like `0.1.x` are kept verbatim — the operator
+    /// expands them via the registry watcher at proposal time, not
+    /// at parse time.
+    pub version: String,
+    /// HelmRepository / OCIRepository ref (`spec.chart.spec.sourceRef`).
+    pub source_ref: HelmSourceRef,
+    /// Image tags pinned in `spec.values` — collected as
+    /// `<dotted.path>: <tag>` so write_pin can update them in place.
+    /// Empty when the release has no `image:` entries in values.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub image_tags: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct HelmSourceRef {
+    pub kind: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<String>,
+}
+
 #[derive(CustomResource, Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[kube(
     group = "fleet.pleme.io",

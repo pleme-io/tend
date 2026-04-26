@@ -10,6 +10,7 @@ pub mod dag;
 pub mod discovery;
 pub mod flake_lock_adapter;
 pub mod gates;
+pub mod helm_release_adapter;
 pub mod lock_format;
 pub mod metrics;
 pub mod reconcile;
