@@ -35,11 +35,15 @@ mod tests {
 
     #[test]
     fn test_parse_json_simple() {
+        // AiStep schema: `task` is an AiTaskRef tagged enum
+        // (`{"type": "Inline", "model": ..., "prompt": ...}` or
+        // `"<reference-id>"`). The earlier flat `{model, prompt}`
+        // shape predates the AiTaskRef refactor.
         let src = r#"{
             "flows": [{
                 "name": "test",
                 "steps": [
-                    {"id": "a", "model": "big-pickle", "prompt": "hello"}
+                    {"id": "a", "task": {"type": "Inline", "model": "big-pickle", "prompt": "hello"}}
                 ]
             }]
         }"#;

@@ -84,23 +84,30 @@ fn dfs_visit(node: usize, adj: &[Vec<usize>], color: &mut [u8], flow: &AiFlowPla
 
 fn topological_sort(deps: &[Vec<usize>]) -> Result<Vec<usize>> {
     let n = deps.len();
+    // in_degree[i] = number of deps step i is waiting on. A step is
+    // ready to execute when in_degree[i] reaches 0 (all parents have
+    // already been emitted).
     let mut in_degree = vec![0usize; n];
-    for step_deps in deps {
-        for &dep in step_deps {
-            in_degree[dep] += 1;
-        }
+    for (i, step_deps) in deps.iter().enumerate() {
+        in_degree[i] = step_deps.len();
     }
 
-    let mut queue: Vec<usize> = (0..n).filter(|&i| in_degree[i] == 0).collect();
+    // Process in ascending-index order so unconstrained steps emit
+    // in declaration order — tests assert this for ergonomic
+    // determinism.
+    let mut queue: std::collections::VecDeque<usize> =
+        (0..n).filter(|&i| in_degree[i] == 0).collect();
     let mut result = Vec::with_capacity(n);
 
-    while let Some(node) = queue.pop() {
+    while let Some(node) = queue.pop_front() {
         result.push(node);
+        // Every step `i` that listed `node` as a dep can decrement
+        // its remaining-deps counter; if it hits 0 the step is ready.
         for (i, step_deps) in deps.iter().enumerate() {
             if step_deps.contains(&node) {
                 in_degree[i] -= 1;
                 if in_degree[i] == 0 {
-                    queue.push(i);
+                    queue.push_back(i);
                 }
             }
         }
