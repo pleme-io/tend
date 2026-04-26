@@ -96,6 +96,11 @@ impl FlakeLock {
     pub fn locked_input(&self, input_name: &str) -> Option<&LockedInput> {
         self.nodes.get(input_name)
     }
+
+    /// Iterate over all GitHub-hosted inputs as `(input_name, LockedInput)` pairs.
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &LockedInput)> {
+        self.nodes.iter()
+    }
 }
 
 #[cfg(test)]

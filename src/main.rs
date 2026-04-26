@@ -23,6 +23,9 @@ mod sync;
 mod watch;
 mod watch_cache;
 
+#[cfg(feature = "operator")]
+mod operator;
+
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -278,6 +281,12 @@ enum Commands {
         #[arg(long)]
         github_token_file: Option<PathBuf>,
     },
+
+    /// Run as the fleet update controller (K8s operator).
+    /// Build with `--features operator` to enable.
+    /// See docs/OPERATOR-DESIGN.md.
+    #[cfg(feature = "operator")]
+    Operator,
 }
 
 #[tokio::main]
@@ -812,6 +821,11 @@ async fn main() -> Result<()> {
             std::fs::write(&path, &content)
                 .with_context(|| format!("writing {}", path.display()))?;
             println!("config written to {}", path.display());
+        }
+
+        #[cfg(feature = "operator")]
+        Commands::Operator => {
+            operator::run().await?;
         }
     }
 
