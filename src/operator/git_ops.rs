@@ -132,21 +132,49 @@ pub async fn commit_and_push(
 }
 
 async fn git(repo_dir: &Path, args: &[&str], _token: Option<&str>) -> Result<()> {
-    let status = Command::new("git")
+    // Capture stdout+stderr instead of inheriting — git's actual error
+    // ("[rejected] main -> main", "Permission denied", "infinite recursion
+    // in submodule") needs to land in the anyhow chain so the reconciler
+    // can pattern-match on it (e.g. push-race retry) and operators see
+    // it in `kubectl get fpr -o yaml`. Without this, a non-zero exit
+    // surfaces only as "exit 128" with no diagnostic context.
+    let output = Command::new("git")
         .args(args)
         .current_dir(repo_dir)
-        .status()
+        .output()
         .await
         .with_context(|| format!("spawning git {args:?}"))?;
-    if !status.success() {
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
         return Err(anyhow!(
-            "git {} failed in {} (exit {})",
+            "git {} failed in {} (exit {}): {}",
             args.iter().map(|a| sanitize_for_log(a)).collect::<Vec<_>>().join(" "),
             repo_dir.display(),
-            status.code().unwrap_or(-1),
+            output.status.code().unwrap_or(-1),
+            // Combined stderr+stdout, trimmed; both can carry diagnostic
+            // detail depending on the git command (push uses stderr,
+            // fetch sometimes stdout). Truncate at 1 KiB to keep the
+            // status field readable.
+            tail(&format!("{stdout}\n{stderr}").trim(), 1024),
         ));
     }
     Ok(())
+}
+
+fn tail(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        let start = s.len() - max;
+        // Snap to a UTF-8 boundary forward.
+        let mut start = start;
+        let bytes = s.as_bytes();
+        while start < bytes.len() && (bytes[start] & 0b1100_0000) == 0b1000_0000 {
+            start += 1;
+        }
+        format!("…{}", &s[start..])
+    }
 }
 
 async fn git_capture(repo_dir: &Path, args: &[&str]) -> Result<String> {

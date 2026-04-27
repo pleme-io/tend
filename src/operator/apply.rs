@@ -31,12 +31,42 @@ pub async fn apply_pin(
     new: &FlakeRev,
     token: Option<&str>,
 ) -> Result<ApplyOutcome> {
-    // Sync to origin/main before doing anything. The operator's local
-    // clone drifts from origin every time something else pushes —
-    // without this, the next apply hits "[rejected] main -> main
-    // (fetch first)" and stays Failed until manual intervention.
-    // Reset is safe: there's no long-lived state in the pod's clone
-    // we'd want to preserve.
+    // Concurrent-writer race: the user (or another bot) can push to
+    // origin/main between our fetch+reset and our push. When that
+    // happens git rejects with "Updates were rejected because the
+    // remote contains work that you do not have locally."
+    //
+    // Bounded retry: refetch, replay write+commit, push again. The
+    // retry envelope catches the race; if origin keeps moving past
+    // our budget we surface as Failed and the next reconcile picks
+    // it up fresh.
+    const MAX_ATTEMPTS: usize = 3;
+    for attempt in 0..MAX_ATTEMPTS {
+        match try_apply_pin_once(repo_dir, input_name, new, token).await {
+            Ok(outcome) => return Ok(outcome),
+            Err(e) if attempt + 1 < MAX_ATTEMPTS && is_push_race(&e) => {
+                tracing::warn!(
+                    attempt,
+                    error = %format!("{e:#}"),
+                    "apply: push race, retrying after refetch"
+                );
+                continue;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    unreachable!("loop exits via return");
+}
+
+/// One attempt at the apply pipeline: fetch fresh origin, rewrite
+/// flake.lock for the proposed pin, commit, push. Pulled out so the
+/// retry loop can replay each attempt against a fresh origin state.
+async fn try_apply_pin_once(
+    repo_dir: &Path,
+    input_name: &str,
+    new: &FlakeRev,
+    token: Option<&str>,
+) -> Result<ApplyOutcome> {
     fetch_and_reset_to_origin(repo_dir, "main", token)
         .await
         .context("fetch + reset to origin/main before apply")?;
@@ -89,6 +119,18 @@ pub async fn apply_pin(
     Ok(ApplyOutcome { commit })
 }
 
+/// True when the error chain matches one of git's canonical push-race
+/// signatures — origin moved between our fetch and our push, retry
+/// makes sense. Substring match because we shell out to `git`.
+fn is_push_race(e: &anyhow::Error) -> bool {
+    let s = format!("{e:#}");
+    s.contains("rejected")
+        || s.contains("fetch first")
+        || s.contains("non-fast-forward")
+        || s.contains("failed to push some refs")
+        || s.contains("remote contains work that you do not have")
+}
+
 async fn atomic_write(path: &Path, contents: &str) -> Result<()> {
     let dir = path
         .parent()
@@ -134,5 +176,31 @@ mod tests {
     fn short_rev_truncates() {
         assert_eq!(short_rev("abcdef0123456789"), "abcdef01");
         assert_eq!(short_rev("short"), "short");
+    }
+
+    #[test]
+    fn is_push_race_detects_canonical_signatures() {
+        // git's three canonical "you lost the race" messages — all
+        // need to trigger retry. Composed errors via anyhow::Error
+        // since the real failure path wraps several context layers.
+        let e = anyhow::anyhow!("commit + push: git push failed (exit 128): \
+            ! [rejected] main -> main (fetch first)");
+        assert!(is_push_race(&e), "rejected/fetch-first should retry: {e:#}");
+
+        let e = anyhow::anyhow!("git push: error: failed to push some refs \
+            because the remote contains work that you do not have locally");
+        assert!(is_push_race(&e), "remote ahead should retry: {e:#}");
+
+        let e = anyhow::anyhow!("non-fast-forward update");
+        assert!(is_push_race(&e), "non-fast-forward should retry: {e:#}");
+    }
+
+    #[test]
+    fn is_push_race_does_not_retry_on_unrelated_errors() {
+        let e = anyhow::anyhow!("Permission denied (publickey)");
+        assert!(!is_push_race(&e), "auth failures should not retry: {e:#}");
+
+        let e = anyhow::anyhow!("nix flake lock --update-input fenix failed");
+        assert!(!is_push_race(&e), "nix failures should not retry: {e:#}");
     }
 }
