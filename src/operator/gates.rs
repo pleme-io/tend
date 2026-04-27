@@ -15,7 +15,8 @@ use std::path::Path;
 use std::time::Instant;
 use tokio::process::Command;
 
-use super::crds::GateResult;
+use super::crds::{FlakeRev, GateResult};
+use super::failure_set::FailureSet;
 
 const LOG_TAIL_BYTES: usize = 2048;
 
@@ -82,10 +83,52 @@ fn current_system_family() -> &'static str {
     classify(current_system())
 }
 
+/// What scenario the gate runs against. `Baseline` uses the repo's
+/// current lockfile state. `FlakeOverride` injects a `--override-input
+/// <input> <flake_ref>` so the gate evaluates the proposed change
+/// without modifying flake.lock — a clean way to ask "what would
+/// happen if we landed this pin?" against a real working tree.
+///
+/// Non-nix dispatchers ignore the override (they have no equivalent
+/// mechanism today). When Phase 2-4 controllers add their own
+/// override modes, this enum grows variants.
+#[derive(Debug, Clone)]
+pub enum GateContext {
+    Baseline,
+    FlakeOverride { input: String, flake_ref: String },
+}
+
+impl GateContext {
+    /// Args to inject before the subcommand for nix gates. Returns an
+    /// empty vec for Baseline or non-flake contexts.
+    fn nix_override_args(&self) -> Vec<String> {
+        match self {
+            GateContext::Baseline => Vec::new(),
+            GateContext::FlakeOverride { input, flake_ref } => vec![
+                "--override-input".into(),
+                input.clone(),
+                flake_ref.clone(),
+            ],
+        }
+    }
+}
+
+/// Format the `nix --override-input <name> <flake_ref>` value from a
+/// proposed `FlakeRev`. URL is `github:owner/repo` and rev is the
+/// new SHA — concatenated with `/` per the nix flake-ref grammar.
+#[must_use]
+pub fn override_flake_ref(rev: &FlakeRev) -> String {
+    format!("{}/{}", rev.url, rev.rev)
+}
+
 /// Run a single named gate against the given repo working tree.
 /// Returns a `GateResult` even on failure — only catastrophic errors
 /// (e.g. cwd doesn't exist) bubble as `Err`.
-pub async fn run_gate(gate_name: &str, repo_dir: &Path) -> Result<GateResult> {
+pub async fn run_gate(
+    gate_name: &str,
+    repo_dir: &Path,
+    ctx: &GateContext,
+) -> Result<GateResult> {
     if !repo_dir.is_dir() {
         return Ok(GateResult {
             name: gate_name.to_string(),
@@ -120,12 +163,12 @@ pub async fn run_gate(gate_name: &str, repo_dir: &Path) -> Result<GateResult> {
 
     let start = Instant::now();
     let result: Result<GateOutcome> = if let Some(attr) = gate_name.strip_prefix("nix-build:") {
-        dispatch_nix_build(attr, repo_dir).await
+        dispatch_nix_build(attr, repo_dir, ctx).await
     } else if let Some(attr) = gate_name.strip_prefix("nix-eval:") {
-        dispatch_nix_eval(attr, repo_dir).await
+        dispatch_nix_eval(attr, repo_dir, ctx).await
     } else {
         match gate_name {
-            "nix-flake-check" => dispatch_nix_flake_check(repo_dir).await,
+            "nix-flake-check" => dispatch_nix_flake_check(repo_dir, ctx).await,
             "forge-ci" => dispatch_forge_ci(repo_dir).await,
             "cargo-test" => dispatch_cargo_test(repo_dir).await,
             "cargo-build" => dispatch_cargo_build(repo_dir).await,
@@ -151,15 +194,102 @@ pub async fn run_gate(gate_name: &str, repo_dir: &Path) -> Result<GateResult> {
     })
 }
 
-/// Run every gate in `gates` against `repo_dir`. Returns the full
-/// list of results in the same order. Caller decides what to do
-/// with partial failures (typically: any failed → proposal fails).
-pub async fn run_all(gates: &[String], repo_dir: &Path) -> Result<Vec<GateResult>> {
+/// Run every gate in `gates` against `repo_dir` with one context.
+/// Returns the full list of results in the same order. Caller decides
+/// what to do with partial failures (typically: any failed → proposal
+/// fails).
+pub async fn run_all(
+    gates: &[String],
+    repo_dir: &Path,
+    ctx: &GateContext,
+) -> Result<Vec<GateResult>> {
     let mut out = Vec::with_capacity(gates.len());
     for g in gates {
-        out.push(run_gate(g, repo_dir).await?);
+        out.push(run_gate(g, repo_dir, ctx).await?);
     }
     Ok(out)
+}
+
+/// Differential gate execution: a gate "passes" if the proposed pin
+/// doesn't introduce any *new* failures vs the baseline.
+///
+/// For each gate we run twice — once at baseline, once with the
+/// proposed flake override — and compare failure signatures. If the
+/// proposed failures are a subset of baseline failures, the gate
+/// passes (the bump didn't make things worse). If the proposed
+/// introduces a failure not in baseline, the gate fails and the new
+/// failures are surfaced in the log excerpt.
+///
+/// Skipped gates (platform mismatch) skip cleanly without running
+/// either pass — saves ~2× time on darwin gates from a linux pod.
+pub async fn run_all_differential(
+    gates: &[String],
+    repo_dir: &Path,
+    override_ctx: &GateContext,
+) -> Result<Vec<GateResult>> {
+    let mut out = Vec::with_capacity(gates.len());
+    for name in gates {
+        out.push(run_gate_differential(name, repo_dir, override_ctx).await?);
+    }
+    Ok(out)
+}
+
+/// Single-gate differential. See `run_all_differential` for semantics.
+pub async fn run_gate_differential(
+    gate_name: &str,
+    repo_dir: &Path,
+    override_ctx: &GateContext,
+) -> Result<GateResult> {
+    // Step 1: the proposed run. If platform-mismatched it returns
+    // skipped with no work — short-circuit baseline too.
+    let proposed = run_gate(gate_name, repo_dir, override_ctx).await?;
+    if proposed.skipped {
+        return Ok(proposed);
+    }
+    if proposed.passed {
+        // Trivially fine — the proposed change is clean by itself.
+        return Ok(proposed);
+    }
+
+    // Step 2: baseline run, only when proposed failed (the only case
+    // where a comparison matters). Saves a full gate run when the
+    // common-case proposed-passes-cleanly path holds.
+    let baseline = run_gate(gate_name, repo_dir, &GateContext::Baseline).await?;
+
+    let baseline_fails = FailureSet::extract(baseline.log_excerpt.as_deref().unwrap_or(""));
+    let proposed_fails = FailureSet::extract(proposed.log_excerpt.as_deref().unwrap_or(""));
+
+    if proposed_fails.is_subset_of(&baseline_fails) {
+        // Pre-existing failures only — the proposed pin didn't make
+        // things worse. Mark passed and surface the dampened diff.
+        let baseline_count = baseline_fails.len();
+        Ok(GateResult {
+            name: gate_name.to_string(),
+            passed: true,
+            skipped: false,
+            duration_ms: proposed.duration_ms.saturating_add(baseline.duration_ms),
+            log_excerpt: Some(format!(
+                "differential pass: {baseline_count} pre-existing failures unchanged by proposed pin\n\
+                 baseline_log_tail: {}",
+                baseline.log_excerpt.as_deref().unwrap_or("")
+                    .chars().rev().take(400).collect::<String>().chars().rev().collect::<String>()
+            )),
+        })
+    } else {
+        let new = proposed_fails.new_vs(&baseline_fails);
+        Ok(GateResult {
+            name: gate_name.to_string(),
+            passed: false,
+            skipped: false,
+            duration_ms: proposed.duration_ms.saturating_add(baseline.duration_ms),
+            log_excerpt: Some(format!(
+                "proposed pin introduces {} new failure(s) not in baseline:\n  - {}\n\nproposed_log_tail: {}",
+                new.len(),
+                new.join("\n  - "),
+                proposed.log_excerpt.as_deref().unwrap_or("")
+            )),
+        })
+    }
 }
 
 struct GateOutcome {
@@ -169,7 +299,11 @@ struct GateOutcome {
 
 // ─── Dispatchers ────────────────────────────────────────────────────
 
-async fn dispatch_nix_build(attr: &str, repo_dir: &Path) -> Result<GateOutcome> {
+async fn dispatch_nix_build(
+    attr: &str,
+    repo_dir: &Path,
+    ctx: &GateContext,
+) -> Result<GateOutcome> {
     if attr.is_empty() {
         return Ok(GateOutcome {
             passed: false,
@@ -184,11 +318,16 @@ async fn dispatch_nix_build(attr: &str, repo_dir: &Path) -> Result<GateOutcome> 
             .arg(&target)
             .arg("--no-link")
             .arg("--print-build-logs")
+            .args(ctx.nix_override_args())
             .current_dir(repo_dir),
     ).await
 }
 
-async fn dispatch_nix_eval(attr: &str, repo_dir: &Path) -> Result<GateOutcome> {
+async fn dispatch_nix_eval(
+    attr: &str,
+    repo_dir: &Path,
+    ctx: &GateContext,
+) -> Result<GateOutcome> {
     if attr.is_empty() {
         return Ok(GateOutcome {
             passed: false,
@@ -203,17 +342,22 @@ async fn dispatch_nix_eval(attr: &str, repo_dir: &Path) -> Result<GateOutcome> {
             .arg(&target)
             .arg("--apply")
             .arg("_: null")
+            .args(ctx.nix_override_args())
             .current_dir(repo_dir),
     ).await
 }
 
-async fn dispatch_nix_flake_check(repo_dir: &Path) -> Result<GateOutcome> {
+async fn dispatch_nix_flake_check(
+    repo_dir: &Path,
+    ctx: &GateContext,
+) -> Result<GateOutcome> {
     let mut cmd = Command::new("nix");
     nix_env(&mut cmd);
     capture(
         cmd.arg("flake")
             .arg("check")
             .arg("--no-build")
+            .args(ctx.nix_override_args())
             .current_dir(repo_dir),
     ).await
 }
@@ -303,14 +447,14 @@ mod tests {
     #[tokio::test]
     async fn unknown_gate_returns_failed_result() {
         let dir = std::env::temp_dir();
-        let r = run_gate("totally-fake-gate", &dir).await.unwrap();
+        let r = run_gate("totally-fake-gate", &dir, &GateContext::Baseline).await.unwrap();
         assert!(!r.passed);
         assert!(r.log_excerpt.unwrap().contains("unknown gate"));
     }
 
     #[tokio::test]
     async fn missing_repo_dir_returns_failed_result() {
-        let r = run_gate("nix-flake-check", Path::new("/this/does/not/exist")).await.unwrap();
+        let r = run_gate("nix-flake-check", Path::new("/this/does/not/exist"), &GateContext::Baseline).await.unwrap();
         assert!(!r.passed);
         assert!(r.log_excerpt.unwrap().contains("does not exist"));
     }
@@ -357,7 +501,7 @@ mod tests {
         } else {
             "nix-build:nixosConfigurations.foo.config.system.build.toplevel"
         };
-        let r = run_gate(other_family_gate, &dir).await.unwrap();
+        let r = run_gate(other_family_gate, &dir, &GateContext::Baseline).await.unwrap();
         assert!(r.skipped, "expected skipped, got {r:?}");
         assert!(!r.passed, "skipped gate must not also be passed: {r:?}");
         assert!(

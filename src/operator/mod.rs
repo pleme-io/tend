@@ -8,6 +8,7 @@ pub mod apply;
 pub mod crds;
 pub mod dag;
 pub mod discovery;
+pub mod failure_set;
 pub mod flake_lock_adapter;
 pub mod gates;
 pub mod git_ops;

@@ -310,7 +310,19 @@ pub async fn reconcile_proposal(
                 Api::namespaced(ctx.client.clone(), &ns);
             let policy = policy_api.get(&proposal.spec.policy_name).await?;
             let repo_dir = resolve_repo_dir(&ctx.tend_config, &proposal.spec.repo)?;
-            let results = gates::run_all(&policy.spec.gates, &repo_dir)
+            // Differential gating: gates pass when the proposed pin
+            // doesn't introduce new failures vs the current lockfile.
+            // Pre-existing failures (broken modules, flaky tests) don't
+            // block bumps that aren't responsible for them.
+            let override_ctx = gates::GateContext::FlakeOverride {
+                input: proposal.spec.input.clone(),
+                flake_ref: gates::override_flake_ref(&proposal.spec.to),
+            };
+            let results = gates::run_all_differential(
+                &policy.spec.gates,
+                &repo_dir,
+                &override_ctx,
+            )
                 .await
                 .map_err(|e| ReconcileError::Other(anyhow::anyhow!("gates: {e}")))?;
             for r in &results {
