@@ -209,7 +209,18 @@ async fn upsert_proposal(
     let policy_ns = policy.namespace().unwrap_or_else(|| "default".into());
     let prop_name = proposal_name(&policy_name, &adv.input, &adv.to.rev);
 
-    if api.get_opt(&prop_name).await?.is_some() {
+    if let Some(existing) = api.get_opt(&prop_name).await? {
+        // Promote `approved=false → true` when the policy mode changes
+        // from Gated to Auto for an input whose proposal already exists.
+        // Never downgrade — human approvals should stick even if the
+        // policy later changes back to Gated. Without this patch, an
+        // operator updating policy mode in-place wouldn't take effect
+        // until the proposal aged out and got recreated.
+        if auto_approve && !existing.spec.approved {
+            let patch = serde_json::json!({ "spec": { "approved": true } });
+            api.patch(&prop_name, &PatchParams::default(), &Patch::Merge(&patch))
+                .await?;
+        }
         return Ok(());
     }
 
