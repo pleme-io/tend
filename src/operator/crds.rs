@@ -225,6 +225,92 @@ pub struct FlakeUpdateProposalStatus {
     pub observed_generation: i64,
 }
 
+// ─── FlakeUpdatePlan — under-the-radar plan emission ─────────────────
+//
+// Every reconcile cycle generates one `FlakeUpdatePlan` *before* any
+// HTTP traffic. The plan is the typed audit trail: which inputs we'll
+// check, why, what budget remains, what we'll skip. Operators can
+// `kubectl describe fup-plan` to see exactly what discovery is about
+// to do — auditability + reproducibility.
+//
+// The plan is short-lived; older plans are GC'd by Kubernetes via
+// owner reference to the policy.
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "PascalCase")]
+pub enum PlanAction {
+    /// Send a conditional HEAD request (counts toward budget; may be
+    /// free if the cached etag matches).
+    Refresh,
+    /// Cache hit with a recently-fetched entry — skip the network call
+    /// entirely. Lowest cost, no budget impact.
+    UseCached,
+    /// Defer until a future cycle — input was checked recently, lock
+    /// `lastModified` is fresh enough, or budget exhausted.
+    Defer,
+    /// Skip permanently this cycle — input is `Locked` or `Forbidden`
+    /// in policy, or absent from flake.nix.
+    Skip,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PlannedCheck {
+    /// Input local name (matches `nix flake update <name>`).
+    pub input: String,
+    pub action: PlanAction,
+    /// Free-form rationale — "stale 7d", "Locked", "ghost (not in flake.nix)",
+    /// "deferred: budget exhausted", "wave-blocked: parent X advancing".
+    pub rationale: String,
+}
+
+#[derive(CustomResource, Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[kube(
+    group = "fleet.pleme.io",
+    version = "v1alpha1",
+    kind = "FlakeUpdatePlan",
+    plural = "flakeupdateplans",
+    shortname = "fpl",
+    status = "FlakeUpdatePlanStatus",
+    namespaced
+)]
+#[serde(rename_all = "camelCase")]
+pub struct FlakeUpdatePlanSpec {
+    /// Owning policy (also expressed via owner reference for GC).
+    pub policy_name: String,
+    /// Wallclock time the plan was generated.
+    pub generated_at: DateTime<Utc>,
+    /// Effective hourly request cap reflecting any active budget
+    /// backoff at plan generation time.
+    pub budget_effective_max_per_hour: u32,
+    /// Slots free in the current 1h sliding window. Sum of `Refresh`
+    /// entries below MUST be <= this number.
+    pub budget_slots_remaining: u32,
+    /// Every input the planner considered. Sorted by action then
+    /// input name for stable diffs.
+    pub checks: Vec<PlannedCheck>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FlakeUpdatePlanStatus {
+    /// How many `Refresh` actions returned 304 (free request).
+    #[serde(default)]
+    pub free_requests: u32,
+    /// How many `Refresh` actions returned 200 with new data.
+    #[serde(default)]
+    pub paid_requests: u32,
+    /// How many produced a CandidateAdvance.
+    #[serde(default)]
+    pub advances: u32,
+    /// How many produced an error (rate-limited, transient).
+    #[serde(default)]
+    pub errors: u32,
+    /// Wallclock time after execution completed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<DateTime<Utc>>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RolloutWaveProposalRef {
     pub namespace: String,

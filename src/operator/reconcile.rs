@@ -18,8 +18,9 @@ use tracing::{info, warn};
 
 use super::apply;
 use super::crds::{
-    Condition, FlakeUpdatePolicy, FlakeUpdatePolicyStatus, FlakeUpdateProposal,
-    FlakeUpdateProposalSpec, ProposalPhase, UpdateMode,
+    Condition, FlakeUpdatePlan, FlakeUpdatePlanSpec, FlakeUpdatePolicy,
+    FlakeUpdatePolicyStatus, FlakeUpdateProposal, FlakeUpdateProposalSpec, ProposalPhase,
+    UpdateMode,
 };
 use super::discovery::{self, ReqwestHeadResolver};
 use super::gates;
@@ -193,6 +194,27 @@ pub async fn reconcile_policy(
             None
         }
     };
+
+    // Generate the typed plan BEFORE any HTTP traffic. Plan CRD
+    // becomes the durable audit trail: which inputs we'll check, why,
+    // what budget remains. Operators can `kubectl describe fpl` to
+    // see what discovery is about to do — auditability +
+    // reproducibility.
+    let plan_output = {
+        let cache_guard = ctx.head_cache.lock().await;
+        super::planner::plan(
+            &policy,
+            &lock,
+            declared_inputs.as_ref(),
+            &cache_guard,
+            &ctx.budget,
+        )
+    };
+    // Emit the plan CR. Best effort — failure to persist the plan
+    // shouldn't abort the cycle, but operators lose audit on this run.
+    if let Err(e) = upsert_plan(&ctx, &policy, &plan_output.spec).await {
+        tracing::warn!(error = %format!("{e:#}"), "FlakeUpdatePlan upsert failed");
+    }
 
     let resolver = ReqwestHeadResolver {
         client: ctx.http.clone(),
@@ -397,6 +419,57 @@ fn mode_for_input(policy: &FlakeUpdatePolicy, input: &str) -> UpdateMode {
         .get(input)
         .copied()
         .unwrap_or(policy.spec.default_mode)
+}
+
+/// Persist the plan as a `FlakeUpdatePlan` CR. One plan per policy
+/// per cycle — the resource name is derived from the policy + a
+/// truncated timestamp so the plan history is browseable but
+/// doesn't accumulate unbounded (Kubernetes GC handles cleanup via
+/// owner reference + a future TTL controller).
+async fn upsert_plan(
+    ctx: &Context,
+    policy: &FlakeUpdatePolicy,
+    spec: &FlakeUpdatePlanSpec,
+) -> Result<(), ReconcileError> {
+    let ns = policy.namespace().unwrap_or_else(|| "default".into());
+    let plans: Api<FlakeUpdatePlan> = Api::namespaced(ctx.client.clone(), &ns);
+    let policy_name = policy.name_any();
+    // Plan name: <policy>-<unix_timestamp_minute>. Granular enough
+    // that high-frequency reconciles don't collide; coarse enough
+    // that operators see a manageable list.
+    let bucket = spec.generated_at.timestamp() / 60;
+    let plan_name = format!("{policy_name}-{bucket}");
+    if plans.get_opt(&plan_name).await?.is_some() {
+        // Same minute, same policy — overwrite spec to capture the
+        // latest plan (later reconciles in the same minute generally
+        // reflect more current state).
+        let patch = serde_json::json!({ "spec": spec });
+        plans
+            .patch(
+                &plan_name,
+                &PatchParams::default(),
+                &Patch::Merge(&patch),
+            )
+            .await?;
+        return Ok(());
+    }
+    let plan = FlakeUpdatePlan {
+        metadata: ObjectMeta {
+            name: Some(plan_name),
+            namespace: Some(ns),
+            labels: Some(
+                [("fleet.pleme.io/policy".into(), policy_name)]
+                    .into_iter()
+                    .collect(),
+            ),
+            owner_references: Some(vec![policy.controller_owner_ref(&()).unwrap()]),
+            ..Default::default()
+        },
+        spec: spec.clone(),
+        status: None,
+    };
+    plans.create(&PostParams::default(), &plan).await?;
+    Ok(())
 }
 
 async fn upsert_proposal(
