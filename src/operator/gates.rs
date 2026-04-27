@@ -218,24 +218,49 @@ async fn dispatch_nix_flake_check(repo_dir: &Path) -> Result<GateOutcome> {
     ).await
 }
 
-/// Apply the env vars nix needs to operate from a no-/etc/passwd
-/// distroless pod. Inheriting the parent process env *should* be
-/// sufficient — but we explicitly set the load-bearing ones because
-/// the nix C++ binary aborts hard ("cannot determine user's home
-/// directory") without HOME, and inheritance failures are silent.
-/// Setting them on the subprocess Command is idempotent with the
-/// pod-level env, costs nothing, and makes the contract explicit.
-fn nix_env(cmd: &mut Command) {
+/// Apply the env vars nix needs to operate from a distroless pod.
+///
+/// Five concerns rolled into one call so every nix invocation in the
+/// operator is identical-by-construction:
+///
+///   1. **HOME / XDG_CACHE_HOME / USER / LOGNAME** — nix's C++ binary
+///      aborts hard ("cannot determine user's home directory") without
+///      a resolvable user. The image ships an /etc/passwd entry for
+///      UID 1000 and we mount a writable home volume, but env
+///      inheritance is silent-on-failure so we set them explicitly.
+///
+///   2. **experimental-features** — gates use `nix flake check`/`build`
+///      syntax which still requires the experimental flag.
+///
+///   3. **accept-flake-config = true** — the pleme-io nix repo's flake
+///      sets `nixConfig.extra-substituters` etc.; without this nix
+///      refuses to honor them and the eval errors out.
+///
+///   4. **access-tokens = github.com=$GITHUB_TOKEN** — without auth,
+///      private pleme-io flake inputs return HTTP 404 from the GitHub
+///      tarball API and gate evaluation fails. The token comes from
+///      the same secret the operator uses for `git push`.
+///
+///   5. **netrc-file** — git deps via https also need this token; nix's
+///      git fetcher reads ~/.config/nix/nix.conf access-tokens for
+///      tarball URLs and netrc for raw git URLs. Future-proofing.
+pub fn nix_env(cmd: &mut Command) {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/home/tend".to_string());
     let cache = std::env::var("XDG_CACHE_HOME").unwrap_or_else(|_| format!("{home}/.cache"));
+    let mut nix_config = String::from(
+        "experimental-features = nix-command flakes\n\
+         accept-flake-config = true",
+    );
+    if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+        if !token.is_empty() {
+            nix_config.push_str(&format!("\naccess-tokens = github.com={token}"));
+        }
+    }
     cmd.env("HOME", &home)
         .env("XDG_CACHE_HOME", &cache)
         .env("USER", "tend")
         .env("LOGNAME", "tend")
-        // Guarantees nix-command + flakes are enabled regardless of
-        // ambient state — the gates rely on `nix flake check` and
-        // `nix build` syntax.
-        .env("NIX_CONFIG", "experimental-features = nix-command flakes");
+        .env("NIX_CONFIG", nix_config);
 }
 
 async fn dispatch_forge_ci(repo_dir: &Path) -> Result<GateOutcome> {
