@@ -36,6 +36,31 @@ pub struct Context {
     pub tend_config: Arc<Config>,
     pub http: reqwest::Client,
     pub github_token: Option<String>,
+    /// Per-repo working-tree mutex registry. The policy reconciler's
+    /// discovery-side fetch+reset and the proposal reconciler's
+    /// apply-side fetch+reset can both fire on the same `repo_dir`
+    /// — without serialization they collide on `.git/index.lock`.
+    /// Each git operation acquires the mutex keyed on the absolute
+    /// repo path before touching the working tree.
+    pub repo_locks: Arc<tokio::sync::Mutex<
+        std::collections::HashMap<std::path::PathBuf, Arc<tokio::sync::Mutex<()>>>,
+    >>,
+}
+
+impl Context {
+    /// Get-or-insert the mutex for `repo_dir`. Returns a clone — the
+    /// caller awaits `.lock()` to serialize against other operations
+    /// on the same path.
+    pub async fn repo_lock(
+        &self,
+        repo_dir: &std::path::Path,
+    ) -> Arc<tokio::sync::Mutex<()>> {
+        let mut registry = self.repo_locks.lock().await;
+        registry
+            .entry(repo_dir.to_path_buf())
+            .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+            .clone()
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -87,6 +112,14 @@ pub async fn reconcile_policy(
     // then sees no advance and stops generating proposals for that
     // input. The reset is safe: the pod clone is a scratch workspace,
     // we rebuild from origin every cycle.
+    //
+    // Lock the working tree against concurrent ops (the proposal
+    // reconciler's apply path also fetch+resets here). Holding the
+    // lock for the full duration of read+parse means discovery can't
+    // race apply on `.git/index.lock`.
+    let lock_arc = ctx.repo_lock(&repo_dir).await;
+    let _wt_guard = lock_arc.lock().await;
+
     if let Err(e) = super::git_ops::fetch_and_reset_to_origin(
         &repo_dir,
         "main",
@@ -505,6 +538,12 @@ pub async fn reconcile_proposal(
         }
         Applying => {
             let repo_dir = resolve_repo_dir(&ctx.tend_config, &proposal.spec.repo)?;
+            // Working-tree mutex against the policy reconciler's
+            // discovery-side fetch+reset on the same path. Without it,
+            // both reconcilers race on `.git/index.lock` and apply
+            // dies with "Another git process seems to be running".
+            let lock_arc = ctx.repo_lock(&repo_dir).await;
+            let _wt_guard = lock_arc.lock().await;
             let outcome = match apply::apply_pin(
                 &repo_dir,
                 &proposal.spec.input,

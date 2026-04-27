@@ -71,6 +71,9 @@ pub async fn run() -> Result<()> {
             .build()
             .context("building http client")?,
         github_token: load_github_token(),
+        repo_locks: Arc::new(tokio::sync::Mutex::new(
+            std::collections::HashMap::new(),
+        )),
     });
 
     // Prometheus metrics endpoint — vmagent scrapes via the chart's
