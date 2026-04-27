@@ -89,12 +89,30 @@ pub(crate) async fn sync_repos(workspace: &Workspace, repos: &[String], quiet: b
         }
 
         let url = workspace.clone_url(repo_name);
+        // Inject GITHUB_TOKEN into HTTPS clone URL when set (containers
+        // can't prompt for creds). Pattern: https://x-access-token:TOKEN@github.com/...
+        // — git treats this as basic auth, server pulls the token,
+        // works for private + public repos with no credential helper.
+        let url = if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+            if url.starts_with("https://github.com/") {
+                url.replacen(
+                    "https://github.com/",
+                    &format!("https://x-access-token:{token}@github.com/"),
+                    1,
+                )
+            } else {
+                url
+            }
+        } else {
+            url
+        };
         if !quiet {
             println!("  cloning {repo_name}...");
         }
 
         let output = Command::new("git")
             .args(["clone", &url, &repo_path.to_string_lossy()])
+            .env("GIT_TERMINAL_PROMPT", "0")
             .output()
             .with_context(|| format!("running git clone for {repo_name}"))?;
 
