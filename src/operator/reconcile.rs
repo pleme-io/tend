@@ -189,9 +189,6 @@ pub async fn reconcile_policy(
     let mut dag = super::dag::FleetDag::new();
     // Seed every advancing input as a node first so leaves (inputs
     // with no `follows` siblings) still receive a wave assignment.
-    // Without this, `nixpkgs-unstable` and other root-direct leaves
-    // get wave=None because their only edge is root→leaf and we
-    // strip the root from the graph below.
     let advancing_set: std::collections::BTreeSet<super::dag::DagNodeId> = advances
         .iter()
         .map(|a| super::dag::DagNodeId::new(&repo_key, &a.input))
@@ -199,19 +196,41 @@ pub async fn reconcile_policy(
     for id in &advancing_set {
         dag.ensure_node(id.clone());
     }
+    // Restrict the DAG to root-direct inputs only — `lock.edges()`
+    // returns the full transitive graph, which can contain cycles
+    // among deep cargo-style transitive entries (`crate2nix_stable_8`
+    // diamonds, etc.) that have no bearing on what *the user* can
+    // bump. For wave assignment we only care about precedence between
+    // root-direct local input names.
+    //
+    // Direction inversion: `lock.edges()` returns `(dependent →
+    // dependency)` (X.inputs.Y = Y means X depends on Y). For wave
+    // assignment we want `(dependency → dependent)` so the dependency
+    // lands in an earlier wave. Swap the pair before adding.
+    let local_of_node: std::collections::BTreeMap<String, String> = lock
+        .root_input_nodes()
+        .into_iter()
+        .map(|(local, node)| (node, local))
+        .collect();
     if let Ok(edges) = super::flake_lock_adapter::FlakeLockAdapter
         .edges_from_raw(&lock_contents)
     {
-        for (parent, child) in edges {
-            // Strip the root node itself but keep edges between real
-            // inputs — `substrate → blackmatter-shell` etc. participate
-            // in wave ordering.
-            if parent == lock.root || child == lock.root {
+        for (dependent_node, dependency_node) in edges {
+            if dependent_node == lock.root || dependency_node == lock.root {
                 continue;
             }
+            let (Some(dependent_local), Some(dependency_local)) = (
+                local_of_node.get(&dependent_node),
+                local_of_node.get(&dependency_node),
+            ) else {
+                // One endpoint isn't a root-direct input — out of
+                // scope for proposal-level wave assignment.
+                continue;
+            };
+            // Inverted: dependency precedes dependent.
             dag.add_edge(
-                super::dag::DagNodeId::new(&repo_key, parent),
-                super::dag::DagNodeId::new(&repo_key, child),
+                super::dag::DagNodeId::new(&repo_key, dependency_local),
+                super::dag::DagNodeId::new(&repo_key, dependent_local),
             );
         }
     }
