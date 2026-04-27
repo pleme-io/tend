@@ -187,10 +187,25 @@ pub async fn reconcile_policy(
         policy.spec.repo.workspace, policy.spec.repo.repo
     );
     let mut dag = super::dag::FleetDag::new();
+    // Seed every advancing input as a node first so leaves (inputs
+    // with no `follows` siblings) still receive a wave assignment.
+    // Without this, `nixpkgs-unstable` and other root-direct leaves
+    // get wave=None because their only edge is root→leaf and we
+    // strip the root from the graph below.
+    let advancing_set: std::collections::BTreeSet<super::dag::DagNodeId> = advances
+        .iter()
+        .map(|a| super::dag::DagNodeId::new(&repo_key, &a.input))
+        .collect();
+    for id in &advancing_set {
+        dag.ensure_node(id.clone());
+    }
     if let Ok(edges) = super::flake_lock_adapter::FlakeLockAdapter
         .edges_from_raw(&lock_contents)
     {
         for (parent, child) in edges {
+            // Strip the root node itself but keep edges between real
+            // inputs — `substrate → blackmatter-shell` etc. participate
+            // in wave ordering.
             if parent == lock.root || child == lock.root {
                 continue;
             }
@@ -200,10 +215,6 @@ pub async fn reconcile_policy(
             );
         }
     }
-    let advancing_set: std::collections::BTreeSet<super::dag::DagNodeId> = advances
-        .iter()
-        .map(|a| super::dag::DagNodeId::new(&repo_key, &a.input))
-        .collect();
     let wave_of: BTreeMap<String, u32> = match dag.waves(Some(&advancing_set)) {
         Ok(waves) => waves
             .into_iter()
