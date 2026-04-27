@@ -143,6 +143,35 @@ impl RegistryError {
     pub fn is_fatal_to_cycle(&self) -> bool {
         matches!(self, RegistryError::RateLimited { .. } | RegistryError::AuthFailed(_))
     }
+
+    /// K8s-style condition `reason` (CamelCase, stable across cycles).
+    #[must_use]
+    pub fn condition_reason(&self) -> &'static str {
+        match self {
+            RegistryError::RateLimited { .. } => "RateLimited",
+            RegistryError::AuthFailed(_) => "AuthFailed",
+            RegistryError::NotFound(_) => "NotFound",
+            RegistryError::Transient(_) => "TransientError",
+        }
+    }
+
+    /// Stable, operator-readable condition `message`. Crucially does NOT
+    /// embed raw HTTP response bodies — those carry per-request IDs and
+    /// timestamps that would churn every reconcile and self-trigger the
+    /// Controller into a tight loop. `reset_at` is stable for the
+    /// duration of a rate-limit window so it's safe to include.
+    #[must_use]
+    pub fn condition_message(&self) -> String {
+        match self {
+            RegistryError::RateLimited { reset_at, .. } => match reset_at {
+                Some(ts) => format!("rate limited (resets at unix={ts})"),
+                None => "rate limited".to_string(),
+            },
+            RegistryError::AuthFailed(_) => "auth credentials rejected".to_string(),
+            RegistryError::NotFound(s) => format!("upstream not found: {s}"),
+            RegistryError::Transient(_) => "transient registry error".to_string(),
+        }
+    }
 }
 
 /// A registry-agnostic HEAD lookup primitive. Phase 1 has one impl
@@ -203,5 +232,36 @@ mod tests {
     fn display_includes_source_prefix() {
         let id = UpstreamId::new_github("nixos", "nixpkgs", "HEAD");
         assert_eq!(format!("{id}"), "github:nixos/nixpkgs@HEAD");
+    }
+
+    #[test]
+    fn condition_message_excludes_volatile_fields() {
+        // The whole point: the raw HTTP body has request IDs and
+        // timestamps that change every cycle. condition_message must
+        // produce a string stable across the rate-limit window so the
+        // status-write loop-breaker can dedup.
+        let body = r#"{"message":"API rate limit exceeded ... request ID E2D8:3ACA70 ... timestamp 2026-04-27 04:46:48 UTC"}"#;
+        let e1 = RegistryError::RateLimited {
+            reset_at: Some(1777265408),
+            message: body.to_string(),
+        };
+        let e2 = RegistryError::RateLimited {
+            reset_at: Some(1777265408),
+            message: r#"{"message":"... request ID DIFFERENT ... timestamp 2026-04-27 04:46:51 UTC"}"#.to_string(),
+        };
+        assert_eq!(e1.condition_message(), e2.condition_message());
+        assert!(!e1.condition_message().contains("request ID"));
+        assert!(!e1.condition_message().contains("E2D8"));
+    }
+
+    #[test]
+    fn condition_reason_is_stable_camel_case() {
+        assert_eq!(
+            RegistryError::RateLimited { reset_at: None, message: "x".into() }.condition_reason(),
+            "RateLimited"
+        );
+        assert_eq!(RegistryError::AuthFailed("x".into()).condition_reason(), "AuthFailed");
+        assert_eq!(RegistryError::NotFound("x".into()).condition_reason(), "NotFound");
+        assert_eq!(RegistryError::Transient("x".into()).condition_reason(), "TransientError");
     }
 }

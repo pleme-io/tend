@@ -146,8 +146,8 @@ pub async fn reconcile_policy(
         vec![Condition {
             r#type: "Reconciled".into(),
             status: "False".into(),
-            reason: Some(format!("{reason:?}").split(' ').next().unwrap_or("Halted").to_string()),
-            message: Some(format!("discovery halted: {reason}")),
+            reason: Some(reason.condition_reason().to_string()),
+            message: Some(format!("discovery halted: {}", reason.condition_message())),
             last_transition_time: Some(Utc::now()),
         }]
     } else {
