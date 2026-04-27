@@ -132,10 +132,35 @@ pub struct ExtendedNode {
     pub locked: Option<ExtendedLocked>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub original: Option<serde_json::Value>,
+    pub original: Option<ExtendedOriginal>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flake: Option<bool>,
+}
+
+/// The `original` block declares what the user *asked for* (URL +
+/// optional ref/branch/tag). For tag-pinned inputs (e.g.
+/// `github:pleme-io/typemill/v0.8.18-pleme.1`), the `locked` block
+/// records only the resolved rev — `locked.ref` is empty. Discovery
+/// must check upstream at `original.ref`, not at the default branch
+/// HEAD, or it would falsely flag tags as advancing every time the
+/// repo's main branch moves.
+#[derive(Debug, Clone, Default, Deserialize, serde::Serialize)]
+pub struct ExtendedOriginal {
+    #[serde(rename = "type", default)]
+    pub kind: String,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repo: Option<String>,
+
+    #[serde(rename = "ref", default, skip_serializing_if = "Option::is_none")]
+    pub r#ref: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, serde::Serialize)]
@@ -173,6 +198,33 @@ pub struct ExtendedLocked {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+}
+
+impl ExtendedNode {
+    /// The ref (branch/tag/HEAD) the user is *tracking*, derived
+    /// from `original.ref` first (what was declared in flake.nix)
+    /// then `locked.ref` (recorded at flake-update time) then "HEAD"
+    /// as last resort. Tag-pinned inputs only have `original.ref`
+    /// populated, so without this fallback discovery would query
+    /// upstream's default branch and falsely flag tags as advancing.
+    #[must_use]
+    pub fn tracking_ref(&self) -> &str {
+        if let Some(orig) = &self.original {
+            if let Some(r) = orig.r#ref.as_deref() {
+                if !r.is_empty() {
+                    return r;
+                }
+            }
+        }
+        if let Some(locked) = &self.locked {
+            if let Some(r) = locked.r#ref.as_deref() {
+                if !r.is_empty() {
+                    return r;
+                }
+            }
+        }
+        "HEAD"
+    }
 }
 
 impl ExtendedLockFile {

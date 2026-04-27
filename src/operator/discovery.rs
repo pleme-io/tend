@@ -259,7 +259,12 @@ pub async fn discover_advances_filtered<R: RegistryClient + ?Sized>(
         ) else {
             continue;
         };
-        let r#ref = locked.r#ref.as_deref().unwrap_or("HEAD");
+        // Use the *tracking* ref — `original.ref` (declared in flake.nix)
+        // takes precedence over `locked.ref`, which is empty for
+        // tag-pinned inputs. Without this, tag-pinned inputs would be
+        // checked against upstream's default branch HEAD and falsely
+        // flag every push to main as a tag advance.
+        let r#ref = node.tracking_ref();
         let id = UpstreamId::new_github(owner, repo, r#ref);
 
         // Three-tier resolution:
