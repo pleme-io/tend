@@ -64,6 +64,49 @@ struct GitHubCommitAuthor {
     date: String,
 }
 
+/// Result row from the batched GraphQL query — one repository's
+/// resolved ref → commit. Aliases r0..rN-1 carry the input ordering
+/// so we can reconstruct per-target results.
+#[derive(Debug, Deserialize)]
+struct GraphQLRefTarget {
+    oid: String,
+    #[serde(rename = "committedDate")]
+    committed_date: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphQLRef {
+    target: Option<GraphQLRefTarget>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphQLRepository {
+    #[serde(rename = "ref")]
+    ref_: Option<GraphQLRef>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphQLBatchData {
+    #[serde(flatten)]
+    aliases: std::collections::BTreeMap<String, Option<GraphQLRepository>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphQLBatchResponse {
+    data: Option<GraphQLBatchData>,
+    errors: Option<Vec<GraphQLError>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphQLError {
+    message: String,
+}
+
+/// Maximum aliases per GraphQL batch — GitHub allows up to 500-node
+/// queries with reasonable rate-limit cost; 50 stays well within the
+/// per-query node budget while compressing 50:1 for our use case.
+const GRAPHQL_BATCH_SIZE: usize = 50;
+
 pub struct ReqwestHeadResolver {
     pub client: reqwest::Client,
     pub token: Option<String>,
@@ -196,6 +239,194 @@ impl RegistryClient for ReqwestHeadResolver {
             fetched_at: chrono::Utc::now(),
         }))
     }
+
+    /// GraphQL-batched HEAD lookups — one POST returns the resolved
+    /// commit for up to `GRAPHQL_BATCH_SIZE` GitHub repos. Counts as
+    /// 1 request against rate limit (GitHub charges by computed
+    /// "node cost" for GraphQL, but a flat ref-target query at 50
+    /// aliases stays well under their per-call ceiling and costs
+    /// less than 50 separate REST requests).
+    ///
+    /// ETags don't apply to GraphQL — every response is fresh data.
+    /// The upstream cache TTL in `planner::plan` short-circuits before
+    /// the batch fires for unchanged inputs, so the typical batch is
+    /// a small subset of total inputs (the ones genuinely needing
+    /// refresh). Non-Github targets fall through to the per-id REST
+    /// path via the trait default.
+    async fn head_conditional_batch(
+        &self,
+        targets: &[(UpstreamId, Option<CachedHead>)],
+    ) -> Vec<Result<HeadOutcome, RegistryError>> {
+        // Partition: GitHub targets get batched; everything else
+        // falls through to per-id (one round-trip each, but the
+        // count of non-GitHub targets is small in practice).
+        let mut out: Vec<Option<Result<HeadOutcome, RegistryError>>> =
+            (0..targets.len()).map(|_| None).collect();
+        let mut github_indices = Vec::new();
+        for (i, (id, _)) in targets.iter().enumerate() {
+            if matches!(id.source, SourceKind::Github) {
+                github_indices.push(i);
+            }
+        }
+        // Non-GitHub fallback path.
+        for (i, (id, prev)) in targets.iter().enumerate() {
+            if !matches!(id.source, SourceKind::Github) {
+                out[i] = Some(self.head_conditional(id, prev.as_ref()).await);
+            }
+        }
+        // Batch GitHub in chunks of GRAPHQL_BATCH_SIZE.
+        for chunk in github_indices.chunks(GRAPHQL_BATCH_SIZE) {
+            let chunk_targets: Vec<(usize, &UpstreamId)> =
+                chunk.iter().map(|&i| (i, &targets[i].0)).collect();
+            match self.graphql_batch(&chunk_targets).await {
+                Ok(results) => {
+                    for ((i, _), res) in chunk_targets.iter().zip(results.into_iter()) {
+                        out[*i] = Some(res);
+                    }
+                }
+                Err(e) => {
+                    // Whole-batch failure: fall back to per-id for
+                    // this chunk so rate-limit errors are still
+                    // surfaced and other targets in this batch don't
+                    // get poisoned. The per-id path already handles
+                    // ETag conditionals, so we still benefit from
+                    // free 304s on the fallback.
+                    tracing::warn!(
+                        chunk_size = chunk.len(),
+                        error = %format!("{e:#}"),
+                        "graphql batch failed; falling back to per-id REST"
+                    );
+                    for &i in chunk {
+                        let (id, prev) = &targets[i];
+                        out[i] = Some(self.head_conditional(id, prev.as_ref()).await);
+                    }
+                }
+            }
+        }
+        out.into_iter()
+            .map(|opt| opt.unwrap_or_else(|| {
+                Err(RegistryError::Transient("internal: target index unfilled".into()))
+            }))
+            .collect()
+    }
+}
+
+impl ReqwestHeadResolver {
+    /// Issue one GraphQL POST resolving up to GRAPHQL_BATCH_SIZE refs.
+    /// Returns one HeadOutcome per input position. The whole-batch
+    /// error path returns Err so the caller can fall back per-id.
+    async fn graphql_batch(
+        &self,
+        targets: &[(usize, &UpstreamId)],
+    ) -> Result<Vec<Result<HeadOutcome, RegistryError>>, anyhow::Error> {
+        // Build the query: one alias per target.
+        let mut query = String::from("query {\n");
+        for (alias_n, (_, id)) in targets.iter().enumerate() {
+            let (owner, repo) = id.key.split_once('/').unwrap_or((id.key.as_str(), ""));
+            let qualified_ref = if id.r#ref == "HEAD" || id.r#ref.is_empty() {
+                "refs/heads/HEAD".to_string()
+            } else if id.r#ref.starts_with("refs/") {
+                id.r#ref.clone()
+            } else if looks_like_tag(&id.r#ref) {
+                format!("refs/tags/{}", id.r#ref)
+            } else {
+                format!("refs/heads/{}", id.r#ref)
+            };
+            query.push_str(&format!(
+                "  r{alias_n}: repository(owner: \"{owner}\", name: \"{repo}\") {{\
+                 ref(qualifiedName: \"{qualified_ref}\") {{ \
+                 target {{ ... on Commit {{ oid committedDate }} }} }} }}\n"
+            ));
+        }
+        query.push('}');
+
+        // Budget: 1 slot for the whole batch.
+        self.budget.acquire().await;
+
+        let body = serde_json::json!({ "query": query });
+        let mut req = self
+            .client
+            .post("https://api.github.com/graphql")
+            .header("User-Agent", "tend-operator")
+            .json(&body);
+        if let Some(t) = &self.token {
+            req = req.bearer_auth(t);
+        }
+        let resp = req.send().await?;
+
+        // Observe rate-limit pressure even on errors — same as REST.
+        if let (Some(rem), Some(lim)) = (
+            resp.headers()
+                .get("x-ratelimit-remaining")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.parse::<u32>().ok()),
+            resp.headers()
+                .get("x-ratelimit-limit")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.parse::<u32>().ok()),
+        ) {
+            self.budget.observe_pressure(rem, lim);
+        }
+
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(anyhow::anyhow!("graphql HTTP {status}"));
+        }
+        let parsed: GraphQLBatchResponse = resp.json().await?;
+        if let Some(errs) = parsed.errors {
+            // Surface aggregated GraphQL errors but don't fail the
+            // whole batch — per-target results may still be present.
+            let summary: Vec<&str> = errs.iter().map(|e| e.message.as_str()).collect();
+            tracing::warn!(errors = ?summary, "graphql batch returned errors");
+        }
+        let data = parsed
+            .data
+            .ok_or_else(|| anyhow::anyhow!("graphql response missing data"))?;
+
+        let now = chrono::Utc::now();
+        let mut out = Vec::with_capacity(targets.len());
+        for (alias_n, (_, id)) in targets.iter().enumerate() {
+            let alias_key = format!("r{alias_n}");
+            let outcome = match data.aliases.get(&alias_key) {
+                Some(Some(repo)) => match &repo.ref_ {
+                    Some(GraphQLRef { target: Some(t) }) => {
+                        let upstream_modified = t
+                            .committed_date
+                            .as_deref()
+                            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                            .map(|dt| dt.timestamp())
+                            .unwrap_or(0);
+                        Ok(HeadOutcome::Fresh(CachedHead {
+                            info: HeadInfo {
+                                upstream_rev: t.oid.clone(),
+                                upstream_modified,
+                            },
+                            etag: None, // GraphQL has no per-row ETag
+                            fetched_at: now,
+                        }))
+                    }
+                    _ => Err(RegistryError::NotFound(format!("{id}: ref absent"))),
+                },
+                Some(None) => Err(RegistryError::NotFound(format!("{id}"))),
+                None => Err(RegistryError::Transient(format!(
+                    "graphql alias {alias_key} missing from response"
+                ))),
+            };
+            out.push(outcome);
+        }
+        Ok(out)
+    }
+}
+
+/// Heuristic: does this ref string look more like a tag than a branch?
+/// Used to qualify `refs/tags/X` vs `refs/heads/X` in GraphQL queries.
+/// Branches typically contain `/` (e.g. `feature/foo`) or are common
+/// names (`main`, `master`, `develop`); tags typically start with `v`
+/// or contain a dot (semver). Imperfect but covers the common case;
+/// when wrong, the GraphQL query returns ref:null and we fall through.
+fn looks_like_tag(s: &str) -> bool {
+    s.starts_with('v') && s.chars().nth(1).is_some_and(|c| c.is_ascii_digit())
+        || (s.contains('.') && !matches!(s, "main" | "master" | "develop" | "trunk"))
 }
 
 pub async fn discover_advances<R: RegistryClient + ?Sized>(
@@ -432,6 +663,29 @@ mod tests {
       "root": "root",
       "version": 7
     }"#;
+
+    #[test]
+    fn looks_like_tag_classifies_common_shapes() {
+        // Semver tags
+        assert!(looks_like_tag("v0.8.18-pleme.1"));
+        assert!(looks_like_tag("v1.0.0"));
+        assert!(looks_like_tag("v2.31.4"));
+        // Tag-like (dot, not standard branch)
+        assert!(looks_like_tag("release.2024-01"));
+        // Standard branches
+        assert!(!looks_like_tag("main"));
+        assert!(!looks_like_tag("master"));
+        assert!(!looks_like_tag("develop"));
+        assert!(!looks_like_tag("trunk"));
+        // Topic branches with slash
+        assert!(!looks_like_tag("feature/x"));
+        // Bare numeric versions — classified as tag (the dot
+        // heuristic catches them; correct behavior, GitHub semver
+        // tags are often missing the `v` prefix).
+        assert!(looks_like_tag("0.8"));
+        // Branch names without dots
+        assert!(!looks_like_tag("nixos-unstable"));
+    }
 
     #[tokio::test]
     async fn dedup_collapses_case_variants_to_one_call() {

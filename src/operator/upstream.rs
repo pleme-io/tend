@@ -259,6 +259,32 @@ pub trait RegistryClient: Send + Sync {
             HeadOutcome::Fresh(c) | HeadOutcome::Unchanged(c) => Ok(c.info),
         }
     }
+
+    /// Optional batch lookup. Default impl serializes via repeated
+    /// `head_conditional` calls, so overriders are NOT required —
+    /// they just unlock the per-request quota multiplier.
+    ///
+    /// For GitHub: a GraphQL query batching N repos in one request
+    /// (one alias per repo) returns each ref's commit SHA in a single
+    /// API call. 50:1 quota reduction. Overriding implementations
+    /// MUST preserve the per-id ETag semantics (when supported by the
+    /// underlying protocol; GraphQL doesn't have ETags so batched
+    /// lookups are always "fresh" — the per-input cache TTL still
+    /// short-circuits before the batch fires).
+    ///
+    /// Result vector parallels the input `targets` slice. Errors per
+    /// target are returned in-place so partial failure doesn't poison
+    /// the whole batch.
+    async fn head_conditional_batch(
+        &self,
+        targets: &[(UpstreamId, Option<CachedHead>)],
+    ) -> Vec<Result<HeadOutcome, RegistryError>> {
+        let mut out = Vec::with_capacity(targets.len());
+        for (id, prev) in targets {
+            out.push(self.head_conditional(id, prev.as_ref()).await);
+        }
+        out
+    }
 }
 
 #[cfg(test)]
