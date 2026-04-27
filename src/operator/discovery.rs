@@ -87,6 +87,15 @@ pub async fn discover_advances<R: HeadResolver + ?Sized>(
     lock: &ExtendedLockFile,
     resolver: &R,
 ) -> Result<Vec<CandidateAdvance>> {
+    // Cache HEAD lookups by (owner, repo, ref). flake.lock files
+    // typically contain dozens-to-hundreds of duplicate references
+    // to the same upstream — e.g. nixpkgs aliased as nixpkgs_2,
+    // nixpkgs_3, ..., nixpkgs_216 because each transitive flake input
+    // pulls its own follows-chain. Without this cache, one reconcile
+    // hammers the GitHub API hundreds of times per cycle and trips
+    // the rate limit (5000/hr authenticated → exhausted in seconds).
+    let mut head_cache: std::collections::HashMap<(String, String, String), Option<(String, i64)>> =
+        std::collections::HashMap::new();
     let mut out = Vec::new();
     for (name, node) in &lock.nodes {
         if name == &lock.root {
@@ -103,13 +112,21 @@ pub async fn discover_advances<R: HeadResolver + ?Sized>(
         };
         let r#ref = locked.r#ref.as_deref().unwrap_or("HEAD");
 
-        let (head_sha, head_time) = match resolver.head_sha(owner, repo, r#ref).await {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::warn!(input = %name, error = %e, "head lookup failed; skipping");
-                continue;
-            }
+        let key = (owner.to_string(), repo.to_string(), r#ref.to_string());
+        let resolved = if let Some(cached) = head_cache.get(&key) {
+            cached.clone()
+        } else {
+            let result = match resolver.head_sha(owner, repo, r#ref).await {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    tracing::warn!(input = %name, error = %e, "head lookup failed; skipping");
+                    None
+                }
+            };
+            head_cache.insert(key.clone(), result.clone());
+            result
         };
+        let Some((head_sha, head_time)) = resolved else { continue };
         if head_sha == rev {
             continue;
         }
