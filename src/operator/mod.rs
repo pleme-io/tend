@@ -10,6 +10,7 @@ pub mod dag;
 pub mod discovery;
 pub mod failure_set;
 pub mod flake_lock_adapter;
+pub mod flake_nix;
 pub mod gates;
 pub mod git_ops;
 pub mod helm_release_adapter;

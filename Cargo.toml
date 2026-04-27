@@ -44,6 +44,12 @@ futures = { version = "0.3", optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 petgraph = { version = "0.6", optional = true }
+# Pure-Rust Nix language parser (rowan-based CST). Used for read-only
+# validation of `flake.nix`: confirm proposed inputs exist in the user's
+# declared inputs block, surface drift between flake.nix and flake.lock.
+# No subprocess to nix, no C deps.
+rnix = { version = "0.11", optional = true }
+rowan = { version = "0.15", optional = true }
 prometheus = { version = "0.13", default-features = false, optional = true }
 hyper = { version = "1", features = ["server", "http1"], optional = true }
 hyper-util = { version = "0.1", features = ["tokio"], optional = true }
@@ -67,6 +73,8 @@ operator = [
     "dep:tracing",
     "dep:tracing-subscriber",
     "dep:petgraph",
+    "dep:rnix",
+    "dep:rowan",
     "dep:prometheus",
     "dep:hyper",
     "dep:hyper-util",

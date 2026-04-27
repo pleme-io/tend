@@ -11,6 +11,7 @@ use kube::{
     runtime::controller::Action,
     Client, Resource, ResourceExt,
 };
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{info, warn};
@@ -119,11 +120,35 @@ pub async fn reconcile_policy(
     let lock = ExtendedLockFile::parse(&lock_contents)
         .map_err(|e| ReconcileError::Other(anyhow::anyhow!("parse flake.lock: {e}")))?;
 
+    // Source of truth for "what inputs the user actually declared":
+    // flake.nix, parsed via rnix. flake.lock can hold stale entries
+    // (input removed from flake.nix but `nix flake update` not yet
+    // run). Without this filter, discovery would create proposals for
+    // ghosts that can never apply. We degrade gracefully — if
+    // flake.nix is unreadable or unparsable, we log a warn and fall
+    // back to the lock's view (preserves prior behavior).
+    let flake_nix_path = repo_dir.join("flake.nix");
+    let declared_inputs = match super::flake_nix::read_flake_inputs(&flake_nix_path) {
+        Ok(set) => Some(set),
+        Err(e) => {
+            tracing::warn!(
+                path = %flake_nix_path.display(),
+                error = %e,
+                "flake.nix unreadable/unparsable; discovery degrading to lock-only view",
+            );
+            None
+        }
+    };
+
     let resolver = ReqwestHeadResolver {
         client: ctx.http.clone(),
         token: ctx.github_token.clone(),
     };
-    let outcome = discovery::discover_advances(&lock, &resolver)
+    let outcome = discovery::discover_advances_filtered(
+        &lock,
+        &resolver,
+        declared_inputs.as_ref(),
+    )
         .await
         .map_err(|e| ReconcileError::Other(anyhow::anyhow!("discovery: {e}")))?;
 
@@ -146,6 +171,53 @@ pub async fn reconcile_policy(
         }
     };
 
+    // Build a typed dependency DAG from the lock's follows edges and
+    // partition the *advancing* inputs into waves. Wave 0 = inputs
+    // with no advancing parents; Wave N = inputs whose advancing
+    // parents all live in waves [0..N). This gives operators a
+    // deterministic ordering for rollout — substrate's bump shows up
+    // in Wave 0, downstream consumers in Wave 1+.
+    //
+    // The wave is recorded as `status.dag_wave` on each proposal at
+    // create time so a future rollout controller can sequence wave
+    // promotion. Today's proposal controller verifies + applies in
+    // parallel; the wave field is informational until that lands.
+    let repo_key = format!(
+        "{}/{}",
+        policy.spec.repo.workspace, policy.spec.repo.repo
+    );
+    let mut dag = super::dag::FleetDag::new();
+    if let Ok(edges) = super::flake_lock_adapter::FlakeLockAdapter
+        .edges_from_raw(&lock_contents)
+    {
+        for (parent, child) in edges {
+            if parent == lock.root || child == lock.root {
+                continue;
+            }
+            dag.add_edge(
+                super::dag::DagNodeId::new(&repo_key, parent),
+                super::dag::DagNodeId::new(&repo_key, child),
+            );
+        }
+    }
+    let advancing_set: std::collections::BTreeSet<super::dag::DagNodeId> = advances
+        .iter()
+        .map(|a| super::dag::DagNodeId::new(&repo_key, &a.input))
+        .collect();
+    let wave_of: BTreeMap<String, u32> = match dag.waves(Some(&advancing_set)) {
+        Ok(waves) => waves
+            .into_iter()
+            .enumerate()
+            .flat_map(|(idx, w)| {
+                w.into_iter().map(move |id| (id.input, idx as u32))
+            })
+            .collect(),
+        Err(e) => {
+            tracing::warn!(error = %e, "DAG planning failed; proposals get wave=None");
+            BTreeMap::new()
+        }
+    };
+
     let proposals: Api<FlakeUpdateProposal> = Api::namespaced(ctx.client.clone(), &ns);
     for adv in &advances {
         let mode = mode_for_input(&policy, &adv.input);
@@ -153,7 +225,8 @@ pub async fn reconcile_policy(
             continue;
         }
         let auto_approve = matches!(mode, UpdateMode::Auto);
-        upsert_proposal(&proposals, &policy, adv, auto_approve).await?;
+        let dag_wave = wave_of.get(&adv.input).copied();
+        upsert_proposal(&proposals, &policy, adv, auto_approve, dag_wave).await?;
     }
 
     // Refresh status: tracked inputs from current flake.lock.
@@ -226,6 +299,7 @@ async fn upsert_proposal(
     policy: &FlakeUpdatePolicy,
     adv: &discovery::CandidateAdvance,
     auto_approve: bool,
+    dag_wave: Option<u32>,
 ) -> Result<(), ReconcileError> {
     let policy_name = policy.name_any();
     let policy_ns = policy.namespace().unwrap_or_else(|| "default".into());
@@ -246,9 +320,9 @@ async fn upsert_proposal(
         return Ok(());
     }
 
-    let proposal = FlakeUpdateProposal {
+    let mut proposal = FlakeUpdateProposal {
         metadata: ObjectMeta {
-            name: Some(prop_name),
+            name: Some(prop_name.clone()),
             namespace: Some(policy_ns.clone()),
             labels: Some(
                 [
@@ -273,7 +347,16 @@ async fn upsert_proposal(
         },
         status: None,
     };
+    let _ = &mut proposal; // silence unused mut when wave is None
     api.create(&PostParams::default(), &proposal).await?;
+    // Stamp the wave on status after creation — status is a subresource
+    // so it can't be set via the initial create. Skip when None (no
+    // DAG signal available, e.g. cycle in lock or empty advancing set).
+    if let Some(wave) = dag_wave {
+        let patch = serde_json::json!({ "status": { "dagWave": wave } });
+        api.patch_status(&prop_name, &PatchParams::default(), &Patch::Merge(&patch))
+            .await?;
+    }
     Ok(())
 }
 

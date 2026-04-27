@@ -138,6 +138,21 @@ pub async fn discover_advances<R: RegistryClient + ?Sized>(
     lock: &ExtendedLockFile,
     client: &R,
 ) -> Result<DiscoveryOutcome> {
+    discover_advances_filtered(lock, client, None).await
+}
+
+/// `declared_inputs` is the set of input names actually in the user's
+/// `flake.nix` (parsed via rnix). Discovery filters its root-input
+/// iteration to this set when provided — eliminates "ghost" proposals
+/// for inputs the user removed from flake.nix but flake.lock still
+/// has stale entries for. Pass `None` to skip the filter (e.g.
+/// when flake.nix isn't readable for some reason; degrades to
+/// previous behavior, never blocks discovery).
+pub async fn discover_advances_filtered<R: RegistryClient + ?Sized>(
+    lock: &ExtendedLockFile,
+    client: &R,
+    declared_inputs: Option<&std::collections::BTreeSet<String>>,
+) -> Result<DiscoveryOutcome> {
     let mut head_cache: HashMap<UpstreamId, Option<HeadInfo>> = HashMap::new();
     let mut out = Vec::new();
     // Only direct root inputs — transitive lock nodes (cargo deps,
@@ -146,6 +161,18 @@ pub async fn discover_advances<R: RegistryClient + ?Sized>(
     // The `local_name` is what flake update accepts; `node_name` is
     // the lookup key into the lock graph.
     for (local_name, node_name) in lock.root_input_nodes() {
+        // Drop ghosts: inputs in lock.root.inputs but no longer in
+        // flake.nix's declared inputs. `nix flake update <ghost>`
+        // returns an error, so a proposal for it can never apply.
+        if let Some(declared) = declared_inputs {
+            if !declared.contains(&local_name) {
+                tracing::debug!(
+                    input = %local_name,
+                    "discovery skip: stale lock entry not in flake.nix",
+                );
+                continue;
+            }
+        }
         let Some(node) = lock.nodes.get(&node_name) else { continue };
         let Some(locked) = &node.locked else { continue };
         if locked.kind != "github" {
