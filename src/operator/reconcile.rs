@@ -56,11 +56,25 @@ pub async fn reconcile_policy(
     info!(ns = %ns, policy = %name, "reconciling FlakeUpdatePolicy");
 
     let repo_dir = resolve_repo_dir(&ctx.tend_config, &policy.spec.repo)?;
-    if !repo_dir.exists() {
+    let exists = repo_dir.try_exists().unwrap_or(false);
+    let canon = repo_dir.canonicalize().ok();
+    info!(
+        repo_dir = %repo_dir.display(),
+        exists,
+        canonical = ?canon,
+        workspaces_known = ctx.tend_config.workspaces.len(),
+        "resolved repo dir"
+    );
+    if !exists {
         return write_policy_failure(
             &ctx,
             &policy,
-            format!("repo dir does not exist: {}", repo_dir.display()),
+            format!(
+                "repo dir does not exist: {} (canonical: {:?}, try_exists: {:?})",
+                repo_dir.display(),
+                canon,
+                repo_dir.try_exists()
+            ),
         )
         .await
         .map(|_| Action::requeue(REQUEUE_OK));
