@@ -52,6 +52,26 @@
     cargoNix = pkgsLinux.callPackage ./Cargo.nix {};
     tendBin = cargoNix.workspaceMembers."pleme-tend".build;
 
+    # Minimal /etc/passwd + /etc/group + writable /home/tend so nix's
+    # `getpwuid_r` doesn't abort with "cannot determine user's home
+    # directory" before HOME is consulted. Without this layer the image
+    # has no /etc/passwd at all and every nix invocation crashes — even
+    # with HOME explicitly set on the subprocess, because some nix code
+    # paths look up the user before falling back to HOME.
+    fakeNss = pkgsLinux.runCommand "tend-fake-nss" { } ''
+      mkdir -p $out/etc $out/home/tend $out/tmp
+      cat > $out/etc/passwd <<'EOF'
+      root:x:0:0:root:/root:/bin/sh
+      tend:x:1000:1000:tend operator:/home/tend:/bin/sh
+      nobody:x:65534:65534:nobody:/var/empty:/bin/sh
+      EOF
+      cat > $out/etc/group <<'EOF'
+      root:x:0:
+      tend:x:1000:
+      nobody:x:65534:
+      EOF
+    '';
+
     dockerImage = pkgsLinux.dockerTools.buildLayeredImage {
       name = "ghcr.io/pleme-io/tend";
       tag = "amd64-${if (self ? rev) then builtins.substring 0 8 self.rev else "dev"}";
@@ -64,6 +84,7 @@
         pkgsLinux.cacert
         # /tmp etc. needed for tokio::process spawn cwd resolution.
         pkgsLinux.coreutils
+        fakeNss
       ];
       config = {
         Entrypoint = [ "${tendBin}/bin/tend" ];
