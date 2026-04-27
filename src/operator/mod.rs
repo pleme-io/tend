@@ -47,8 +47,16 @@ pub async fn run() -> Result<()> {
         .await
         .context("loading default kubeconfig")?;
 
-    let tend_config = crate::load_config(None)
-        .context("loading tend workspace config")?;
+    // Honor TEND_WORKSPACE_CONFIG (chart sets it to /etc/tend/config.yaml,
+    // mounted from the workspace ConfigMap). Falls back to load_config's
+    // default ~/.config/tend/config.yaml for local CLI use.
+    let tend_config = match std::env::var("TEND_WORKSPACE_CONFIG").ok() {
+        Some(path) if !path.is_empty() => {
+            crate::load_config(Some(std::path::Path::new(&path)))
+                .with_context(|| format!("loading tend workspace config from {path}"))?
+        }
+        _ => crate::load_config(None).context("loading tend workspace config")?,
+    };
 
     let ctx = Arc::new(Context {
         client: client.clone(),
