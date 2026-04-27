@@ -40,6 +40,7 @@ pub struct RolloutWindow {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct Condition {
     pub r#type: String,
     pub status: String,
@@ -49,6 +50,7 @@ pub struct Condition {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct GateResult {
     pub name: String,
     pub passed: bool,
@@ -59,6 +61,7 @@ pub struct GateResult {
 // ─── Phase 1: flake.lock CRDs ────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct FlakeRev {
     /// e.g. `"github:pleme-io/substrate"`
     pub url: String,
@@ -279,4 +282,53 @@ pub struct FlakeUpdateRolloutStatus {
 
     #[serde(default)]
     pub observed_generation: i64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// CRD schemas declare camelCase keys (`narHash`, `lastModified`,
+    /// `lastTransitionTime`, `durationMs`). When a Rust struct serializes
+    /// snake_case, the K8s API server prunes those unknown keys, the
+    /// stored object loses the data, and readback fails with
+    /// `missing field nar_hash`. Catch this at build time so leaf types
+    /// stay in sync with the schema as fields are added.
+    #[test]
+    fn flake_rev_uses_camel_case_keys() {
+        let r = FlakeRev {
+            url: "github:x/y".into(),
+            rev: "abc".into(),
+            nar_hash: "sha256-=".into(),
+            last_modified: 42,
+        };
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(json.contains("\"narHash\""), "got: {json}");
+        assert!(json.contains("\"lastModified\""), "got: {json}");
+    }
+
+    #[test]
+    fn condition_uses_camel_case_keys() {
+        let c = Condition {
+            r#type: "Reconciled".into(),
+            status: "True".into(),
+            reason: Some("OK".into()),
+            message: None,
+            last_transition_time: Some(Utc::now()),
+        };
+        let json = serde_json::to_string(&c).unwrap();
+        assert!(json.contains("\"lastTransitionTime\""), "got: {json}");
+    }
+
+    #[test]
+    fn gate_result_uses_camel_case_keys() {
+        let g = GateResult {
+            name: "build".into(),
+            passed: true,
+            duration_ms: 100,
+            log_excerpt: None,
+        };
+        let json = serde_json::to_string(&g).unwrap();
+        assert!(json.contains("\"durationMs\""), "got: {json}");
+    }
 }
