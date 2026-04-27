@@ -80,6 +80,28 @@ pub async fn reconcile_policy(
         .map(|_| Action::requeue(REQUEUE_OK));
     }
 
+    // Discovery must read flake.lock at *origin*/main, not whatever
+    // the pod's clone has cached. Without this, a failed apply leaves
+    // a local-only commit with the proposed rev pinned — discovery
+    // then sees no advance and stops generating proposals for that
+    // input. The reset is safe: the pod clone is a scratch workspace,
+    // we rebuild from origin every cycle.
+    if let Err(e) = super::git_ops::fetch_and_reset_to_origin(
+        &repo_dir,
+        "main",
+        ctx.github_token.as_deref(),
+    )
+    .await
+    {
+        return write_policy_failure(
+            &ctx,
+            &policy,
+            format!("fetch+reset to origin/main: {e:#}"),
+        )
+        .await
+        .map(|_| Action::requeue(REQUEUE_FAST));
+    }
+
     let lock_path = repo_dir.join("flake.lock");
     let lock_contents = match tokio::fs::read_to_string(&lock_path).await {
         Ok(s) => s,
