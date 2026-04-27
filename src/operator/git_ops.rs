@@ -43,6 +43,43 @@ impl GitCommitter {
     }
 }
 
+/// Fetch + hard-reset `repo_dir` to `origin/<branch>`. Use before
+/// any apply step that intends to push: it guarantees the local
+/// working tree is exactly origin's HEAD so the subsequent commit is
+/// fast-forwardable. Without this, the operator's clone drifts from
+/// origin every time someone else pushes — and the next apply hits
+/// `! [rejected] main -> main (fetch first)`, which is non-recoverable
+/// without intervention.
+///
+/// Discards any local changes. That's intentional — the operator's
+/// clone is a scratch workspace, not a long-lived working tree, and
+/// `apply_pin` rewrites flake.lock from scratch anyway.
+pub async fn fetch_and_reset_to_origin(
+    repo_dir: &Path,
+    branch: &str,
+    token: Option<&str>,
+) -> Result<()> {
+    let extra_header;
+    let auth_args: Vec<&str> = if let Some(t) = token {
+        extra_header = format!(
+            "http.https://github.com/.extraheader=AUTHORIZATION: bearer {t}"
+        );
+        vec!["-c", &extra_header]
+    } else {
+        Vec::new()
+    };
+
+    let mut fetch = auth_args.clone();
+    fetch.extend_from_slice(&["fetch", "origin", branch]);
+    git(repo_dir, &fetch, None).await.context("git fetch origin")?;
+
+    let target = format!("origin/{branch}");
+    git(repo_dir, &["reset", "--hard", &target], None)
+        .await
+        .context("git reset --hard origin/<branch>")?;
+    Ok(())
+}
+
 /// Stage `paths` (relative to `repo_dir`), commit with `message` as
 /// `committer`, push to `origin`. Returns the new commit sha.
 ///

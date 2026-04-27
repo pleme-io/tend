@@ -17,7 +17,7 @@ use tokio::process::Command;
 
 use super::crds::FlakeRev;
 use super::flake_lock_adapter::FlakeLockAdapter;
-use super::git_ops::{commit_and_push, GitCommitter};
+use super::git_ops::{commit_and_push, fetch_and_reset_to_origin, GitCommitter};
 use super::lock_format::LockFormat;
 
 pub struct ApplyOutcome {
@@ -31,6 +31,16 @@ pub async fn apply_pin(
     new: &FlakeRev,
     token: Option<&str>,
 ) -> Result<ApplyOutcome> {
+    // Sync to origin/main before doing anything. The operator's local
+    // clone drifts from origin every time something else pushes —
+    // without this, the next apply hits "[rejected] main -> main
+    // (fetch first)" and stays Failed until manual intervention.
+    // Reset is safe: there's no long-lived state in the pod's clone
+    // we'd want to preserve.
+    fetch_and_reset_to_origin(repo_dir, "main", token)
+        .await
+        .context("fetch + reset to origin/main before apply")?;
+
     let lock_path = repo_dir.join("flake.lock");
     let contents = tokio::fs::read_to_string(&lock_path)
         .await
