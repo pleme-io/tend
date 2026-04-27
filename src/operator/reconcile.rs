@@ -441,10 +441,15 @@ async fn upsert_plan(
     let ns = policy.namespace().unwrap_or_else(|| "default".into());
     let plans: Api<FlakeUpdatePlan> = Api::namespaced(ctx.client.clone(), &ns);
     let policy_name = policy.name_any();
-    // Plan name: <policy>-<unix_timestamp_minute>. Granular enough
-    // that high-frequency reconciles don't collide; coarse enough
-    // that operators see a manageable list.
-    let bucket = spec.generated_at.timestamp() / 60;
+    // Plan name: <policy>-<unix_timestamp_bucket>. Bucket size is
+    // tunable via TEND_PLAN_BUCKET_SECONDS (chart: plans.bucketSeconds);
+    // default 60s = one plan per minute per policy.
+    let bucket_seconds = std::env::var("TEND_PLAN_BUCKET_SECONDS")
+        .ok()
+        .and_then(|s| s.parse::<i64>().ok())
+        .filter(|n| *n > 0)
+        .unwrap_or(60);
+    let bucket = spec.generated_at.timestamp() / bucket_seconds;
     let plan_name = format!("{policy_name}-{bucket}");
     if plans.get_opt(&plan_name).await?.is_some() {
         // Same minute, same policy — overwrite spec to capture the

@@ -27,10 +27,21 @@ use super::crds::{
 use super::upstream::{CachedHead, UpstreamId};
 use crate::flake_lock::ExtendedLockFile;
 
-/// TTL for `UseCached` decisions — entries fetched within this window
-/// don't warrant a refresh, even when free (etag-only). Keeps
-/// reconcile cycles cheap when nothing has likely moved.
-const USE_CACHED_TTL: Duration = Duration::minutes(20);
+/// Default TTL for `UseCached` decisions — entries fetched within
+/// this window don't warrant a refresh, even when free (etag-only).
+/// Tunable via `TEND_USE_CACHED_TTL_SECONDS` env (Helm chart values:
+/// `cache.useCachedTtlSeconds`). Default keeps reconcile cycles
+/// cheap when nothing has likely moved.
+const DEFAULT_USE_CACHED_TTL: Duration = Duration::minutes(20);
+
+fn use_cached_ttl() -> Duration {
+    std::env::var("TEND_USE_CACHED_TTL_SECONDS")
+        .ok()
+        .and_then(|s| s.parse::<i64>().ok())
+        .filter(|n| *n > 0)
+        .map(Duration::seconds)
+        .unwrap_or(DEFAULT_USE_CACHED_TTL)
+}
 
 /// One plan output: the CRD spec for audit + a parallel list of
 /// `UpstreamId`s the discovery layer should actually call. Splitting
@@ -50,6 +61,7 @@ pub fn plan(
     budget: &RequestBudget,
 ) -> PlanOutput {
     let now = Utc::now();
+    let ttl = use_cached_ttl();
     let effective_max = budget.effective_max_per_hour();
     let mut slots_remaining = budget.slots_remaining();
 
@@ -129,7 +141,7 @@ pub fn plan(
         //    gets the cached info to compare against current pin —
         //    no budget cost.
         if let Some(cached) = head_cache.get(&id) {
-            if now.signed_duration_since(cached.fetched_at) < USE_CACHED_TTL {
+            if now.signed_duration_since(cached.fetched_at) < ttl {
                 checks.push(PlannedCheck {
                     input: local_name,
                     action: PlanAction::UseCached,

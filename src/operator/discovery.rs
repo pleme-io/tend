@@ -102,10 +102,26 @@ struct GraphQLError {
     message: String,
 }
 
-/// Maximum aliases per GraphQL batch — GitHub allows up to 500-node
-/// queries with reasonable rate-limit cost; 50 stays well within the
-/// per-query node budget while compressing 50:1 for our use case.
-const GRAPHQL_BATCH_SIZE: usize = 50;
+/// Default maximum aliases per GraphQL batch — GitHub allows up to
+/// 500-node queries with reasonable rate-limit cost; 50 stays well
+/// within the per-query node budget while compressing 50:1 for our
+/// use case. Tunable via `TEND_GRAPHQL_BATCH_SIZE` env (Helm chart
+/// values: `graphql.batchSize`).
+const DEFAULT_GRAPHQL_BATCH_SIZE: usize = 50;
+
+fn graphql_enabled() -> bool {
+    std::env::var("TEND_GRAPHQL_ENABLED")
+        .map(|v| !(v.eq_ignore_ascii_case("false") || v == "0"))
+        .unwrap_or(true)
+}
+
+fn graphql_batch_size() -> usize {
+    std::env::var("TEND_GRAPHQL_BATCH_SIZE")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .filter(|n| *n > 0 && *n <= 500)
+        .unwrap_or(DEFAULT_GRAPHQL_BATCH_SIZE)
+}
 
 pub struct ReqwestHeadResolver {
     pub client: reqwest::Client,
@@ -257,6 +273,18 @@ impl RegistryClient for ReqwestHeadResolver {
         &self,
         targets: &[(UpstreamId, Option<CachedHead>)],
     ) -> Vec<Result<HeadOutcome, RegistryError>> {
+        // Operator can disable GraphQL via TEND_GRAPHQL_ENABLED=false
+        // (chart: graphql.enabled). When disabled, fall through to the
+        // trait default (per-id calls) so we still benefit from ETag
+        // conditional requests just without the batch multiplier.
+        if !graphql_enabled() {
+            let mut out = Vec::with_capacity(targets.len());
+            for (id, prev) in targets {
+                out.push(self.head_conditional(id, prev.as_ref()).await);
+            }
+            return out;
+        }
+
         // Partition: GitHub targets get batched; everything else
         // falls through to per-id (one round-trip each, but the
         // count of non-GitHub targets is small in practice).
@@ -274,8 +302,9 @@ impl RegistryClient for ReqwestHeadResolver {
                 out[i] = Some(self.head_conditional(id, prev.as_ref()).await);
             }
         }
-        // Batch GitHub in chunks of GRAPHQL_BATCH_SIZE.
-        for chunk in github_indices.chunks(GRAPHQL_BATCH_SIZE) {
+        // Batch GitHub in env-configurable chunks.
+        let batch_size = graphql_batch_size();
+        for chunk in github_indices.chunks(batch_size) {
             let chunk_targets: Vec<(usize, &UpstreamId)> =
                 chunk.iter().map(|&i| (i, &targets[i].0)).collect();
             match self.graphql_batch(&chunk_targets).await {
@@ -455,26 +484,92 @@ pub async fn discover_advances_filtered<R: RegistryClient + ?Sized>(
     declared_inputs: Option<&std::collections::BTreeSet<String>>,
     head_cache: &mut HashMap<UpstreamId, CachedHead>,
 ) -> Result<DiscoveryOutcome> {
-    // Per-cycle dedup so case-aliased inputs (NixOS/nixpkgs vs
-    // nixos/nixpkgs) only generate one upstream request even if they
-    // both miss cache.
-    let mut cycle_seen: HashMap<UpstreamId, Option<HeadInfo>> = HashMap::new();
-    let mut out = Vec::new();
-    // Only direct root inputs — transitive lock nodes (cargo deps,
-    // nested pins, dedup aliases like `nixpkgs_2`) can't be bumped via
-    // `nix flake update --update-input`, so proposing them is noise.
-    // The `local_name` is what flake update accepts; `node_name` is
-    // the lookup key into the lock graph.
+    // Pass 1 — collect distinct UpstreamIds that need an upstream
+    // call. Case-aliased inputs (NixOS/nixpkgs vs nixos/nixpkgs)
+    // collapse here so a batch query never asks for the same alias
+    // twice. The `targets` vector preserves the (id, prev_cached)
+    // shape that `head_conditional_batch` consumes directly.
+    let mut targets: Vec<(UpstreamId, Option<CachedHead>)> = Vec::new();
+    let mut seen_ids: std::collections::BTreeSet<UpstreamId> =
+        std::collections::BTreeSet::new();
     for (local_name, node_name) in lock.root_input_nodes() {
-        // Drop ghosts: inputs in lock.root.inputs but no longer in
-        // flake.nix's declared inputs. `nix flake update <ghost>`
-        // returns an error, so a proposal for it can never apply.
         if let Some(declared) = declared_inputs {
             if !declared.contains(&local_name) {
                 tracing::debug!(
                     input = %local_name,
                     "discovery skip: stale lock entry not in flake.nix",
                 );
+                continue;
+            }
+        }
+        let Some(node) = lock.nodes.get(&node_name) else { continue };
+        let Some(locked) = &node.locked else { continue };
+        if locked.kind != "github" {
+            continue;
+        }
+        let (Some(owner), Some(repo), _) = (
+            locked.owner.as_deref(),
+            locked.repo.as_deref(),
+            locked.rev.as_deref(),
+        ) else {
+            continue;
+        };
+        let r#ref = node.tracking_ref();
+        let id = UpstreamId::new_github(owner, repo, r#ref);
+        if seen_ids.insert(id.clone()) {
+            let prev = head_cache.get(&id).cloned();
+            targets.push((id, prev));
+        }
+    }
+
+    // Pass 2 — batch fetch. The `head_conditional_batch` impl on
+    // ReqwestHeadResolver chunks targets into GraphQL queries of up
+    // to GRAPHQL_BATCH_SIZE aliases each (50:1 quota multiplier on
+    // large cycles). The trait default fans out to per-id calls so
+    // tests with the in-memory mock keep their existing semantics.
+    let results = client.head_conditional_batch(&targets).await;
+
+    // Pass 3 — resolve results into a per-id lookup. Errors fatal to
+    // the cycle (rate limit, auth) abort the whole pass with the
+    // partial set of advances we'd already gathered (none yet at
+    // this point, but kept for shape consistency with the prior
+    // single-call path).
+    let mut cycle_seen: HashMap<UpstreamId, Option<HeadInfo>> = HashMap::new();
+    let out: Vec<CandidateAdvance> = Vec::new();
+    for ((id, _), result) in targets.iter().zip(results.into_iter()) {
+        match result {
+            Ok(outcome) => {
+                let cached = outcome.cached().clone();
+                head_cache.insert(id.clone(), cached.clone());
+                cycle_seen.insert(id.clone(), Some(cached.info));
+            }
+            Err(e) if e.is_fatal_to_cycle() => {
+                tracing::warn!(
+                    upstream = %id,
+                    error = %e,
+                    "discovery aborting cycle on fatal error",
+                );
+                return Ok(DiscoveryOutcome::Halted { partial: out, reason: e });
+            }
+            Err(e) => {
+                tracing::warn!(
+                    upstream = %id,
+                    error = %e,
+                    "head lookup failed for input; skipping",
+                );
+                cycle_seen.insert(id.clone(), None);
+            }
+        }
+    }
+
+    // Pass 4 — assemble candidate advances. Each root input's
+    // current rev is compared to the resolved upstream rev; differing
+    // → emit a `CandidateAdvance`. Case-aliased inputs each get their
+    // own advance even though they share a single batch lookup.
+    let mut out = out;
+    for (local_name, node_name) in lock.root_input_nodes() {
+        if let Some(declared) = declared_inputs {
+            if !declared.contains(&local_name) {
                 continue;
             }
         }
@@ -490,52 +585,8 @@ pub async fn discover_advances_filtered<R: RegistryClient + ?Sized>(
         ) else {
             continue;
         };
-        // Use the *tracking* ref — `original.ref` (declared in flake.nix)
-        // takes precedence over `locked.ref`, which is empty for
-        // tag-pinned inputs. Without this, tag-pinned inputs would be
-        // checked against upstream's default branch HEAD and falsely
-        // flag every push to main as a tag advance.
-        let r#ref = node.tracking_ref();
-        let id = UpstreamId::new_github(owner, repo, r#ref);
-
-        // Three-tier resolution:
-        //   1. cycle_seen — already handled this UpstreamId in this
-        //      reconcile (case aliases, follows). Reuse, no traffic.
-        //   2. head_cache — persistent across cycles. Send conditional
-        //      request with the cached etag; 304 means free.
-        //   3. fresh — cache miss, full request (counts toward budget).
-        let head = if let Some(cached) = cycle_seen.get(&id) {
-            cached.clone()
-        } else {
-            let prev = head_cache.get(&id).cloned();
-            match client.head_conditional(&id, prev.as_ref()).await {
-                Ok(outcome) => {
-                    let cached = outcome.cached().clone();
-                    head_cache.insert(id.clone(), cached.clone());
-                    cycle_seen.insert(id.clone(), Some(cached.info.clone()));
-                    Some(cached.info)
-                }
-                Err(e) if e.is_fatal_to_cycle() => {
-                    tracing::warn!(
-                        upstream = %id,
-                        error = %e,
-                        "discovery aborting cycle on fatal error",
-                    );
-                    return Ok(DiscoveryOutcome::Halted { partial: out, reason: e });
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        upstream = %id,
-                        input = %local_name,
-                        error = %e,
-                        "head lookup failed for input; skipping",
-                    );
-                    cycle_seen.insert(id.clone(), None);
-                    None
-                }
-            }
-        };
-        let Some(head) = head else { continue };
+        let id = UpstreamId::new_github(owner, repo, node.tracking_ref());
+        let Some(Some(head)) = cycle_seen.get(&id) else { continue };
         if head.upstream_rev == rev {
             continue;
         }
@@ -550,7 +601,7 @@ pub async fn discover_advances_filtered<R: RegistryClient + ?Sized>(
             },
             to: FlakeRev {
                 url: format!("github:{owner}/{repo}"),
-                rev: head.upstream_rev,
+                rev: head.upstream_rev.clone(),
                 nar_hash: String::new(),
                 last_modified: head.upstream_modified,
             },
