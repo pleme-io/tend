@@ -177,9 +177,10 @@ async fn dispatch_nix_build(attr: &str, repo_dir: &Path) -> Result<GateOutcome> 
         });
     }
     let target = format!(".#{attr}");
+    let mut cmd = Command::new("nix");
+    nix_env(&mut cmd);
     capture(
-        Command::new("nix")
-            .arg("build")
+        cmd.arg("build")
             .arg(&target)
             .arg("--no-link")
             .arg("--print-build-logs")
@@ -195,9 +196,10 @@ async fn dispatch_nix_eval(attr: &str, repo_dir: &Path) -> Result<GateOutcome> {
         });
     }
     let target = format!(".#{attr}");
+    let mut cmd = Command::new("nix");
+    nix_env(&mut cmd);
     capture(
-        Command::new("nix")
-            .arg("eval")
+        cmd.arg("eval")
             .arg(&target)
             .arg("--apply")
             .arg("_: null")
@@ -206,13 +208,34 @@ async fn dispatch_nix_eval(attr: &str, repo_dir: &Path) -> Result<GateOutcome> {
 }
 
 async fn dispatch_nix_flake_check(repo_dir: &Path) -> Result<GateOutcome> {
+    let mut cmd = Command::new("nix");
+    nix_env(&mut cmd);
     capture(
-        Command::new("nix")
-            .arg("flake")
+        cmd.arg("flake")
             .arg("check")
             .arg("--no-build")
             .current_dir(repo_dir),
     ).await
+}
+
+/// Apply the env vars nix needs to operate from a no-/etc/passwd
+/// distroless pod. Inheriting the parent process env *should* be
+/// sufficient — but we explicitly set the load-bearing ones because
+/// the nix C++ binary aborts hard ("cannot determine user's home
+/// directory") without HOME, and inheritance failures are silent.
+/// Setting them on the subprocess Command is idempotent with the
+/// pod-level env, costs nothing, and makes the contract explicit.
+fn nix_env(cmd: &mut Command) {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/home/tend".to_string());
+    let cache = std::env::var("XDG_CACHE_HOME").unwrap_or_else(|_| format!("{home}/.cache"));
+    cmd.env("HOME", &home)
+        .env("XDG_CACHE_HOME", &cache)
+        .env("USER", "tend")
+        .env("LOGNAME", "tend")
+        // Guarantees nix-command + flakes are enabled regardless of
+        // ambient state — the gates rely on `nix flake check` and
+        // `nix build` syntax.
+        .env("NIX_CONFIG", "experimental-features = nix-command flakes");
 }
 
 async fn dispatch_forge_ci(repo_dir: &Path) -> Result<GateOutcome> {

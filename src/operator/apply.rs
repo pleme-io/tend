@@ -45,12 +45,22 @@ pub async fn apply_pin(
         .with_context(|| format!("atomic write {}", lock_path.display()))?;
 
     // Let Nix rebalance narHash if discovery left it empty. Idempotent
-    // when narHash already matches.
+    // when narHash already matches. Explicit HOME — `nix` aborts on
+    // "cannot determine user's home directory" without it (the operator
+    // runs in a distroless pod with no /etc/passwd entry for UID 1000).
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/home/tend".to_string());
+    let xdg_cache = std::env::var("XDG_CACHE_HOME")
+        .unwrap_or_else(|_| format!("{home}/.cache"));
     let nix_status = Command::new("nix")
         .arg("flake")
         .arg("lock")
         .arg("--update-input")
         .arg(input_name)
+        .env("HOME", &home)
+        .env("XDG_CACHE_HOME", &xdg_cache)
+        .env("USER", "tend")
+        .env("LOGNAME", "tend")
+        .env("NIX_CONFIG", "experimental-features = nix-command flakes")
         .current_dir(repo_dir)
         .status()
         .await
