@@ -54,13 +54,20 @@ impl GitCommitter {
 /// Discards any local changes. That's intentional — the operator's
 /// clone is a scratch workspace, not a long-lived working tree, and
 /// `apply_pin` rewrites flake.lock from scratch anyway.
+///
+/// The `token` argument is ignored when origin already carries an
+/// embedded token (the pod's clone is set up by `tend sync` with
+/// `https://x-access-token:<token>@github.com/...`). Stacking a
+/// bearer header on top of URL basic-auth makes GitHub reject the
+/// request with "invalid credentials" — origin URL credentials win.
 pub async fn fetch_and_reset_to_origin(
     repo_dir: &Path,
     branch: &str,
     token: Option<&str>,
 ) -> Result<()> {
+    let url_has_creds = origin_has_embedded_credentials(repo_dir).await.unwrap_or(false);
     let extra_header;
-    let auth_args: Vec<&str> = if let Some(t) = token {
+    let auth_args: Vec<&str> = if let (Some(t), false) = (token, url_has_creds) {
         extra_header = format!(
             "http.https://github.com/.extraheader=AUTHORIZATION: bearer {t}"
         );
@@ -78,6 +85,25 @@ pub async fn fetch_and_reset_to_origin(
         .await
         .context("git reset --hard origin/<branch>")?;
     Ok(())
+}
+
+/// True if `origin`'s URL embeds basic-auth credentials (e.g. the
+/// `https://x-access-token:<token>@github.com/...` form `tend sync`
+/// uses). Matters because layering a bearer-auth header on top makes
+/// GitHub reject the combined request as "invalid credentials".
+async fn origin_has_embedded_credentials(repo_dir: &Path) -> Result<bool> {
+    let out = Command::new("git")
+        .args(["config", "--get", "remote.origin.url"])
+        .current_dir(repo_dir)
+        .output()
+        .await?;
+    if !out.status.success() {
+        return Ok(false);
+    }
+    let url = String::from_utf8_lossy(&out.stdout);
+    // Detection: `https://USER:TOKEN@host` has an `@` before the host.
+    // Any other shape (ssh, plain https) returns false.
+    Ok(url.starts_with("https://") && url.contains('@'))
 }
 
 /// Stage `paths` (relative to `repo_dir`), commit with `message` as
@@ -112,12 +138,14 @@ pub async fn commit_and_push(
     ];
     git(repo_dir, &commit, None).await.context("git commit")?;
 
+    let url_has_creds = origin_has_embedded_credentials(repo_dir).await.unwrap_or(false);
     let mut push = vec!["push", "origin", "HEAD"];
     let extra_header;
-    if let Some(t) = token {
-        // Authorization header avoids embedding the token in the
-        // remote URL; works for every https://github.com/* repo
-        // regardless of which one origin points to.
+    if let (Some(t), false) = (token, url_has_creds) {
+        // Token-as-bearer-header path: origin URL has no credentials,
+        // so we inject auth via -c http.<host>.extraheader. When the
+        // URL already carries `x-access-token:...@`, stacking a
+        // bearer header on top makes GitHub reject the request.
         extra_header = format!(
             "http.https://github.com/.extraheader=AUTHORIZATION: bearer {t}"
         );
