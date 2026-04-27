@@ -54,6 +54,14 @@ pub struct Condition {
 pub struct GateResult {
     pub name: String,
     pub passed: bool,
+    /// True when the gate was not run because its target platform
+    /// doesn't match the operator's current system (e.g. a darwin
+    /// build attempted from a linux pod). Reconciler treats Skipped
+    /// as non-failure so the proposal isn't blocked by gates that
+    /// can't be executed in this pod's runtime — Phase 2 will replace
+    /// skipping with delegation to remote builders.
+    #[serde(default)]
+    pub skipped: bool,
     pub duration_ms: u64,
     pub log_excerpt: Option<String>,
 }
@@ -325,6 +333,7 @@ mod tests {
         let g = GateResult {
             name: "build".into(),
             passed: true,
+            skipped: false,
             duration_ms: 100,
             log_excerpt: None,
         };

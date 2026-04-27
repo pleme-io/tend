@@ -207,6 +207,30 @@ impl ExtendedLockFile {
         out
     }
 
+    /// Direct root inputs — the entries that appear in the user's
+    /// `flake.nix` `inputs.<name>` block. Returns `(local_name, node_name)`
+    /// pairs where `local_name` is what `nix flake update --update-input`
+    /// accepts and `node_name` is the lookup key into `self.nodes`.
+    ///
+    /// Critically excludes transitive lock entries (cargo deps,
+    /// nested input pins, alias suffixes like `nixpkgs_2`) — those
+    /// can't be directly bumped, so generating proposals for them is
+    /// noise. `Follows` chains are also excluded since they resolve
+    /// through other inputs and aren't independently advanceable.
+    #[must_use]
+    pub fn root_input_nodes(&self) -> Vec<(String, String)> {
+        let Some(root) = self.nodes.get(&self.root) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for (local_name, input_ref) in &root.inputs {
+            if let ExtendedInputRef::Direct(node_name) = input_ref {
+                out.push((local_name.clone(), node_name.clone()));
+            }
+        }
+        out
+    }
+
     /// Resolve an `inputs[*]` ref to the target node name.
     fn resolve_ref(&self, r: &ExtendedInputRef) -> Option<String> {
         match r {

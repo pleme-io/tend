@@ -140,10 +140,13 @@ pub async fn discover_advances<R: RegistryClient + ?Sized>(
 ) -> Result<DiscoveryOutcome> {
     let mut head_cache: HashMap<UpstreamId, Option<HeadInfo>> = HashMap::new();
     let mut out = Vec::new();
-    for (name, node) in &lock.nodes {
-        if name == &lock.root {
-            continue;
-        }
+    // Only direct root inputs — transitive lock nodes (cargo deps,
+    // nested pins, dedup aliases like `nixpkgs_2`) can't be bumped via
+    // `nix flake update --update-input`, so proposing them is noise.
+    // The `local_name` is what flake update accepts; `node_name` is
+    // the lookup key into the lock graph.
+    for (local_name, node_name) in lock.root_input_nodes() {
+        let Some(node) = lock.nodes.get(&node_name) else { continue };
         let Some(locked) = &node.locked else { continue };
         if locked.kind != "github" {
             continue;
@@ -177,7 +180,7 @@ pub async fn discover_advances<R: RegistryClient + ?Sized>(
                 Err(e) => {
                     tracing::warn!(
                         upstream = %id,
-                        input = %name,
+                        input = %local_name,
                         error = %e,
                         "head lookup failed for input; skipping",
                     );
@@ -192,7 +195,7 @@ pub async fn discover_advances<R: RegistryClient + ?Sized>(
         }
 
         out.push(CandidateAdvance {
-            input: name.clone(),
+            input: local_name.clone(),
             from: FlakeRev {
                 url: format!("github:{owner}/{repo}"),
                 rev: rev.to_string(),
@@ -261,9 +264,19 @@ mod tests {
         }
     }
 
+    /// Sample lock with three flake.nix inputs at root + two
+    /// transitive entries that look superficially upstream-bumpable
+    /// but aren't actionable via `nix flake update --update-input`.
+    /// Discovery must scope to root inputs only.
     const SAMPLE: &str = r#"{
       "nodes": {
-        "root": { "inputs": { "substrate": "substrate", "nixpkgs": "nixpkgs" } },
+        "root": {
+          "inputs": {
+            "substrate": "substrate",
+            "nixpkgs": "nixpkgs",
+            "nixpkgs-aliased": "nixpkgs_2"
+          }
+        },
         "substrate": {
           "locked": {
             "lastModified": 100, "narHash": "sha256-old=",
@@ -285,11 +298,11 @@ mod tests {
             "rev": "old-nixpkgs-sha", "type": "github"
           }
         },
-        "nixpkgs_3": {
+        "transitive-not-in-root": {
           "locked": {
             "lastModified": 100, "narHash": "sha256-old=",
-            "owner": "nixos", "repo": "nixpkgs",
-            "rev": "old-nixpkgs-sha", "type": "github"
+            "owner": "transient", "repo": "deep-dep",
+            "rev": "old-transitive-sha", "type": "github"
           }
         }
       },
@@ -299,6 +312,10 @@ mod tests {
 
     #[tokio::test]
     async fn dedup_collapses_case_variants_to_one_call() {
+        // Root has `nixpkgs` (NixOS/nixpkgs) and `nixpkgs-aliased`
+        // (nixos/nixpkgs) as separate direct inputs — both legitimately
+        // bumpable via `nix flake update`. Case normalization in
+        // UpstreamId means a single HEAD lookup serves both.
         let lock = ExtendedLockFile::parse(SAMPLE).unwrap();
         let mock = CountingMock::new(vec![
             (
@@ -316,8 +333,57 @@ mod tests {
             other => panic!("expected Advances, got {other:?}"),
         };
         assert_eq!(mock.call_count(), 2,
-            "expected 2 unique upstreams, got {}", mock.call_count());
-        assert_eq!(advances.len(), 4);
+            "expected 2 unique upstreams (substrate + nixpkgs), got {}", mock.call_count());
+        // 3 root inputs all advance: substrate, nixpkgs, nixpkgs-aliased.
+        // The two nixpkgs aliases share an UpstreamId but each gets its
+        // own proposal because they live at distinct local input names.
+        assert_eq!(advances.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn transitive_lock_nodes_are_not_proposed() {
+        // `transitive-not-in-root` is a node in the lockfile but not
+        // referenced from root.inputs — `nix flake update` can't bump it.
+        // Discovery must skip it entirely, otherwise we generate
+        // un-actionable proposals (16k+ in the rio incident).
+        let lock = ExtendedLockFile::parse(SAMPLE).unwrap();
+        let mock = CountingMock::new(vec![
+            (
+                UpstreamId::new_github("pleme-io", "substrate", "HEAD"),
+                Ok(HeadInfo { upstream_rev: "xyz".into(), upstream_modified: 200 }),
+            ),
+            (
+                UpstreamId::new_github("nixos", "nixpkgs", "HEAD"),
+                Ok(HeadInfo { upstream_rev: "new-nixpkgs-sha".into(), upstream_modified: 300 }),
+            ),
+            (
+                UpstreamId::new_github("transient", "deep-dep", "HEAD"),
+                Ok(HeadInfo { upstream_rev: "should-not-be-fetched".into(), upstream_modified: 400 }),
+            ),
+        ]);
+        let outcome = discover_advances(&lock, &mock).await.unwrap();
+        let advances = match outcome {
+            DiscoveryOutcome::Advances(a) => a,
+            other => panic!("expected Advances, got {other:?}"),
+        };
+        assert!(
+            !advances.iter().any(|a| a.input == "transitive-not-in-root"),
+            "transitive node leaked into proposals: {:?}",
+            advances.iter().map(|a| &a.input).collect::<Vec<_>>()
+        );
+        // And we should not have even queried the upstream — that's
+        // wasted GitHub quota.
+        let queried: Vec<_> = mock
+            .calls
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|id| id.key.clone())
+            .collect();
+        assert!(
+            !queried.iter().any(|k| k == "transient/deep-dep"),
+            "transitive upstream was queried: {queried:?}"
+        );
     }
 
     #[tokio::test]

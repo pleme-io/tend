@@ -17,6 +17,7 @@ use tokio::process::Command;
 
 use super::crds::FlakeRev;
 use super::flake_lock_adapter::FlakeLockAdapter;
+use super::git_ops::{commit_and_push, GitCommitter};
 use super::lock_format::LockFormat;
 
 pub struct ApplyOutcome {
@@ -28,6 +29,7 @@ pub async fn apply_pin(
     repo_dir: &Path,
     input_name: &str,
     new: &FlakeRev,
+    token: Option<&str>,
 ) -> Result<ApplyOutcome> {
     let lock_path = repo_dir.join("flake.lock");
     let contents = tokio::fs::read_to_string(&lock_path)
@@ -61,15 +63,15 @@ pub async fn apply_pin(
         "chore(flake): bump {input_name} to {} (tend operator)",
         short_rev(&new.rev)
     );
-
-    sh(repo_dir, "git", &["add", "flake.lock"]).await?;
-    sh(repo_dir, "git", &["commit", "-m", &msg]).await?;
-    sh(repo_dir, "git", &["push"]).await?;
-
-    let commit = sh_capture(repo_dir, "git", &["rev-parse", "HEAD"])
-        .await?
-        .trim()
-        .to_string();
+    let commit = commit_and_push(
+        repo_dir,
+        &["flake.lock"],
+        &msg,
+        &GitCommitter::tend_bot(),
+        token,
+    )
+    .await
+    .context("commit + push flake.lock pin")?;
     Ok(ApplyOutcome { commit })
 }
 
@@ -91,28 +93,6 @@ fn tempfile_in(dir: &Path, target: &Path) -> PathBuf {
         .map(|d| d.as_nanos())
         .unwrap_or(0);
     dir.join(format!(".{stem}.tmp.{pid}.{ts}"))
-}
-
-async fn sh(dir: &Path, cmd: &str, args: &[&str]) -> Result<()> {
-    let status = Command::new(cmd).args(args).current_dir(dir).status().await?;
-    if !status.success() {
-        return Err(anyhow!("`{} {}` failed in {}", cmd, args.join(" "), dir.display()));
-    }
-    Ok(())
-}
-
-async fn sh_capture(dir: &Path, cmd: &str, args: &[&str]) -> Result<String> {
-    let out = Command::new(cmd).args(args).current_dir(dir).output().await?;
-    if !out.status.success() {
-        return Err(anyhow!(
-            "`{} {}` failed in {}: {}",
-            cmd,
-            args.join(" "),
-            dir.display(),
-            String::from_utf8_lossy(&out.stderr)
-        ));
-    }
-    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
 fn short_rev(rev: &str) -> &str {

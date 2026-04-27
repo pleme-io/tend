@@ -320,8 +320,11 @@ pub async fn reconcile_proposal(
                     .with_label_values(&[&r.name, outcome])
                     .inc();
             }
-            let all_passed = results.iter().all(|r| r.passed);
-            let next = if all_passed { Verified } else { Failed };
+            // Skipped gates (platform mismatch, no remote builder yet)
+            // are non-blocking — same as Passed for proposal progress.
+            // Only an actual Failed gate stops the proposal.
+            let any_failed = results.iter().any(|r| !r.passed && !r.skipped);
+            let next = if any_failed { Failed } else { Verified };
             let patch = serde_json::json!({
                 "status": {
                     "phase": next,
@@ -344,8 +347,13 @@ pub async fn reconcile_proposal(
         }
         Applying => {
             let repo_dir = resolve_repo_dir(&ctx.tend_config, &proposal.spec.repo)?;
-            let outcome = match apply::apply_pin(&repo_dir, &proposal.spec.input, &proposal.spec.to)
-                .await
+            let outcome = match apply::apply_pin(
+                &repo_dir,
+                &proposal.spec.input,
+                &proposal.spec.to,
+                ctx.github_token.as_deref(),
+            )
+            .await
             {
                 Ok(o) => o,
                 Err(e) => {
