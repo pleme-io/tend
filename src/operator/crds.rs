@@ -39,7 +39,7 @@ pub struct RolloutWindow {
     pub cron: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct Condition {
     pub r#type: String,
     pub status: String,
@@ -130,7 +130,7 @@ pub struct FlakeUpdatePolicySpec {
     pub window: Option<RolloutWindow>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct FlakeUpdatePolicyStatus {
     /// Inputs the controller observed in the repo's flake.lock at last

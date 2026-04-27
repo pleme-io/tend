@@ -14,6 +14,7 @@ pub mod helm_release_adapter;
 pub mod lock_format;
 pub mod metrics;
 pub mod reconcile;
+pub mod status;
 pub mod upstream;
 pub mod workspace;
 

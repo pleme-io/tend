@@ -142,7 +142,7 @@ pub async fn reconcile_policy(
         .cloned()
         .collect();
 
-    let conditions = if let Some(reason) = halt_reason {
+    let mut conditions = if let Some(reason) = halt_reason {
         vec![Condition {
             r#type: "Reconciled".into(),
             status: "False".into(),
@@ -154,17 +154,28 @@ pub async fn reconcile_policy(
         vec![ok_condition("Reconciled", "policy reconciled cleanly")]
     };
 
-    let policies: Api<FlakeUpdatePolicy> = Api::namespaced(ctx.client.clone(), &ns);
-    let status = FlakeUpdatePolicyStatus {
+    // Carry over last_transition_time when status didn't flip — kube-rs
+    // Controller re-fires reconcile on every status write, so without
+    // byte-stable status writes we'd loop forever (every cycle bumps
+    // resourceVersion → watch fires → reconcile → patch → loop).
+    let prev_status = policy.status.as_ref();
+    let prev_conditions = prev_status.map(|s| s.conditions.as_slice()).unwrap_or(&[]);
+    super::status::stabilize_conditions(&mut conditions, prev_conditions);
+
+    let new_status = FlakeUpdatePolicyStatus {
         tracked_inputs: tracked,
         last_observed_lock_hash: Some(lock_fingerprint(&lock_contents)),
         conditions,
         observed_generation: policy.metadata.generation.unwrap_or(0),
     };
-    let patch = serde_json::json!({ "status": status });
-    policies
-        .patch_status(&name, &PatchParams::default(), &Patch::Merge(&patch))
-        .await?;
+
+    if prev_status != Some(&new_status) {
+        let policies: Api<FlakeUpdatePolicy> = Api::namespaced(ctx.client.clone(), &ns);
+        let patch = serde_json::json!({ "status": new_status });
+        policies
+            .patch_status(&name, &PatchParams::default(), &Patch::Merge(&patch))
+            .await?;
+    }
 
     Ok(Action::requeue(requeue))
 }
