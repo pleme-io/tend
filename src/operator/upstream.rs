@@ -20,7 +20,10 @@ use std::fmt;
 /// A normalized identity for an upstream pin source. Construct via the
 /// `new_*` constructors so case + scheme normalization happens once at
 /// the boundary; downstream code treats `UpstreamId` as opaque-by-key.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+///
+/// Serialize/Deserialize derived so the persistent HEAD cache can
+/// round-trip these as JSON map keys (encoded via `to_string()` Display).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub struct UpstreamId {
     pub source: SourceKind,
     /// Canonical identifier within the source. For GitHub: `owner/repo`
@@ -32,7 +35,7 @@ pub struct UpstreamId {
     pub r#ref: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub enum SourceKind {
     Github,
     OciRegistry,
@@ -102,7 +105,7 @@ impl fmt::Display for UpstreamId {
 
 /// Outcome of a HEAD lookup. `Advance` means upstream moved past the
 /// caller's pin; `Stable` means caller is current.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct HeadInfo {
     pub upstream_rev: String,
     pub upstream_modified: i64,
@@ -117,7 +120,7 @@ pub struct HeadInfo {
 ///
 /// `fetched_at` lets a future TTL-aware planner decide whether to
 /// refresh at all (Phase B of the under-the-radar redesign).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CachedHead {
     pub info: HeadInfo,
     pub etag: Option<String>,

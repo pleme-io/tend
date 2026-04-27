@@ -13,6 +13,7 @@ pub mod failure_set;
 pub mod flake_lock_adapter;
 pub mod flake_nix;
 pub mod gates;
+pub mod head_cache;
 pub mod git_ops;
 pub mod helm_release_adapter;
 pub mod lock_format;
@@ -75,9 +76,13 @@ pub async fn run() -> Result<()> {
         repo_locks: Arc::new(tokio::sync::Mutex::new(
             std::collections::HashMap::new(),
         )),
-        head_cache: Arc::new(tokio::sync::Mutex::new(
-            std::collections::HashMap::new(),
-        )),
+        // File-backed cache on the workspace PVC. Survives pod
+        // restarts. The path is fixed-relative so the chart doesn't
+        // need a new env var; lives alongside cloned repos.
+        head_cache: head_cache::open_at(
+            std::path::PathBuf::from("/var/lib/tend-workspace/.tend-cache/head.json"),
+        )
+        .await,
         budget: Arc::new(budget::RequestBudget::default_for_github()),
     });
 

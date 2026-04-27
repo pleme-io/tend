@@ -56,15 +56,11 @@ pub struct Context {
     pub repo_locks: Arc<tokio::sync::Mutex<
         std::collections::HashMap<std::path::PathBuf, Arc<tokio::sync::Mutex<()>>>,
     >>,
-    /// HEAD-lookup cache, keyed by UpstreamId. Lives across reconcile
-    /// cycles for the lifetime of the pod. Each entry carries an ETag
-    /// so the next conditional request can return 304 (free) when
-    /// nothing changed — the foundation of "way under GitHub's radar"
-    /// polling. Phase B will persist this to a ConfigMap so cache
-    /// survives pod restarts.
-    pub head_cache: Arc<tokio::sync::Mutex<
-        std::collections::HashMap<super::upstream::UpstreamId, super::upstream::CachedHead>,
-    >>,
+    /// File-backed HEAD-lookup cache. Survives pod restarts via
+    /// `flush()` to a JSON file on the workspace PVC. Each entry
+    /// carries an ETag so conditional requests return 304 (free)
+    /// when nothing changed.
+    pub head_cache: Arc<super::head_cache::PersistentHeadCache>,
     /// Sliding-window rate budget shared across every domain
     /// controller. Enforces a per-pod hourly cap on outgoing requests
     /// (default 100/hr — 2% of GitHub's authenticated quota) and
@@ -208,15 +204,23 @@ pub async fn reconcile_policy(
     // into 304 (free) responses. Lock for the duration of discovery
     // so concurrent reconciles can't double-fetch the same upstream
     // while the in-flight cache lookup is still in progress.
-    let mut head_cache_guard = ctx.head_cache.lock().await;
-    let outcome = discovery::discover_advances_filtered(
-        &lock,
-        &resolver,
-        declared_inputs.as_ref(),
-        &mut head_cache_guard,
-    )
+    let outcome = {
+        let mut head_cache_guard = ctx.head_cache.lock().await;
+        discovery::discover_advances_filtered(
+            &lock,
+            &resolver,
+            declared_inputs.as_ref(),
+            &mut head_cache_guard,
+        )
         .await
-        .map_err(|e| ReconcileError::Other(anyhow::anyhow!("discovery: {e}")))?;
+        .map_err(|e| ReconcileError::Other(anyhow::anyhow!("discovery: {e}")))?
+    };
+    // Persist cache to disk after each discovery cycle so a pod
+    // restart doesn't pay full quota on the next first cycle. Best
+    // effort — flush failure is logged but doesn't abort the cycle.
+    if let Err(e) = ctx.head_cache.flush().await {
+        tracing::warn!(error = %format!("{e:#}"), "head cache flush failed");
+    }
 
     // Split the outcome — the partial advances are still upsert-worthy
     // (they're real upstream advances we observed before the halt),
