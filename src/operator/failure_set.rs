@@ -72,13 +72,21 @@ impl FailureSet {
             inner.insert(normalize(&failure));
         }
         // Single-error lines (`error: foo`) are signatures themselves —
-        // but the compound-summary `error: <thing> tests failed (N/M
-        // passed): a: x; b: y` is volatile (count changes between runs)
-        // and its individual test names are already captured above. So
-        // skip any error line that's actually the compound wrapper.
+        // but skip:
+        //   - the compound-summary `error: <thing> tests failed
+        //     (N/M passed): a: x; b: y` (volatile count, individual
+        //     test names already captured above)
+        //   - eval-only artifacts like `error: path '/nix/store/...'
+        //     is not valid` (means "would need to build the
+        //     derivation"; not a real flake bug — `nix run .#rebuild`
+        //     would substitute or build it). These churn whenever a
+        //     `--override-input` changes nixpkgs-derived paths.
         for line in cleaned.lines() {
             let trimmed = line.trim_start();
-            if trimmed.starts_with("error:") && !is_compound_failure_summary(trimmed) {
+            if trimmed.starts_with("error:")
+                && !is_compound_failure_summary(trimmed)
+                && !is_eval_only_artifact(trimmed)
+            {
                 inner.insert(normalize(trimmed));
             }
         }
@@ -142,6 +150,18 @@ fn normalize(s: &str) -> String {
 /// a count ("(80/84 passed)") that changes per run.
 fn is_compound_failure_summary(line: &str) -> bool {
     line.contains("tests failed")
+}
+
+/// True for eval-time artifacts like `error: path '/nix/store/...'
+/// is not valid`. Surfaced by `nix flake check --no-build` when a
+/// derivation reference exists but the corresponding store path
+/// hasn't been realized; the user's actual `nix run .#rebuild` would
+/// substitute or build it. Including these in the failure set causes
+/// false-positive differential rejections on any pin bump that
+/// changes a transitive nixpkgs-derived path (every gemdir, every
+/// `vendorHash`-driven derivation, etc.).
+fn is_eval_only_artifact(line: &str) -> bool {
+    line.contains("is not valid") && line.contains("/nix/store/")
 }
 
 /// Pull individual test names out of a "NixOS eval tests failed
@@ -250,5 +270,42 @@ mod tests {
         let baseline = FailureSet::default();
         let proposed = FailureSet::default();
         assert!(proposed.is_subset_of(&baseline));
+    }
+
+    #[test]
+    fn eval_only_path_not_valid_is_filtered_out() {
+        // `nix flake check --no-build` surfaces "path is not valid"
+        // when a derivation reference's store path isn't realized.
+        // This isn't a flake bug — the user's real rebuild builds or
+        // substitutes the derivation. Keeping it as a signature would
+        // cause false-positive differential rejections on every pin
+        // bump that changes a transitive nixpkgs-derived path.
+        let log = "error: path '/nix/store/dy3bnagxvay5gmbhg7dfwk0g54mcwi5g-pangea-compiler-gemdir.drv' is not valid";
+        let fs = FailureSet::extract(log);
+        assert!(
+            fs.is_empty(),
+            "eval-only `path is not valid` should be filtered, got: {:?}",
+            fs.inner
+        );
+    }
+
+    #[test]
+    fn real_eval_errors_still_captured_around_eval_only_filter() {
+        // Mix the eval-only artifact with a real eval error; only the
+        // real one should remain in the failure set.
+        let log = "\
+error: path '/nix/store/abc-foo.drv' is not valid
+error: infinite recursion encountered while evaluating module foo
+";
+        let fs = FailureSet::extract(log);
+        let body = format!("{:?}", fs.inner);
+        assert!(
+            body.contains("infinite recursion"),
+            "real error should be captured: {body}"
+        );
+        assert!(
+            !body.contains("is not valid"),
+            "eval-only artifact should be filtered: {body}"
+        );
     }
 }
