@@ -76,6 +76,15 @@ pub async fn fetch_and_reset_to_origin(
         Vec::new()
     };
 
+    // Defensive: clear any stuck rebase / cherry-pick / merge state
+    // that earlier failed apply attempts may have left behind. Each
+    // command is best-effort — if there's nothing to abort, git
+    // returns non-zero with "no rebase in progress" which we want to
+    // ignore. The lockfile cleanup is the load-bearing part: stuck
+    // rebases keep `.git/rebase-merge/` populated, and the next
+    // `git commit` refuses with "interactive rebase in progress".
+    let _ = clean_repo_state(repo_dir).await;
+
     let mut fetch = auth_args.clone();
     fetch.extend_from_slice(&["fetch", "origin", branch]);
     git(repo_dir, &fetch, None).await.context("git fetch origin")?;
@@ -84,6 +93,31 @@ pub async fn fetch_and_reset_to_origin(
     git(repo_dir, &["reset", "--hard", &target], None)
         .await
         .context("git reset --hard origin/<branch>")?;
+    Ok(())
+}
+
+/// Best-effort cleanup of in-progress rebase / cherry-pick / merge /
+/// am state. Each command swallows its own failure because "nothing
+/// to abort" returns non-zero — that's fine, we want a clean tree
+/// and don't care which mechanism left the dirty state.
+async fn clean_repo_state(repo_dir: &Path) -> Result<()> {
+    for cmd in [
+        &["rebase", "--abort"][..],
+        &["cherry-pick", "--abort"][..],
+        &["merge", "--abort"][..],
+        &["am", "--abort"][..],
+    ] {
+        let _ = Command::new("git")
+            .args(cmd)
+            .current_dir(repo_dir)
+            .output()
+            .await;
+    }
+    // Nuke any stranded `.git/index.lock` from a crashed previous git
+    // invocation (the operator's old shell-out path could leave one
+    // if the pod was OOM-killed mid-commit).
+    let lock = repo_dir.join(".git/index.lock");
+    let _ = tokio::fs::remove_file(&lock).await;
     Ok(())
 }
 
