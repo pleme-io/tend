@@ -88,19 +88,29 @@ async fn try_apply_pin_once(
     // when narHash already matches. `gates::nix_env` handles HOME,
     // GITHUB_TOKEN access, accept-flake-config, etc. — same primitive
     // every nix invocation in the operator uses.
+    //
+    // Capture output (not status) so the actual nix error lands in the
+    // anyhow chain — `--update-input` is deprecated as of nix 2.30 and
+    // future versions may fail outright; without stderr capture the
+    // operator's status.error becomes a useless "nix ... failed".
     let mut cmd = Command::new("nix");
     super::gates::nix_env(&mut cmd);
-    let nix_status = cmd
+    let nix_out = cmd
         .arg("flake")
-        .arg("lock")
-        .arg("--update-input")
+        .arg("update")
         .arg(input_name)
         .current_dir(repo_dir)
-        .status()
+        .output()
         .await
-        .context("running nix flake lock")?;
-    if !nix_status.success() {
-        return Err(anyhow!("nix flake lock --update-input {input_name} failed"));
+        .context("running nix flake update")?;
+    if !nix_out.status.success() {
+        let stderr = String::from_utf8_lossy(&nix_out.stderr);
+        let stdout = String::from_utf8_lossy(&nix_out.stdout);
+        return Err(anyhow!(
+            "nix flake update {input_name} failed (exit {}): {}",
+            nix_out.status.code().unwrap_or(-1),
+            tail_for_error(&format!("{stdout}\n{stderr}").trim(), 1024),
+        ));
     }
 
     let msg = format!(
@@ -156,6 +166,23 @@ fn short_rev(rev: &str) -> &str {
         &rev[..8]
     } else {
         rev
+    }
+}
+
+/// Tail-truncate at a UTF-8 boundary for inclusion in error messages
+/// (status.error has a 1 MiB hard limit and operator-readability also
+/// caps somewhere short of that).
+fn tail_for_error(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        let start = s.len() - max;
+        let mut start = start;
+        let bytes = s.as_bytes();
+        while start < bytes.len() && (bytes[start] & 0b1100_0000) == 0b1000_0000 {
+            start += 1;
+        }
+        format!("…{}", &s[start..])
     }
 }
 

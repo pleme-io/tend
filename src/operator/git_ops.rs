@@ -139,7 +139,11 @@ pub async fn commit_and_push(
     git(repo_dir, &commit, None).await.context("git commit")?;
 
     let url_has_creds = origin_has_embedded_credentials(repo_dir).await.unwrap_or(false);
-    let mut push = vec!["push", "origin", "HEAD"];
+    // Refspec must be fully qualified on both sides because the apply
+    // path runs from a detached-HEAD state (we reset --hard to
+    // origin/main earlier, then commit on top — `HEAD` alone has no
+    // branch context to imply `refs/heads/main`).
+    let mut push = vec!["push", "origin", "HEAD:refs/heads/main"];
     let extra_header;
     if let (Some(t), false) = (token, url_has_creds) {
         // Token-as-bearer-header path: origin URL has no credentials,
@@ -149,7 +153,7 @@ pub async fn commit_and_push(
         extra_header = format!(
             "http.https://github.com/.extraheader=AUTHORIZATION: bearer {t}"
         );
-        push = vec!["-c", &extra_header, "push", "origin", "HEAD"];
+        push = vec!["-c", &extra_header, "push", "origin", "HEAD:refs/heads/main"];
     }
     git(repo_dir, &push, token).await.context("git push")?;
 
