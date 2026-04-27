@@ -101,9 +101,28 @@ pub async fn reconcile_policy(
         client: ctx.http.clone(),
         token: ctx.github_token.clone(),
     };
-    let advances = discovery::discover_advances(&lock, &resolver)
+    let outcome = discovery::discover_advances(&lock, &resolver)
         .await
         .map_err(|e| ReconcileError::Other(anyhow::anyhow!("discovery: {e}")))?;
+
+    // Split the outcome — the partial advances are still upsert-worthy
+    // (they're real upstream advances we observed before the halt),
+    // and the halt reason becomes a status condition so operators see
+    // why the cycle didn't complete fully. Rate-limit halts also
+    // request a longer requeue so we don't push the registry harder.
+    let (advances, halt_reason, requeue) = match outcome {
+        discovery::DiscoveryOutcome::Advances(a) => (a, None, REQUEUE_OK),
+        discovery::DiscoveryOutcome::Halted { partial, reason } => {
+            // 30 min backoff on rate limit; reset_at would be cleaner
+            // but we don't want to over-engineer the wakeup math now.
+            let r = if matches!(reason, super::upstream::RegistryError::RateLimited { .. }) {
+                Duration::from_secs(1800)
+            } else {
+                REQUEUE_OK
+            };
+            (partial, Some(reason), r)
+        }
+    };
 
     let proposals: Api<FlakeUpdateProposal> = Api::namespaced(ctx.client.clone(), &ns);
     for adv in &advances {
@@ -123,11 +142,23 @@ pub async fn reconcile_policy(
         .cloned()
         .collect();
 
+    let conditions = if let Some(reason) = halt_reason {
+        vec![Condition {
+            r#type: "Reconciled".into(),
+            status: "False".into(),
+            reason: Some(format!("{reason:?}").split(' ').next().unwrap_or("Halted").to_string()),
+            message: Some(format!("discovery halted: {reason}")),
+            last_transition_time: Some(Utc::now()),
+        }]
+    } else {
+        vec![ok_condition("Reconciled", "policy reconciled cleanly")]
+    };
+
     let policies: Api<FlakeUpdatePolicy> = Api::namespaced(ctx.client.clone(), &ns);
     let status = FlakeUpdatePolicyStatus {
         tracked_inputs: tracked,
         last_observed_lock_hash: Some(lock_fingerprint(&lock_contents)),
-        conditions: vec![ok_condition("Reconciled", "policy reconciled cleanly")],
+        conditions,
         observed_generation: policy.metadata.generation.unwrap_or(0),
     };
     let patch = serde_json::json!({ "status": status });
@@ -135,7 +166,7 @@ pub async fn reconcile_policy(
         .patch_status(&name, &PatchParams::default(), &Patch::Merge(&patch))
         .await?;
 
-    Ok(Action::requeue(REQUEUE_OK))
+    Ok(Action::requeue(requeue))
 }
 
 pub fn policy_error_policy(
