@@ -6481,6 +6481,11 @@ rec {
             usesDefaultFeatures = false;
           }
           {
+            name = "rand";
+            packageId = "rand 0.8.6";
+            optional = true;
+          }
+          {
             name = "reqwest";
             packageId = "reqwest";
             usesDefaultFeatures = false;
@@ -6568,7 +6573,7 @@ rec {
         ];
         features = {
           "default" = [ "operator" ];
-          "operator" = [ "dep:kube" "dep:k8s-openapi" "dep:schemars" "dep:futures" "dep:tracing" "dep:tracing-subscriber" "dep:petgraph" "dep:rnix" "dep:rowan" "dep:prometheus" "dep:hyper" "dep:hyper-util" "dep:http-body-util" ];
+          "operator" = [ "dep:kube" "dep:k8s-openapi" "dep:schemars" "dep:futures" "dep:tracing" "dep:tracing-subscriber" "dep:petgraph" "dep:rnix" "dep:rowan" "dep:rand" "dep:prometheus" "dep:hyper" "dep:hyper-util" "dep:http-body-util" ];
         };
         resolvedDefaultFeatures = [ "default" "operator" ];
       };
