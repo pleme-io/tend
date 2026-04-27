@@ -28,8 +28,19 @@ use super::workspace::resolve_repo_dir;
 use crate::config::Config;
 use crate::flake_lock::ExtendedLockFile;
 
-const REQUEUE_OK: Duration = Duration::from_secs(300);
-const REQUEUE_FAST: Duration = Duration::from_secs(30);
+/// Default cadence for clean reconciles. 30 minutes (was 5 minutes
+/// before the under-the-radar redesign). Conditional requests with
+/// ETag mean the typical poll is free anyway, so cadence here only
+/// gates "did we miss a real change?" — half-hour is plenty for the
+/// fleet update use case where humans aren't waiting on millisecond
+/// reaction. Jittered ±30% so cycles never align on the wallclock.
+const REQUEUE_OK: Duration = Duration::from_secs(1800);
+
+/// Backoff after a transient error. 5 minutes (was 30 seconds). The
+/// previous 30s aggressive retry made transient failures look like
+/// scraper hammering — a 5-minute pause gives upstream time to settle
+/// and is still tight enough that a real outage is noticed quickly.
+const REQUEUE_FAST: Duration = Duration::from_secs(300);
 
 pub struct Context {
     pub client: Client,
@@ -45,6 +56,20 @@ pub struct Context {
     pub repo_locks: Arc<tokio::sync::Mutex<
         std::collections::HashMap<std::path::PathBuf, Arc<tokio::sync::Mutex<()>>>,
     >>,
+    /// HEAD-lookup cache, keyed by UpstreamId. Lives across reconcile
+    /// cycles for the lifetime of the pod. Each entry carries an ETag
+    /// so the next conditional request can return 304 (free) when
+    /// nothing changed — the foundation of "way under GitHub's radar"
+    /// polling. Phase B will persist this to a ConfigMap so cache
+    /// survives pod restarts.
+    pub head_cache: Arc<tokio::sync::Mutex<
+        std::collections::HashMap<super::upstream::UpstreamId, super::upstream::CachedHead>,
+    >>,
+    /// Sliding-window rate budget shared across every domain
+    /// controller. Enforces a per-pod hourly cap on outgoing requests
+    /// (default 100/hr — 2% of GitHub's authenticated quota) and
+    /// adapts down when GitHub signals pressure via X-RateLimit-Remaining.
+    pub budget: Arc<super::budget::RequestBudget>,
 }
 
 impl Context {
@@ -176,11 +201,19 @@ pub async fn reconcile_policy(
     let resolver = ReqwestHeadResolver {
         client: ctx.http.clone(),
         token: ctx.github_token.clone(),
+        budget: ctx.budget.clone(),
     };
+    // Hold the persistent cache across cycles. Each entry has an
+    // ETag; conditional requests turn most "is X advanced?" polls
+    // into 304 (free) responses. Lock for the duration of discovery
+    // so concurrent reconciles can't double-fetch the same upstream
+    // while the in-flight cache lookup is still in progress.
+    let mut head_cache_guard = ctx.head_cache.lock().await;
     let outcome = discovery::discover_advances_filtered(
         &lock,
         &resolver,
         declared_inputs.as_ref(),
+        &mut head_cache_guard,
     )
         .await
         .map_err(|e| ReconcileError::Other(anyhow::anyhow!("discovery: {e}")))?;
@@ -335,7 +368,12 @@ pub async fn reconcile_policy(
             .await?;
     }
 
-    Ok(Action::requeue(requeue))
+    // Jittered requeue — randomize 0-30% so multiple pods (and the
+    // policy/proposal reconcilers within one pod) don't synchronize
+    // into a tight cron-shaped polling pattern. GitHub's behavioral
+    // abuse detector flags request bursts that align on the wallclock;
+    // jitter scrambles that signal.
+    Ok(Action::requeue(super::budget::jittered(requeue, 0.30)))
 }
 
 pub fn policy_error_policy(
@@ -345,7 +383,7 @@ pub fn policy_error_policy(
 ) -> Action {
     metrics().reconcile_errors_total.with_label_values(&["FlakeUpdatePolicy"]).inc();
     warn!(error = %err, "FlakeUpdatePolicy reconcile error; retrying");
-    Action::requeue(REQUEUE_FAST)
+    Action::requeue(super::budget::jittered(REQUEUE_FAST, 0.30))
 }
 
 fn mode_for_input(policy: &FlakeUpdatePolicy, input: &str) -> UpdateMode {

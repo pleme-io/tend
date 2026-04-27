@@ -108,6 +108,51 @@ pub struct HeadInfo {
     pub upstream_modified: i64,
 }
 
+/// Cached HEAD lookup, keyed by `UpstreamId`. The `etag` is the
+/// load-bearing field for under-the-radar polling: when present, the
+/// next `head_conditional` call sends `If-None-Match: <etag>`. GitHub
+/// returns 304 Not Modified for matching content, **and 304 responses
+/// don't count against the rate limit**. Most polls are unchanged →
+/// most polls are free.
+///
+/// `fetched_at` lets a future TTL-aware planner decide whether to
+/// refresh at all (Phase B of the under-the-radar redesign).
+#[derive(Debug, Clone)]
+pub struct CachedHead {
+    pub info: HeadInfo,
+    pub etag: Option<String>,
+    pub fetched_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Outcome of a conditional HEAD lookup.
+#[derive(Debug, Clone)]
+pub enum HeadOutcome {
+    /// 200 OK with fresh data. Caller persists `CachedHead` to its cache.
+    Fresh(CachedHead),
+    /// 304 Not Modified — prior cached data is still authoritative.
+    /// The request did NOT count against the registry's rate limit.
+    /// Caller may bump `fetched_at` on the cached entry but doesn't
+    /// need to invalidate.
+    Unchanged(CachedHead),
+}
+
+impl HeadOutcome {
+    /// The `CachedHead` regardless of fresh/unchanged — both are
+    /// equivalently authoritative for "the upstream is at this rev now".
+    #[must_use]
+    pub fn cached(&self) -> &CachedHead {
+        match self {
+            HeadOutcome::Fresh(c) | HeadOutcome::Unchanged(c) => c,
+        }
+    }
+
+    /// True when the request was free (304). Useful for telemetry.
+    #[must_use]
+    pub fn was_unchanged(&self) -> bool {
+        matches!(self, HeadOutcome::Unchanged(_))
+    }
+}
+
 /// Errors a `RegistryClient` can surface in a way the discovery loop
 /// must distinguish — rate limits halt the cycle (don't make it worse),
 /// auth failures need operator attention, transient errors are skipped
@@ -183,7 +228,34 @@ impl RegistryError {
 /// works uniformly across domains.
 #[async_trait::async_trait]
 pub trait RegistryClient: Send + Sync {
-    async fn head(&self, id: &UpstreamId) -> Result<HeadInfo, RegistryError>;
+    /// Conditional HEAD lookup.
+    ///
+    /// When `prev` is `Some(c)` and `c.etag` is `Some`, the
+    /// implementation should send `If-None-Match: <etag>` (or the
+    /// equivalent for non-HTTP registries) so the upstream can return
+    /// "unchanged" without spending rate-limit budget on a full
+    /// response. When `prev` is `None`, this is a fresh lookup.
+    ///
+    /// Implementations are responsible for mapping HTTP-level errors
+    /// to `RegistryError` variants and (where the protocol exposes
+    /// them) calling `RequestBudget::observe_pressure` with the
+    /// remaining/limit headers so the operator self-throttles before
+    /// hitting the cliff.
+    async fn head_conditional(
+        &self,
+        id: &UpstreamId,
+        prev: Option<&CachedHead>,
+    ) -> Result<HeadOutcome, RegistryError>;
+
+    /// Convenience for callers that don't have a cached entry —
+    /// equivalent to `head_conditional(id, None).await` returning the
+    /// fresh `HeadInfo` directly. Default impl in terms of the
+    /// conditional method; overriders should rarely need this.
+    async fn head(&self, id: &UpstreamId) -> Result<HeadInfo, RegistryError> {
+        match self.head_conditional(id, None).await? {
+            HeadOutcome::Fresh(c) | HeadOutcome::Unchanged(c) => Ok(c.info),
+        }
+    }
 }
 
 #[cfg(test)]

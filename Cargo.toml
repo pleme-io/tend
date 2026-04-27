@@ -50,6 +50,9 @@ petgraph = { version = "0.6", optional = true }
 # No subprocess to nix, no C deps.
 rnix = { version = "0.11", optional = true }
 rowan = { version = "0.15", optional = true }
+# Pure-Rust RNG for jittered requeue intervals — eliminates the
+# cron-shaped polling pattern that GitHub's abuse detector flags.
+rand = { version = "0.8", optional = true }
 prometheus = { version = "0.13", default-features = false, optional = true }
 hyper = { version = "1", features = ["server", "http1"], optional = true }
 hyper-util = { version = "0.1", features = ["tokio"], optional = true }
@@ -75,6 +78,7 @@ operator = [
     "dep:petgraph",
     "dep:rnix",
     "dep:rowan",
+    "dep:rand",
     "dep:prometheus",
     "dep:hyper",
     "dep:hyper-util",

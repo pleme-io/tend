@@ -20,8 +20,13 @@ use anyhow::Result;
 use serde::Deserialize;
 use std::collections::HashMap;
 
+use std::sync::Arc;
+
+use super::budget::RequestBudget;
 use super::crds::FlakeRev;
-use super::upstream::{HeadInfo, RegistryClient, RegistryError, SourceKind, UpstreamId};
+use super::upstream::{
+    CachedHead, HeadInfo, HeadOutcome, RegistryClient, RegistryError, SourceKind, UpstreamId,
+};
 use crate::flake_lock::ExtendedLockFile;
 
 #[derive(Debug, Clone)]
@@ -62,17 +67,30 @@ struct GitHubCommitAuthor {
 pub struct ReqwestHeadResolver {
     pub client: reqwest::Client,
     pub token: Option<String>,
+    /// Shared rate-limit budget. Every head_conditional invocation
+    /// awaits a slot from this budget *before* sending; that's what
+    /// keeps us under behavioral abuse-detection thresholds.
+    pub budget: Arc<RequestBudget>,
 }
 
 #[async_trait::async_trait]
 impl RegistryClient for ReqwestHeadResolver {
-    async fn head(&self, id: &UpstreamId) -> Result<HeadInfo, RegistryError> {
+    async fn head_conditional(
+        &self,
+        id: &UpstreamId,
+        prev: Option<&CachedHead>,
+    ) -> Result<HeadOutcome, RegistryError> {
         if !matches!(id.source, SourceKind::Github) {
             return Err(RegistryError::Transient(format!(
                 "ReqwestHeadResolver doesn't service {:?} sources",
                 id.source
             )));
         }
+        // Rate-limit budget — block until a slot is free in the
+        // sliding 1h window. This is the load-bearing constraint for
+        // staying under GitHub's radar.
+        self.budget.acquire().await;
+
         let url = format!("https://api.github.com/repos/{}/commits/{}", id.key, id.r#ref);
         let mut req = self
             .client
@@ -82,24 +100,57 @@ impl RegistryClient for ReqwestHeadResolver {
         if let Some(t) = &self.token {
             req = req.bearer_auth(t);
         }
+        // Conditional request: if we have a cached etag, ask GitHub
+        // to return 304 (free!) if nothing changed.
+        if let Some(p) = prev {
+            if let Some(etag) = p.etag.as_deref() {
+                req = req.header("If-None-Match", etag);
+            }
+        }
         let resp = req
             .send()
             .await
             .map_err(|e| RegistryError::Transient(format!("send: {e}")))?;
         let status = resp.status();
+
+        // Observe rate-limit pressure unconditionally — even on
+        // error/304 responses GitHub returns these headers, and the
+        // budget self-throttles based on the running snapshot.
+        let remaining = resp
+            .headers()
+            .get("x-ratelimit-remaining")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u32>().ok());
+        let limit = resp
+            .headers()
+            .get("x-ratelimit-limit")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u32>().ok());
+        if let (Some(r), Some(l)) = (remaining, limit) {
+            self.budget.observe_pressure(r, l);
+        }
         let reset_at = resp
             .headers()
             .get("x-ratelimit-reset")
             .and_then(|v| v.to_str().ok())
             .and_then(|s| s.parse::<i64>().ok());
 
+        // 304 Not Modified — caller's `prev` is still authoritative.
+        // GitHub does NOT count 304s against the rate limit, but we
+        // already paid the budget slot above; that's intentional —
+        // the budget is about request *volume sent*, not GitHub's
+        // accounting, so cron-pattern detection still sees fewer
+        // outgoing requests on average.
+        if status.as_u16() == 304 {
+            let prev = prev.expect("304 only returnable when prev was Some");
+            return Ok(HeadOutcome::Unchanged(CachedHead {
+                fetched_at: chrono::Utc::now(),
+                ..prev.clone()
+            }));
+        }
+
         if status.as_u16() == 403 {
-            let remaining_zero = resp
-                .headers()
-                .get("x-ratelimit-remaining")
-                .and_then(|v| v.to_str().ok())
-                .map(|v| v == "0")
-                .unwrap_or(false);
+            let remaining_zero = remaining == Some(0);
             let body = resp.text().await.unwrap_or_default();
             if remaining_zero || body.contains("API rate limit exceeded") {
                 return Err(RegistryError::RateLimited { reset_at, message: body });
@@ -120,6 +171,15 @@ impl RegistryClient for ReqwestHeadResolver {
         if !status.is_success() {
             return Err(RegistryError::Transient(format!("{id}: HTTP {status}")));
         }
+
+        // Capture the response ETag before consuming the body — that
+        // header is what makes the *next* poll cheap.
+        let etag = resp
+            .headers()
+            .get("etag")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+
         let body: GitHubCommit = resp
             .json()
             .await
@@ -127,10 +187,14 @@ impl RegistryClient for ReqwestHeadResolver {
         let upstream_modified = chrono::DateTime::parse_from_rfc3339(&body.commit.author.date)
             .map(|dt| dt.timestamp())
             .unwrap_or(0);
-        Ok(HeadInfo {
-            upstream_rev: body.sha,
-            upstream_modified,
-        })
+        Ok(HeadOutcome::Fresh(CachedHead {
+            info: HeadInfo {
+                upstream_rev: body.sha,
+                upstream_modified,
+            },
+            etag,
+            fetched_at: chrono::Utc::now(),
+        }))
     }
 }
 
@@ -138,7 +202,8 @@ pub async fn discover_advances<R: RegistryClient + ?Sized>(
     lock: &ExtendedLockFile,
     client: &R,
 ) -> Result<DiscoveryOutcome> {
-    discover_advances_filtered(lock, client, None).await
+    let mut empty_cache: HashMap<UpstreamId, CachedHead> = HashMap::new();
+    discover_advances_filtered(lock, client, None, &mut empty_cache).await
 }
 
 /// `declared_inputs` is the set of input names actually in the user's
@@ -148,12 +213,21 @@ pub async fn discover_advances<R: RegistryClient + ?Sized>(
 /// has stale entries for. Pass `None` to skip the filter (e.g.
 /// when flake.nix isn't readable for some reason; degrades to
 /// previous behavior, never blocks discovery).
+///
+/// `head_cache` persists across reconcile cycles — entries carry
+/// ETags so the next `head_conditional` can send `If-None-Match` and
+/// receive 304 (free request) when nothing changed. The caller owns
+/// the cache so it survives between cycles within the same pod.
 pub async fn discover_advances_filtered<R: RegistryClient + ?Sized>(
     lock: &ExtendedLockFile,
     client: &R,
     declared_inputs: Option<&std::collections::BTreeSet<String>>,
+    head_cache: &mut HashMap<UpstreamId, CachedHead>,
 ) -> Result<DiscoveryOutcome> {
-    let mut head_cache: HashMap<UpstreamId, Option<HeadInfo>> = HashMap::new();
+    // Per-cycle dedup so case-aliased inputs (NixOS/nixpkgs vs
+    // nixos/nixpkgs) only generate one upstream request even if they
+    // both miss cache.
+    let mut cycle_seen: HashMap<UpstreamId, Option<HeadInfo>> = HashMap::new();
     let mut out = Vec::new();
     // Only direct root inputs — transitive lock nodes (cargo deps,
     // nested pins, dedup aliases like `nixpkgs_2`) can't be bumped via
@@ -188,13 +262,22 @@ pub async fn discover_advances_filtered<R: RegistryClient + ?Sized>(
         let r#ref = locked.r#ref.as_deref().unwrap_or("HEAD");
         let id = UpstreamId::new_github(owner, repo, r#ref);
 
-        let head = if let Some(cached) = head_cache.get(&id) {
+        // Three-tier resolution:
+        //   1. cycle_seen — already handled this UpstreamId in this
+        //      reconcile (case aliases, follows). Reuse, no traffic.
+        //   2. head_cache — persistent across cycles. Send conditional
+        //      request with the cached etag; 304 means free.
+        //   3. fresh — cache miss, full request (counts toward budget).
+        let head = if let Some(cached) = cycle_seen.get(&id) {
             cached.clone()
         } else {
-            match client.head(&id).await {
-                Ok(info) => {
-                    head_cache.insert(id.clone(), Some(info.clone()));
-                    Some(info)
+            let prev = head_cache.get(&id).cloned();
+            match client.head_conditional(&id, prev.as_ref()).await {
+                Ok(outcome) => {
+                    let cached = outcome.cached().clone();
+                    head_cache.insert(id.clone(), cached.clone());
+                    cycle_seen.insert(id.clone(), Some(cached.info.clone()));
+                    Some(cached.info)
                 }
                 Err(e) if e.is_fatal_to_cycle() => {
                     tracing::warn!(
@@ -211,7 +294,7 @@ pub async fn discover_advances_filtered<R: RegistryClient + ?Sized>(
                         error = %e,
                         "head lookup failed for input; skipping",
                     );
-                    head_cache.insert(id.clone(), None);
+                    cycle_seen.insert(id.clone(), None);
                     None
                 }
             }
@@ -268,13 +351,21 @@ mod tests {
 
     #[async_trait::async_trait]
     impl RegistryClient for CountingMock {
-        async fn head(&self, id: &UpstreamId) -> Result<HeadInfo, RegistryError> {
+        async fn head_conditional(
+            &self,
+            id: &UpstreamId,
+            _prev: Option<&CachedHead>,
+        ) -> Result<HeadOutcome, RegistryError> {
             self.calls.lock().unwrap().push(id.clone());
             match self.responses.get(id) {
                 Some(slot) => {
                     let guard = slot.lock().unwrap();
                     match &*guard {
-                        Ok(info) => Ok(info.clone()),
+                        Ok(info) => Ok(HeadOutcome::Fresh(CachedHead {
+                            info: info.clone(),
+                            etag: None,
+                            fetched_at: chrono::Utc::now(),
+                        })),
                         Err(RegistryError::RateLimited { reset_at, message }) => {
                             Err(RegistryError::RateLimited {
                                 reset_at: *reset_at,

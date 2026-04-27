@@ -2030,6 +2030,7 @@ dependencies = [
  "opencode-zen",
  "petgraph",
  "prometheus",
+ "rand 0.8.6",
  "reqwest",
  "rnix",
  "rowan",

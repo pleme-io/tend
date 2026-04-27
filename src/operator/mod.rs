@@ -5,6 +5,7 @@
 //! CLI doesn't pay the kube-rs dependency cost.
 
 pub mod apply;
+pub mod budget;
 pub mod crds;
 pub mod dag;
 pub mod discovery;
@@ -74,6 +75,10 @@ pub async fn run() -> Result<()> {
         repo_locks: Arc::new(tokio::sync::Mutex::new(
             std::collections::HashMap::new(),
         )),
+        head_cache: Arc::new(tokio::sync::Mutex::new(
+            std::collections::HashMap::new(),
+        )),
+        budget: Arc::new(budget::RequestBudget::default_for_github()),
     });
 
     // Prometheus metrics endpoint — vmagent scrapes via the chart's
