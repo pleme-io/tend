@@ -210,10 +210,17 @@ pub async fn reconcile_policy(
             &ctx.budget,
         )
     };
-    // Emit the plan CR. Best effort — failure to persist the plan
-    // shouldn't abort the cycle, but operators lose audit on this run.
-    if let Err(e) = upsert_plan(&ctx, &policy, &plan_output.spec).await {
-        tracing::warn!(error = %format!("{e:#}"), "FlakeUpdatePlan upsert failed");
+    // Emit the plan CR. Operator-tunable: TEND_PLANS_EMIT=false
+    // silences the audit trail (chart values: plans.emit=false).
+    // Best effort — failure to persist the plan shouldn't abort the
+    // cycle, but operators lose audit on this run.
+    let plans_emit = std::env::var("TEND_PLANS_EMIT")
+        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+        .unwrap_or(true);
+    if plans_emit {
+        if let Err(e) = upsert_plan(&ctx, &policy, &plan_output.spec).await {
+            tracing::warn!(error = %format!("{e:#}"), "FlakeUpdatePlan upsert failed");
+        }
     }
 
     let resolver = ReqwestHeadResolver {
@@ -399,7 +406,7 @@ pub async fn reconcile_policy(
     // into a tight cron-shaped polling pattern. GitHub's behavioral
     // abuse detector flags request bursts that align on the wallclock;
     // jitter scrambles that signal.
-    Ok(Action::requeue(super::budget::jittered(requeue, 0.30)))
+    Ok(Action::requeue(super::budget::jittered_from_env(requeue)))
 }
 
 pub fn policy_error_policy(
@@ -409,7 +416,7 @@ pub fn policy_error_policy(
 ) -> Action {
     metrics().reconcile_errors_total.with_label_values(&["FlakeUpdatePolicy"]).inc();
     warn!(error = %err, "FlakeUpdatePolicy reconcile error; retrying");
-    Action::requeue(super::budget::jittered(REQUEUE_FAST, 0.30))
+    Action::requeue(super::budget::jittered_from_env(REQUEUE_FAST))
 }
 
 fn mode_for_input(policy: &FlakeUpdatePolicy, input: &str) -> UpdateMode {

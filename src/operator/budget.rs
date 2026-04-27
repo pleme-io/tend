@@ -55,6 +55,19 @@ impl RequestBudget {
         Self::new(DEFAULT_MAX_PER_HOUR)
     }
 
+    /// Read `TEND_BUDGET_MAX_PER_HOUR` env var; fall back to the
+    /// 100 req/hr default. Invalid/empty values silently use default
+    /// so misconfiguration never wedges the operator.
+    #[must_use]
+    pub fn from_env_or_default() -> Self {
+        let max = std::env::var("TEND_BUDGET_MAX_PER_HOUR")
+            .ok()
+            .and_then(|s| s.parse::<u32>().ok())
+            .filter(|n| *n > 0)
+            .unwrap_or(DEFAULT_MAX_PER_HOUR);
+        Self::new(max)
+    }
+
     /// Reserve one request slot. Returns immediately when a slot is
     /// available; awaits otherwise until the oldest in-window entry
     /// ages out. Caller is responsible for actually sending the
@@ -131,6 +144,19 @@ pub fn jittered(base: Duration, max_jitter_pct: f32) -> Duration {
     use rand::Rng;
     let jitter = rand::thread_rng().gen_range(0.0..=max_jitter_pct.max(0.0));
     base.mul_f32(1.0 + jitter)
+}
+
+/// Convenience: read the jitter pct from env (TEND_REQUEUE_JITTER_PCT,
+/// defaults to 0.30) and apply it to `base`. Operators tune via Helm
+/// values without code changes.
+#[must_use]
+pub fn jittered_from_env(base: Duration) -> Duration {
+    let pct = std::env::var("TEND_REQUEUE_JITTER_PCT")
+        .ok()
+        .and_then(|s| s.parse::<f32>().ok())
+        .map(|f| f.clamp(0.0, 1.0))
+        .unwrap_or(0.30);
+    jittered(base, pct)
 }
 
 #[cfg(test)]

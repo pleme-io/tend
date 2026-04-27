@@ -78,13 +78,17 @@ pub async fn run() -> Result<()> {
             std::collections::HashMap::new(),
         )),
         // File-backed cache on the workspace PVC. Survives pod
-        // restarts. The path is fixed-relative so the chart doesn't
-        // need a new env var; lives alongside cloned repos.
-        head_cache: head_cache::open_at(
-            std::path::PathBuf::from("/var/lib/tend-workspace/.tend-cache/head.json"),
-        )
+        // restarts. Path is operator-tunable via TEND_HEAD_CACHE_PATH
+        // (set by the chart); falls back to the default location
+        // when unset for CLI / out-of-cluster use.
+        head_cache: head_cache::open_at(std::path::PathBuf::from(
+            std::env::var("TEND_HEAD_CACHE_PATH")
+                .unwrap_or_else(|_| "/var/lib/tend-workspace/.tend-cache/head.json".into()),
+        ))
         .await,
-        budget: Arc::new(budget::RequestBudget::default_for_github()),
+        // Budget cap honoring TEND_BUDGET_MAX_PER_HOUR — chart-tunable
+        // via underTheRadar.budgetMaxPerHour values.
+        budget: Arc::new(budget::RequestBudget::from_env_or_default()),
     });
 
     // Prometheus metrics endpoint — vmagent scrapes via the chart's
