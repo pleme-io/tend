@@ -381,10 +381,17 @@ pub async fn reconcile_proposal(
                 Ok(o) => o,
                 Err(e) => {
                     metrics().applies_total.with_label_values(&["failed"]).inc();
+                    // {:#} renders the full error chain on a single
+                    // line — outer context + every `.context()` wrap +
+                    // the underlying source. Without `#`, anyhow's
+                    // Display only emits the outermost message, hiding
+                    // the actual failure (e.g. "git push: Permission
+                    // denied" gets reduced to "commit + push").
+                    let full_error = format!("{e:#}");
                     let patch = serde_json::json!({
                         "status": {
                             "phase": Failed,
-                            "error": e.to_string(),
+                            "error": full_error,
                             "observedGeneration": proposal.metadata.generation.unwrap_or(0),
                         }
                     });
