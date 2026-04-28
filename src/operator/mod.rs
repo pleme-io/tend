@@ -20,6 +20,7 @@ pub mod lock_format;
 pub mod metrics;
 pub mod planner;
 pub mod reconcile;
+pub mod fleet_advance_consumer;
 pub mod fleet_watch;
 pub mod nats_throttle;
 pub mod status;
@@ -112,6 +113,23 @@ pub async fn run() -> Result<()> {
         .context("initializing fleet watcher")?
     {
         tracing::info!("fleet watcher: starting");
+        // Spawn the bridge consumer FIRST so it's listening before
+        // the watcher starts emitting advances. Uses its own NATS
+        // client connection.
+        let nats_url = std::env::var("TEND_NATS_URL")
+            .unwrap_or_else(|_| "nats://pleme-nats.nats.svc:4222".to_string());
+        match async_nats::connect(&nats_url).await {
+            Ok(advance_nats) => {
+                let advance_kube = client.clone();
+                tokio::spawn(async move {
+                    fleet_advance_consumer::run(advance_nats, advance_kube).await;
+                });
+                tracing::info!("fleet advance consumer: spawned");
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "fleet advance consumer: nats connect failed; advance bridge disabled");
+            }
+        }
         tokio::spawn(async move { watcher.run().await });
     }
 

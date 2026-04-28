@@ -22,6 +22,7 @@
 //! ingestion strategy: Mode A steady-trickle).
 
 use anyhow::{Context as _, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -30,6 +31,25 @@ use tracing::{debug, info, warn};
 
 use crate::operator::throttle::{RefreshJobRequest, RefreshJobResult};
 use crate::operator::upstream::UpstreamId;
+
+/// Subject prefix where the watcher publishes detected advances.
+/// One message per advance, on `<prefix>.<sanitized-key>`.
+pub const ADVANCE_SUBJECT_PREFIX: &str = "tend.fleet.advances";
+
+/// Wire payload for a detected upstream advance. Published by
+/// `fleet_watch` on `tend.fleet.advances.<sanitized-key>`; consumed
+/// by `fleet_advance_consumer` to trigger downstream actions
+/// (currently: annotate FlakeUpdatePolicy CRs to fire reconcile).
+///
+/// Carries the full `UpstreamId` so consumers don't need to
+/// reverse-engineer the sanitized subject key.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FleetAdvanceEvent {
+    pub id: UpstreamId,
+    pub from_rev: Option<String>,
+    pub to_rev: String,
+    pub observed_at: chrono::DateTime<chrono::Utc>,
+}
 
 /// Config for the fleet watcher. Hydrated from env at operator start.
 #[derive(Debug, Clone)]
@@ -355,28 +375,38 @@ impl FleetWatchTask {
             serde_json::from_slice(&msg.payload).context("decode RefreshJobResult")?;
 
         let mut state = self.state.write().await;
+        // Prefer the typed id echoed by the throttle worker. Fall
+        // back to placeholder if the result is from an old worker
+        // (no `id` field) AND we haven't yet seen this key from a
+        // discovery cycle.
+        let id = result
+            .id
+            .clone()
+            .or_else(|| state.get(&key).map(|s| s.id.clone()))
+            .unwrap_or_else(|| UpstreamId::new_github("unknown", "unknown", "HEAD"));
         let entry = state.entry(key.clone()).or_insert_with(|| RepoState {
-            id: result.head.info.clone().into_upstream_id_placeholder(),
+            id: id.clone(),
             last_seen_rev: None,
             last_check: None,
             advances_observed: 0,
             cached_responses: 0,
         });
         entry.last_check = Some(chrono::Utc::now());
+        // Refresh stored id in case the entry was created with a
+        // placeholder during a result-before-discovery race.
+        if entry.id.key.starts_with("unknown") && !id.key.starts_with("unknown") {
+            entry.id = id.clone();
+        }
 
         if result.unchanged {
             entry.cached_responses += 1;
             debug!(key = %key, rev = %result.head.info.upstream_rev, "fleet watcher: 304 (cached)");
         } else {
             let new_rev = result.head.info.upstream_rev.clone();
-            let advanced = entry
-                .last_seen_rev
-                .as_ref()
-                .map(|prev| prev != &new_rev)
-                .unwrap_or(true);
+            let old = entry.last_seen_rev.clone();
+            let advanced = old.as_ref().map(|prev| prev != &new_rev).unwrap_or(true);
             if advanced {
                 entry.advances_observed += 1;
-                let old = entry.last_seen_rev.take();
                 info!(
                     key = %key,
                     from = ?old,
@@ -384,10 +414,43 @@ impl FleetWatchTask {
                     advances = entry.advances_observed,
                     "fleet watcher: ADVANCE detected"
                 );
+
+                // Drop the lock before publishing so the publish I/O
+                // doesn't block other state updates.
+                let evt = FleetAdvanceEvent {
+                    id: id.clone(),
+                    from_rev: old.clone(),
+                    to_rev: new_rev.clone(),
+                    observed_at: chrono::Utc::now(),
+                };
+                drop(state);
+                if let Err(e) = self.emit_advance(&key, &evt).await {
+                    warn!(key = %key, error = %e, "fleet watcher: emit advance event failed");
+                }
+                // Re-acquire to write the new rev.
+                let mut state = self.state.write().await;
+                if let Some(entry) = state.get_mut(&key) {
+                    entry.last_seen_rev = Some(new_rev);
+                }
+            } else {
+                entry.last_seen_rev = Some(new_rev);
             }
-            entry.last_seen_rev = Some(new_rev);
         }
 
+        Ok(())
+    }
+
+    /// Publish a typed `FleetAdvanceEvent` so downstream consumers
+    /// (notably `fleet_advance_consumer`) can react. Fire-and-forget
+    /// — failures are logged but not retried; next advance recomputes
+    /// from the updated state.
+    async fn emit_advance(&self, key: &str, evt: &FleetAdvanceEvent) -> Result<()> {
+        let subject = format!("{ADVANCE_SUBJECT_PREFIX}.{key}");
+        let body = serde_json::to_vec(evt).context("encode FleetAdvanceEvent")?;
+        self.nats
+            .publish(subject.clone(), body.into())
+            .await
+            .with_context(|| format!("nats publish {subject}"))?;
         Ok(())
     }
 

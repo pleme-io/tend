@@ -91,6 +91,12 @@ pub struct RefreshJobResult {
     /// The operator may emit this as a metric of its own; samba's
     /// LeakyBucket already uses it for adaptive shrinkage.
     pub rate_limit_remaining: Option<u32>,
+    /// Echo of the original `RefreshJobRequest.id`. Lets fleet
+    /// watchers and other result subscribers recover full repo
+    /// identity from a result message without parsing the sanitized
+    /// subject suffix. Optional for backward compat with old workers.
+    #[serde(default)]
+    pub id: Option<UpstreamId>,
 }
 
 /// `samba::UpstreamApi` impl backed by tend's existing GitHub client.
@@ -169,6 +175,10 @@ impl samba::UpstreamApi for TendGithubApi {
             // back to the operator (via NATS result subject) where
             // it drives the operator-side RequestBudget's pressure.
             rate_limit_remaining: self.client.last_observed_remaining(),
+            // Echo the request's id so fleet-side subscribers can
+            // emit fully-typed FleetAdvanceEvents without having to
+            // reverse-engineer the sanitized subject key.
+            id: Some(req.id),
         })
     }
 
