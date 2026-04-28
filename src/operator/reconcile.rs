@@ -35,7 +35,22 @@ use crate::flake_lock::ExtendedLockFile;
 /// gates "did we miss a real change?" — half-hour is plenty for the
 /// fleet update use case where humans aren't waiting on millisecond
 /// reaction. Jittered ±30% so cycles never align on the wallclock.
-const REQUEUE_OK: Duration = Duration::from_secs(1800);
+///
+/// Override via `TEND_POLL_INTERVAL_SECONDS` env var (chart values:
+/// `operator.pollIntervalSeconds`). Mode A steady-trickle wants this
+/// short enough that cycle gaps don't create perceived idle periods —
+/// 240s is the chart default, matching the throttle worker's drain
+/// time for the typical workspace size (~30 inputs × 7.5s pace).
+const DEFAULT_REQUEUE_OK_SECS: u64 = 1800;
+
+fn requeue_ok() -> Duration {
+    let secs = std::env::var("TEND_POLL_INTERVAL_SECONDS")
+        .ok()
+        .and_then(|s| s.parse::<u64>().ok())
+        .filter(|n| *n >= 30 && *n <= 3600)
+        .unwrap_or(DEFAULT_REQUEUE_OK_SECS);
+    Duration::from_secs(secs)
+}
 
 /// Backoff after a transient error. 5 minutes (was 30 seconds). The
 /// previous 30s aggressive retry made transient failures look like
@@ -125,7 +140,7 @@ pub async fn reconcile_policy(
             ),
         )
         .await
-        .map(|_| Action::requeue(REQUEUE_OK));
+        .map(|_| Action::requeue(requeue_ok()));
     }
 
     // Discovery must read flake.lock at *origin*/main, not whatever
@@ -168,7 +183,7 @@ pub async fn reconcile_policy(
                 format!("reading {}: {e}", lock_path.display()),
             )
             .await
-            .map(|_| Action::requeue(REQUEUE_OK));
+            .map(|_| Action::requeue(requeue_ok()));
         }
     };
 
@@ -299,14 +314,14 @@ pub async fn reconcile_policy(
     // why the cycle didn't complete fully. Rate-limit halts also
     // request a longer requeue so we don't push the registry harder.
     let (advances, halt_reason, requeue) = match outcome {
-        discovery::DiscoveryOutcome::Advances(a) => (a, None, REQUEUE_OK),
+        discovery::DiscoveryOutcome::Advances(a) => (a, None, requeue_ok()),
         discovery::DiscoveryOutcome::Halted { partial, reason } => {
             // 30 min backoff on rate limit; reset_at would be cleaner
             // but we don't want to over-engineer the wakeup math now.
             let r = if matches!(reason, super::upstream::RegistryError::RateLimited { .. }) {
                 Duration::from_secs(1800)
             } else {
-                REQUEUE_OK
+                requeue_ok()
             };
             (partial, Some(reason), r)
         }
@@ -650,7 +665,7 @@ pub async fn reconcile_proposal(
                 set_phase(&proposals, &name, Verifying).await?;
                 Ok(Action::requeue(Duration::from_secs(1)))
             } else {
-                Ok(Action::requeue(REQUEUE_OK))
+                Ok(Action::requeue(requeue_ok()))
             }
         }
         Verifying => {
@@ -742,7 +757,7 @@ pub async fn reconcile_proposal(
                         .patch_status(&name, &PatchParams::default(), &Patch::Merge(&patch))
                         .await?;
                     metrics().proposals_total.with_label_values(&["Failed"]).inc();
-                    return Ok(Action::requeue(REQUEUE_OK));
+                    return Ok(Action::requeue(requeue_ok()));
                 }
             };
             metrics().applies_total.with_label_values(&["landed"]).inc();
