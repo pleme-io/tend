@@ -9010,7 +9010,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/samba";
           rev = "d26ad610c30a3875fadd05cefda472a1fa921248";
-          sha256 = "03vr75f6yjb01jmsbflhw4mbq5423s38kgg5p8vckqgl2wrs192a";
+          sha256 = "0cgpynvyfj0cc66j2rpia00qznkj7507s9l18k0z1mbccy8s25rj";
         };
         dependencies = [
           {
