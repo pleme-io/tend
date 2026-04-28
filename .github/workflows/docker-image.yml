@@ -52,6 +52,9 @@ jobs:
           cp target/release/tend docker-context/tend
           cat > docker-context/Dockerfile <<'EOF'
           FROM debian:bookworm-slim
+          LABEL org.opencontainers.image.source=https://github.com/pleme-io/tend
+          LABEL org.opencontainers.image.description="tend operator + throttle worker"
+          LABEL org.opencontainers.image.licenses=MIT
           RUN apt-get update && apt-get install -y --no-install-recommends \
                 ca-certificates \
                 git \
