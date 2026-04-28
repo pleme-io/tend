@@ -91,6 +91,14 @@ pub struct RefreshJobResult {
     /// The operator may emit this as a metric of its own; samba's
     /// LeakyBucket already uses it for adaptive shrinkage.
     pub rate_limit_remaining: Option<u32>,
+    /// Last-seen `X-RateLimit-Limit` from the response — the
+    /// upstream's CURRENT total budget. samba's LeakyBucket uses
+    /// this as the base for dynamic rpm derivation
+    /// (`quota_pct × this_value / 60`). Lets the configured "1% of
+    /// GitHub's quota" track GitHub's actual ceiling rather than
+    /// a hardcoded constant.
+    #[serde(default)]
+    pub rate_limit_total: Option<u32>,
     /// Echo of the original `RefreshJobRequest.id`. Lets fleet
     /// watchers and other result subscribers recover full repo
     /// identity from a result message without parsing the sanitized
@@ -143,7 +151,13 @@ impl TendGithubApi {
 #[async_trait]
 impl samba::UpstreamApi for TendGithubApi {
     const NAME: &'static str = "github";
-    const BUDGET_PER_HOUR: u32 = 5_000;
+    /// 5000/hr is the authenticated REST API default for classic +
+    /// fine-grained PATs. Used ONLY as a cold-start fallback before
+    /// the first response with `X-RateLimit-Limit` arrives — at
+    /// which point samba's `LeakyBucket` re-derives its rate from
+    /// the observed value (could be 5000, 15000 for GitHub Apps,
+    /// 1000 for GHE customs, etc.).
+    const INITIAL_BUDGET_PER_HOUR: u32 = 5_000;
 
     type Request = RefreshJobRequest;
     type Response = RefreshJobResult;
@@ -166,24 +180,23 @@ impl samba::UpstreamApi for TendGithubApi {
         Ok(RefreshJobResult {
             unchanged,
             head,
-            // Read the latest X-RateLimit-Remaining the underlying
-            // ReqwestHeadResolver observed during this very call.
-            // samba::worker reads this on the next dispatch and feeds
-            // it into LeakyBucket::record_headroom, so the bucket
-            // adapts its pace_multiplier (1.0 / 0.5 / 0.25 / 0.125)
-            // when GitHub reports pressure. Same number also flows
-            // back to the operator (via NATS result subject) where
-            // it drives the operator-side RequestBudget's pressure.
             rate_limit_remaining: self.client.last_observed_remaining(),
-            // Echo the request's id so fleet-side subscribers can
-            // emit fully-typed FleetAdvanceEvents without having to
-            // reverse-engineer the sanitized subject key.
+            // ★ The dynamic-limit signal. ReqwestHeadResolver stores
+            // the latest X-RateLimit-Limit on every response; samba's
+            // worker reads this and re-rates LeakyBucket so the
+            // configured quota_pct truly tracks GitHub's reported
+            // ceiling — not a hardcoded constant.
+            rate_limit_total: self.client.last_observed_total(),
             id: Some(req.id),
         })
     }
 
     fn rate_limit_remaining(&self, response: &RefreshJobResult) -> Option<u32> {
         response.rate_limit_remaining
+    }
+
+    fn rate_limit_total(&self, response: &RefreshJobResult) -> Option<u32> {
+        response.rate_limit_total
     }
 
     fn was_cached_response(&self, response: &RefreshJobResult) -> bool {

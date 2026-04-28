@@ -244,6 +244,19 @@ pub trait RegistryClient: Send + Sync {
         None
     }
 
+    /// Last observed rate-limit-TOTAL from the underlying registry
+    /// (e.g. `X-RateLimit-Limit` for GitHub). Lets samba's
+    /// `LeakyBucket` derive its actual rpm dynamically as
+    /// `quota_pct × observed_total / 60`, so the configured "1% of
+    /// GitHub's quota" really means 1% of whatever GitHub reports
+    /// (which differs across token types and over time).
+    ///
+    /// Default `None` for registries that don't expose a total.
+    /// Implementations must be cheap (no I/O).
+    fn last_observed_total(&self) -> Option<u32> {
+        None
+    }
+
     /// Conditional HEAD lookup.
     ///
     /// When `prev` is `Some(c)` and `c.etag` is `Some`, the

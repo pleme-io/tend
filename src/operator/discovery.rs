@@ -136,16 +136,21 @@ pub struct ReqwestHeadResolver {
     /// `RegistryClient::last_observed_remaining` trait method, which
     /// samba's worker consults to adapt its `LeakyBucket` pace.
     pub last_remaining: Arc<std::sync::atomic::AtomicU32>,
+    /// Latest `X-RateLimit-Limit` observed (the upstream's CURRENT
+    /// total budget). Drives samba's dynamic rate-derivation:
+    /// `quota_pct × this_value / 60` = effective rpm. u32::MAX = unknown.
+    pub last_limit: Arc<std::sync::atomic::AtomicU32>,
 }
 
 impl ReqwestHeadResolver {
-    /// Construct with token + shared budget, fresh remaining tracker.
+    /// Construct with token + shared budget, fresh remaining + limit trackers.
     pub fn new(client: reqwest::Client, token: Option<String>, budget: Arc<RequestBudget>) -> Self {
         Self {
             client,
             token,
             budget,
             last_remaining: Arc::new(std::sync::atomic::AtomicU32::new(u32::MAX)),
+            last_limit: Arc::new(std::sync::atomic::AtomicU32::new(u32::MAX)),
         }
     }
 }
@@ -158,6 +163,15 @@ impl RegistryClient for ReqwestHeadResolver {
             None
         } else {
             Some(r)
+        }
+    }
+
+    fn last_observed_total(&self) -> Option<u32> {
+        let l = self.last_limit.load(std::sync::atomic::Ordering::Relaxed);
+        if l == u32::MAX {
+            None
+        } else {
+            Some(l)
         }
     }
 
@@ -221,6 +235,14 @@ impl RegistryClient for ReqwestHeadResolver {
         if let Some(r) = remaining {
             self.last_remaining
                 .store(r, std::sync::atomic::Ordering::Relaxed);
+        }
+        // Stash the latest observed total — samba uses it as the
+        // base for `quota_pct × observed / 60` rate derivation, so
+        // the configured percentage tracks GitHub's CURRENT ceiling
+        // (varies by token type, plan, etc.).
+        if let Some(l) = limit {
+            self.last_limit
+                .store(l, std::sync::atomic::Ordering::Relaxed);
         }
         let reset_at = resp
             .headers()
