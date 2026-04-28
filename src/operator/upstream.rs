@@ -231,6 +231,19 @@ impl RegistryError {
 /// works uniformly across domains.
 #[async_trait::async_trait]
 pub trait RegistryClient: Send + Sync {
+    /// Last observed rate-limit-remaining from the underlying registry.
+    ///
+    /// Used by samba's adaptive backoff to drive the `LeakyBucket`
+    /// pressure level. Returning `None` (the default) is correct for
+    /// registries that don't expose remaining; clients that DO see
+    /// the header should override and return the latest reading.
+    ///
+    /// Implementations must be cheap (no I/O) — typically reads an
+    /// atomic / mutex updated by `head_conditional`.
+    fn last_observed_remaining(&self) -> Option<u32> {
+        None
+    }
+
     /// Conditional HEAD lookup.
     ///
     /// When `prev` is `Some(c)` and `c.etag` is `Some`, the

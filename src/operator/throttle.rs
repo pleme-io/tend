@@ -123,11 +123,11 @@ impl TendGithubApi {
             .user_agent("tend-throttle")
             .build()
             .context("building reqwest client")?;
-        let resolver = ReqwestHeadResolver {
-            client: http,
-            token: Some(token),
-            budget: Arc::new(RequestBudget::from_env_or_default()),
-        };
+        let resolver = ReqwestHeadResolver::new(
+            http,
+            Some(token),
+            Arc::new(RequestBudget::from_env_or_default()),
+        );
         Ok(Self {
             client: Arc::new(resolver),
         })
@@ -160,12 +160,15 @@ impl samba::UpstreamApi for TendGithubApi {
         Ok(RefreshJobResult {
             unchanged,
             head,
-            // ReqwestHeadResolver tracks rate-limit headers internally
-            // for the operator's RequestBudget — surfacing the value
-            // to samba would require widening the trait. For now the
-            // operator-side budget continues to provide adaptive
-            // shrinkage; samba's bucket runs at its configured pace.
-            rate_limit_remaining: None,
+            // Read the latest X-RateLimit-Remaining the underlying
+            // ReqwestHeadResolver observed during this very call.
+            // samba::worker reads this on the next dispatch and feeds
+            // it into LeakyBucket::record_headroom, so the bucket
+            // adapts its pace_multiplier (1.0 / 0.5 / 0.25 / 0.125)
+            // when GitHub reports pressure. Same number also flows
+            // back to the operator (via NATS result subject) where
+            // it drives the operator-side RequestBudget's pressure.
+            rate_limit_remaining: self.client.last_observed_remaining(),
         })
     }
 

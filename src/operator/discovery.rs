@@ -130,10 +130,37 @@ pub struct ReqwestHeadResolver {
     /// awaits a slot from this budget *before* sending; that's what
     /// keeps us under behavioral abuse-detection thresholds.
     pub budget: Arc<RequestBudget>,
+    /// Latest `X-RateLimit-Remaining` observed from any response, or
+    /// `u32::MAX` if no response has been seen yet (sentinel for
+    /// "unknown" since `Option<AtomicU32>` is awkward). Read by the
+    /// `RegistryClient::last_observed_remaining` trait method, which
+    /// samba's worker consults to adapt its `LeakyBucket` pace.
+    pub last_remaining: Arc<std::sync::atomic::AtomicU32>,
+}
+
+impl ReqwestHeadResolver {
+    /// Construct with token + shared budget, fresh remaining tracker.
+    pub fn new(client: reqwest::Client, token: Option<String>, budget: Arc<RequestBudget>) -> Self {
+        Self {
+            client,
+            token,
+            budget,
+            last_remaining: Arc::new(std::sync::atomic::AtomicU32::new(u32::MAX)),
+        }
+    }
 }
 
 #[async_trait::async_trait]
 impl RegistryClient for ReqwestHeadResolver {
+    fn last_observed_remaining(&self) -> Option<u32> {
+        let r = self.last_remaining.load(std::sync::atomic::Ordering::Relaxed);
+        if r == u32::MAX {
+            None
+        } else {
+            Some(r)
+        }
+    }
+
     async fn head_conditional(
         &self,
         id: &UpstreamId,
@@ -187,6 +214,13 @@ impl RegistryClient for ReqwestHeadResolver {
             .and_then(|s| s.parse::<u32>().ok());
         if let (Some(r), Some(l)) = (remaining, limit) {
             self.budget.observe_pressure(r, l);
+        }
+        // Stash the latest observed remaining so samba can read it
+        // via RegistryClient::last_observed_remaining and shrink its
+        // own LeakyBucket pace when GitHub reports headroom < threshold.
+        if let Some(r) = remaining {
+            self.last_remaining
+                .store(r, std::sync::atomic::Ordering::Relaxed);
         }
         let reset_at = resp
             .headers()

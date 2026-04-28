@@ -243,13 +243,13 @@ pub async fn reconcile_policy(
     // discovery is unchanged.
     use super::nats_throttle::NatsThrottleClient;
     use super::upstream::RegistryClient;
-    let reqwest_resolver = ReqwestHeadResolver {
-        client: ctx.http.clone(),
-        token: ctx.github_token.clone(),
-        budget: ctx.budget.clone(),
-    };
+    let reqwest_resolver = ReqwestHeadResolver::new(
+        ctx.http.clone(),
+        ctx.github_token.clone(),
+        ctx.budget.clone(),
+    );
     let nats_resolver = if NatsThrottleClient::enabled() {
-        match NatsThrottleClient::from_env().await {
+        match NatsThrottleClient::from_env(Some(ctx.budget.clone())).await {
             Ok(c) => Some(c),
             Err(e) => {
                 // Throttle was requested but unreachable — fail the

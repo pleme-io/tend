@@ -27,9 +27,12 @@
 //!     review § B.3 — no inline fallback, no budget violation).
 
 use async_trait::async_trait;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::timeout;
 
+use crate::operator::budget::RequestBudget;
 use crate::operator::upstream::{
     CachedHead, HeadOutcome, RegistryClient, RegistryError, UpstreamId,
 };
@@ -42,6 +45,15 @@ pub struct NatsThrottleClient {
     refresh_subject: String,
     result_subject: String,
     result_timeout: Duration,
+    /// Latest rate-limit-remaining observed in result messages from
+    /// the throttle worker. Drives `last_observed_remaining` so the
+    /// reconciler's downstream code paths see fleet-wide pressure
+    /// (not just per-pod). u32::MAX = unknown.
+    last_remaining: Arc<AtomicU32>,
+    /// Operator-side budget — kept in step with fleet pressure via
+    /// observe_pressure on every result. Optional because some test
+    /// paths skip it; production wiring always supplies one.
+    budget: Option<Arc<RequestBudget>>,
 }
 
 impl NatsThrottleClient {
@@ -54,7 +66,12 @@ impl NatsThrottleClient {
     ///   • `TEND_THROTTLE_REFRESH_SUBJECT` — refresh-job subject prefix
     ///   • `TEND_THROTTLE_RESULT_SUBJECT`  — result-job subject prefix
     ///   • `TEND_THROTTLE_RESULT_TIMEOUT`  — go-duration string (e.g. "30m")
-    pub async fn from_env() -> Result<Self, anyhow::Error> {
+    ///
+    /// `budget` is the operator's existing RequestBudget — passing it in
+    /// lets received rate-limit-remaining values feed the budget's
+    /// pressure tracking, so the operator's internal back-pressure mirrors
+    /// what samba sees fleet-wide.
+    pub async fn from_env(budget: Option<Arc<RequestBudget>>) -> Result<Self, anyhow::Error> {
         let url = std::env::var("TEND_NATS_URL")
             .unwrap_or_else(|_| "nats://pleme-nats.nats.svc:4222".to_string());
         let refresh = std::env::var("TEND_THROTTLE_REFRESH_SUBJECT")
@@ -74,6 +91,8 @@ impl NatsThrottleClient {
             refresh_subject: refresh,
             result_subject: result,
             result_timeout,
+            last_remaining: Arc::new(AtomicU32::new(u32::MAX)),
+            budget,
         })
     }
 
@@ -122,6 +141,15 @@ fn parse_duration_str(s: &str) -> Option<Duration> {
 
 #[async_trait]
 impl RegistryClient for NatsThrottleClient {
+    fn last_observed_remaining(&self) -> Option<u32> {
+        let r = self.last_remaining.load(Ordering::Relaxed);
+        if r == u32::MAX {
+            None
+        } else {
+            Some(r)
+        }
+    }
+
     async fn head_conditional(
         &self,
         id: &UpstreamId,
@@ -148,8 +176,16 @@ impl RegistryClient for NatsThrottleClient {
         };
         let body = serde_json::to_vec(&req)
             .map_err(|e| RegistryError::Transient(format!("encode request: {e}")))?;
+
+        // Set Nats-Msg-Id so JetStream's duplicate_window collapses
+        // repeat publishes of the same job (e.g. operator pod
+        // restart, multi-pod race) into one. Key matches the
+        // sanitized UpstreamId so {repo, ref} → one effective publish.
+        let mut headers = async_nats::HeaderMap::new();
+        headers.insert("Nats-Msg-Id", key.as_str());
+
         self.client
-            .publish(refresh_subject.clone(), body.into())
+            .publish_with_headers(refresh_subject.clone(), headers, body.into())
             .await
             .map_err(|e| {
                 RegistryError::Transient(format!("nats publish {refresh_subject}: {e}"))
@@ -169,6 +205,23 @@ impl RegistryClient for NatsThrottleClient {
                     serde_json::from_slice(&msg.payload).map_err(|e| {
                         RegistryError::Transient(format!("decode result: {e}"))
                     })?;
+
+                // ★ Adaptive feedback loop: capture observed
+                // rate-limit-remaining for downstream consumers
+                // (last_observed_remaining trait method) AND feed
+                // it into the operator's own RequestBudget so
+                // pressure self-throttling tracks the fleet-wide
+                // signal, not just per-pod observation.
+                if let Some(remaining) = result.rate_limit_remaining {
+                    self.last_remaining.store(remaining, Ordering::Relaxed);
+                    if let Some(b) = &self.budget {
+                        // 5000 = GitHub authenticated cap. Encoding
+                        // the limit here is fine — the operator's
+                        // upstream is always GitHub.
+                        b.observe_pressure(remaining, 5000);
+                    }
+                }
+
                 if result.unchanged {
                     Ok(HeadOutcome::Unchanged(result.head))
                 } else {
