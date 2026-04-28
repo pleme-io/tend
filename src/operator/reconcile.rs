@@ -223,10 +223,52 @@ pub async fn reconcile_policy(
         }
     }
 
-    let resolver = ReqwestHeadResolver {
+    // Pick the upstream client based on TEND_THROTTLE_ENABLED:
+    //
+    //   • false (default) — `ReqwestHeadResolver` dispatches HEAD
+    //     inline using the operator's Phase A–E protections (Phase D
+    //     RequestBudget caps at 100 req/hr/pod by default). Good for
+    //     single-cluster, single-pod operation.
+    //
+    //   • true — `NatsThrottleClient` publishes refresh jobs to
+    //     `pleme-tend-throttle` over NATS and awaits the result.
+    //     The single fleet-wide drain enforces ≤10% of GitHub's
+    //     authenticated quota by construction (theory in
+    //     pleme-io/theory/RATE-LIMITED-CONSUMERS.md). A timeout on
+    //     the result subscriber returns a transient RegistryError;
+    //     the reconciler retries next cycle (option (c) — no inline
+    //     fallback that would defeat the invariant).
+    //
+    // Both impls satisfy the same RegistryClient trait so the rest of
+    // discovery is unchanged.
+    use super::nats_throttle::NatsThrottleClient;
+    use super::upstream::RegistryClient;
+    let reqwest_resolver = ReqwestHeadResolver {
         client: ctx.http.clone(),
         token: ctx.github_token.clone(),
         budget: ctx.budget.clone(),
+    };
+    let nats_resolver = if NatsThrottleClient::enabled() {
+        match NatsThrottleClient::from_env().await {
+            Ok(c) => Some(c),
+            Err(e) => {
+                // Throttle was requested but unreachable — fail the
+                // cycle rather than silently fall back to inline (which
+                // would defeat the rate-limit invariant). Operator
+                // surfaces this as a transient condition; alert
+                // `TendThrottleDown` will fire if persistent.
+                tracing::error!(error = %e, "throttle enabled but NATS unreachable; aborting cycle");
+                return Err(ReconcileError::Other(anyhow::anyhow!(
+                    "throttle enabled but NATS unreachable: {e}"
+                )));
+            }
+        }
+    } else {
+        None
+    };
+    let resolver: &dyn RegistryClient = match nats_resolver.as_ref() {
+        Some(n) => n,
+        None => &reqwest_resolver,
     };
     // Hold the persistent cache across cycles. Each entry has an
     // ETag; conditional requests turn most "is X advanced?" polls
@@ -237,7 +279,7 @@ pub async fn reconcile_policy(
         let mut head_cache_guard = ctx.head_cache.lock().await;
         discovery::discover_advances_filtered(
             &lock,
-            &resolver,
+            resolver,
             declared_inputs.as_ref(),
             &mut head_cache_guard,
         )

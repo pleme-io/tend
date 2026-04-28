@@ -20,6 +20,7 @@ pub mod lock_format;
 pub mod metrics;
 pub mod planner;
 pub mod reconcile;
+pub mod nats_throttle;
 pub mod status;
 pub mod throttle;
 pub mod upstream;
