@@ -1,0 +1,88 @@
+name: docker-image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build-and-push:
+    name: Build + push ghcr.io/pleme-io/tend (linux/amd64)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image tag (commit SHA prefix)
+        id: tag
+        run: echo "tag=amd64-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build tend binary (linux/amd64, with operator feature)
+        run: cargo build --release --features operator --bin tend
+
+      - name: Stage Dockerfile context
+        run: |
+          mkdir -p docker-context
+          cp target/release/tend docker-context/tend
+          cat > docker-context/Dockerfile <<'EOF'
+          FROM debian:bookworm-slim
+          RUN apt-get update && apt-get install -y --no-install-recommends \
+                ca-certificates \
+                git \
+                openssh-client \
+                tini \
+                xz-utils \
+                bzip2 \
+                && rm -rf /var/lib/apt/lists/*
+          # Install Nix (single-user) into /nix so `tend operator`'s apply path
+          # can shell out to nix-flake-check and nix-build inside the container.
+          RUN mkdir -m 0755 /nix && groupadd -g 1000 tend \
+                && useradd -u 1000 -g 1000 -m -d /home/tend -s /bin/bash tend \
+                && chown -R tend:tend /nix /home/tend
+          USER tend
+          ENV USER=tend HOME=/home/tend XDG_CACHE_HOME=/home/tend/.cache
+          ENV NIX_CONFIG="experimental-features = nix-command flakes"
+          WORKDIR /var/lib/tend-workspace
+          COPY --chown=tend:tend tend /usr/local/bin/tend
+          ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/tend"]
+          CMD ["operator"]
+          EOF
+
+      - name: Build + push image
+        uses: docker/build-push-action@v6
+        with:
+          context: docker-context
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/pleme-io/tend:${{ steps.tag.outputs.tag }}
+            ghcr.io/pleme-io/tend:amd64-latest
+
+      - name: Image tag echo
+        run: echo "Pushed ghcr.io/pleme-io/tend:${{ steps.tag.outputs.tag }}"
