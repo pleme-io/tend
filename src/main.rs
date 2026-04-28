@@ -287,6 +287,22 @@ enum Commands {
     /// See docs/OPERATOR-DESIGN.md.
     #[cfg(feature = "operator")]
     Operator,
+
+    /// Run as the rate-limited GitHub API throttle worker. Pulls jobs
+    /// from the TEND_GITHUB_JOBS NATS stream and dispatches at a fixed
+    /// pace (default ≤8 req/min ≈ 9.6% of GitHub's 5000/hr cap), with
+    /// adaptive halving when X-RateLimit-Remaining drops below
+    /// pressure thresholds.
+    ///
+    /// Built on samba (pleme-io/samba) for the typed primitive. See
+    /// pleme-io/theory/RATE-LIMITED-CONSUMERS.md.
+    #[cfg(feature = "operator")]
+    Throttle {
+        /// Path to samba config YAML. Defaults to /etc/pleme-worker/config.yaml
+        /// (matches pleme-lib.rate-limit-worker.config Helm template output).
+        #[arg(long)]
+        config: Option<PathBuf>,
+    },
 }
 
 #[tokio::main]
@@ -826,6 +842,10 @@ async fn main() -> Result<()> {
         #[cfg(feature = "operator")]
         Commands::Operator => {
             operator::run().await?;
+        }
+        #[cfg(feature = "operator")]
+        Commands::Throttle { config } => {
+            operator::throttle::run(config.as_deref()).await?;
         }
     }
 

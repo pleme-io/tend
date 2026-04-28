@@ -21,6 +21,7 @@ pub mod metrics;
 pub mod planner;
 pub mod reconcile;
 pub mod status;
+pub mod throttle;
 pub mod upstream;
 pub mod workspace;
 
