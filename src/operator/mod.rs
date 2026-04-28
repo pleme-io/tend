@@ -20,6 +20,7 @@ pub mod lock_format;
 pub mod metrics;
 pub mod planner;
 pub mod reconcile;
+pub mod fleet_watch;
 pub mod nats_throttle;
 pub mod status;
 pub mod throttle;
@@ -98,6 +99,21 @@ pub async fn run() -> Result<()> {
     let metrics_addr = std::env::var("TEND_METRICS_ADDR")
         .unwrap_or_else(|_| "0.0.0.0:9090".to_string());
     metrics::spawn_server(&metrics_addr).context("spawning metrics server")?;
+
+    // Fleet-wide org watcher — when TEND_FLEET_WATCH_ENABLED=true,
+    // continuously enumerates the org, filters to flake-having repos,
+    // and round-robin publishes refresh-jobs through the NATS throttle
+    // at the throttle's drain rate (Mode A steady-trickle, fleet-wide).
+    // Coexists with the FlakeUpdatePolicy reconciler — both publishers
+    // share the same throttle worker; results are processed by their
+    // respective subscribers.
+    if let Some(watcher) = fleet_watch::FleetWatchTask::from_env()
+        .await
+        .context("initializing fleet watcher")?
+    {
+        tracing::info!("fleet watcher: starting");
+        tokio::spawn(async move { watcher.run().await });
+    }
 
     let policies: Api<crds::FlakeUpdatePolicy> = Api::all(client.clone());
     let proposals: Api<crds::FlakeUpdateProposal> = Api::all(client.clone());
