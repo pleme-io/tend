@@ -214,7 +214,8 @@ pub async fn run(config_path: Option<&Path>) -> Result<()> {
         upstream = "github",
         stream = %cfg.nats.stream,
         consumer = %cfg.nats.consumer,
-        rpm = cfg.rate_limit.requests_per_minute,
+        quota_pct = cfg.rate_limit.quota_pct,
+        target_rpm = cfg.target_rpm(),
         "tend throttle worker starting"
     );
 
