@@ -35,7 +35,7 @@ use crate::config::Workspace;
 use crate::drift::{derive_from_receipt, AuditFileDriftSink, DriftSink};
 use crate::jobs::discover_org::{DiscoverOrgJob, DISCOVER_ORG_KIND};
 use crate::jobs::fetch_repo::FETCH_REPO_KIND;
-use crate::jobs::gates::CacheFreshGate;
+use crate::jobs::gates::{CacheFreshGate, NotPlaceholderGate};
 use crate::jobs::pull_repo::{PullRepoJob, PULL_REPO_KIND};
 use crate::jobs::reactions::react_to_drift;
 use crate::jobs::sync_repo::{SyncRepoJob, SYNC_REPO_KIND};
@@ -261,6 +261,19 @@ pub(crate) async fn reconcile_workspace_pull(
         .register_retry_policy(JobKindId::new(FETCH_REPO_KIND), default_pull_retry_policy())
         .await;
 
+    // M3: NotPlaceholderGate — see full-path docstring for rationale.
+    // Wires against PULL + FETCH (the pull-only path doesn't schedule
+    // sync, but the M6 reaction path may spawn FetchRepoJobs).
+    let placeholder_gate = Arc::new(NotPlaceholderGate {
+        base_dir: base_dir.clone(),
+    });
+    scheduler
+        .register_gate(JobKindId::new(PULL_REPO_KIND), placeholder_gate.clone())
+        .await;
+    scheduler
+        .register_gate(JobKindId::new(FETCH_REPO_KIND), placeholder_gate)
+        .await;
+
     let mut dag = Dag::new();
 
     let mut all_ids: Vec<JobId> = Vec::with_capacity(all.len());
@@ -453,6 +466,23 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
     // log instead of running a no-op execute.
     scheduler
         .register_gate(JobKindId::new(DISCOVER_ORG_KIND), Arc::new(CacheFreshGate))
+        .await;
+
+    // M3: NotPlaceholderGate skips reconcile against dirs marked
+    // with `.tend-placeholder`. Wire against sync + pull + fetch
+    // (the kinds that act on per-repo paths). Discovery is workspace-
+    // scoped so doesn't need this gate.
+    let placeholder_gate = Arc::new(NotPlaceholderGate {
+        base_dir: base_dir.clone(),
+    });
+    scheduler
+        .register_gate(JobKindId::new(SYNC_REPO_KIND), placeholder_gate.clone())
+        .await;
+    scheduler
+        .register_gate(JobKindId::new(PULL_REPO_KIND), placeholder_gate.clone())
+        .await;
+    scheduler
+        .register_gate(JobKindId::new(FETCH_REPO_KIND), placeholder_gate)
         .await;
 
     let mut dag = Dag::new();

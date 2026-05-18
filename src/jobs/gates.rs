@@ -19,10 +19,13 @@
 //!         Arc::new(CacheFreshGate),
 //!     ).await;
 
+use std::path::PathBuf;
+
 use shigoto_gate::{Gate, GateContext, GateOutcome};
 use shigoto_types::{JobSubject, SkipReason};
 
 use crate::cache;
+use crate::placeholder;
 
 /// Gate that Skips a `DiscoverOrgJob` when the discovery cache for the
 /// Job's `JobSubject::Org` is fresh (within the TTL hard-coded in
@@ -61,6 +64,47 @@ impl Gate for CacheFreshGate {
             GateOutcome::Skip(SkipReason::GateRejected)
         } else {
             // No cached entry OR stale — discovery should run.
+            GateOutcome::Pass
+        }
+    }
+}
+
+/// Gate that Skips reconcile Jobs against directories marked as
+/// intentional placeholders (`.tend-placeholder` marker file present
+/// in the dir). Constructed per workspace because the base_dir is
+/// needed to resolve the per-repo path from the Job's
+/// `JobSubject::Repo(name)` to a filesystem path.
+///
+/// Operational effect: registering against tend.sync-repo +
+/// tend.pull-repo (and friends) means a directory the operator has
+/// marked with `tend placeholder <name>` is skipped every reconcile
+/// cycle, surfacing in the audit log as Skipped(GateRejected) rather
+/// than as a silent no-op or worse, a misclassified StubDirectoryFound
+/// drift.
+///
+/// M3 from SHIGOTO.md §IV.4 — the typed empty-dir intent primitive.
+pub(crate) struct NotPlaceholderGate {
+    pub base_dir: PathBuf,
+}
+
+impl Gate for NotPlaceholderGate {
+    fn name(&self) -> &'static str {
+        "tend.not-placeholder"
+    }
+
+    fn evaluate(&self, ctx: &GateContext) -> GateOutcome {
+        // Only meaningful for Repo-subjected Jobs. Other subjects
+        // pass through (defensive — registering against a kind that
+        // never has Repo subjects shouldn't deadlock that kind).
+        let repo_name = match &ctx.job_id.subject {
+            JobSubject::Repo(r) => r,
+            _ => return GateOutcome::Pass,
+        };
+
+        let path = self.base_dir.join(repo_name);
+        if placeholder::is_placeholder(&path) {
+            GateOutcome::Skip(SkipReason::GateRejected)
+        } else {
             GateOutcome::Pass
         }
     }
@@ -160,5 +204,74 @@ mod tests {
     #[allow(dead_code)]
     fn _phase_assertion(p: JobPhase) -> JobPhase {
         p
+    }
+
+    // ── NotPlaceholderGate tests ────────────────────────────────────
+
+    use tempfile::TempDir;
+
+    fn pull_id(repo: &str) -> JobId {
+        JobId {
+            scope: JobScope::Workspace("ws".into()),
+            kind: JobKindId::new("tend.pull-repo"),
+            subject: JobSubject::Repo(repo.into()),
+        }
+    }
+
+    fn empty_ctx<'a>(
+        id: &'a JobId,
+        snap: &'a Snapshot,
+        dag: &'a Dag,
+    ) -> GateContext<'a> {
+        GateContext {
+            job_id: id,
+            snapshot: snap,
+            dag,
+        }
+    }
+
+    #[test]
+    fn unmarked_dir_passes_placeholder_gate() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::create_dir(tmp.path().join("repo1")).unwrap();
+        let gate = NotPlaceholderGate {
+            base_dir: tmp.path().to_path_buf(),
+        };
+        let id = pull_id("repo1");
+        let snap = snapshot_empty();
+        let dag = Dag::new();
+        assert_eq!(gate.evaluate(&empty_ctx(&id, &snap, &dag)), GateOutcome::Pass);
+    }
+
+    #[test]
+    fn marked_dir_skips_placeholder_gate() {
+        let tmp = TempDir::new().unwrap();
+        crate::placeholder::mark_placeholder(&tmp.path().join("scratch")).unwrap();
+        let gate = NotPlaceholderGate {
+            base_dir: tmp.path().to_path_buf(),
+        };
+        let id = pull_id("scratch");
+        let snap = snapshot_empty();
+        let dag = Dag::new();
+        assert_eq!(
+            gate.evaluate(&empty_ctx(&id, &snap, &dag)),
+            GateOutcome::Skip(SkipReason::GateRejected)
+        );
+    }
+
+    #[test]
+    fn non_repo_subject_passes_placeholder_gate() {
+        let tmp = TempDir::new().unwrap();
+        let gate = NotPlaceholderGate {
+            base_dir: tmp.path().to_path_buf(),
+        };
+        let id = JobId {
+            scope: JobScope::Workspace("ws".into()),
+            kind: JobKindId::new("some-other-kind"),
+            subject: JobSubject::Org("ws".into()),
+        };
+        let snap = snapshot_empty();
+        let dag = Dag::new();
+        assert_eq!(gate.evaluate(&empty_ctx(&id, &snap, &dag)), GateOutcome::Pass);
     }
 }

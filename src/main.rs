@@ -17,6 +17,7 @@ mod github;
 mod drift;
 mod head_cache;
 mod jobs;
+mod placeholder;
 mod planner;
 mod reconcile;
 mod report;
