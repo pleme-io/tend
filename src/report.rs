@@ -16,6 +16,8 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use shigoto_types::{JobId, JobPhase, TransitionEvent};
 
+use crate::drift::DriftEvent;
+
 /// Bounded scan: anything older than this is excluded from the
 /// report. Operators usually want "what's happening recently" — a
 /// week's history is plenty for daemon-style cycles, and bounding
@@ -43,6 +45,12 @@ pub(crate) struct Report {
     /// Recent failed-execution reasons. Pairs (job_id, reason_string).
     /// Bounded to the most recent N (default 16) for readability.
     pub recent_failures: Vec<FailureEntry>,
+
+    /// Drift events read from the drift JSONL log when present.
+    /// Empty when no log exists or no drift was recorded. Each Vec
+    /// element is the latest event read from the log within the
+    /// window; same window cutoff as `total_transitions`.
+    pub drift_events: Vec<DriftEvent>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -71,7 +79,16 @@ pub(crate) struct FailureEntry {
 /// Build a Report from the JSONL transition log at `path`. Lines
 /// older than `window_hours` are skipped; malformed lines are
 /// counted-but-ignored so a corrupted entry doesn't kill the report.
-pub(crate) fn build_report(path: &Path, window_hours: Option<i64>) -> Result<Report> {
+///
+/// `drift_path` is an optional second JSONL file: the drift-events
+/// log written by `AuditFileDriftSink`. When present + readable, its
+/// entries appear in `report.drift_events` so the operator sees both
+/// FSM activity and the typed drift surface in one output.
+pub(crate) fn build_report(
+    path: &Path,
+    drift_path: Option<&Path>,
+    window_hours: Option<i64>,
+) -> Result<Report> {
     let window = window_hours.unwrap_or(DEFAULT_WINDOW_HOURS);
     let cutoff = Utc::now() - chrono::Duration::hours(window);
 
@@ -166,6 +183,21 @@ pub(crate) fn build_report(path: &Path, window_hours: Option<i64>) -> Result<Rep
     }
     report.currently_stuck.sort_by(|a, b| b.last_seen_at.cmp(&a.last_seen_at));
 
+    // Pull in drift events when the operator wired a drift log.
+    // We don't time-window drift events — the drift log is already
+    // a curated stream (one entry per detected drift event per
+    // reconcile cycle), so showing them all gives the operator the
+    // full picture without prematurely trimming.
+    if let Some(dpath) = drift_path {
+        if let Ok(drift_content) = std::fs::read_to_string(dpath) {
+            for line in drift_content.lines() {
+                if let Ok(event) = serde_json::from_str::<DriftEvent>(line) {
+                    report.drift_events.push(event);
+                }
+            }
+        }
+    }
+
     Ok(report)
 }
 
@@ -234,6 +266,45 @@ pub(crate) fn print_report(report: &Report) {
                 format_job_id(&entry.job_id),
                 entry.reason.dimmed(),
             );
+        }
+    }
+
+    if !report.drift_events.is_empty() {
+        println!();
+        println!(
+            "{} {} event(s)",
+            "drift:".bold(),
+            report.drift_events.len().to_string().yellow()
+        );
+        for event in &report.drift_events {
+            println!("  {}", format_drift_event(event).yellow());
+        }
+    }
+}
+
+fn format_drift_event(event: &DriftEvent) -> String {
+    match event {
+        DriftEvent::StubDirectoryFound {
+            workspace,
+            repo_name,
+            ..
+        } => format!("[{workspace}] {repo_name}: stub directory (no .git)"),
+        DriftEvent::DirtyTreeBlocksPull {
+            workspace,
+            repo_name,
+        } => format!("[{workspace}] {repo_name}: dirty tree blocked pull"),
+        DriftEvent::PullFailed {
+            workspace,
+            repo_name,
+            stderr,
+        } => format!("[{workspace}] {repo_name}: pull failed — {}", stderr.lines().next().unwrap_or("")),
+        DriftEvent::SyncFailed {
+            workspace,
+            repo_name,
+            stderr,
+        } => format!("[{workspace}] {repo_name}: sync failed — {}", stderr.lines().next().unwrap_or("")),
+        DriftEvent::JobUnhealed { job_id, phase } => {
+            format!("{}: {}", format_job_id(job_id), format_phase(phase))
         }
     }
 }
@@ -312,7 +383,7 @@ mod tests {
         let path = tmp.path().join("empty.jsonl");
         std::fs::write(&path, "").unwrap();
 
-        let report = build_report(&path, Some(24)).unwrap();
+        let report = build_report(&path, None, Some(24)).unwrap();
         assert_eq!(report.total_transitions, 0);
         assert!(report.per_kind.is_empty());
         assert!(report.currently_stuck.is_empty());
@@ -335,7 +406,7 @@ mod tests {
         content.push_str("{}\n"); // Valid JSON but wrong shape — also skipped.
         std::fs::write(&path, content).unwrap();
 
-        let report = build_report(&path, Some(24)).unwrap();
+        let report = build_report(&path, None, Some(24)).unwrap();
         assert_eq!(
             report.total_transitions, 1,
             "only the well-formed line should count"
@@ -359,7 +430,7 @@ mod tests {
 
         write_log(&path, &[old, recent]);
 
-        let report = build_report(&path, Some(24)).unwrap();
+        let report = build_report(&path, None, Some(24)).unwrap();
         assert_eq!(report.total_transitions, 1, "only recent event counted");
         assert_eq!(
             report.per_kind.get("k").map(|c| c.succeeded).unwrap_or(0),
@@ -411,7 +482,7 @@ mod tests {
         ];
         write_log(&path, &events);
 
-        let report = build_report(&path, Some(24)).unwrap();
+        let report = build_report(&path, None, Some(24)).unwrap();
         let stuck: Vec<&str> = report
             .currently_stuck
             .iter()

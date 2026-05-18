@@ -32,6 +32,7 @@ use shigoto_scheduler::{InProcessScheduler, Scheduler};
 use shigoto_types::{JobId, JobKindId, JobPhase, OutputSink};
 
 use crate::config::Workspace;
+use crate::drift::{derive_from_receipt, AuditFileDriftSink, DriftSink};
 use crate::jobs::discover_org::{DiscoverOrgJob, DISCOVER_ORG_KIND};
 use crate::jobs::gates::CacheFreshGate;
 use crate::jobs::pull_repo::{PullRepoJob, PULL_REPO_KIND};
@@ -279,13 +280,26 @@ pub(crate) async fn reconcile_workspace_pull(
         })
         .collect();
 
-    Ok(ReconcileReceipt {
+    let receipt = ReconcileReceipt {
         workspace: workspace.name.clone(),
         outcomes: sink.drain(),
         sync_outcomes: HashMap::new(),
         discovery_outcomes: HashMap::new(),
         failed_jobs,
-    })
+    };
+
+    if let Some(tlog) = transition_log {
+        if let Some(parent) = tlog.parent() {
+            let drift_path = parent.join("drift-events.jsonl");
+            if let Ok(sink) = AuditFileDriftSink::new(&drift_path) {
+                for event in derive_from_receipt(&receipt) {
+                    sink.record(&event);
+                }
+            }
+        }
+    }
+
+    Ok(receipt)
 }
 
 /// Full reconcile cycle: clone-or-noop every repo, then fast-forward
@@ -450,13 +464,30 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
         })
         .collect();
 
-    Ok(ReconcileReceipt {
+    let receipt = ReconcileReceipt {
         workspace: workspace.name.clone(),
         outcomes: pull_sink.drain(),
         sync_outcomes: sync_sink.drain(),
         discovery_outcomes: discovery_sink.drain(),
         failed_jobs,
-    })
+    };
+
+    // Derive + record drift events when the operator wired a drift
+    // log. Co-located with the transition log so `tend report` can
+    // read both in one place. Drift derivation is a pure projection
+    // of `receipt` — see drift::derive_from_receipt for the rules.
+    if let Some(tlog) = transition_log {
+        if let Some(parent) = tlog.parent() {
+            let drift_path = parent.join("drift-events.jsonl");
+            if let Ok(sink) = AuditFileDriftSink::new(&drift_path) {
+                for event in derive_from_receipt(&receipt) {
+                    sink.record(&event);
+                }
+            }
+        }
+    }
+
+    Ok(receipt)
 }
 
 /// Pretty-print a receipt for the operator. Matches the existing

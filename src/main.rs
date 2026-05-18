@@ -14,6 +14,7 @@ mod flake;
 mod flake_lock;
 mod git;
 mod github;
+mod drift;
 mod head_cache;
 mod jobs;
 mod planner;
@@ -434,7 +435,13 @@ async fn main() -> Result<()> {
                     path.display()
                 );
             }
-            let report = report::build_report(&path, window_hours)?;
+            // Drift log lives next to the transition log; both written
+            // by the same reconcile path.
+            let drift_path = path
+                .parent()
+                .map(|p| p.join("drift-events.jsonl"))
+                .filter(|p| p.exists());
+            let report = report::build_report(&path, drift_path.as_deref(), window_hours)?;
             report::print_report(&report);
         }
 
