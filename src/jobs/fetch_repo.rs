@@ -10,21 +10,35 @@
 //! [`StatusRepoJob`][crate::jobs::status_repo].
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use shigoto_types::{Job, JobId, JobKindId, JobScope, JobSubject};
+use shigoto_types::{Job, JobId, JobKindId, JobScope, JobSubject, OutputSink};
 use thiserror::Error;
 
 use crate::sync::{fetch_one_repo, FetchOutcome};
 
 pub(crate) const FETCH_REPO_KIND: &str = "tend.fetch-repo";
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct FetchRepoJob {
     pub workspace: String,
     pub repo_name: String,
     pub repo_path: PathBuf,
     pub quiet: bool,
+    output_sink: Option<Arc<dyn OutputSink<FetchOutcome>>>,
+}
+
+impl std::fmt::Debug for FetchRepoJob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FetchRepoJob")
+            .field("workspace", &self.workspace)
+            .field("repo_name", &self.repo_name)
+            .field("repo_path", &self.repo_path)
+            .field("quiet", &self.quiet)
+            .field("output_sink", &self.output_sink.as_ref().map(|_| "<sink>"))
+            .finish()
+    }
 }
 
 impl FetchRepoJob {
@@ -38,7 +52,13 @@ impl FetchRepoJob {
             repo_name: repo_name.into(),
             repo_path: repo_path.into(),
             quiet: true,
+            output_sink: None,
         }
+    }
+
+    pub(crate) fn with_output_sink(mut self, sink: Arc<dyn OutputSink<FetchOutcome>>) -> Self {
+        self.output_sink = Some(sink);
+        self
     }
 }
 
@@ -69,10 +89,14 @@ impl Job for FetchRepoJob {
         let path = self.repo_path.clone();
         let quiet = self.quiet;
         let label = self.repo_name.clone();
-        tokio::task::spawn_blocking(move || fetch_one_repo(&path, quiet, &label))
+        let outcome = tokio::task::spawn_blocking(move || fetch_one_repo(&path, quiet, &label))
             .await
             .map_err(|join_err| FetchRepoError::Invocation(format!("join error: {join_err}")))?
-            .map_err(|err| FetchRepoError::Invocation(err.to_string()))
+            .map_err(|err| FetchRepoError::Invocation(err.to_string()))?;
+        if let Some(sink) = &self.output_sink {
+            sink.record(&<Self as Job>::id(self), &outcome).await;
+        }
+        Ok(outcome)
     }
 }
 

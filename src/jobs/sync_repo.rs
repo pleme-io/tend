@@ -11,16 +11,17 @@
 //! when scheduling.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use shigoto_types::{Job, JobId, JobKindId, JobScope, JobSubject};
+use shigoto_types::{Job, JobId, JobKindId, JobScope, JobSubject, OutputSink};
 use thiserror::Error;
 
 use crate::sync::{sync_one_repo, SyncOutcome};
 
 pub(crate) const SYNC_REPO_KIND: &str = "tend.sync-repo";
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct SyncRepoJob {
     pub workspace: String,
     pub repo_name: String,
@@ -30,6 +31,20 @@ pub(crate) struct SyncRepoJob {
     /// — same behavior as the legacy `sync_repos` batch path.
     pub clone_url: String,
     pub quiet: bool,
+    output_sink: Option<Arc<dyn OutputSink<SyncOutcome>>>,
+}
+
+impl std::fmt::Debug for SyncRepoJob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SyncRepoJob")
+            .field("workspace", &self.workspace)
+            .field("repo_name", &self.repo_name)
+            .field("repo_path", &self.repo_path)
+            .field("clone_url", &self.clone_url)
+            .field("quiet", &self.quiet)
+            .field("output_sink", &self.output_sink.as_ref().map(|_| "<sink>"))
+            .finish()
+    }
 }
 
 impl SyncRepoJob {
@@ -45,7 +60,13 @@ impl SyncRepoJob {
             repo_path: repo_path.into(),
             clone_url: clone_url.into(),
             quiet: true,
+            output_sink: None,
         }
+    }
+
+    pub(crate) fn with_output_sink(mut self, sink: Arc<dyn OutputSink<SyncOutcome>>) -> Self {
+        self.output_sink = Some(sink);
+        self
     }
 }
 
@@ -77,10 +98,14 @@ impl Job for SyncRepoJob {
         let path = self.repo_path.clone();
         let label = self.repo_name.clone();
         let quiet = self.quiet;
-        tokio::task::spawn_blocking(move || sync_one_repo(url, &path, &label, quiet))
+        let outcome = tokio::task::spawn_blocking(move || sync_one_repo(url, &path, &label, quiet))
             .await
             .map_err(|join_err| SyncRepoError::Invocation(format!("join error: {join_err}")))?
-            .map_err(|err| SyncRepoError::Invocation(err.to_string()))
+            .map_err(|err| SyncRepoError::Invocation(err.to_string()))?;
+        if let Some(sink) = &self.output_sink {
+            sink.record(&<Self as Job>::id(self), &outcome).await;
+        }
+        Ok(outcome)
     }
 }
 

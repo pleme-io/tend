@@ -14,9 +14,10 @@
 //! shape is worth extracting into a macro.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use shigoto_types::{Job, JobId, JobKindId, JobScope, JobSubject};
+use shigoto_types::{Job, JobId, JobKindId, JobScope, JobSubject, OutputSink};
 use thiserror::Error;
 
 use crate::sync::{check_one_repo_status, RepoStatus};
@@ -24,11 +25,23 @@ use crate::sync::{check_one_repo_status, RepoStatus};
 /// Canonical kind id for every StatusRepoJob.
 pub(crate) const STATUS_REPO_KIND: &str = "tend.status-repo";
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct StatusRepoJob {
     pub workspace: String,
     pub repo_name: String,
     pub repo_path: PathBuf,
+    output_sink: Option<Arc<dyn OutputSink<RepoStatus>>>,
+}
+
+impl std::fmt::Debug for StatusRepoJob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StatusRepoJob")
+            .field("workspace", &self.workspace)
+            .field("repo_name", &self.repo_name)
+            .field("repo_path", &self.repo_path)
+            .field("output_sink", &self.output_sink.as_ref().map(|_| "<sink>"))
+            .finish()
+    }
 }
 
 impl StatusRepoJob {
@@ -41,7 +54,13 @@ impl StatusRepoJob {
             workspace: workspace.into(),
             repo_name: repo_name.into(),
             repo_path: repo_path.into(),
+            output_sink: None,
         }
+    }
+
+    pub(crate) fn with_output_sink(mut self, sink: Arc<dyn OutputSink<RepoStatus>>) -> Self {
+        self.output_sink = Some(sink);
+        self
     }
 }
 
@@ -70,10 +89,14 @@ impl Job for StatusRepoJob {
 
     async fn execute(&self) -> Result<RepoStatus, StatusRepoError> {
         let path = self.repo_path.clone();
-        tokio::task::spawn_blocking(move || check_one_repo_status(&path))
+        let outcome = tokio::task::spawn_blocking(move || check_one_repo_status(&path))
             .await
             .map_err(|join_err| StatusRepoError::Invocation(format!("join error: {join_err}")))?
-            .map_err(|err| StatusRepoError::Invocation(err.to_string()))
+            .map_err(|err| StatusRepoError::Invocation(err.to_string()))?;
+        if let Some(sink) = &self.output_sink {
+            sink.record(&<Self as Job>::id(self), &outcome).await;
+        }
+        Ok(outcome)
     }
 }
 

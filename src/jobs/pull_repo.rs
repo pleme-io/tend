@@ -13,9 +13,10 @@
 //! "git ran and rejected the fast-forward."
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use shigoto_types::{Job, JobId, JobKindId, JobScope, JobSubject};
+use shigoto_types::{Job, JobId, JobKindId, JobScope, JobSubject, OutputSink};
 use thiserror::Error;
 
 use crate::sync::{pull_one_repo, PullOutcome};
@@ -28,7 +29,7 @@ pub(crate) const PULL_REPO_KIND: &str = "tend.pull-repo";
 /// One repo's pull. Captures the workspace label (for scope) and the
 /// absolute path on disk (so the Job is self-contained and doesn't have
 /// to re-resolve `base_dir` on each tick).
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct PullRepoJob {
     /// Logical workspace this repo belongs to. Used as the JobScope
     /// namespace so a single scheduler can carry repos from multiple
@@ -44,6 +45,23 @@ pub(crate) struct PullRepoJob {
     /// scheduler-driven path typically wants quiet=true since the
     /// `TransitionEmitter` carries the audit trail.
     pub quiet: bool,
+    /// Optional typed sink for the PullOutcome. When set, `execute`
+    /// records each successful outcome via `sink.record` so consumers
+    /// can drain typed reconcile receipts after the scheduler ticks.
+    /// `None` means outputs are dropped (the scheduler's default).
+    output_sink: Option<Arc<dyn OutputSink<PullOutcome>>>,
+}
+
+impl std::fmt::Debug for PullRepoJob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PullRepoJob")
+            .field("workspace", &self.workspace)
+            .field("repo_name", &self.repo_name)
+            .field("repo_path", &self.repo_path)
+            .field("quiet", &self.quiet)
+            .field("output_sink", &self.output_sink.as_ref().map(|_| "<sink>"))
+            .finish()
+    }
 }
 
 impl PullRepoJob {
@@ -57,7 +75,17 @@ impl PullRepoJob {
             repo_name: repo_name.into(),
             repo_path: repo_path.into(),
             quiet: true,
+            output_sink: None,
         }
+    }
+
+    /// Attach a typed sink that will receive each successful
+    /// `PullOutcome`. Use `shigoto_emit::InMemorySink<PullOutcome>`
+    /// to collect a reconcile receipt; `shigoto_emit::NullSink` is
+    /// the default (no recording).
+    pub(crate) fn with_output_sink(mut self, sink: Arc<dyn OutputSink<PullOutcome>>) -> Self {
+        self.output_sink = Some(sink);
+        self
     }
 }
 
@@ -95,10 +123,19 @@ impl Job for PullRepoJob {
         // `pull_one_repo` is sync (it spawns git via std::process::Command).
         // Hop to a blocking thread so we don't stall the tokio runtime if
         // a large monorepo's git pull happens to take a moment.
-        tokio::task::spawn_blocking(move || pull_one_repo(&path, quiet, &label))
+        let outcome = tokio::task::spawn_blocking(move || pull_one_repo(&path, quiet, &label))
             .await
             .map_err(|join_err| PullRepoError::Invocation(format!("join error: {join_err}")))?
-            .map_err(|err| PullRepoError::Invocation(err.to_string()))
+            .map_err(|err| PullRepoError::Invocation(err.to_string()))?;
+
+        // Record to the optional typed sink before returning so the
+        // scheduler's "Output is discarded after execute_erased" path
+        // doesn't lose this Job's typed outcome.
+        if let Some(sink) = &self.output_sink {
+            sink.record(&<Self as Job>::id(self), &outcome).await;
+        }
+
+        Ok(outcome)
     }
 }
 
@@ -187,6 +224,63 @@ mod tests {
         let job = PullRepoJob::new("test-ws", "local", local.clone());
         let out = job.execute().await.unwrap();
         assert_eq!(out, PullOutcome::Updated);
+    }
+
+    /// End-to-end output capture test: PullRepoJob wired with an
+    /// InMemorySink runs through the real scheduler, then the sink's
+    /// drain() yields every recorded outcome keyed by JobId. This is
+    /// the round-trip proof for M0.11's output-capture design.
+    #[tokio::test]
+    async fn sink_records_pull_outcome_through_scheduler() {
+        use shigoto_dag::Dag;
+        use shigoto_emit::{InMemorySink, NullEmitter};
+        use shigoto_scheduler::{InProcessScheduler, Scheduler};
+        use shigoto_types::{JobPhase, OutputSink};
+        use std::sync::Arc;
+
+        let tmp = TempDir::new().unwrap();
+        let upstream = tmp.path().join("upstream");
+        let local = tmp.path().join("local");
+        std::fs::create_dir(&upstream).unwrap();
+        init_upstream(&upstream);
+        clone_from(&upstream, &local);
+
+        // Advance upstream so the local pull yields PullOutcome::Updated.
+        std::fs::write(upstream.join("file"), "two\n").unwrap();
+        Command::new("git").args(["add", "."]).current_dir(&upstream).status().unwrap();
+        Command::new("git").args(["commit", "-q", "-m", "two"]).current_dir(&upstream).status().unwrap();
+
+        // Build a sink the consumer holds + the Job records into.
+        let sink: Arc<InMemorySink<PullOutcome>> = Arc::new(InMemorySink::new());
+        let sink_for_job: Arc<dyn OutputSink<PullOutcome>> = sink.clone();
+
+        let job = Arc::new(
+            PullRepoJob::new("test-ws", "local", local).with_output_sink(sink_for_job),
+        );
+        let id = <PullRepoJob as Job>::id(&job);
+
+        let scheduler =
+            InProcessScheduler::new("sink-roundtrip").with_emitter(Arc::new(NullEmitter));
+        scheduler.register_job(job).await;
+
+        let mut dag = Dag::new();
+        dag.ensure_node(id.clone());
+
+        for _ in 0..16 {
+            let receipt = scheduler.tick(&mut dag).await.unwrap();
+            if receipt.transitions_this_tick.is_empty() {
+                break;
+            }
+        }
+
+        // Phase reached Succeeded.
+        let snap = scheduler.snapshot(&dag).await;
+        assert_eq!(snap.phases.get(&id), Some(&JobPhase::Succeeded));
+
+        // Sink captured the typed outcome.
+        let recorded = sink.drain();
+        assert_eq!(recorded.len(), 1, "expected exactly one recorded outcome");
+        assert_eq!(recorded.get(&id), Some(&PullOutcome::Updated));
     }
 
     /// End-to-end composition test: register multiple PullRepoJobs in
