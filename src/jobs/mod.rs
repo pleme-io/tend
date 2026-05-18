@@ -50,6 +50,7 @@
 
 pub(crate) mod discover_org;
 pub(crate) mod fetch_repo;
+pub(crate) mod gates;
 pub(crate) mod pull_repo;
 pub(crate) mod status_repo;
 pub(crate) mod sync_repo;
