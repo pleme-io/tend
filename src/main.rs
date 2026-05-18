@@ -18,6 +18,7 @@ mod head_cache;
 mod jobs;
 mod planner;
 mod reconcile;
+mod report;
 mod provider;
 mod release_swarm;
 mod release_swarm_http;
@@ -77,6 +78,21 @@ enum Commands {
         /// Bypass discovery cache and always hit the GitHub API
         #[arg(long)]
         refresh: bool,
+    },
+
+    /// Report on recent scheduler activity. Reads the
+    /// scheduler-transitions.jsonl audit log written by daemon +
+    /// reconcile cycles and prints a rollup: per-kind counts, recent
+    /// failures, and jobs currently stuck in non-terminal phases.
+    Report {
+        /// Path to the transition log. Default:
+        /// $XDG_DATA_HOME/tend/scheduler-transitions.jsonl
+        #[arg(long)]
+        log: Option<PathBuf>,
+
+        /// Look-back window in hours. Default: 168 (7 days).
+        #[arg(long)]
+        window_hours: Option<i64>,
     },
 
     /// Reconcile workspace via the shigoto scheduler. Per-repo
@@ -398,6 +414,28 @@ async fn main() -> Result<()> {
                 let summary = sync::pull_repos(ws, &repos, quiet).await?;
                 display::print_pull_summary(&ws.name, &summary);
             }
+        }
+
+        Commands::Report {
+            log,
+            window_hours,
+        } => {
+            let path = log
+                .or_else(|| {
+                    audit::AuditLog::default_path()
+                        .path()
+                        .parent()
+                        .map(|p| p.join("scheduler-transitions.jsonl"))
+                })
+                .ok_or_else(|| anyhow::anyhow!("no transition log path"))?;
+            if !path.exists() {
+                anyhow::bail!(
+                    "transition log {} does not exist — run `tend daemon` or `tend reconcile` first to populate it",
+                    path.display()
+                );
+            }
+            let report = report::build_report(&path, window_hours)?;
+            report::print_report(&report);
         }
 
         Commands::Reconcile {
