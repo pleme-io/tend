@@ -117,7 +117,9 @@ enum Commands {
         provider: String,
     },
 
-    /// Run as a persistent daemon — sync + fetch on interval
+    /// Run as a persistent daemon — sync + pull + watch on interval. Drives
+    /// the workspace toward the org's current state continuously, not on
+    /// demand. The reconciler shape.
     Daemon {
         /// Path to config file
         #[arg(long)]
@@ -131,8 +133,31 @@ enum Commands {
         #[arg(long, default_value = "300")]
         interval: u64,
 
-        /// Fetch existing repos (git fetch --all)
-        #[arg(long, default_value = "true")]
+        /// Fast-forward clean repos every cycle (`git pull --ff-only`).
+        /// Default true — this is the reconciler behavior. Accepts bare
+        /// `--pull` (true), `--pull=false`, or no flag (default true).
+        #[arg(
+            long,
+            default_value_t = true,
+            num_args = 0..=1,
+            default_missing_value = "true",
+            require_equals = false,
+            action = clap::ArgAction::Set,
+        )]
+        pull: bool,
+
+        /// Plain `git fetch --all --prune` each cycle. Only takes effect
+        /// when `--pull=false` (pull already fetches). Kept so a
+        /// fetch-only daemon remains expressible, and so legacy launchd
+        /// configs passing bare `--fetch` continue to parse.
+        #[arg(
+            long,
+            default_value_t = true,
+            num_args = 0..=1,
+            default_missing_value = "true",
+            require_equals = false,
+            action = clap::ArgAction::Set,
+        )]
         fetch: bool,
 
         /// Suppress per-repo output
@@ -663,6 +688,7 @@ async fn main() -> Result<()> {
             config: config_path,
             workspace: ws_filter,
             interval,
+            pull,
             fetch,
             quiet,
             github_token_file,
@@ -679,6 +705,7 @@ async fn main() -> Result<()> {
                 config: config_path,
                 workspace: ws_filter,
                 interval,
+                pull,
                 fetch,
                 quiet,
             })

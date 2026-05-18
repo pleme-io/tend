@@ -10,11 +10,18 @@ pub(crate) struct DaemonOpts {
     pub config: Option<PathBuf>,
     pub workspace: Option<String>,
     pub interval: u64,
+    /// Fast-forward clean repos with `git pull --ff-only` each cycle. Implies
+    /// fetch (pull does its own fetch). Default true — this is the reconciler
+    /// behavior that drives the workspace toward the org's current state.
+    pub pull: bool,
+    /// Plain `git fetch --all --prune` each cycle. Only takes effect when
+    /// `pull` is false (pull already fetches). Kept so a fetch-only daemon
+    /// remains expressible (`--no-pull --fetch`).
     pub fetch: bool,
     pub quiet: bool,
 }
 
-/// Run the daemon loop: sync + fetch + watch on interval, re-reading config each cycle.
+/// Run the daemon loop: sync + pull + watch on interval, re-reading config each cycle.
 ///
 /// Workspaces are processed in parallel using tokio tasks.
 pub(crate) async fn run(opts: DaemonOpts) -> Result<()> {
@@ -49,7 +56,7 @@ pub(crate) async fn run(opts: DaemonOpts) -> Result<()> {
 
         // Build the DAG of configured work BEFORE touching repos or the network.
         // Empty plan → nothing's wired up this cycle → silent sleep.
-        let plan = build_plan(&workspaces, opts.fetch);
+        let plan = build_plan(&workspaces, opts.pull, opts.fetch);
         if plan.is_empty() {
             let mut tok = shutdown.token();
             tokio::select! {
@@ -67,11 +74,12 @@ pub(crate) async fn run(opts: DaemonOpts) -> Result<()> {
         let mut tasks = tokio::task::JoinSet::new();
         for ws in workspaces {
             let ws = ws.clone();
+            let pull = opts.pull;
             let fetch = opts.fetch;
             let quiet = opts.quiet;
             tasks.spawn(async move {
                 let name = ws.name.clone();
-                match run_workspace_cycle(&ws, fetch, quiet).await {
+                match run_workspace_cycle(&ws, pull, fetch, quiet).await {
                     Ok(()) => {}
                     Err(e) => {
                         display::print_daemon_error(&name, &e);
@@ -104,6 +112,7 @@ pub(crate) async fn run(opts: DaemonOpts) -> Result<()> {
 
 async fn run_workspace_cycle(
     ws: &crate::config::Workspace,
+    pull: bool,
     fetch: bool,
     quiet: bool,
 ) -> Result<()> {
@@ -114,7 +123,24 @@ async fn run_workspace_cycle(
         display::print_sync_summary(&ws.name, cloned, present);
     }
 
-    if fetch {
+    // Pull subsumes fetch — `git pull --ff-only` does its own fetch. The
+    // explicit `fetch` branch only runs when pull is disabled (operator
+    // opted into a fetch-only daemon, e.g. to keep working trees pristine).
+    if pull {
+        let summary = sync::pull_repos(ws, &repos, quiet).await?;
+        let audit = crate::audit::AuditLog::default_path();
+        audit.pull_completed(
+            &ws.name,
+            summary.updated,
+            summary.up_to_date,
+            summary.dirty_skipped,
+            summary.missing_skipped,
+            summary.failed,
+        );
+        if !quiet || summary.updated > 0 || summary.failed > 0 {
+            display::print_pull_summary(&ws.name, &summary);
+        }
+    } else if fetch {
         let (fetched, skipped) = sync::fetch_repos(ws, &repos, quiet).await?;
         if !quiet {
             display::print_fetch_summary(&ws.name, fetched, skipped);
@@ -276,14 +302,15 @@ async fn run_nix_audit_cycle(
 /// Each configured concern becomes a WorkItem. The planner stages them
 /// by dependency. An empty plan means no workspace has any concern
 /// enabled — the daemon then sleeps silently until the next tick.
-fn build_plan(workspaces: &[&crate::config::Workspace], fetch: bool) -> ExecutionPlan {
+fn build_plan(workspaces: &[&crate::config::Workspace], pull: bool, fetch: bool) -> ExecutionPlan {
     let mut items: Vec<WorkItem> = Vec::new();
     for ws in workspaces {
         // Sync is always potentially-useful: resolves missing repos. Cheap
         // to enumerate, cheap to no-op when nothing's missing.
         items.push(WorkItem::workspace(WorkKind::Sync, &ws.name));
 
-        if fetch {
+        // Pull subsumes fetch; only one ends up in the plan.
+        if pull || fetch {
             items.push(WorkItem::workspace(WorkKind::Pull, &ws.name));
         }
 

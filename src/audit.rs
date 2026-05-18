@@ -239,6 +239,31 @@ impl AuditLog {
             }),
         );
     }
+
+    /// Log a per-workspace pull cycle outcome. Emitted by the daemon after
+    /// each pull pass so `tend report` (M7) can summarize unhealed drift
+    /// without re-scanning every repo.
+    pub fn pull_completed(
+        &self,
+        workspace: &str,
+        updated: usize,
+        up_to_date: usize,
+        dirty_skipped: usize,
+        missing_skipped: usize,
+        failed: usize,
+    ) {
+        self.log(
+            "pull_completed",
+            serde_json::json!({
+                "workspace": workspace,
+                "updated": updated,
+                "up_to_date": up_to_date,
+                "dirty_skipped": dirty_skipped,
+                "missing_skipped": missing_skipped,
+                "failed": failed,
+            }),
+        );
+    }
 }
 
 #[cfg(test)]
@@ -442,6 +467,24 @@ mod tests {
         assert_eq!(parsed["event"], "convergence_achieved");
         let ratio = parsed["compliance_ratio"].as_f64().unwrap();
         assert!((ratio - 1.0).abs() < f64::EPSILON);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_audit_log_pull_completed() {
+        let path = temp_audit_path();
+        let audit = AuditLog::new(path.clone());
+        audit.pull_completed("pleme-io", 4, 553, 3, 12, 7);
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
+        assert_eq!(parsed["event"], "pull_completed");
+        assert_eq!(parsed["workspace"], "pleme-io");
+        assert_eq!(parsed["updated"], 4);
+        assert_eq!(parsed["up_to_date"], 553);
+        assert_eq!(parsed["dirty_skipped"], 3);
+        assert_eq!(parsed["missing_skipped"], 12);
+        assert_eq!(parsed["failed"], 7);
         let _ = std::fs::remove_file(&path);
     }
 
