@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use shigoto_types::{Job, JobId, JobKindId, JobScope, JobSubject, OutputSink};
+use shigoto_types::{JobScope, JobSubject, OutputSink, RecordingJob};
 use thiserror::Error;
 
 use crate::sync::{sync_one_repo, SyncOutcome};
@@ -77,41 +77,39 @@ pub(crate) enum SyncRepoError {
 }
 
 #[async_trait]
-impl Job for SyncRepoJob {
+impl RecordingJob for SyncRepoJob {
     type Output = SyncOutcome;
     type Error = SyncRepoError;
+    const KIND: &'static str = SYNC_REPO_KIND;
 
-    fn id(&self) -> JobId {
-        JobId {
-            scope: JobScope::Workspace(self.workspace.clone()),
-            kind: JobKindId::new(SYNC_REPO_KIND),
-            subject: JobSubject::Repo(self.repo_name.clone()),
-        }
+    fn scope(&self) -> JobScope {
+        JobScope::Workspace(self.workspace.clone())
     }
 
-    fn kind(&self) -> JobKindId {
-        JobKindId::new(SYNC_REPO_KIND)
+    fn subject(&self) -> JobSubject {
+        JobSubject::Repo(self.repo_name.clone())
     }
 
-    async fn execute(&self) -> Result<SyncOutcome, SyncRepoError> {
+    fn output_sink(&self) -> Option<&Arc<dyn OutputSink<Self::Output>>> {
+        self.output_sink.as_ref()
+    }
+
+    async fn execute_body(&self) -> Result<SyncOutcome, SyncRepoError> {
         let url = self.clone_url.clone();
         let path = self.repo_path.clone();
         let label = self.repo_name.clone();
         let quiet = self.quiet;
-        let outcome = tokio::task::spawn_blocking(move || sync_one_repo(url, &path, &label, quiet))
+        tokio::task::spawn_blocking(move || sync_one_repo(url, &path, &label, quiet))
             .await
             .map_err(|join_err| SyncRepoError::Invocation(format!("join error: {join_err}")))?
-            .map_err(|err| SyncRepoError::Invocation(err.to_string()))?;
-        if let Some(sink) = &self.output_sink {
-            sink.record(&<Self as Job>::id(self), &outcome).await;
-        }
-        Ok(outcome)
+            .map_err(|err| SyncRepoError::Invocation(err.to_string()))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use shigoto_types::{Job, JobKindId};
     use std::process::Command;
     use tempfile::TempDir;
 

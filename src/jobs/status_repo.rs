@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use shigoto_types::{Job, JobId, JobKindId, JobScope, JobSubject, OutputSink};
+use shigoto_types::{JobScope, JobSubject, OutputSink, RecordingJob};
 use thiserror::Error;
 
 use crate::sync::{check_one_repo_status, RepoStatus};
@@ -71,38 +71,36 @@ pub(crate) enum StatusRepoError {
 }
 
 #[async_trait]
-impl Job for StatusRepoJob {
+impl RecordingJob for StatusRepoJob {
     type Output = RepoStatus;
     type Error = StatusRepoError;
+    const KIND: &'static str = STATUS_REPO_KIND;
 
-    fn id(&self) -> JobId {
-        JobId {
-            scope: JobScope::Workspace(self.workspace.clone()),
-            kind: JobKindId::new(STATUS_REPO_KIND),
-            subject: JobSubject::Repo(self.repo_name.clone()),
-        }
+    fn scope(&self) -> JobScope {
+        JobScope::Workspace(self.workspace.clone())
     }
 
-    fn kind(&self) -> JobKindId {
-        JobKindId::new(STATUS_REPO_KIND)
+    fn subject(&self) -> JobSubject {
+        JobSubject::Repo(self.repo_name.clone())
     }
 
-    async fn execute(&self) -> Result<RepoStatus, StatusRepoError> {
+    fn output_sink(&self) -> Option<&Arc<dyn OutputSink<Self::Output>>> {
+        self.output_sink.as_ref()
+    }
+
+    async fn execute_body(&self) -> Result<RepoStatus, StatusRepoError> {
         let path = self.repo_path.clone();
-        let outcome = tokio::task::spawn_blocking(move || check_one_repo_status(&path))
+        tokio::task::spawn_blocking(move || check_one_repo_status(&path))
             .await
             .map_err(|join_err| StatusRepoError::Invocation(format!("join error: {join_err}")))?
-            .map_err(|err| StatusRepoError::Invocation(err.to_string()))?;
-        if let Some(sink) = &self.output_sink {
-            sink.record(&<Self as Job>::id(self), &outcome).await;
-        }
-        Ok(outcome)
+            .map_err(|err| StatusRepoError::Invocation(err.to_string()))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use shigoto_types::{Job, JobKindId};
     use std::process::Command;
     use tempfile::TempDir;
 
