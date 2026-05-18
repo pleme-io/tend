@@ -17,6 +17,7 @@ mod github;
 mod head_cache;
 mod jobs;
 mod planner;
+mod reconcile;
 mod provider;
 mod release_swarm;
 mod release_swarm_http;
@@ -72,6 +73,25 @@ enum Commands {
         /// Suppress per-repo output, only show summary
         #[arg(long)]
         quiet: bool,
+
+        /// Bypass discovery cache and always hit the GitHub API
+        #[arg(long)]
+        refresh: bool,
+    },
+
+    /// Reconcile workspace via the shigoto scheduler. Per-repo
+    /// PullRepoJob runs through InProcessScheduler; outputs flow
+    /// through an InMemorySink<PullOutcome>; prints a typed
+    /// ReconcileReceipt. The destination shape that replaces
+    /// `tend pull`'s batch summary with per-Job typed outcomes.
+    Reconcile {
+        /// Path to config file
+        #[arg(long)]
+        config: Option<PathBuf>,
+
+        /// Only reconcile a specific workspace by name
+        #[arg(long)]
+        workspace: Option<String>,
 
         /// Bypass discovery cache and always hit the GitHub API
         #[arg(long)]
@@ -363,6 +383,26 @@ async fn main() -> Result<()> {
                 let repos = sync::resolve_repos(ws, refresh).await?;
                 let summary = sync::pull_repos(ws, &repos, quiet).await?;
                 display::print_pull_summary(&ws.name, &summary);
+            }
+        }
+
+        Commands::Reconcile {
+            config: config_path,
+            workspace: ws_filter,
+            refresh,
+        } => {
+            let cfg = load_config(config_path.as_deref())?;
+            let mut any_failed = false;
+            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+                let repos = sync::resolve_repos(ws, refresh).await?;
+                let receipt = reconcile::reconcile_workspace_pull(ws, &repos).await?;
+                reconcile::print_receipt(&receipt);
+                if !receipt.all_clean() {
+                    any_failed = true;
+                }
+            }
+            if any_failed {
+                std::process::exit(1);
             }
         }
 
