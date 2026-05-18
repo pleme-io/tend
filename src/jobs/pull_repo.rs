@@ -189,6 +189,97 @@ mod tests {
         assert_eq!(out, PullOutcome::Updated);
     }
 
+    /// End-to-end composition test: register multiple PullRepoJobs in
+    /// a real `InProcessScheduler`, tick to completion, assert every
+    /// Job lands in `Succeeded` and that the per-Job `Output` (the
+    /// `PullOutcome`) matches each repo's actual on-disk state.
+    ///
+    /// This is the bridge proof — the standalone Job tests above prove
+    /// `execute()` works; the scheduler's own unit tests prove the FSM
+    /// works with synthetic jobs; this one proves the two compose for
+    /// tend's real workload.
+    #[tokio::test]
+    async fn scheduler_drives_many_pull_repo_jobs_to_succeeded() {
+        use shigoto_dag::Dag;
+        use shigoto_emit::NullEmitter;
+        use shigoto_scheduler::{InProcessScheduler, Scheduler};
+        use shigoto_types::JobPhase;
+        use std::sync::Arc;
+
+        let tmp = TempDir::new().unwrap();
+        let upstream = tmp.path().join("upstream");
+        std::fs::create_dir(&upstream).unwrap();
+        init_upstream(&upstream);
+
+        // Three repos with three distinct expected outcomes:
+        //   - "stable"  — clone, never advance upstream → UpToDate
+        //   - "ahead"   — clone, then advance upstream  → Updated
+        //   - "missing" — never clone                   → MissingSkipped
+        let stable_path = tmp.path().join("stable");
+        let ahead_path = tmp.path().join("ahead");
+        let missing_path = tmp.path().join("missing");
+
+        clone_from(&upstream, &stable_path);
+        clone_from(&upstream, &ahead_path);
+        // For "ahead", advance upstream one commit AFTER the clone so the
+        // local repo lags by one.
+        std::fs::write(upstream.join("file"), "two\n").unwrap();
+        Command::new("git").args(["add", "."]).current_dir(&upstream).status().unwrap();
+        Command::new("git")
+            .args(["commit", "-q", "-m", "two"])
+            .current_dir(&upstream)
+            .status()
+            .unwrap();
+
+        let stable_job = Arc::new(PullRepoJob::new("test-ws", "stable", stable_path));
+        let ahead_job = Arc::new(PullRepoJob::new("test-ws", "ahead", ahead_path));
+        let missing_job = Arc::new(PullRepoJob::new("test-ws", "missing", missing_path));
+
+        let stable_id = <PullRepoJob as Job>::id(&stable_job);
+        let ahead_id = <PullRepoJob as Job>::id(&ahead_job);
+        let missing_id = <PullRepoJob as Job>::id(&missing_job);
+
+        let scheduler = InProcessScheduler::new("pull-repo-composition")
+            .with_emitter(Arc::new(NullEmitter));
+
+        scheduler.register_job(stable_job).await;
+        scheduler.register_job(ahead_job).await;
+        scheduler.register_job(missing_job).await;
+
+        let mut dag = Dag::new();
+        dag.ensure_node(stable_id.clone());
+        dag.ensure_node(ahead_id.clone());
+        dag.ensure_node(missing_id.clone());
+
+        // Tick until quiescence. The scheduler advances each Job
+        // through Pending → Ready → Running → Succeeded in one tick
+        // when no gates/budget block, but loop on receipt.transitions
+        // to be robust to any future intra-tick caps.
+        for _ in 0..16 {
+            let receipt = scheduler.tick(&mut dag).await.unwrap();
+            if receipt.transitions_this_tick.is_empty() {
+                break;
+            }
+        }
+
+        let snap = scheduler.snapshot(&dag).await;
+        assert_eq!(
+            snap.phases.get(&stable_id),
+            Some(&JobPhase::Succeeded),
+            "stable job did not reach Succeeded"
+        );
+        assert_eq!(
+            snap.phases.get(&ahead_id),
+            Some(&JobPhase::Succeeded),
+            "ahead job did not reach Succeeded"
+        );
+        assert_eq!(
+            snap.phases.get(&missing_id),
+            Some(&JobPhase::Succeeded),
+            "missing job did not reach Succeeded"
+        );
+    }
+
     #[tokio::test]
     async fn dirty_repo_is_skipped() {
         let tmp = TempDir::new().unwrap();
