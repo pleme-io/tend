@@ -82,6 +82,48 @@ enum Commands {
         refresh: bool,
     },
 
+    /// Mark or unmark a directory as a tend placeholder. Marked
+    /// dirs are skipped by reconcile (sync / pull / fetch) — useful
+    /// for scratch dirs, symlinks managed by other tools, or
+    /// reserved names where you don't want tend to auto-clone.
+    Placeholder {
+        /// Directory path to mark. Resolved relative to current dir
+        /// if not absolute. Created if it doesn't exist (so the
+        /// marker file has a home).
+        path: PathBuf,
+
+        /// Remove the marker instead of adding it.
+        #[arg(long)]
+        unmark: bool,
+    },
+
+    /// Show operator-actionable drift + suggested fixes. Like
+    /// `tend report` but framed around "what's wrong + what to do
+    /// about it." Reads the drift log written by reconcile.
+    Doctor {
+        /// Path to the drift log. Defaults to
+        /// $XDG_DATA_HOME/tend/drift-events.jsonl.
+        #[arg(long)]
+        log: Option<PathBuf>,
+    },
+
+    /// Add an on-disk repo to a workspace's extra_repos list so
+    /// future reconciles include it. Useful for local-only repos
+    /// or repos the org discovery doesn't see (archived, private
+    /// without token, etc.).
+    Adopt {
+        /// Path to config file
+        #[arg(long)]
+        config: Option<PathBuf>,
+
+        /// Workspace name to adopt into.
+        workspace: String,
+
+        /// Repo name to adopt (must match an existing dir under
+        /// the workspace's base_dir).
+        repo: String,
+    },
+
     /// Report on recent scheduler activity. Reads the
     /// scheduler-transitions.jsonl audit log written by daemon +
     /// reconcile cycles and prints a rollup: per-kind counts, recent
@@ -415,6 +457,197 @@ async fn main() -> Result<()> {
                 let repos = sync::resolve_repos(ws, refresh).await?;
                 let summary = sync::pull_repos(ws, &repos, quiet).await?;
                 display::print_pull_summary(&ws.name, &summary);
+            }
+        }
+
+        Commands::Placeholder { path, unmark } => {
+            let resolved = if path.is_absolute() {
+                path.clone()
+            } else {
+                std::env::current_dir()?.join(&path)
+            };
+            if unmark {
+                placeholder::unmark_placeholder(&resolved)?;
+                println!("unmarked {} as placeholder", resolved.display());
+            } else {
+                placeholder::mark_placeholder(&resolved)?;
+                println!("marked {} as placeholder", resolved.display());
+            }
+        }
+
+        Commands::Doctor { log } => {
+            let drift_path = log
+                .or_else(|| {
+                    audit::AuditLog::default_path()
+                        .path()
+                        .parent()
+                        .map(|p| p.join("drift-events.jsonl"))
+                })
+                .ok_or_else(|| anyhow::anyhow!("no drift log path"))?;
+            if !drift_path.exists() {
+                anyhow::bail!(
+                    "drift log {} does not exist — run `tend daemon` or `tend reconcile` first to populate it",
+                    drift_path.display()
+                );
+            }
+            let content = std::fs::read_to_string(&drift_path)?;
+            let mut total = 0usize;
+            let mut by_kind: std::collections::BTreeMap<&str, usize> =
+                std::collections::BTreeMap::new();
+            let mut events: Vec<drift::DriftEvent> = Vec::new();
+            for line in content.lines() {
+                if let Ok(e) = serde_json::from_str::<drift::DriftEvent>(line) {
+                    total += 1;
+                    let kind = match &e {
+                        drift::DriftEvent::StubDirectoryFound { .. } => "stub-directory",
+                        drift::DriftEvent::DirtyTreeBlocksPull { .. } => "dirty-tree",
+                        drift::DriftEvent::PullFailed { .. } => "pull-failed",
+                        drift::DriftEvent::SyncFailed { .. } => "sync-failed",
+                        drift::DriftEvent::JobUnhealed { .. } => "job-unhealed",
+                        drift::DriftEvent::LocalRepoNotInDiscovery { .. } => {
+                            "local-not-in-discovery"
+                        }
+                    };
+                    *by_kind.entry(kind).or_default() += 1;
+                    events.push(e);
+                }
+            }
+
+            use colored::Colorize;
+            println!(
+                "{} {} drift event(s) total",
+                "tend doctor:".bold(),
+                total.to_string().cyan()
+            );
+            if total == 0 {
+                println!("  workspace is clean — no operator action needed");
+            } else {
+                for (kind, n) in &by_kind {
+                    println!("  {}: {}", kind.bold(), n.to_string().yellow());
+                }
+                println!();
+                println!("{}", "suggested actions:".bold());
+                let mut suggestions_seen = std::collections::HashSet::new();
+                for e in &events {
+                    let suggestion = match e {
+                        drift::DriftEvent::StubDirectoryFound { repo_name, .. } => Some(format!(
+                            "  stub dir [{repo_name}]: remove it manually if expected — `rm -rf <path>` — OR mark as intentional with `tend placeholder <path>`"
+                        )),
+                        drift::DriftEvent::DirtyTreeBlocksPull { repo_name, .. } => Some(format!(
+                            "  dirty tree [{repo_name}]: review changes with `git -C <path> status` — commit, stash, or discard"
+                        )),
+                        drift::DriftEvent::PullFailed { repo_name, .. } => Some(format!(
+                            "  pull failed [{repo_name}]: M6 reactions auto-trigger fetch for ref errors; check `tend report` for the full stderr"
+                        )),
+                        drift::DriftEvent::SyncFailed { repo_name, .. } => Some(format!(
+                            "  sync failed [{repo_name}]: check GitHub creds + network; retry with `tend reconcile`"
+                        )),
+                        drift::DriftEvent::LocalRepoNotInDiscovery {
+                            workspace,
+                            repo_name,
+                        } => Some(format!(
+                            "  local-only [{repo_name}]: archived/deleted upstream or local-only repo; `tend adopt {workspace} {repo_name}` to keep it, or remove the local dir"
+                        )),
+                        drift::DriftEvent::JobUnhealed { .. } => None,
+                    };
+                    if let Some(s) = suggestion {
+                        if suggestions_seen.insert(s.clone()) {
+                            println!("{s}");
+                        }
+                    }
+                }
+            }
+        }
+
+        Commands::Adopt {
+            config: config_path,
+            workspace,
+            repo,
+        } => {
+            // Validate the workspace exists + the repo dir is on disk
+            // BEFORE touching the config file, so a typo doesn't
+            // corrupt the YAML.
+            let cfg = load_config(config_path.as_deref())?;
+            let ws = cfg
+                .workspaces
+                .iter()
+                .find(|w| w.name == workspace)
+                .ok_or_else(|| anyhow::anyhow!("workspace '{workspace}' not found in config"))?;
+            let base_dir = ws.resolved_base_dir()?;
+            let repo_path = base_dir.join(&repo);
+            if !repo_path.exists() {
+                anyhow::bail!(
+                    "repo dir {} does not exist — clone it manually first or use `tend sync`",
+                    repo_path.display()
+                );
+            }
+            if ws.extra_repos.contains(&repo) {
+                println!(
+                    "{}/{} is already in extra_repos — nothing to do",
+                    workspace, repo
+                );
+            } else {
+                // Real edit: read → parse YAML AST → mutate → write.
+                // serde_yaml_ng::Value lets us navigate the document
+                // structurally rather than splicing text, so the YAML
+                // type system stays load-bearing.
+                let cfg_path = match config_path {
+                    Some(p) => p.to_path_buf(),
+                    None => config::Config::default_path(),
+                };
+                let content = std::fs::read_to_string(&cfg_path).with_context(|| {
+                    format!("reading {}", cfg_path.display())
+                })?;
+                let mut doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)
+                    .with_context(|| format!("parsing {}", cfg_path.display()))?;
+
+                let workspaces = doc
+                    .get_mut("workspaces")
+                    .and_then(|v| v.as_sequence_mut())
+                    .ok_or_else(|| anyhow::anyhow!(
+                        "config has no `workspaces:` sequence"
+                    ))?;
+
+                let mut found = false;
+                for ws_val in workspaces.iter_mut() {
+                    let name_match = ws_val
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .map_or(false, |n| n == workspace);
+                    if !name_match {
+                        continue;
+                    }
+                    found = true;
+                    let map = ws_val.as_mapping_mut().ok_or_else(|| {
+                        anyhow::anyhow!("workspace entry is not a mapping")
+                    })?;
+                    let key = serde_yaml_ng::Value::String("extra_repos".into());
+                    let entry = map
+                        .entry(key)
+                        .or_insert_with(|| serde_yaml_ng::Value::Sequence(vec![]));
+                    let seq = entry.as_sequence_mut().ok_or_else(|| {
+                        anyhow::anyhow!("extra_repos exists but is not a sequence")
+                    })?;
+                    seq.push(serde_yaml_ng::Value::String(repo.clone()));
+                    break;
+                }
+                if !found {
+                    anyhow::bail!(
+                        "workspace '{workspace}' present in parsed config but missing in YAML AST — refusing to write"
+                    );
+                }
+
+                let serialized = serde_yaml_ng::to_string(&doc)
+                    .with_context(|| "re-serializing config YAML")?;
+                std::fs::write(&cfg_path, &serialized).with_context(|| {
+                    format!("writing {}", cfg_path.display())
+                })?;
+                println!(
+                    "adopted {}/{} into config at {} (extra_repos updated)",
+                    workspace,
+                    repo,
+                    cfg_path.display()
+                );
             }
         }
 
