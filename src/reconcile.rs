@@ -34,8 +34,10 @@ use shigoto_types::{JobId, JobKindId, JobPhase, OutputSink};
 use crate::config::Workspace;
 use crate::drift::{derive_from_receipt, AuditFileDriftSink, DriftSink};
 use crate::jobs::discover_org::{DiscoverOrgJob, DISCOVER_ORG_KIND};
+use crate::jobs::fetch_repo::FETCH_REPO_KIND;
 use crate::jobs::gates::CacheFreshGate;
 use crate::jobs::pull_repo::{PullRepoJob, PULL_REPO_KIND};
+use crate::jobs::reactions::react_to_drift;
 use crate::jobs::sync_repo::{SyncRepoJob, SYNC_REPO_KIND};
 use crate::sync::{PullOutcome, SyncOutcome};
 
@@ -234,10 +236,16 @@ pub(crate) async fn reconcile_workspace_pull(
     // per-kind budget. Without this, a workspace with hundreds of
     // repos would launch hundreds of git processes simultaneously,
     // exhausting file handles + network sockets.
+    //
+    // Includes FETCH_REPO_KIND so the M6 react_to_drift path can
+    // spawn FetchRepoJobs as reactions without re-tuning the budget.
     let mut budget = BudgetTree::new();
     budget
         .by_kind
         .insert(JobKindId::new(PULL_REPO_KIND), BudgetSpec::max_concurrent(max_inflight));
+    budget
+        .by_kind
+        .insert(JobKindId::new(FETCH_REPO_KIND), BudgetSpec::max_concurrent(max_inflight));
     scheduler.install_budget(budget).await;
 
     // Retry transient Invocation failures (tokio task panics, helper
@@ -247,6 +255,9 @@ pub(crate) async fn reconcile_workspace_pull(
     // receipt rather than retried automatically.
     scheduler
         .register_retry_policy(JobKindId::new(PULL_REPO_KIND), default_pull_retry_policy())
+        .await;
+    scheduler
+        .register_retry_policy(JobKindId::new(FETCH_REPO_KIND), default_pull_retry_policy())
         .await;
 
     let mut dag = Dag::new();
@@ -280,7 +291,7 @@ pub(crate) async fn reconcile_workspace_pull(
         })
         .collect();
 
-    let receipt = ReconcileReceipt {
+    let mut receipt = ReconcileReceipt {
         workspace: workspace.name.clone(),
         outcomes: sink.drain(),
         sync_outcomes: HashMap::new(),
@@ -288,15 +299,50 @@ pub(crate) async fn reconcile_workspace_pull(
         failed_jobs,
     };
 
+    let events = derive_from_receipt(&receipt);
+
     if let Some(tlog) = transition_log {
         if let Some(parent) = tlog.parent() {
             let drift_path = parent.join("drift-events.jsonl");
-            if let Ok(sink) = AuditFileDriftSink::new(&drift_path) {
-                for event in derive_from_receipt(&receipt) {
-                    sink.record(&event);
+            if let Ok(dsink) = AuditFileDriftSink::new(&drift_path) {
+                for event in &events {
+                    dsink.record(event);
                 }
             }
         }
+    }
+
+    // M6 reactions: same one-wave-per-cycle policy as the full path.
+    let mut reaction_jobs: Vec<Arc<dyn shigoto_types::ErasedJob>> = Vec::new();
+    for event in &events {
+        if let Some(handler) = react_to_drift(event, workspace) {
+            reaction_jobs.push(handler);
+        }
+    }
+
+    if !reaction_jobs.is_empty() {
+        for job in reaction_jobs {
+            let id = job.id();
+            dag.ensure_node(id);
+            scheduler.register_job(job).await;
+        }
+
+        for _ in 0..MAX_TICKS {
+            let tick = scheduler.tick(&mut dag).await?;
+            if tick.transitions_this_tick.is_empty() {
+                break;
+            }
+        }
+
+        let snap = scheduler.snapshot(&dag).await;
+        receipt.failed_jobs = snap
+            .phases
+            .iter()
+            .filter_map(|(id, phase)| match phase {
+                JobPhase::Succeeded => None,
+                other => Some((id.clone(), other.clone())),
+            })
+            .collect();
     }
 
     Ok(receipt)
@@ -378,6 +424,10 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
     budget
         .by_kind
         .insert(JobKindId::new(DISCOVER_ORG_KIND), BudgetSpec::max_concurrent(1));
+    // M6: FETCH_REPO_KIND for reactions that spawn fetches.
+    budget
+        .by_kind
+        .insert(JobKindId::new(FETCH_REPO_KIND), BudgetSpec::max_concurrent(max_inflight));
     scheduler.install_budget(budget).await;
 
     scheduler
@@ -388,6 +438,9 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
         .await;
     scheduler
         .register_retry_policy(JobKindId::new(DISCOVER_ORG_KIND), default_pull_retry_policy())
+        .await;
+    scheduler
+        .register_retry_policy(JobKindId::new(FETCH_REPO_KIND), default_pull_retry_policy())
         .await;
 
     // First user-registered gate doing real work: CacheFreshGate
@@ -464,7 +517,7 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
         })
         .collect();
 
-    let receipt = ReconcileReceipt {
+    let mut receipt = ReconcileReceipt {
         workspace: workspace.name.clone(),
         outcomes: pull_sink.drain(),
         sync_outcomes: sync_sink.drain(),
@@ -472,19 +525,60 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
         failed_jobs,
     };
 
-    // Derive + record drift events when the operator wired a drift
-    // log. Co-located with the transition log so `tend report` can
-    // read both in one place. Drift derivation is a pure projection
-    // of `receipt` — see drift::derive_from_receipt for the rules.
+    // Drift events: pure projection of the receipt's typed outcomes.
+    let events = derive_from_receipt(&receipt);
+
+    // Record drift events to the on-disk log when wired.
     if let Some(tlog) = transition_log {
         if let Some(parent) = tlog.parent() {
             let drift_path = parent.join("drift-events.jsonl");
             if let Ok(sink) = AuditFileDriftSink::new(&drift_path) {
-                for event in derive_from_receipt(&receipt) {
-                    sink.record(&event);
+                for event in &events {
+                    sink.record(event);
                 }
             }
         }
+    }
+
+    // M6 reactions: bind each DriftEvent to an optional handler Job
+    // via react_to_drift, schedule the resulting Jobs, run one extra
+    // tick. Cap at one reaction wave per reconcile cycle — operator
+    // runs the next reconcile if drift persists. See jobs/reactions.rs
+    // for the per-variant policy.
+    let mut reaction_jobs: Vec<Arc<dyn shigoto_types::ErasedJob>> = Vec::new();
+    for event in &events {
+        if let Some(handler) = react_to_drift(event, workspace) {
+            reaction_jobs.push(handler);
+        }
+    }
+
+    if !reaction_jobs.is_empty() {
+        // FETCH_REPO_KIND budget was installed upfront so reactions
+        // can spawn fetches without re-tuning the budget tree.
+        for job in reaction_jobs {
+            let id = job.id();
+            dag.ensure_node(id);
+            scheduler.register_job(job).await;
+        }
+
+        // One more tick — bounded; reactions are one-shot per cycle.
+        for _ in 0..MAX_TICKS {
+            let tick = scheduler.tick(&mut dag).await?;
+            if tick.transitions_this_tick.is_empty() {
+                break;
+            }
+        }
+
+        // Re-derive failed_jobs now that the scheduler ran more Jobs.
+        let snap = scheduler.snapshot(&dag).await;
+        receipt.failed_jobs = snap
+            .phases
+            .iter()
+            .filter_map(|(id, phase)| match phase {
+                JobPhase::Succeeded => None,
+                other => Some((id.clone(), other.clone())),
+            })
+            .collect();
     }
 
     Ok(receipt)
