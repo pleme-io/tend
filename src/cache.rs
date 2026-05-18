@@ -74,6 +74,73 @@ impl DiscoveryCache {
     }
 }
 
+/// Filesystem-backed cache for the richer `Vec<RepoState>` from
+/// `discover_github_repo_states`. Coexists with the legacy
+/// `Vec<String>` cache by using a separate filename suffix; same TTL
+/// + path-prefix semantics. Old caches don't migrate — a stale
+/// `RepoState` cache is treated as "miss" on schema mismatch and
+/// refetched.
+pub struct DiscoveryRichCache;
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct RichCacheEntry {
+    org: String,
+    repos: Vec<crate::provider::RepoState>,
+    timestamp: u64,
+}
+
+fn rich_cache_path(org: &str) -> PathBuf {
+    cache_dir().join(format!("{org}.rich.json"))
+}
+
+impl DiscoveryRichCache {
+    #[must_use]
+    pub fn read(org: &str) -> Option<Vec<crate::provider::RepoState>> {
+        let path = rich_cache_path(org);
+        let content = std::fs::read_to_string(&path).ok()?;
+        let entry: RichCacheEntry = serde_json::from_str(&content).ok()?;
+
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .ok()?
+            .as_secs();
+        if now.saturating_sub(entry.timestamp) > DEFAULT_TTL_SECS {
+            return None;
+        }
+        Some(entry.repos)
+    }
+
+    pub fn write(org: &str, repos: &[crate::provider::RepoState]) -> Result<()> {
+        let dir = cache_dir();
+        std::fs::create_dir_all(&dir)?;
+
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)?
+            .as_secs();
+
+        let entry = RichCacheEntry {
+            org: org.to_string(),
+            repos: repos.to_vec(),
+            timestamp: now,
+        };
+
+        let json = serde_json::to_string_pretty(&entry)?;
+        std::fs::write(rich_cache_path(org), json)?;
+        Ok(())
+    }
+}
+
+/// Convenience wrapper — calls [`DiscoveryRichCache::read`].
+#[must_use]
+pub(crate) fn read_rich(org: &str) -> Option<Vec<crate::provider::RepoState>> {
+    DiscoveryRichCache::read(org)
+}
+
+/// Convenience wrapper — calls [`DiscoveryRichCache::write`].
+pub(crate) fn write_rich(org: &str, repos: &[crate::provider::RepoState]) -> Result<()> {
+    DiscoveryRichCache::write(org, repos)
+}
+
 /// Convenience wrapper — calls [`DiscoveryCache::read`].
 #[must_use]
 pub(crate) fn read(org: &str) -> Option<Vec<String>> {

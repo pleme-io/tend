@@ -47,6 +47,25 @@ impl RepoState {
     }
 }
 
+/// Cached wrapper around `discover_github_repo_states`. Same TTL +
+/// XDG-cache semantics as `cache::DiscoveryCache`, but stores the
+/// richer `Vec<RepoState>` under a separate filename so it can
+/// coexist with the legacy Vec<String> cache without schema
+/// conflicts. Pass `refresh = true` to bypass the cache.
+pub async fn discover_github_repo_states_cached(
+    org: &str,
+    refresh: bool,
+) -> Result<Vec<RepoState>> {
+    if !refresh {
+        if let Some(repos) = cache::read_rich(org) {
+            return Ok(repos);
+        }
+    }
+    let states = discover_github_repo_states(org).await?;
+    let _ = cache::write_rich(org, &states); // best-effort
+    Ok(states)
+}
+
 /// Discover repos for an org/user as `RepoState` values. Same
 /// org-endpoint-then-user-endpoint fallback as `discover_github_repos`;
 /// preserves the archived-repos-excluded filter so consumers don't

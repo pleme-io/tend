@@ -88,12 +88,13 @@ pub(crate) struct ReconcileReceipt {
     /// Per-Job typed sync (clone-or-noop) outcomes. Empty on the
     /// pull-only path; populated on the full sync-then-pull path.
     pub sync_outcomes: HashMap<JobId, SyncOutcome>,
-    /// Per-Job typed discovery outcomes (the discovered repo list).
-    /// Only populated when (a) full path is taken AND (b) workspace
-    /// has discovery enabled AND (c) the CacheFreshGate didn't skip
-    /// the Job. Empty otherwise — operators should fall back to
-    /// `sync::resolve_repos` for the canonical list.
-    pub discovery_outcomes: HashMap<JobId, Vec<String>>,
+    /// Per-Job typed discovery outcomes (the discovered repo list
+    /// with typed per-repo state). Only populated when (a) full path
+    /// is taken AND (b) workspace has discovery enabled AND
+    /// (c) the CacheFreshGate didn't skip the Job. Empty otherwise —
+    /// operators should fall back to `sync::resolve_repos` for the
+    /// canonical name list.
+    pub discovery_outcomes: HashMap<JobId, Vec<crate::provider::RepoState>>,
     /// JobIds (any kind) whose terminal phase was not Succeeded.
     /// Pairs with the scheduler's final snapshot — Failed /
     /// Deadlettered / Retrying jobs all surface here.
@@ -396,8 +397,10 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
     let pull_sink_for_jobs: Arc<dyn OutputSink<PullOutcome>> = pull_sink.clone();
     let sync_sink: Arc<InMemorySink<SyncOutcome>> = Arc::new(InMemorySink::new());
     let sync_sink_for_jobs: Arc<dyn OutputSink<SyncOutcome>> = sync_sink.clone();
-    let discovery_sink: Arc<InMemorySink<Vec<String>>> = Arc::new(InMemorySink::new());
-    let discovery_sink_for_jobs: Arc<dyn OutputSink<Vec<String>>> = discovery_sink.clone();
+    let discovery_sink: Arc<InMemorySink<Vec<crate::provider::RepoState>>> =
+        Arc::new(InMemorySink::new());
+    let discovery_sink_for_jobs: Arc<dyn OutputSink<Vec<crate::provider::RepoState>>> =
+        discovery_sink.clone();
 
     let emitter: Arc<dyn TransitionEmitter> = match transition_log {
         Some(path) => Arc::new(

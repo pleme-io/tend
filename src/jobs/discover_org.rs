@@ -22,7 +22,7 @@ use async_trait::async_trait;
 use shigoto_types::{JobScope, JobSubject, OutputSink, RecordingJob};
 use thiserror::Error;
 
-use crate::provider::discover_github_repos_cached;
+use crate::provider::{discover_github_repo_states_cached, RepoState};
 
 pub(crate) const DISCOVER_ORG_KIND: &str = "tend.discover-org";
 
@@ -34,7 +34,7 @@ pub(crate) struct DiscoverOrgJob {
     /// Matches the existing `discover_github_repos_cached(refresh)`
     /// flag so consumers can express "I really want fresh data".
     pub refresh: bool,
-    output_sink: Option<Arc<dyn OutputSink<Vec<String>>>>,
+    output_sink: Option<Arc<dyn OutputSink<Vec<RepoState>>>>,
 }
 
 impl std::fmt::Debug for DiscoverOrgJob {
@@ -65,7 +65,7 @@ impl DiscoverOrgJob {
 
     pub(crate) fn with_output_sink(
         mut self,
-        sink: Arc<dyn OutputSink<Vec<String>>>,
+        sink: Arc<dyn OutputSink<Vec<RepoState>>>,
     ) -> Self {
         self.output_sink = Some(sink);
         self
@@ -80,7 +80,7 @@ pub(crate) enum DiscoverOrgError {
 
 #[async_trait]
 impl RecordingJob for DiscoverOrgJob {
-    type Output = Vec<String>;
+    type Output = Vec<RepoState>;
     type Error = DiscoverOrgError;
     const KIND: &'static str = DISCOVER_ORG_KIND;
 
@@ -96,10 +96,10 @@ impl RecordingJob for DiscoverOrgJob {
         self.output_sink.as_ref()
     }
 
-    async fn execute_body(&self) -> Result<Vec<String>, DiscoverOrgError> {
-        // discover_github_repos_cached is async-native — no
+    async fn execute_body(&self) -> Result<Vec<RepoState>, DiscoverOrgError> {
+        // discover_github_repo_states_cached is async-native — no
         // spawn_blocking needed (it uses reqwest under the hood).
-        discover_github_repos_cached(&self.org, self.refresh)
+        discover_github_repo_states_cached(&self.org, self.refresh)
             .await
             .map_err(|err| DiscoverOrgError::Invocation(err.to_string()))
     }
