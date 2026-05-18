@@ -174,6 +174,48 @@ pub(crate) async fn check_status(workspace: &Workspace, repos: &[String]) -> Res
     Ok(entries)
 }
 
+/// Typed outcome of fetching a single repo. Shared by `fetch_repos`'s
+/// batch driver and the per-repo `FetchRepoJob` (jobs/fetch_repo.rs).
+///
+/// Unlike `PullOutcome` there is no "DirtySkipped" — fetch doesn't
+/// touch the working tree, so dirty state is irrelevant. Missing
+/// (no `.git`) and Failed (non-zero git exit) are the only non-success
+/// terminals.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum FetchOutcome {
+    /// Fetch succeeded. Git emitted nothing (--quiet) or a refs report.
+    Fetched,
+    /// Path doesn't contain a `.git` entry — fetch was skipped.
+    MissingSkipped,
+    /// `git fetch` exited non-zero. Carries the trimmed stderr.
+    Failed { stderr: String },
+}
+
+/// Fetch one repo. The unit shared by the batch driver and the
+/// per-repo Job wrapper.
+pub(crate) fn fetch_one_repo(repo_path: &Path, quiet: bool, repo_label: &str) -> Result<FetchOutcome> {
+    if !is_git_worktree(repo_path) {
+        return Ok(FetchOutcome::MissingSkipped);
+    }
+
+    let output = Command::new("git")
+        .args(["fetch", "--all", "--prune", "--quiet"])
+        .current_dir(repo_path)
+        .output()
+        .with_context(|| format!("running git fetch in {repo_label}"))?;
+
+    if output.status.success() {
+        if !quiet {
+            println!("  fetched: {repo_label}");
+        }
+        Ok(FetchOutcome::Fetched)
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        eprintln!("  warning: fetch failed for {repo_label}: {stderr}");
+        Ok(FetchOutcome::Failed { stderr })
+    }
+}
+
 /// Fetch all remotes for existing repos. Returns (fetched, skipped) counts.
 pub(crate) async fn fetch_repos(workspace: &Workspace, repos: &[String], quiet: bool) -> Result<(usize, usize)> {
     let base_dir = workspace.resolved_base_dir()?;
@@ -182,26 +224,9 @@ pub(crate) async fn fetch_repos(workspace: &Workspace, repos: &[String], quiet: 
 
     for repo_name in repos {
         let repo_path = base_dir.join(repo_name);
-        if !is_git_worktree(&repo_path) {
-            skipped += 1;
-            continue;
-        }
-
-        let output = Command::new("git")
-            .args(["fetch", "--all", "--prune", "--quiet"])
-            .current_dir(&repo_path)
-            .output()
-            .with_context(|| format!("running git fetch in {repo_name}"))?;
-
-        if output.status.success() {
-            fetched += 1;
-            if !quiet {
-                println!("  fetched: {repo_name}");
-            }
-        } else {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!("  warning: fetch failed for {repo_name}: {stderr}");
-            skipped += 1;
+        match fetch_one_repo(&repo_path, quiet, repo_name)? {
+            FetchOutcome::Fetched => fetched += 1,
+            FetchOutcome::MissingSkipped | FetchOutcome::Failed { .. } => skipped += 1,
         }
     }
 
