@@ -2207,7 +2207,12 @@ dependencies = [
  "serde_json",
  "serde_yaml_ng",
  "shellexpand",
+ "shigoto-budget",
  "shigoto-dag",
+ "shigoto-emit",
+ "shigoto-gate",
+ "shigoto-retry",
+ "shigoto-scheduler",
  "shigoto-types",
  "shikumi",
  "tempfile",
@@ -3011,9 +3016,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "shigoto-budget"
+version = "0.1.0"
+source = "git+https://github.com/pleme-io/shigoto#1811a2e08b580d92ac5840cece6e1286ab931d01"
+dependencies = [
+ "serde",
+ "shigoto-types",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "shigoto-dag"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/shigoto#d40a821b24f02b06eb07154b72d3bd7f361bd89e"
+source = "git+https://github.com/pleme-io/shigoto#1811a2e08b580d92ac5840cece6e1286ab931d01"
 dependencies = [
  "petgraph",
  "serde",
@@ -3022,9 +3037,57 @@ dependencies = [
 ]
 
 [[package]]
+name = "shigoto-emit"
+version = "0.1.0"
+source = "git+https://github.com/pleme-io/shigoto#1811a2e08b580d92ac5840cece6e1286ab931d01"
+dependencies = [
+ "serde",
+ "serde_json",
+ "shigoto-types",
+ "tracing",
+]
+
+[[package]]
+name = "shigoto-gate"
+version = "0.1.0"
+source = "git+https://github.com/pleme-io/shigoto#1811a2e08b580d92ac5840cece6e1286ab931d01"
+dependencies = [
+ "shigoto-dag",
+ "shigoto-types",
+]
+
+[[package]]
+name = "shigoto-retry"
+version = "0.1.0"
+source = "git+https://github.com/pleme-io/shigoto#1811a2e08b580d92ac5840cece6e1286ab931d01"
+dependencies = [
+ "serde",
+ "shigoto-types",
+]
+
+[[package]]
+name = "shigoto-scheduler"
+version = "0.1.0"
+source = "git+https://github.com/pleme-io/shigoto#1811a2e08b580d92ac5840cece6e1286ab931d01"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "shigoto-budget",
+ "shigoto-dag",
+ "shigoto-emit",
+ "shigoto-gate",
+ "shigoto-retry",
+ "shigoto-types",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "shigoto-types"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/shigoto#d40a821b24f02b06eb07154b72d3bd7f361bd89e"
+source = "git+https://github.com/pleme-io/shigoto#1811a2e08b580d92ac5840cece6e1286ab931d01"
 dependencies = [
  "async-trait",
  "chrono",

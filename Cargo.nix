@@ -7117,8 +7117,28 @@ rec {
             packageId = "shellexpand";
           }
           {
+            name = "shigoto-budget";
+            packageId = "shigoto-budget";
+          }
+          {
             name = "shigoto-dag";
             packageId = "shigoto-dag";
+          }
+          {
+            name = "shigoto-emit";
+            packageId = "shigoto-emit";
+          }
+          {
+            name = "shigoto-gate";
+            packageId = "shigoto-gate";
+          }
+          {
+            name = "shigoto-retry";
+            packageId = "shigoto-retry";
+          }
+          {
+            name = "shigoto-scheduler";
+            packageId = "shigoto-scheduler";
           }
           {
             name = "shigoto-types";
@@ -9871,6 +9891,37 @@ rec {
         };
         resolvedDefaultFeatures = [ "base-0" "default" "dirs" "tilde" ];
       };
+      "shigoto-budget" = rec {
+        crateName = "shigoto-budget";
+        version = "0.1.0";
+        edition = "2024";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/pleme-io/shigoto";
+          rev = "1811a2e08b580d92ac5840cece6e1286ab931d01";
+          sha256 = "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n";
+        };
+        libName = "shigoto_budget";
+        authors = [
+          "pleme-io"
+        ];
+        dependencies = [
+          {
+            name = "serde";
+            packageId = "serde";
+            features = [ "derive" ];
+          }
+          {
+            name = "shigoto-types";
+            packageId = "shigoto-types";
+          }
+          {
+            name = "thiserror";
+            packageId = "thiserror 2.0.18";
+          }
+        ];
+
+      };
       "shigoto-dag" = rec {
         crateName = "shigoto-dag";
         version = "0.1.0";
@@ -9878,7 +9929,7 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
-          rev = "d40a821b24f02b06eb07154b72d3bd7f361bd89e";
+          rev = "1811a2e08b580d92ac5840cece6e1286ab931d01";
           sha256 = "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n";
         };
         libName = "shigoto_dag";
@@ -9906,6 +9957,162 @@ rec {
         ];
 
       };
+      "shigoto-emit" = rec {
+        crateName = "shigoto-emit";
+        version = "0.1.0";
+        edition = "2024";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/pleme-io/shigoto";
+          rev = "1811a2e08b580d92ac5840cece6e1286ab931d01";
+          sha256 = "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n";
+        };
+        libName = "shigoto_emit";
+        authors = [
+          "pleme-io"
+        ];
+        dependencies = [
+          {
+            name = "serde";
+            packageId = "serde";
+            features = [ "derive" ];
+          }
+          {
+            name = "serde_json";
+            packageId = "serde_json";
+          }
+          {
+            name = "shigoto-types";
+            packageId = "shigoto-types";
+          }
+          {
+            name = "tracing";
+            packageId = "tracing";
+          }
+        ];
+
+      };
+      "shigoto-gate" = rec {
+        crateName = "shigoto-gate";
+        version = "0.1.0";
+        edition = "2024";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/pleme-io/shigoto";
+          rev = "1811a2e08b580d92ac5840cece6e1286ab931d01";
+          sha256 = "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n";
+        };
+        libName = "shigoto_gate";
+        authors = [
+          "pleme-io"
+        ];
+        dependencies = [
+          {
+            name = "shigoto-dag";
+            packageId = "shigoto-dag";
+          }
+          {
+            name = "shigoto-types";
+            packageId = "shigoto-types";
+          }
+        ];
+
+      };
+      "shigoto-retry" = rec {
+        crateName = "shigoto-retry";
+        version = "0.1.0";
+        edition = "2024";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/pleme-io/shigoto";
+          rev = "1811a2e08b580d92ac5840cece6e1286ab931d01";
+          sha256 = "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n";
+        };
+        libName = "shigoto_retry";
+        authors = [
+          "pleme-io"
+        ];
+        dependencies = [
+          {
+            name = "serde";
+            packageId = "serde";
+            features = [ "derive" ];
+          }
+          {
+            name = "shigoto-types";
+            packageId = "shigoto-types";
+          }
+        ];
+
+      };
+      "shigoto-scheduler" = rec {
+        crateName = "shigoto-scheduler";
+        version = "0.1.0";
+        edition = "2024";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/pleme-io/shigoto";
+          rev = "1811a2e08b580d92ac5840cece6e1286ab931d01";
+          sha256 = "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n";
+        };
+        libName = "shigoto_scheduler";
+        authors = [
+          "pleme-io"
+        ];
+        dependencies = [
+          {
+            name = "anyhow";
+            packageId = "anyhow";
+          }
+          {
+            name = "async-trait";
+            packageId = "async-trait";
+          }
+          {
+            name = "chrono";
+            packageId = "chrono";
+            features = [ "serde" ];
+          }
+          {
+            name = "shigoto-budget";
+            packageId = "shigoto-budget";
+          }
+          {
+            name = "shigoto-dag";
+            packageId = "shigoto-dag";
+          }
+          {
+            name = "shigoto-emit";
+            packageId = "shigoto-emit";
+          }
+          {
+            name = "shigoto-gate";
+            packageId = "shigoto-gate";
+          }
+          {
+            name = "shigoto-retry";
+            packageId = "shigoto-retry";
+          }
+          {
+            name = "shigoto-types";
+            packageId = "shigoto-types";
+          }
+          {
+            name = "thiserror";
+            packageId = "thiserror 2.0.18";
+          }
+          {
+            name = "tokio";
+            packageId = "tokio";
+            features = [ "rt-multi-thread" "macros" "sync" "time" ];
+          }
+          {
+            name = "tracing";
+            packageId = "tracing";
+          }
+        ];
+
+      };
       "shigoto-types" = rec {
         crateName = "shigoto-types";
         version = "0.1.0";
@@ -9913,7 +10120,7 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
-          rev = "d40a821b24f02b06eb07154b72d3bd7f361bd89e";
+          rev = "1811a2e08b580d92ac5840cece6e1286ab931d01";
           sha256 = "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n";
         };
         libName = "shigoto_types";

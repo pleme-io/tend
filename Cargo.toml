@@ -29,6 +29,11 @@ serde_json = "1"
 todoku = { git = "https://github.com/pleme-io/todoku" }
 shigoto-dag = { git = "https://github.com/pleme-io/shigoto" }
 shigoto-types = { git = "https://github.com/pleme-io/shigoto" }
+shigoto-scheduler = { git = "https://github.com/pleme-io/shigoto" }
+shigoto-emit = { git = "https://github.com/pleme-io/shigoto" }
+shigoto-gate = { git = "https://github.com/pleme-io/shigoto" }
+shigoto-retry = { git = "https://github.com/pleme-io/shigoto" }
+shigoto-budget = { git = "https://github.com/pleme-io/shigoto" }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 tokio = { version = "1.40", features = ["full"] }
 toml = "0.8"

@@ -1,7 +1,12 @@
 {
   "git+https://github.com/pleme-io/opencode-zen#0.1.0": "08kshy3p4zlaxk9z7yz07qiz76c4ssyy5zjrkjsaqs4yvm3mrmmm",
   "git+https://github.com/pleme-io/samba#0.1.0": "1cqgnm6y2v354q299f240w42a097nr7ffkk3mrmdv0n8lcpac3pq",
+  "git+https://github.com/pleme-io/shigoto#shigoto-budget@0.1.0": "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n",
   "git+https://github.com/pleme-io/shigoto#shigoto-dag@0.1.0": "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n",
+  "git+https://github.com/pleme-io/shigoto#shigoto-emit@0.1.0": "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n",
+  "git+https://github.com/pleme-io/shigoto#shigoto-gate@0.1.0": "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n",
+  "git+https://github.com/pleme-io/shigoto#shigoto-retry@0.1.0": "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n",
+  "git+https://github.com/pleme-io/shigoto#shigoto-scheduler@0.1.0": "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n",
   "git+https://github.com/pleme-io/shigoto#shigoto-types@0.1.0": "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n",
   "git+https://github.com/pleme-io/shikumi#0.1.0": "0dzn4axfx4asampkini6wv6j80mkiy34z44l9n4kx3kfjwai5bg1",
   "git+https://github.com/pleme-io/todoku#0.1.0": "1klhnhz7m6gl080xlcxykr9d2m24sbswbgq5rfj8v0wmnj6jvlcl",
