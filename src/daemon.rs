@@ -124,44 +124,43 @@ async fn run_workspace_cycle(
     max_inflight: u32,
 ) -> Result<()> {
     let repos = sync::resolve_repos(ws, false).await?;
-    let (cloned, present) = sync::sync_repos(ws, &repos, quiet).await?;
 
-    if !quiet || cloned > 0 {
-        display::print_sync_summary(&ws.name, cloned, present);
-    }
+    let transition_log_path = crate::audit::AuditLog::default_path()
+        .path()
+        .parent()
+        .map(|p| p.join("scheduler-transitions.jsonl"));
 
-    // Pull subsumes fetch — `git pull --ff-only` does its own fetch. The
-    // explicit `fetch` branch only runs when pull is disabled (operator
-    // opted into a fetch-only daemon, e.g. to keep working trees pristine).
-    //
-    // The pull branch now flows through the shigoto-scheduler-driven
-    // reconcile path (per-repo PullRepoJob + InProcessScheduler +
-    // per-kind Budget). The display + audit layer still consumes the
-    // legacy `PullSummary` shape via ReconcileReceipt::as_pull_summary
-    // to avoid churning every downstream consumer at once — that
-    // migration is M0.15b+. The substantive change here: pulls within
-    // a workspace cycle are now concurrent (bounded by max_inflight)
-    // rather than the legacy batch's sequential loop, AND each pull's
-    // typed outcome flows through the scheduler's InMemorySink so
-    // future receipts can carry per-Job detail.
     if pull {
-        // Route shigoto's typed transitions into a tend-managed JSONL
-        // file. Distinct from tend's high-level audit log (pull_completed
-        // events) — this one captures every FSM step the scheduler
-        // takes, so an operator debugging "why did repo X retry?" can
-        // grep the file and see the exact Pending→Retrying→Pending
-        // history.
-        let transition_log_path = crate::audit::AuditLog::default_path()
-            .path()
-            .parent()
-            .map(|p| p.join("scheduler-transitions.jsonl"));
-        let receipt = reconcile::reconcile_workspace_pull(
+        // Full reconcile via the scheduler: SyncRepoJob → (Dag edge) →
+        // PullRepoJob per repo. Both kinds share max_inflight (separate
+        // per-kind counters so sync waves don't starve pulls). Per
+        // theory/SHIGOTO.md §IV.5: this is the canonical daemon cycle
+        // — one scheduler run, one typed receipt, all four reconcile
+        // primitives reachable from the same audit log.
+        let receipt = reconcile::reconcile_workspace_sync_then_pull(
             ws,
             &repos,
             max_inflight,
             transition_log_path.as_deref(),
         )
         .await?;
+
+        // Sync summary stays in the legacy two-number shape for
+        // display continuity; pulled from the typed sync_outcomes map.
+        let mut cloned = 0usize;
+        let mut present = 0usize;
+        for outcome in receipt.sync_outcomes.values() {
+            match outcome {
+                crate::sync::SyncOutcome::Cloned => cloned += 1,
+                crate::sync::SyncOutcome::AlreadyPresent
+                | crate::sync::SyncOutcome::StubExisted => present += 1,
+                crate::sync::SyncOutcome::Failed { .. } => {} // surfaced in failed_jobs
+            }
+        }
+        if !quiet || cloned > 0 {
+            display::print_sync_summary(&ws.name, cloned, present);
+        }
+
         let summary = receipt.as_pull_summary();
         let audit = crate::audit::AuditLog::default_path();
         audit.pull_completed(
@@ -175,10 +174,19 @@ async fn run_workspace_cycle(
         if !quiet || summary.updated > 0 || summary.failed > 0 {
             display::print_pull_summary(&ws.name, &summary);
         }
-    } else if fetch {
-        let (fetched, skipped) = sync::fetch_repos(ws, &repos, quiet).await?;
-        if !quiet {
-            display::print_fetch_summary(&ws.name, fetched, skipped);
+    } else {
+        // Pull disabled — fall back to legacy batch paths for sync +
+        // (optionally) fetch. Migrating these to scheduler is future
+        // scope; pull is the load-bearing reconciler step.
+        let (cloned, present) = sync::sync_repos(ws, &repos, quiet).await?;
+        if !quiet || cloned > 0 {
+            display::print_sync_summary(&ws.name, cloned, present);
+        }
+        if fetch {
+            let (fetched, skipped) = sync::fetch_repos(ws, &repos, quiet).await?;
+            if !quiet {
+                display::print_fetch_summary(&ws.name, fetched, skipped);
+            }
         }
     }
 
