@@ -96,6 +96,14 @@ enum Commands {
         /// Bypass discovery cache and always hit the GitHub API
         #[arg(long)]
         refresh: bool,
+
+        /// Maximum concurrent `git pull` processes. Bounds the
+        /// scheduler's per-kind Budget for `tend.pull-repo`. Default
+        /// is 16 — high enough to saturate a typical broadband link
+        /// without exhausting OS file handles or SSH connection
+        /// multiplexers.
+        #[arg(long, default_value_t = reconcile::DEFAULT_MAX_INFLIGHT_PULL)]
+        max_inflight: u32,
     },
 
     /// Show repo status (clean/dirty/missing/unknown)
@@ -390,12 +398,14 @@ async fn main() -> Result<()> {
             config: config_path,
             workspace: ws_filter,
             refresh,
+            max_inflight,
         } => {
             let cfg = load_config(config_path.as_deref())?;
             let mut any_failed = false;
             for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
                 let repos = sync::resolve_repos(ws, refresh).await?;
-                let receipt = reconcile::reconcile_workspace_pull(ws, &repos).await?;
+                let receipt =
+                    reconcile::reconcile_workspace_pull(ws, &repos, max_inflight).await?;
                 reconcile::print_receipt(&receipt);
                 if !receipt.all_clean() {
                     any_failed = true;

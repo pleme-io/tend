@@ -23,14 +23,21 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use shigoto_budget::{BudgetSpec, BudgetTree};
 use shigoto_dag::Dag;
 use shigoto_emit::{InMemorySink, NullEmitter};
 use shigoto_scheduler::{InProcessScheduler, Scheduler};
-use shigoto_types::{JobId, JobPhase, OutputSink};
+use shigoto_types::{JobId, JobKindId, JobPhase, OutputSink};
 
 use crate::config::Workspace;
-use crate::jobs::pull_repo::PullRepoJob;
+use crate::jobs::pull_repo::{PullRepoJob, PULL_REPO_KIND};
 use crate::sync::PullOutcome;
+
+/// Default max parallel `tend.pull-repo` jobs per workspace. Chosen
+/// well below typical OS limits (file handles, network sockets) so a
+/// 1000-repo workspace doesn't exhaust resources, but high enough to
+/// saturate a typical broadband link with concurrent `git pull`.
+pub(crate) const DEFAULT_MAX_INFLIGHT_PULL: u32 = 16;
 
 /// Typed receipt of one workspace's reconcile cycle. Replaces the
 /// legacy `sync::PullSummary` for scheduler-driven paths — carries
@@ -92,6 +99,12 @@ pub(crate) struct OutcomeCounts {
 /// configured repo through `InProcessScheduler`. Returns a typed
 /// receipt.
 ///
+/// `max_inflight` bounds how many `git pull` processes can run
+/// concurrently — wired into the scheduler as a per-kind BudgetSpec
+/// against `tend.pull-repo`. The tick loop will only execute that
+/// many Jobs simultaneously even if more are Ready. Pass
+/// `DEFAULT_MAX_INFLIGHT_PULL` for the standard cap.
+///
 /// Quiescence: the loop calls `tick` until the receipt's
 /// `transitions_this_tick` is empty (no Job advanced this cycle).
 /// Capped at `max_ticks` to avoid pathological infinite loops if a
@@ -99,6 +112,7 @@ pub(crate) struct OutcomeCounts {
 pub(crate) async fn reconcile_workspace_pull(
     workspace: &Workspace,
     repos: &[String],
+    max_inflight: u32,
 ) -> Result<ReconcileReceipt> {
     const MAX_TICKS: usize = 64;
 
@@ -132,6 +146,16 @@ pub(crate) async fn reconcile_workspace_pull(
 
     let scheduler =
         InProcessScheduler::new(&workspace.name).with_emitter(Arc::new(NullEmitter));
+
+    // Cap concurrent `git pull` processes via the scheduler's
+    // per-kind budget. Without this, a workspace with hundreds of
+    // repos would launch hundreds of git processes simultaneously,
+    // exhausting file handles + network sockets.
+    let mut budget = BudgetTree::new();
+    budget
+        .by_kind
+        .insert(JobKindId::new(PULL_REPO_KIND), BudgetSpec::max_concurrent(max_inflight));
+    scheduler.install_budget(budget).await;
 
     let mut dag = Dag::new();
 
@@ -226,7 +250,7 @@ mod tests {
     async fn empty_workspace_yields_empty_receipt() {
         let tmp = TempDir::new().unwrap();
         let ws = workspace_at(&tmp, "test");
-        let receipt = reconcile_workspace_pull(&ws, &[]).await.unwrap();
+        let receipt = reconcile_workspace_pull(&ws, &[], DEFAULT_MAX_INFLIGHT_PULL).await.unwrap();
         assert_eq!(receipt.workspace, "test");
         assert!(receipt.outcomes.is_empty());
         assert!(receipt.failed_jobs.is_empty());
@@ -266,6 +290,7 @@ mod tests {
         let receipt = reconcile_workspace_pull(
             &ws,
             &["behind".into(), "current".into(), "dirty".into()],
+            DEFAULT_MAX_INFLIGHT_PULL,
         )
         .await
         .unwrap();
@@ -276,6 +301,39 @@ mod tests {
         assert_eq!(counts.dirty_skipped, 1, "dirty should be DirtySkipped");
         assert!(receipt.failed_jobs.is_empty(), "no Jobs should fail the FSM");
         assert!(receipt.all_clean(), "no Failed outcomes, no failed jobs");
+    }
+
+    /// Budget enforcement proof: spin up many repos, set
+    /// max_inflight=2, time the reconcile. Since pull is O(milliseconds)
+    /// in the local-file://-upstream test setup, this is mostly a
+    /// correctness check — the reconcile must complete + produce the
+    /// expected receipt with the budget cap installed (and not deadlock).
+    /// A deeper concurrency-vs-budget test lives in shigoto-scheduler.
+    #[tokio::test]
+    async fn budget_capped_reconcile_still_completes_all_repos() {
+        let tmp = TempDir::new().unwrap();
+        let upstream = tmp.path().join(".upstream");
+        std::fs::create_dir(&upstream).unwrap();
+        init_repo(&upstream);
+
+        let n_repos = 8;
+        let mut names = Vec::with_capacity(n_repos);
+        for i in 0..n_repos {
+            let name = format!("repo{i}");
+            clone_from(&upstream, &tmp.path().join(&name));
+            names.push(name);
+        }
+
+        let ws = workspace_at(&tmp, "budget-test-ws");
+        // max_inflight=2 means at most 2 pull jobs can be Running
+        // concurrently. With 8 repos that's 4 waves of execution
+        // (within the same dag wave, but serialized by budget).
+        let receipt = reconcile_workspace_pull(&ws, &names, 2).await.unwrap();
+        let counts = receipt.outcome_counts();
+        // All 8 cloned-then-not-advanced repos report UpToDate.
+        assert_eq!(counts.up_to_date, n_repos);
+        assert!(receipt.failed_jobs.is_empty());
+        assert!(receipt.all_clean());
     }
 
     #[tokio::test]
@@ -291,7 +349,7 @@ mod tests {
         clone_from(&upstream, &tmp.path().join("not-in-config"));
 
         let ws = workspace_at(&tmp, "test-ws");
-        let receipt = reconcile_workspace_pull(&ws, &[]).await.unwrap();
+        let receipt = reconcile_workspace_pull(&ws, &[], DEFAULT_MAX_INFLIGHT_PULL).await.unwrap();
         // Empty config but on-disk repo present → reconciled.
         assert_eq!(receipt.outcomes.len(), 1);
         assert_eq!(receipt.outcome_counts().up_to_date, 1);
