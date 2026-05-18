@@ -26,6 +26,7 @@ use anyhow::{Context, Result};
 use shigoto_budget::{BudgetSpec, BudgetTree};
 use shigoto_dag::Dag;
 use shigoto_emit::{InMemorySink, NullEmitter};
+use shigoto_retry::RetryPolicy;
 use shigoto_scheduler::{InProcessScheduler, Scheduler};
 use shigoto_types::{JobId, JobKindId, JobPhase, OutputSink};
 
@@ -38,6 +39,26 @@ use crate::sync::PullOutcome;
 /// 1000-repo workspace doesn't exhaust resources, but high enough to
 /// saturate a typical broadband link with concurrent `git pull`.
 pub(crate) const DEFAULT_MAX_INFLIGHT_PULL: u32 = 16;
+
+/// Default retry policy for `tend.pull-repo`. Only fires on
+/// `Job::execute` returning `Err` — which for PullRepoJob means the
+/// tokio task panicked, the spawn_blocking join failed, or the
+/// per-repo helper itself threw an IO error. Git-stderr failures
+/// (e.g. "Session open refused by peer") are typed-success outcomes
+/// (PullOutcome::Failed) and don't trigger this retry; they surface
+/// in the ReconcileReceipt for operator-driven action.
+///
+/// Parameters: 3 total attempts (1 initial + 2 retries), 500ms base,
+/// 5s max delay, ±20% jitter to avoid retry storms when many Jobs
+/// fail simultaneously.
+fn default_pull_retry_policy() -> RetryPolicy {
+    RetryPolicy::Exponential {
+        attempts: 3,
+        base_ms: 500,
+        max_ms: 5_000,
+        jitter: 0.2,
+    }
+}
 
 /// Typed receipt of one workspace's reconcile cycle. Replaces the
 /// legacy `sync::PullSummary` for scheduler-driven paths — carries
@@ -176,6 +197,15 @@ pub(crate) async fn reconcile_workspace_pull(
         .insert(JobKindId::new(PULL_REPO_KIND), BudgetSpec::max_concurrent(max_inflight));
     scheduler.install_budget(budget).await;
 
+    // Retry transient Invocation failures (tokio task panics, helper
+    // IO errors) with backoff. See `default_pull_retry_policy` for
+    // why git-stderr failures don't trigger this — they're typed
+    // success outcomes (PullOutcome::Failed), surfaced in the
+    // receipt rather than retried automatically.
+    scheduler
+        .register_retry_policy(JobKindId::new(PULL_REPO_KIND), default_pull_retry_policy())
+        .await;
+
     let mut dag = Dag::new();
 
     let mut all_ids: Vec<JobId> = Vec::with_capacity(all.len());
@@ -263,6 +293,35 @@ mod tests {
         let mut ws = Workspace::test_default(name);
         ws.base_dir = tmp.path().to_string_lossy().to_string();
         ws
+    }
+
+    #[test]
+    fn default_pull_retry_policy_retries_twice_then_deadletters() {
+        use shigoto_retry::{FailureRecord, RetryDecision};
+        let policy = default_pull_retry_policy();
+
+        let r1 = policy.decide(1, &[]);
+        assert!(matches!(r1, RetryDecision::Retry { .. }), "attempt 1 should retry, got {r1:?}");
+        let r2 = policy.decide(
+            2,
+            &[FailureRecord {
+                attempt: 1,
+                at_ms: 0,
+                error: "boom".into(),
+            }],
+        );
+        assert!(matches!(r2, RetryDecision::Retry { .. }), "attempt 2 should retry, got {r2:?}");
+        let r3 = policy.decide(
+            3,
+            &[
+                FailureRecord { attempt: 1, at_ms: 0, error: "boom".into() },
+                FailureRecord { attempt: 2, at_ms: 0, error: "boom".into() },
+            ],
+        );
+        assert!(
+            matches!(r3, RetryDecision::Deadletter),
+            "attempt 3 should deadletter (max=3), got {r3:?}"
+        );
     }
 
     #[tokio::test]
