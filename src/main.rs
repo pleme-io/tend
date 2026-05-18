@@ -408,10 +408,21 @@ async fn main() -> Result<()> {
         } => {
             let cfg = load_config(config_path.as_deref())?;
             let mut any_failed = false;
+            // Same transition log as the daemon path — operator can
+            // grep one file across both `tend daemon` and `tend reconcile`.
+            let transition_log_path = audit::AuditLog::default_path()
+                .path()
+                .parent()
+                .map(|p| p.join("scheduler-transitions.jsonl"));
             for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
                 let repos = sync::resolve_repos(ws, refresh).await?;
-                let receipt =
-                    reconcile::reconcile_workspace_pull(ws, &repos, max_inflight).await?;
+                let receipt = reconcile::reconcile_workspace_pull(
+                    ws,
+                    &repos,
+                    max_inflight,
+                    transition_log_path.as_deref(),
+                )
+                .await?;
                 reconcile::print_receipt(&receipt);
                 if !receipt.all_clean() {
                     any_failed = true;

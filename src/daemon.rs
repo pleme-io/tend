@@ -145,7 +145,23 @@ async fn run_workspace_cycle(
     // typed outcome flows through the scheduler's InMemorySink so
     // future receipts can carry per-Job detail.
     if pull {
-        let receipt = reconcile::reconcile_workspace_pull(ws, &repos, max_inflight).await?;
+        // Route shigoto's typed transitions into a tend-managed JSONL
+        // file. Distinct from tend's high-level audit log (pull_completed
+        // events) — this one captures every FSM step the scheduler
+        // takes, so an operator debugging "why did repo X retry?" can
+        // grep the file and see the exact Pending→Retrying→Pending
+        // history.
+        let transition_log_path = crate::audit::AuditLog::default_path()
+            .path()
+            .parent()
+            .map(|p| p.join("scheduler-transitions.jsonl"));
+        let receipt = reconcile::reconcile_workspace_pull(
+            ws,
+            &repos,
+            max_inflight,
+            transition_log_path.as_deref(),
+        )
+        .await?;
         let summary = receipt.as_pull_summary();
         let audit = crate::audit::AuditLog::default_path();
         audit.pull_completed(

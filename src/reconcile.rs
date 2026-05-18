@@ -20,12 +20,13 @@
 //!   directly applies.
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use shigoto_budget::{BudgetSpec, BudgetTree};
 use shigoto_dag::Dag;
-use shigoto_emit::{InMemorySink, NullEmitter};
+use shigoto_emit::{AuditFileEmitter, InMemorySink, NullEmitter, TransitionEmitter};
 use shigoto_retry::RetryPolicy;
 use shigoto_scheduler::{InProcessScheduler, Scheduler};
 use shigoto_types::{JobId, JobKindId, JobPhase, OutputSink};
@@ -145,6 +146,13 @@ pub(crate) struct OutcomeCounts {
 /// many Jobs simultaneously even if more are Ready. Pass
 /// `DEFAULT_MAX_INFLIGHT_PULL` for the standard cap.
 ///
+/// `transition_log` is the optional path to an append-only JSONL
+/// file that captures every FSM transition the scheduler emits
+/// (Pending→Ready→Running→Succeeded plus retry cycles). When `None`
+/// transitions are dropped (NullEmitter). The daemon path passes the
+/// canonical tend transition-log path so a low-level audit trail
+/// accumulates for debugging; tests pass `None`.
+///
 /// Quiescence: the loop calls `tick` until the receipt's
 /// `transitions_this_tick` is empty (no Job advanced this cycle).
 /// Capped at `max_ticks` to avoid pathological infinite loops if a
@@ -153,6 +161,7 @@ pub(crate) async fn reconcile_workspace_pull(
     workspace: &Workspace,
     repos: &[String],
     max_inflight: u32,
+    transition_log: Option<&Path>,
 ) -> Result<ReconcileReceipt> {
     const MAX_TICKS: usize = 64;
 
@@ -184,8 +193,21 @@ pub(crate) async fn reconcile_workspace_pull(
     let sink: Arc<InMemorySink<PullOutcome>> = Arc::new(InMemorySink::new());
     let sink_for_jobs: Arc<dyn OutputSink<PullOutcome>> = sink.clone();
 
-    let scheduler =
-        InProcessScheduler::new(&workspace.name).with_emitter(Arc::new(NullEmitter));
+    // Build the transition emitter. None → NullEmitter (drop events).
+    // Some(path) → AuditFileEmitter on that path. The latter captures
+    // every Pending→Ready→Running→Succeeded plus retry cycles for
+    // post-hoc debugging — when a daemon cycle reports "3 failed,"
+    // grepping the transitions log shows which Jobs went through
+    // Retrying / Deadlettered and on what attempt.
+    let emitter: Arc<dyn TransitionEmitter> = match transition_log {
+        Some(path) => Arc::new(
+            AuditFileEmitter::new(path)
+                .with_context(|| format!("opening transition log {}", path.display()))?,
+        ),
+        None => Arc::new(NullEmitter),
+    };
+
+    let scheduler = InProcessScheduler::new(&workspace.name).with_emitter(emitter);
 
     // Cap concurrent `git pull` processes via the scheduler's
     // per-kind budget. Without this, a workspace with hundreds of
@@ -328,7 +350,7 @@ mod tests {
     async fn empty_workspace_yields_empty_receipt() {
         let tmp = TempDir::new().unwrap();
         let ws = workspace_at(&tmp, "test");
-        let receipt = reconcile_workspace_pull(&ws, &[], DEFAULT_MAX_INFLIGHT_PULL).await.unwrap();
+        let receipt = reconcile_workspace_pull(&ws, &[], DEFAULT_MAX_INFLIGHT_PULL, None).await.unwrap();
         assert_eq!(receipt.workspace, "test");
         assert!(receipt.outcomes.is_empty());
         assert!(receipt.failed_jobs.is_empty());
@@ -369,6 +391,7 @@ mod tests {
             &ws,
             &["behind".into(), "current".into(), "dirty".into()],
             DEFAULT_MAX_INFLIGHT_PULL,
+            None,
         )
         .await
         .unwrap();
@@ -379,6 +402,54 @@ mod tests {
         assert_eq!(counts.dirty_skipped, 1, "dirty should be DirtySkipped");
         assert!(receipt.failed_jobs.is_empty(), "no Jobs should fail the FSM");
         assert!(receipt.all_clean(), "no Failed outcomes, no failed jobs");
+    }
+
+    /// Verify the AuditFileEmitter wires correctly: a reconcile with
+    /// a transition-log path produces a JSONL file with at least one
+    /// transition recorded per Job. The exact transition shape is
+    /// verified by shigoto-emit's own tests; here we just confirm
+    /// reconcile_workspace_pull actually opens + writes to the file.
+    #[tokio::test]
+    async fn transition_log_captures_per_job_phases() {
+        let tmp = TempDir::new().unwrap();
+        let upstream = tmp.path().join(".upstream");
+        std::fs::create_dir(&upstream).unwrap();
+        init_repo(&upstream);
+        clone_from(&upstream, &tmp.path().join("r1"));
+        clone_from(&upstream, &tmp.path().join("r2"));
+
+        let log_path = tmp.path().join("transitions.jsonl");
+        let ws = workspace_at(&tmp, "audit-test");
+
+        let receipt = reconcile_workspace_pull(
+            &ws,
+            &["r1".into(), "r2".into()],
+            DEFAULT_MAX_INFLIGHT_PULL,
+            Some(&log_path),
+        )
+        .await
+        .unwrap();
+
+        assert!(receipt.all_clean());
+        assert!(log_path.exists(), "transition log file should be created");
+
+        let contents = std::fs::read_to_string(&log_path).unwrap();
+        let line_count = contents.lines().count();
+        // Each Job goes Pending→Ready→Running→Succeeded = 3 transitions.
+        // Two jobs = 6 lines minimum. (The exact count may be higher
+        // if gate evaluations emit transitions; we just need ≥6.)
+        assert!(
+            line_count >= 6,
+            "expected ≥6 transition lines for 2 jobs × 3 phase steps, got {line_count}"
+        );
+
+        // Every line is well-formed JSON containing job_id + from + to.
+        for line in contents.lines() {
+            let v: serde_json::Value = serde_json::from_str(line).unwrap();
+            assert!(v.get("job_id").is_some());
+            assert!(v.get("from").is_some());
+            assert!(v.get("to").is_some());
+        }
     }
 
     /// Budget enforcement proof: spin up many repos, set
@@ -406,7 +477,7 @@ mod tests {
         // max_inflight=2 means at most 2 pull jobs can be Running
         // concurrently. With 8 repos that's 4 waves of execution
         // (within the same dag wave, but serialized by budget).
-        let receipt = reconcile_workspace_pull(&ws, &names, 2).await.unwrap();
+        let receipt = reconcile_workspace_pull(&ws, &names, 2, None).await.unwrap();
         let counts = receipt.outcome_counts();
         // All 8 cloned-then-not-advanced repos report UpToDate.
         assert_eq!(counts.up_to_date, n_repos);
@@ -427,7 +498,7 @@ mod tests {
         clone_from(&upstream, &tmp.path().join("not-in-config"));
 
         let ws = workspace_at(&tmp, "test-ws");
-        let receipt = reconcile_workspace_pull(&ws, &[], DEFAULT_MAX_INFLIGHT_PULL).await.unwrap();
+        let receipt = reconcile_workspace_pull(&ws, &[], DEFAULT_MAX_INFLIGHT_PULL, None).await.unwrap();
         // Empty config but on-disk repo present → reconciled.
         assert_eq!(receipt.outcomes.len(), 1);
         assert_eq!(receipt.outcome_counts().up_to_date, 1);
