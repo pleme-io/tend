@@ -345,7 +345,10 @@ pub async fn reconcile_policy(
     let mut dag = super::dag::FleetDag::new();
     // Seed every advancing input as a node first so leaves (inputs
     // with no `follows` siblings) still receive a wave assignment.
-    let advancing_set: std::collections::BTreeSet<super::dag::DagNodeId> = advances
+    // HashSet (not BTreeSet) because shigoto's typed JobId has no
+    // meaningful Ord — within-wave determinism comes from shigoto's
+    // own stable key projection at sort time.
+    let advancing_set: std::collections::HashSet<shigoto_types::JobId> = advances
         .iter()
         .map(|a| super::dag::DagNodeId::new(&repo_key, &a.input))
         .collect();
@@ -395,7 +398,9 @@ pub async fn reconcile_policy(
             .into_iter()
             .enumerate()
             .flat_map(|(idx, w)| {
-                w.into_iter().map(move |id| (id.input, idx as u32))
+                w.into_iter().filter_map(move |id| {
+                    super::dag::flake_input_name(&id).map(|n| (n.to_string(), idx as u32))
+                })
             })
             .collect(),
         Err(e) => {
