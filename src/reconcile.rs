@@ -32,6 +32,8 @@ use shigoto_scheduler::{InProcessScheduler, Scheduler};
 use shigoto_types::{JobId, JobKindId, JobPhase, OutputSink};
 
 use crate::config::Workspace;
+use crate::jobs::discover_org::{DiscoverOrgJob, DISCOVER_ORG_KIND};
+use crate::jobs::gates::CacheFreshGate;
 use crate::jobs::pull_repo::{PullRepoJob, PULL_REPO_KIND};
 use crate::jobs::sync_repo::{SyncRepoJob, SYNC_REPO_KIND};
 use crate::sync::{PullOutcome, SyncOutcome};
@@ -68,10 +70,12 @@ fn default_pull_retry_policy() -> RetryPolicy {
 /// *this* repo?" without re-running.
 ///
 /// The pull-only path (`reconcile_workspace_pull`) leaves
-/// `sync_outcomes` empty; the full path (`reconcile_workspace_sync_then_pull`)
-/// populates both maps. Consumers that only care about pulls keep
-/// using `outcomes`; consumers that want to know "which repos got
-/// cloned this cycle?" check `sync_outcomes`.
+/// `sync_outcomes` and `discovery_outcomes` empty; the full path
+/// (`reconcile_workspace_sync_then_pull`) populates all maps when
+/// the workspace has discovery enabled. Consumers that only care
+/// about pulls keep using `outcomes`; consumers that want to know
+/// "which repos got cloned this cycle?" check `sync_outcomes`;
+/// consumers wanting "did discovery fire?" check `discovery_outcomes`.
 #[derive(Debug, Clone)]
 pub(crate) struct ReconcileReceipt {
     /// Workspace name this receipt covers.
@@ -81,7 +85,13 @@ pub(crate) struct ReconcileReceipt {
     /// Per-Job typed sync (clone-or-noop) outcomes. Empty on the
     /// pull-only path; populated on the full sync-then-pull path.
     pub sync_outcomes: HashMap<JobId, SyncOutcome>,
-    /// JobIds (sync OR pull) whose terminal phase was not Succeeded.
+    /// Per-Job typed discovery outcomes (the discovered repo list).
+    /// Only populated when (a) full path is taken AND (b) workspace
+    /// has discovery enabled AND (c) the CacheFreshGate didn't skip
+    /// the Job. Empty otherwise — operators should fall back to
+    /// `sync::resolve_repos` for the canonical list.
+    pub discovery_outcomes: HashMap<JobId, Vec<String>>,
+    /// JobIds (any kind) whose terminal phase was not Succeeded.
     /// Pairs with the scheduler's final snapshot — Failed /
     /// Deadlettered / Retrying jobs all surface here.
     pub failed_jobs: Vec<(JobId, JobPhase)>,
@@ -273,6 +283,7 @@ pub(crate) async fn reconcile_workspace_pull(
         workspace: workspace.name.clone(),
         outcomes: sink.drain(),
         sync_outcomes: HashMap::new(),
+        discovery_outcomes: HashMap::new(),
         failed_jobs,
     })
 }
@@ -325,6 +336,8 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
     let pull_sink_for_jobs: Arc<dyn OutputSink<PullOutcome>> = pull_sink.clone();
     let sync_sink: Arc<InMemorySink<SyncOutcome>> = Arc::new(InMemorySink::new());
     let sync_sink_for_jobs: Arc<dyn OutputSink<SyncOutcome>> = sync_sink.clone();
+    let discovery_sink: Arc<InMemorySink<Vec<String>>> = Arc::new(InMemorySink::new());
+    let discovery_sink_for_jobs: Arc<dyn OutputSink<Vec<String>>> = discovery_sink.clone();
 
     let emitter: Arc<dyn TransitionEmitter> = match transition_log {
         Some(path) => Arc::new(
@@ -346,6 +359,11 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
     budget
         .by_kind
         .insert(JobKindId::new(PULL_REPO_KIND), BudgetSpec::max_concurrent(max_inflight));
+    // Discovery is naturally single-Job-per-workspace (no parallelism
+    // benefit). Bound it at 1 to keep accounting tidy.
+    budget
+        .by_kind
+        .insert(JobKindId::new(DISCOVER_ORG_KIND), BudgetSpec::max_concurrent(1));
     scheduler.install_budget(budget).await;
 
     scheduler
@@ -354,8 +372,35 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
     scheduler
         .register_retry_policy(JobKindId::new(SYNC_REPO_KIND), default_pull_retry_policy())
         .await;
+    scheduler
+        .register_retry_policy(JobKindId::new(DISCOVER_ORG_KIND), default_pull_retry_policy())
+        .await;
+
+    // First user-registered gate doing real work: CacheFreshGate
+    // skips DiscoverOrgJob when the on-disk discovery cache for the
+    // workspace's org is fresh (within the cache TTL, 6h default).
+    // Auto-skipped Jobs surface as Skipped(GateRejected) in the audit
+    // log instead of running a no-op execute.
+    scheduler
+        .register_gate(JobKindId::new(DISCOVER_ORG_KIND), Arc::new(CacheFreshGate))
+        .await;
 
     let mut dag = Dag::new();
+
+    // Schedule a DiscoverOrgJob when the workspace has discovery
+    // enabled. The org name defaults to workspace.name (matches
+    // provider::discover_github_repos_cached's existing convention).
+    // The CacheFreshGate above auto-skips this when fresh.
+    if workspace.discover {
+        let org = workspace.org.clone().unwrap_or_else(|| workspace.name.clone());
+        let discover_job = Arc::new(
+            DiscoverOrgJob::new(&workspace.name, org)
+                .with_output_sink(discovery_sink_for_jobs),
+        );
+        let discover_id = <DiscoverOrgJob as shigoto_types::Job>::id(&discover_job);
+        dag.ensure_node(discover_id);
+        scheduler.register_job(discover_job).await;
+    }
 
     let mut pull_ids: Vec<JobId> = Vec::with_capacity(all.len());
     for repo_name in &all {
@@ -409,6 +454,7 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
         workspace: workspace.name.clone(),
         outcomes: pull_sink.drain(),
         sync_outcomes: sync_sink.drain(),
+        discovery_outcomes: discovery_sink.drain(),
         failed_jobs,
     })
 }
