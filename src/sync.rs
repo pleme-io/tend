@@ -227,6 +227,97 @@ pub(crate) struct PullSummary {
     pub failed: usize,
 }
 
+/// Typed outcome of pulling a single repo. Used by both the batch
+/// `pull_repos` aggregator and the per-repo `PullRepoJob` (jobs/pull_repo.rs)
+/// so the two paths share one source of truth for the pull state machine.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum PullOutcome {
+    /// Fast-forward succeeded; HEAD moved.
+    Updated,
+    /// Pull succeeded and reported nothing to merge.
+    UpToDate,
+    /// Working tree had uncommitted changes — pull was skipped.
+    DirtySkipped,
+    /// Path doesn't contain a `.git` entry — pull was skipped.
+    MissingSkipped,
+    /// `git pull` exited non-zero. Carries the trimmed stderr for surfacing.
+    Failed { stderr: String },
+}
+
+impl PullOutcome {
+    /// Fold a single outcome into the aggregate summary.
+    pub(crate) fn fold_into(&self, summary: &mut PullSummary) {
+        match self {
+            PullOutcome::Updated => summary.updated += 1,
+            PullOutcome::UpToDate => summary.up_to_date += 1,
+            PullOutcome::DirtySkipped => summary.dirty_skipped += 1,
+            PullOutcome::MissingSkipped => summary.missing_skipped += 1,
+            PullOutcome::Failed { .. } => summary.failed += 1,
+        }
+    }
+}
+
+/// Capture HEAD's commit hash for before/after comparison. Returns
+/// `None` if rev-parse fails (e.g. unborn branch) so the caller can
+/// fall back to the textual heuristic on degenerate repos.
+fn head_sha(repo_path: &Path) -> Option<String> {
+    let out = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(repo_path)
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let sha = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if sha.is_empty() { None } else { Some(sha) }
+}
+
+/// Pull one repo. The unit shared by the batch driver and the
+/// per-repo Job wrapper — there is no other path that runs `git pull`.
+///
+/// Updated/UpToDate is distinguished by comparing HEAD before and
+/// after the pull rather than parsing git's output. With `--quiet`
+/// git emits nothing for either branch, so a textual heuristic
+/// collapses both cases to "up to date" and the caller can't tell
+/// when a real fast-forward landed.
+pub(crate) fn pull_one_repo(repo_path: &Path, quiet: bool, repo_label: &str) -> Result<PullOutcome> {
+    if !is_git_worktree(repo_path) {
+        return Ok(PullOutcome::MissingSkipped);
+    }
+
+    if is_dirty(repo_path)? {
+        if !quiet {
+            println!("  dirty (skipped): {repo_label}");
+        }
+        return Ok(PullOutcome::DirtySkipped);
+    }
+
+    let before = head_sha(repo_path);
+
+    let output = Command::new("git")
+        .args(["pull", "--ff-only", "--quiet"])
+        .current_dir(repo_path)
+        .output()
+        .with_context(|| format!("running git pull in {repo_label}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        eprintln!("  warning: pull failed for {repo_label}: {stderr}");
+        return Ok(PullOutcome::Failed { stderr });
+    }
+
+    let after = head_sha(repo_path);
+    if before == after {
+        Ok(PullOutcome::UpToDate)
+    } else {
+        if !quiet {
+            println!("  updated: {repo_label}");
+        }
+        Ok(PullOutcome::Updated)
+    }
+}
+
 /// Pull the default branch (fast-forward only) for every repo in the workspace.
 ///
 /// Behavior:
@@ -268,59 +359,8 @@ pub(crate) async fn pull_repos(
 
     for repo_name in &all {
         let repo_path = base_dir.join(repo_name);
-        if !is_git_worktree(&repo_path) {
-            summary.missing_skipped += 1;
-            continue;
-        }
-
-        if is_dirty(&repo_path)? {
-            summary.dirty_skipped += 1;
-            if !quiet {
-                println!("  dirty (skipped): {repo_name}");
-            }
-            continue;
-        }
-
-        let output = Command::new("git")
-            .args(["pull", "--ff-only", "--quiet"])
-            .current_dir(&repo_path)
-            .output()
-            .with_context(|| format!("running git pull in {repo_name}"))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!("  warning: pull failed for {repo_name}: {}", stderr.trim());
-            summary.failed += 1;
-            continue;
-        }
-
-        // `git pull --quiet` prints nothing on up-to-date, and a short
-        // "Updating ..." on an actual fast-forward. Distinguish by checking
-        // whether HEAD moved via git rev-parse.
-        let before = Command::new("git")
-            .args(["rev-parse", "@{push}"])
-            .current_dir(&repo_path)
-            .output();
-        let _ = before; // best-effort, not critical
-
-        // Simpler heuristic: look at stdout/stderr for "Already up to date"
-        // (git prints this even with --quiet in some versions) or compare via
-        // whether stdout is empty. The safest portable check is an explicit
-        // `git status -sb` scan; here we just count a successful pull as
-        // either updated or up-to-date and rely on the caller's summary.
-        let combined = format!(
-            "{}{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-        if combined.contains("Already up to date") || combined.trim().is_empty() {
-            summary.up_to_date += 1;
-        } else {
-            summary.updated += 1;
-            if !quiet {
-                println!("  updated: {repo_name}");
-            }
-        }
+        let outcome = pull_one_repo(&repo_path, quiet, repo_name)?;
+        outcome.fold_into(&mut summary);
     }
 
     Ok(summary)
