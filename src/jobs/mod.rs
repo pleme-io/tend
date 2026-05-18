@@ -13,7 +13,7 @@
 //! - [`pull_repo`] — wraps `sync::pull_one_repo` (M0.10b)
 //! - [`status_repo`] — wraps `sync::check_one_repo_status` (M0.10d)
 //! - [`fetch_repo`] — wraps `sync::fetch_one_repo` (M0.10e)
-//! - sync_repo  — wraps `sync::sync_repos` for one repo (planned)
+//! - [`sync_repo`] — wraps `sync::sync_one_repo` (M0.10f)
 //!
 //! # Wrapper pattern (per CSE principle 1: solve problems once)
 //!
@@ -50,3 +50,4 @@
 pub(crate) mod fetch_repo;
 pub(crate) mod pull_repo;
 pub(crate) mod status_repo;
+pub(crate) mod sync_repo;

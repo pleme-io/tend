@@ -65,6 +65,87 @@ pub(crate) async fn resolve_repos(workspace: &Workspace, refresh: bool) -> Resul
 }
 
 /// Clone missing repos. Returns (cloned, already_present) counts.
+/// Typed outcome of cloning-or-noop'ing a single repo. Shared by the
+/// batch `sync_repos` driver and the per-repo `SyncRepoJob`.
+///
+/// `AlreadyPresent` and `StubExisted` are distinct because the latter
+/// indicates a path that exists but lacks `.git` — operator intervention
+/// is needed (we don't auto-clobber working data). The batch driver
+/// folds both into a single "present" count for backward compat, but
+/// per-repo consumers can disambiguate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SyncOutcome {
+    /// Path exists and is a valid `.git` worktree — nothing to do.
+    AlreadyPresent,
+    /// Path exists but has no `.git` — warned, not cloned.
+    StubExisted,
+    /// Repo was cloned fresh.
+    Cloned,
+    /// `git clone` exited non-zero. Carries trimmed stderr.
+    Failed { stderr: String },
+}
+
+/// Inject `GITHUB_TOKEN` into an HTTPS GitHub URL for basic-auth clone.
+/// Containers can't prompt for creds; the rewritten URL is what git
+/// actually sees on the wire. Public repos work too — the token is
+/// just unused.
+fn inject_github_token(url: String) -> String {
+    let Ok(token) = std::env::var("GITHUB_TOKEN") else {
+        return url;
+    };
+    if url.starts_with("https://github.com/") {
+        url.replacen(
+            "https://github.com/",
+            &format!("https://x-access-token:{token}@github.com/"),
+            1,
+        )
+    } else {
+        url
+    }
+}
+
+/// Sync one repo. The unit shared by the batch driver and the
+/// per-repo `SyncRepoJob`. `clone_url` is pre-constructed by the
+/// caller (typically `workspace.clone_url(repo_name)`) so this helper
+/// has no `Workspace` dependency and is testable with arbitrary URLs.
+pub(crate) fn sync_one_repo(
+    clone_url: String,
+    repo_path: &Path,
+    repo_label: &str,
+    quiet: bool,
+) -> Result<SyncOutcome> {
+    if repo_path.exists() {
+        if !is_git_worktree(repo_path) {
+            eprintln!(
+                "  warning: {repo_label} exists without .git — remove {} to re-clone",
+                repo_path.display()
+            );
+            return Ok(SyncOutcome::StubExisted);
+        }
+        return Ok(SyncOutcome::AlreadyPresent);
+    }
+
+    let url = inject_github_token(clone_url);
+
+    if !quiet {
+        println!("  cloning {repo_label}...");
+    }
+
+    let output = Command::new("git")
+        .args(["clone", &url, &repo_path.to_string_lossy()])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .with_context(|| format!("running git clone for {repo_label}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        eprintln!("  warning: failed to clone {repo_label}: {stderr}");
+        return Ok(SyncOutcome::Failed { stderr });
+    }
+
+    Ok(SyncOutcome::Cloned)
+}
+
 pub(crate) async fn sync_repos(workspace: &Workspace, repos: &[String], quiet: bool) -> Result<(usize, usize)> {
     let base_dir = workspace.resolved_base_dir()?;
     std::fs::create_dir_all(&base_dir)
@@ -75,54 +156,14 @@ pub(crate) async fn sync_repos(workspace: &Workspace, repos: &[String], quiet: b
 
     for repo_name in repos {
         let repo_path = base_dir.join(repo_name);
-        if repo_path.exists() {
-            // Stub dir with files but no .git — warn rather than silently counting as present.
-            // Destroying user content would be unsafe, so the operator must remove it manually.
-            if !is_git_worktree(&repo_path) {
-                eprintln!(
-                    "  warning: {repo_name} exists without .git — remove {} to re-clone",
-                    repo_path.display()
-                );
-            }
-            present += 1;
-            continue;
+        let clone_url = workspace.clone_url(repo_name);
+        match sync_one_repo(clone_url, &repo_path, repo_name, quiet)? {
+            SyncOutcome::Cloned => cloned += 1,
+            SyncOutcome::AlreadyPresent | SyncOutcome::StubExisted => present += 1,
+            // Match the existing batch behavior: failed clones aren't counted
+            // toward either bucket — they show up via the eprintln side effect.
+            SyncOutcome::Failed { .. } => {}
         }
-
-        let url = workspace.clone_url(repo_name);
-        // Inject GITHUB_TOKEN into HTTPS clone URL when set (containers
-        // can't prompt for creds). Pattern: https://x-access-token:TOKEN@github.com/...
-        // — git treats this as basic auth, server pulls the token,
-        // works for private + public repos with no credential helper.
-        let url = if let Ok(token) = std::env::var("GITHUB_TOKEN") {
-            if url.starts_with("https://github.com/") {
-                url.replacen(
-                    "https://github.com/",
-                    &format!("https://x-access-token:{token}@github.com/"),
-                    1,
-                )
-            } else {
-                url
-            }
-        } else {
-            url
-        };
-        if !quiet {
-            println!("  cloning {repo_name}...");
-        }
-
-        let output = Command::new("git")
-            .args(["clone", &url, &repo_path.to_string_lossy()])
-            .env("GIT_TERMINAL_PROMPT", "0")
-            .output()
-            .with_context(|| format!("running git clone for {repo_name}"))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!("  warning: failed to clone {repo_name}: {stderr}");
-            continue;
-        }
-
-        cloned += 1;
     }
 
     Ok((cloned, present))
