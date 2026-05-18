@@ -56,6 +56,25 @@ pub(crate) struct ReconcileReceipt {
 }
 
 impl ReconcileReceipt {
+    /// Project this typed receipt to the legacy `sync::PullSummary`
+    /// shape so existing callers (audit log, display formatters) can
+    /// consume it without a parallel surface. `Failed` Job-phase
+    /// outcomes fold into the same `failed` bucket as
+    /// `PullOutcome::Failed`, so the count reflects "anything that
+    /// went wrong" rather than splitting between FSM-Failed and
+    /// outcome-Failed.
+    #[must_use]
+    pub fn as_pull_summary(&self) -> crate::sync::PullSummary {
+        let counts = self.outcome_counts();
+        crate::sync::PullSummary {
+            updated: counts.updated,
+            up_to_date: counts.up_to_date,
+            dirty_skipped: counts.dirty_skipped,
+            missing_skipped: counts.missing_skipped,
+            failed: counts.failed_pull + self.failed_jobs.len(),
+        }
+    }
+
     /// Aggregated counts by outcome variant. Useful for summary
     /// printing without iterating the per-Job map.
     #[must_use]

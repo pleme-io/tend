@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::{display, git, github, load_config, filter_workspaces, planner, sync, watch, watch_cache};
+use crate::{display, git, github, load_config, filter_workspaces, planner, reconcile, sync, watch, watch_cache};
 use crate::planner::{ExecutionPlan, WorkItem, WorkKind};
 
 /// Options for the daemon command.
@@ -19,6 +19,11 @@ pub(crate) struct DaemonOpts {
     /// remains expressible (`--no-pull --fetch`).
     pub fetch: bool,
     pub quiet: bool,
+    /// Maximum concurrent `git pull` Jobs per workspace per cycle.
+    /// Bounds the shigoto-scheduler's per-kind Budget for the
+    /// `tend.pull-repo` kind so the daemon doesn't saturate file
+    /// handles / SSH multiplexers on large workspaces.
+    pub max_inflight: u32,
 }
 
 /// Run the daemon loop: sync + pull + watch on interval, re-reading config each cycle.
@@ -77,9 +82,10 @@ pub(crate) async fn run(opts: DaemonOpts) -> Result<()> {
             let pull = opts.pull;
             let fetch = opts.fetch;
             let quiet = opts.quiet;
+            let max_inflight = opts.max_inflight;
             tasks.spawn(async move {
                 let name = ws.name.clone();
-                match run_workspace_cycle(&ws, pull, fetch, quiet).await {
+                match run_workspace_cycle(&ws, pull, fetch, quiet, max_inflight).await {
                     Ok(()) => {}
                     Err(e) => {
                         display::print_daemon_error(&name, &e);
@@ -115,6 +121,7 @@ async fn run_workspace_cycle(
     pull: bool,
     fetch: bool,
     quiet: bool,
+    max_inflight: u32,
 ) -> Result<()> {
     let repos = sync::resolve_repos(ws, false).await?;
     let (cloned, present) = sync::sync_repos(ws, &repos, quiet).await?;
@@ -126,8 +133,20 @@ async fn run_workspace_cycle(
     // Pull subsumes fetch — `git pull --ff-only` does its own fetch. The
     // explicit `fetch` branch only runs when pull is disabled (operator
     // opted into a fetch-only daemon, e.g. to keep working trees pristine).
+    //
+    // The pull branch now flows through the shigoto-scheduler-driven
+    // reconcile path (per-repo PullRepoJob + InProcessScheduler +
+    // per-kind Budget). The display + audit layer still consumes the
+    // legacy `PullSummary` shape via ReconcileReceipt::as_pull_summary
+    // to avoid churning every downstream consumer at once — that
+    // migration is M0.15b+. The substantive change here: pulls within
+    // a workspace cycle are now concurrent (bounded by max_inflight)
+    // rather than the legacy batch's sequential loop, AND each pull's
+    // typed outcome flows through the scheduler's InMemorySink so
+    // future receipts can carry per-Job detail.
     if pull {
-        let summary = sync::pull_repos(ws, &repos, quiet).await?;
+        let receipt = reconcile::reconcile_workspace_pull(ws, &repos, max_inflight).await?;
+        let summary = receipt.as_pull_summary();
         let audit = crate::audit::AuditLog::default_path();
         audit.pull_completed(
             &ws.name,

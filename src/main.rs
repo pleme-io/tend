@@ -196,6 +196,12 @@ enum Commands {
         /// Path to file containing GitHub token (for launchd environments)
         #[arg(long)]
         github_token_file: Option<PathBuf>,
+
+        /// Maximum concurrent `git pull` processes per workspace per
+        /// cycle. Bounds the shigoto scheduler's per-kind Budget for
+        /// `tend.pull-repo`. Default matches `tend reconcile`.
+        #[arg(long, default_value_t = reconcile::DEFAULT_MAX_INFLIGHT_PULL)]
+        max_inflight: u32,
     },
 
     /// Run watch cycle once (detect new versions)
@@ -743,6 +749,7 @@ async fn main() -> Result<()> {
             fetch,
             quiet,
             github_token_file,
+            max_inflight,
         } => {
             // In launchd/systemd environments, env vars may not be inherited.
             // Read the token from a file and set GITHUB_TOKEN for provider discovery.
@@ -759,6 +766,7 @@ async fn main() -> Result<()> {
                 pull,
                 fetch,
                 quiet,
+                max_inflight,
             })
             .await?;
         }
