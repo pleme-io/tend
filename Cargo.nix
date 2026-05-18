@@ -9899,7 +9899,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
           rev = "1811a2e08b580d92ac5840cece6e1286ab931d01";
-          sha256 = "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n";
+          sha256 = "sha256-owJbNqoW24dRE49VU2osRBxBJsMTNEt6c3032wqo04s=";
         };
         libName = "shigoto_budget";
         authors = [
@@ -9930,7 +9930,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
           rev = "1811a2e08b580d92ac5840cece6e1286ab931d01";
-          sha256 = "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n";
+          sha256 = "sha256-owJbNqoW24dRE49VU2osRBxBJsMTNEt6c3032wqo04s=";
         };
         libName = "shigoto_dag";
         authors = [
@@ -9965,7 +9965,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
           rev = "1811a2e08b580d92ac5840cece6e1286ab931d01";
-          sha256 = "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n";
+          sha256 = "sha256-owJbNqoW24dRE49VU2osRBxBJsMTNEt6c3032wqo04s=";
         };
         libName = "shigoto_emit";
         authors = [
@@ -10000,7 +10000,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
           rev = "1811a2e08b580d92ac5840cece6e1286ab931d01";
-          sha256 = "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n";
+          sha256 = "sha256-owJbNqoW24dRE49VU2osRBxBJsMTNEt6c3032wqo04s=";
         };
         libName = "shigoto_gate";
         authors = [
@@ -10026,7 +10026,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
           rev = "1811a2e08b580d92ac5840cece6e1286ab931d01";
-          sha256 = "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n";
+          sha256 = "sha256-owJbNqoW24dRE49VU2osRBxBJsMTNEt6c3032wqo04s=";
         };
         libName = "shigoto_retry";
         authors = [
@@ -10053,7 +10053,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
           rev = "1811a2e08b580d92ac5840cece6e1286ab931d01";
-          sha256 = "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n";
+          sha256 = "sha256-owJbNqoW24dRE49VU2osRBxBJsMTNEt6c3032wqo04s=";
         };
         libName = "shigoto_scheduler";
         authors = [
@@ -10121,7 +10121,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
           rev = "1811a2e08b580d92ac5840cece6e1286ab931d01";
-          sha256 = "0y56i44cxcdxbmx3dy07aqxv7gg1k0dcwmj0gv1hbppl9cn2pq3n";
+          sha256 = "sha256-owJbNqoW24dRE49VU2osRBxBJsMTNEt6c3032wqo04s=";
         };
         libName = "shigoto_types";
         authors = [
