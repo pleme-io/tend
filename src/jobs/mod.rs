@@ -14,6 +14,7 @@
 //! - [`status_repo`] — wraps `sync::check_one_repo_status` (M0.10d)
 //! - [`fetch_repo`] — wraps `sync::fetch_one_repo` (M0.10e)
 //! - [`sync_repo`] — wraps `sync::sync_one_repo` (M0.10f)
+//! - [`discover_org`] — wraps `provider::discover_github_repos_cached` (M0.19 / M2)
 //!
 //! # Wrapper pattern (per CSE principle 1: solve problems once)
 //!
@@ -47,6 +48,7 @@
 //! more) is uniform enough to template cleanly. Premature extraction
 //! produces a brittle macro for marginal LOC savings.
 
+pub(crate) mod discover_org;
 pub(crate) mod fetch_repo;
 pub(crate) mod pull_repo;
 pub(crate) mod status_repo;
