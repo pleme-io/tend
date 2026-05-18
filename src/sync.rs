@@ -6,7 +6,7 @@ use crate::config::Workspace;
 use crate::provider;
 
 /// Status of a single repo in the workspace.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub(crate) enum RepoStatus {
     /// Repo exists and has no uncommitted changes.
@@ -136,16 +136,7 @@ pub(crate) async fn check_status(workspace: &Workspace, repos: &[String]) -> Res
     // Check expected repos
     for repo_name in repos {
         let repo_path = base_dir.join(repo_name);
-        // A directory without .git is a broken clone stub — classify as Missing
-        // so `tend sync` highlights it and `is_dirty` doesn't walk up to a parent
-        // git repo (e.g., a workspace-level flake) and mis-report untracked files.
-        let status = if !is_git_worktree(&repo_path) {
-            RepoStatus::Missing
-        } else if is_dirty(&repo_path)? {
-            RepoStatus::Dirty
-        } else {
-            RepoStatus::Clean
-        };
+        let status = check_one_repo_status(&repo_path)?;
         entries.push(RepoEntry {
             name: repo_name.clone(),
             status,
@@ -364,6 +355,27 @@ pub(crate) async fn pull_repos(
     }
 
     Ok(summary)
+}
+
+/// Classify one expected-repo path as Missing/Dirty/Clean. Shared by
+/// `check_status`'s batch loop and the per-repo `StatusRepoJob`
+/// (jobs/status_repo.rs). Does NOT return `Unknown` — that is a
+/// workspace-level designation (config says this path shouldn't be
+/// here), not a property derivable from the path alone.
+///
+/// A directory without `.git` is classified as `Missing` rather than
+/// being passed to `is_dirty`. The latter would walk up the filesystem
+/// and surface a parent repo's state (e.g. a workspace-level flake),
+/// which would mis-report this stub as dirty when it's just an empty
+/// hole that `tend sync` should fill.
+pub(crate) fn check_one_repo_status(repo_path: &Path) -> Result<RepoStatus> {
+    if !is_git_worktree(repo_path) {
+        Ok(RepoStatus::Missing)
+    } else if is_dirty(repo_path)? {
+        Ok(RepoStatus::Dirty)
+    } else {
+        Ok(RepoStatus::Clean)
+    }
 }
 
 /// Returns true iff `path` is an existing directory containing a `.git`

@@ -11,8 +11,9 @@
 //!
 //! Roadmap:
 //! - [`pull_repo`] — wraps `sync::pull_one_repo` for one repo (M0.10b)
+//! - [`status_repo`] — wraps `sync::check_one_repo_status` (M0.10d)
 //! - sync_repo  — wraps `sync::sync_repos` for one repo (planned)
-//! - status_repo — wraps `sync::check_status` for one repo (planned)
 //! - fetch_repo — wraps `sync::fetch_repos` for one repo (planned)
 
 pub(crate) mod pull_repo;
+pub(crate) mod status_repo;
