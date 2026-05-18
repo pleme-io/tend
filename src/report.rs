@@ -306,6 +306,10 @@ fn format_drift_event(event: &DriftEvent) -> String {
         DriftEvent::JobUnhealed { job_id, phase } => {
             format!("{}: {}", format_job_id(job_id), format_phase(phase))
         }
+        DriftEvent::LocalRepoNotInDiscovery {
+            workspace,
+            repo_name,
+        } => format!("[{workspace}] {repo_name}: local-only (not in current discovery)"),
     }
 }
 

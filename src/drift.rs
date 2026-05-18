@@ -70,6 +70,16 @@ pub(crate) enum DriftEvent {
         job_id: JobId,
         phase: JobPhase,
     },
+    /// A repo exists locally but doesn't appear in the latest org
+    /// discovery output. Possible causes: archived on GitHub (excluded
+    /// from active discovery), deleted upstream, renamed upstream, or
+    /// a local-only repo the operator added without going through
+    /// `tend sync`. The drift is informational — the substrate
+    /// doesn't auto-remove local repos.
+    LocalRepoNotInDiscovery {
+        workspace: String,
+        repo_name: String,
+    },
 }
 
 impl DriftEvent {
@@ -81,7 +91,8 @@ impl DriftEvent {
             Self::StubDirectoryFound { workspace, .. }
             | Self::DirtyTreeBlocksPull { workspace, .. }
             | Self::PullFailed { workspace, .. }
-            | Self::SyncFailed { workspace, .. } => Some(workspace.as_str()),
+            | Self::SyncFailed { workspace, .. }
+            | Self::LocalRepoNotInDiscovery { workspace, .. } => Some(workspace.as_str()),
             Self::JobUnhealed { job_id, .. } => match &job_id.scope {
                 shigoto_types::JobScope::Workspace(w) => Some(w.as_str()),
                 shigoto_types::JobScope::Repo { workspace, .. } => Some(workspace.as_str()),
@@ -257,6 +268,36 @@ pub(crate) fn derive_from_receipt(receipt: &ReconcileReceipt) -> Vec<DriftEvent>
         });
     }
 
+    // Cross-reference drift: when DiscoverOrgJob ran (so we have an
+    // authoritative active-repo list), flag any sync_outcomes whose
+    // repo doesn't appear in discovery. The discovery_outcomes map
+    // holds the typed RepoState list per workspace; collect names
+    // into a set, then check every sync subject against it.
+    //
+    // No-op when discovery didn't run this cycle (cache fresh + gate
+    // skipped, or workspace.discover=false) — discovery_outcomes is
+    // empty, so we don't emit false positives saying "every local
+    // repo is missing upstream."
+    if !receipt.discovery_outcomes.is_empty() {
+        let active_names: std::collections::HashSet<&str> = receipt
+            .discovery_outcomes
+            .values()
+            .flat_map(|states| states.iter().map(|s| s.name.as_str()))
+            .collect();
+        for (id, _) in &receipt.sync_outcomes {
+            let repo_name = match &id.subject {
+                JobSubject::Repo(r) => r.clone(),
+                _ => continue,
+            };
+            if !active_names.contains(repo_name.as_str()) {
+                events.push(DriftEvent::LocalRepoNotInDiscovery {
+                    workspace: receipt.workspace.clone(),
+                    repo_name,
+                });
+            }
+        }
+    }
+
     events
 }
 
@@ -381,6 +422,70 @@ mod tests {
             }
             other => panic!("expected JobUnhealed, got {other:?}"),
         }
+    }
+
+    /// Cross-reference drift: a local repo that doesn't appear in
+    /// the latest discovery is flagged as LocalRepoNotInDiscovery.
+    #[test]
+    fn local_repo_not_in_discovery_becomes_drift() {
+        use crate::provider::RepoState;
+        let mut r = empty_receipt();
+
+        // Local "ghost" repo exists (sync sees AlreadyPresent) but
+        // discovery doesn't list it.
+        r.sync_outcomes
+            .insert(sync_id("ghost"), SyncOutcome::AlreadyPresent);
+        // Discovery has a different repo "alive" — the active list.
+        r.discovery_outcomes.insert(
+            JobId {
+                scope: JobScope::Workspace("ws".into()),
+                kind: JobKindId::new("tend.discover-org"),
+                subject: JobSubject::Org("ws".into()),
+            },
+            vec![RepoState {
+                name: "alive".into(),
+                default_branch: Some("main".into()),
+                archived: false,
+                fork: false,
+                language: None,
+            }],
+        );
+
+        let events = derive_from_receipt(&r);
+        // Should have exactly one LocalRepoNotInDiscovery event for
+        // "ghost." "alive" is in discovery so no drift; "ghost" isn't.
+        let local_only: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e, DriftEvent::LocalRepoNotInDiscovery { .. }))
+            .collect();
+        assert_eq!(local_only.len(), 1);
+        match local_only[0] {
+            DriftEvent::LocalRepoNotInDiscovery { repo_name, .. } => {
+                assert_eq!(repo_name, "ghost");
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    /// When discovery didn't run this cycle (cache fresh, gate
+    /// skipped, etc.), discovery_outcomes is empty — we MUST NOT emit
+    /// LocalRepoNotInDiscovery for every local repo (that would mean
+    /// "all repos drifted" every single cycle the cache was fresh).
+    #[test]
+    fn empty_discovery_suppresses_cross_reference_drift() {
+        let mut r = empty_receipt();
+        r.sync_outcomes
+            .insert(sync_id("local1"), SyncOutcome::AlreadyPresent);
+        r.sync_outcomes
+            .insert(sync_id("local2"), SyncOutcome::AlreadyPresent);
+        // discovery_outcomes is empty.
+
+        let events = derive_from_receipt(&r);
+        // None of the events should be LocalRepoNotInDiscovery — the
+        // cross-reference path doesn't fire without discovery data.
+        assert!(events
+            .iter()
+            .all(|e| !matches!(e, DriftEvent::LocalRepoNotInDiscovery { .. })));
     }
 
     #[test]
