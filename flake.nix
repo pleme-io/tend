@@ -41,6 +41,57 @@
       toolName = "pleme-tend";
       src = self;
       repo = "pleme-io/tend";
+
+      # Configuration Management prime directive (★★, see
+      # pleme-io/theory/CONFIGURATION-MANAGEMENT.md). Substrate's
+      # rust-tool-release-flake.nix auto-generates the HM / NixOS /
+      # Darwin module trio from this block. tend already uses
+      # shikumi for its ~/.config/tend/config.yaml; this exports
+      # the typed Nix surface so operators can declare workspaces
+      # + daemon settings via home-manager and get the YAML
+      # generated mechanically.
+      module = {
+        description = "tend — pleme-io workspace repository manager + K8s operator";
+        hmNamespace = "blackmatter.components";
+
+        # Shikumi YAML at ~/.config/tend/config.yaml. Operators
+        # who want fully-declarative Nix-managed workspaces set
+        # `programs.tend.settings.workspaces.* = …` and the YAML
+        # is rendered. Operators who hand-author the YAML set
+        # `manageConfig = false` (handled by substrate's macro)
+        # and tend still picks up the file via shikumi discovery.
+        withShikumiConfig = true;
+
+        # Typed groups mirror what `tend status` / `tend sync`
+        # read at startup. Free-form workspace declarations go
+        # via `extraSettings.workspaces = { … }` from consumer
+        # modules (the nix-private repo's tend wiring).
+        shikumiTypedGroups = {
+          daemon = {
+            poll_interval_seconds = {
+              type = "int";
+              default = 300;
+              description = "How often the tend daemon polls remote repo state (seconds).";
+            };
+            github_token_path = {
+              type = "nullOrStr";
+              default = null;
+              description = "Path to a file containing the GitHub PAT used for org discovery. null = honor GITHUB_TOKEN env var.";
+            };
+          };
+
+          # Throttle for upstream calls — surfaces samba's
+          # quotaPct knob so operators can dial down GitHub
+          # API pressure during a sync storm.
+          throttle = {
+            quota_pct = {
+              type = "float";
+              default = 0.01;
+              description = "Fraction of upstream rate-limit to consume (samba pattern). 0.01 = 1%.";
+            };
+          };
+        };
+      };
     };
 
     # Docker image for the K8s operator. Same binary as the CLI release
