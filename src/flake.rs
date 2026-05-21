@@ -507,6 +507,73 @@ pub(crate) fn execute_cargo_update(
             continue;
         }
 
+        // Refresh crate2nix outputs (Cargo.nix + crate-hashes.json) for
+        // repos that ship them. The recurring "awase pin drift" failure
+        // mode is exactly this — Cargo.lock changes but Cargo.nix /
+        // crate-hashes.json stay stale, breaking every fleet rebuild
+        // that consumes the repo as a nix input.
+        //
+        // Strategy: if repo has Cargo.nix AND the regenerate-cargo-nix
+        // flake app, invoke it. If either is missing, skip silently —
+        // not every Rust workspace uses crate2nix.
+        let cargo_nix_path = repo_path.join("Cargo.nix");
+        if cargo_nix_path.exists() {
+            // Probe for the regenerate-cargo-nix app via `nix eval`.
+            // Quiet — we only care whether it returns 0.
+            let has_regen = Command::new("nix")
+                .args([
+                    "eval",
+                    ".#apps.x86_64-darwin.regenerate-cargo-nix.type",
+                    "--raw",
+                ])
+                .current_dir(&repo_path)
+                .output();
+            let regen_available = matches!(
+                has_regen,
+                Ok(out) if out.status.success()
+            ) || matches!(
+                Command::new("nix")
+                    .args([
+                        "eval",
+                        ".#apps.aarch64-darwin.regenerate-cargo-nix.type",
+                        "--raw",
+                    ])
+                    .current_dir(&repo_path)
+                    .output(),
+                Ok(out) if out.status.success()
+            );
+
+            if regen_available {
+                if !opts.quiet {
+                    eprintln!(
+                        "{}: regenerating Cargo.nix + crate-hashes.json (post cargo update)",
+                        step.repo
+                    );
+                }
+                let regen = Command::new("nix")
+                    .args(["run", ".#regenerate-cargo-nix"])
+                    .current_dir(&repo_path)
+                    .output()
+                    .with_context(|| {
+                        format!("running nix run .#regenerate-cargo-nix in {}", step.repo)
+                    })?;
+                if regen.status.success() {
+                    // Stage the regen outputs so the commit captures them
+                    // alongside Cargo.lock.
+                    let _ = Command::new("git")
+                        .args(["add", "Cargo.nix", "crate-hashes.json"])
+                        .current_dir(&repo_path)
+                        .output();
+                } else {
+                    let stderr = String::from_utf8_lossy(&regen.stderr);
+                    eprintln!(
+                        "regenerate-cargo-nix failed in {}: {} (continuing with Cargo.lock only)",
+                        step.repo, stderr
+                    );
+                }
+            }
+        }
+
         // Check if Cargo.lock actually changed
         let diff = Command::new("git")
             .args(["diff", "--cached", "--quiet"])
@@ -521,8 +588,20 @@ pub(crate) fn execute_cargo_update(
             continue;
         }
 
-        // Commit
-        let msg = "chore: update Cargo.lock".to_string();
+        // Commit — message mentions crate-hashes if we regen'd, so the
+        // log is honest about what landed.
+        let cargo_nix_staged = Command::new("git")
+            .args(["diff", "--cached", "--name-only"])
+            .current_dir(&repo_path)
+            .output()
+            .ok()
+            .map(|o| String::from_utf8_lossy(&o.stdout).contains("crate-hashes.json"))
+            .unwrap_or(false);
+        let msg = if cargo_nix_staged {
+            "chore: update Cargo.lock + refresh crate-hashes.json".to_string()
+        } else {
+            "chore: update Cargo.lock".to_string()
+        };
         let output = Command::new("git")
             .args(["commit", "-m", &msg])
             .current_dir(&repo_path)
