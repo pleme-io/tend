@@ -423,6 +423,9 @@ enum Commands {
         #[arg(long)]
         config: Option<PathBuf>,
     },
+
+    /// Show the materialized config at a tier (bare/default/env/...).
+    ConfigShow(shikumi::cli::ConfigShowCommand),
 }
 
 #[tokio::main]
@@ -1222,6 +1225,11 @@ async fn main() -> Result<()> {
         #[cfg(feature = "operator")]
         Commands::Throttle { config } => {
             operator::throttle::run(config.as_deref()).await?;
+        }
+
+        Commands::ConfigShow(cmd) => {
+            cmd.run::<config::Config>("TEND_TIER")
+                .map_err(|e| anyhow::anyhow!("config-show failed: {e}"))?;
         }
     }
 

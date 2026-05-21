@@ -39,7 +39,7 @@ tokio = { version = "1.40", features = ["full"] }
 toml = "0.8"
 toml_edit = "0.22"
 async-trait = "0.1"
-shikumi = { git = "https://github.com/pleme-io/shikumi" }
+shikumi = { git = "https://github.com/pleme-io/shikumi", features = ["cli"] }
 tsunagu = { git = "https://github.com/pleme-io/tsunagu" }
 opencode-zen = { git = "https://github.com/pleme-io/opencode-zen" }
 cron = "0.15"
