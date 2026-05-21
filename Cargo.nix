@@ -10178,7 +10178,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shikumi";
           rev = "27d1a121590632e696e0c8ff63e32af9831062d1";
-          sha256 = "0dzn4axfx4asampkini6wv6j80mkiy34z44l9n4kx3kfjwai5bg1";
+          sha256 = "qqWaT8a+HJKQuQmK37xyfpFABHwBsmYayfRJJfQ+jog=";
         };
         dependencies = [
           {
