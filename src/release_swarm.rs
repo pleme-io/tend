@@ -73,6 +73,44 @@ pub struct RepoReleaseConfig {
     pub retention_days: Option<u32>,
 }
 
+// ── shikumi::TieredConfig — prime directive ────────────────
+//
+// release_swarm Config structs participate in the fleet-wide tier
+// model so operators can request `tend config-show <tier>` + override
+// via `TEND_TIER` env var. Both org-level and per-repo Configs are
+// DENY-by-default at every tier — the prescribed defaults only carry
+// the curated target_matrix + retention values, never `enable: true`.
+
+impl shikumi::TieredConfig for OrgReleaseSwarmConfig {
+    fn bare() -> Self {
+        Self {
+            org: String::new(),
+            enable: false,
+            default_target_matrix: String::new(),
+            default_retention_days: 0,
+            repos: BTreeMap::new(),
+        }
+    }
+    fn prescribed_default() -> Self {
+        Self {
+            org: String::new(),
+            enable: false,
+            default_target_matrix: default_target_matrix(),
+            default_retention_days: default_retention(),
+            repos: BTreeMap::new(),
+        }
+    }
+}
+
+impl shikumi::TieredConfig for RepoReleaseConfig {
+    fn bare() -> Self {
+        Self::default()
+    }
+    fn prescribed_default() -> Self {
+        Self::default()
+    }
+}
+
 impl OrgReleaseSwarmConfig {
     /// Substring patterns that are STRUCTURALLY forbidden from the
     /// public-release swarm. Mirror of
@@ -470,5 +508,74 @@ mod tests {
             apply_swarm(&api, &c, false, |_, _| "x".into()).await.unwrap();
         assert!(reports.is_empty());
         assert!(api.prs.lock().unwrap().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod tiered_tests {
+    use super::*;
+    use shikumi::{ConfigTier, TieredConfig};
+
+    #[test]
+    fn bare_is_zero_opinion() {
+        let b = <OrgReleaseSwarmConfig as TieredConfig>::bare();
+        assert_eq!(b.org, "");
+        assert!(!b.enable);
+        assert_eq!(b.default_target_matrix, "");
+        assert_eq!(b.default_retention_days, 0);
+        assert!(b.repos.is_empty());
+
+        let br = <RepoReleaseConfig as TieredConfig>::bare();
+        assert!(!br.enable);
+        assert!(br.binary_name.is_none());
+        assert!(br.features.is_empty());
+    }
+
+    #[test]
+    fn prescribed_matches_default() {
+        let p = <OrgReleaseSwarmConfig as TieredConfig>::prescribed_default();
+        assert!(!p.enable, "prescribed_default must remain DENY at org level");
+        assert_eq!(p.default_target_matrix, "three_target");
+        assert_eq!(p.default_retention_days, 90);
+
+        let pr = <RepoReleaseConfig as TieredConfig>::prescribed_default();
+        assert!(!pr.enable, "prescribed_default must remain DENY at repo level");
+    }
+
+    #[test]
+    fn diff_bare_vs_default_is_non_empty() {
+        let b = <OrgReleaseSwarmConfig as TieredConfig>::bare();
+        let d = <OrgReleaseSwarmConfig as TieredConfig>::prescribed_default();
+        let diff = d.diff_against(&b);
+        assert!(
+            !diff.is_empty_diff(),
+            "OrgReleaseSwarmConfig bare and prescribed_default must differ"
+        );
+    }
+
+    #[test]
+    fn resolve_tier_dispatches() {
+        assert_eq!(
+            <OrgReleaseSwarmConfig as TieredConfig>::resolve_tier(ConfigTier::Bare)
+                .default_target_matrix,
+            ""
+        );
+        assert_eq!(
+            <OrgReleaseSwarmConfig as TieredConfig>::resolve_tier(ConfigTier::Default)
+                .default_target_matrix,
+            "three_target"
+        );
+        assert_eq!(
+            <OrgReleaseSwarmConfig as TieredConfig>::resolve_tier(ConfigTier::Default)
+                .default_retention_days,
+            90
+        );
+        // DENY invariant — both tiers stay false.
+        assert!(
+            !<OrgReleaseSwarmConfig as TieredConfig>::resolve_tier(ConfigTier::Default).enable
+        );
+        assert!(
+            !<RepoReleaseConfig as TieredConfig>::resolve_tier(ConfigTier::Default).enable
+        );
     }
 }

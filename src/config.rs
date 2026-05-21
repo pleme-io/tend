@@ -375,6 +375,163 @@ fn default_clone_method() -> CloneMethod {
     CloneMethod::Ssh
 }
 
+// ── shikumi::TieredConfig — prime directive ────────────────
+//
+// Every public tend Config struct impls TieredConfig so operators
+// can request `tend config-show <tier>` + override via `TEND_TIER`
+// env var. bare() = zero-opinion floor (empty strings, 0 numbers,
+// false flags, empty collections); prescribed_default() = the
+// curated tend defaults that ship (e.g. provider="github",
+// clone_method=Ssh, interval=3600s).
+//
+// Sub-configs that derive Default already produce zero-opinion
+// shapes (the curated defaults are applied via serde, not
+// Default::default), so bare() delegates to Default for them.
+
+impl shikumi::TieredConfig for Config {
+    fn bare() -> Self {
+        Self {
+            workspaces: Vec::new(),
+        }
+    }
+    fn prescribed_default() -> Self {
+        Self {
+            workspaces: Vec::new(),
+        }
+    }
+}
+
+impl shikumi::TieredConfig for Workspace {
+    fn bare() -> Self {
+        Self {
+            name: String::new(),
+            provider: String::new(),
+            base_dir: String::new(),
+            clone_method: CloneMethod::default(),
+            discover: false,
+            org: None,
+            exclude: Vec::new(),
+            extra_repos: Vec::new(),
+            flake_deps: HashMap::new(),
+            watch: None,
+            ai_tasks: Vec::new(),
+        }
+    }
+    fn prescribed_default() -> Self {
+        Self {
+            name: String::new(),
+            provider: default_provider(),
+            base_dir: String::new(),
+            clone_method: default_clone_method(),
+            discover: false,
+            org: None,
+            exclude: Vec::new(),
+            extra_repos: Vec::new(),
+            flake_deps: HashMap::new(),
+            watch: None,
+            ai_tasks: Vec::new(),
+        }
+    }
+}
+
+impl shikumi::TieredConfig for AiTaskConfig {
+    fn bare() -> Self {
+        Self {
+            name: String::new(),
+            schedule: String::new(),
+            model: String::new(),
+            prompt: String::new(),
+            output: None,
+            env: HashMap::new(),
+            retries: 0,
+            timeout_secs: 0,
+        }
+    }
+    fn prescribed_default() -> Self {
+        Self {
+            name: String::new(),
+            schedule: String::new(),
+            model: String::new(),
+            prompt: String::new(),
+            output: None,
+            env: HashMap::new(),
+            retries: default_retries(),
+            timeout_secs: default_timeout(),
+        }
+    }
+}
+
+impl shikumi::TieredConfig for WatchConfig {
+    fn bare() -> Self {
+        Self {
+            enable: false,
+            matrix_file: None,
+            auto_certify: false,
+            auto_commit: false,
+            auto_propagate: None,
+            post_hooks: Vec::new(),
+            file_watches: Vec::new(),
+            flake_input_watches: Vec::new(),
+            flake_refresh: None,
+            nix_audit: None,
+            ci_hygiene: None,
+            release_swarm: None,
+        }
+    }
+    fn prescribed_default() -> Self {
+        // Watch off by default — every watcher is opt-in per workspace.
+        Self::bare()
+    }
+}
+
+impl shikumi::TieredConfig for CiHygieneConfig {
+    fn bare() -> Self {
+        Self::default()
+    }
+    fn prescribed_default() -> Self {
+        Self {
+            enable: false,
+            auto_cancel_duplicate_queued: default_true(),
+            recent_run_limit: default_recent_run_limit(),
+            repo_filter: None,
+            stale_queue_alert_minutes: default_stale_queue_minutes(),
+        }
+    }
+}
+
+impl shikumi::TieredConfig for NixAuditConfig {
+    fn bare() -> Self {
+        Self::default()
+    }
+    fn prescribed_default() -> Self {
+        Self::default()
+    }
+}
+
+impl shikumi::TieredConfig for FlakeRefreshConfig {
+    fn bare() -> Self {
+        Self {
+            enable: false,
+            interval: 0,
+            max_interval: 0,
+            branch: String::new(),
+            pull_before_update: false,
+            update_command: String::new(),
+            update_timeout: 0,
+            commit_message: String::new(),
+            auto_commit: false,
+            auto_propagate: false,
+            include: Vec::new(),
+            exclude: Vec::new(),
+            post_hooks: Vec::new(),
+            staleness_check: false,
+        }
+    }
+    fn prescribed_default() -> Self {
+        Self::default()
+    }
+}
+
 impl Config {
     pub fn load(path: &Path) -> Result<Self> {
         let contents =
@@ -976,5 +1133,150 @@ workspaces:
         let err = result.unwrap_err().to_string();
         assert!(err.contains("parsing"), "error should mention parsing context: {err}");
         let _ = std::fs::remove_file(&path);
+    }
+}
+
+#[cfg(test)]
+mod tiered_tests {
+    use super::*;
+    use shikumi::{ConfigTier, TieredConfig};
+
+    #[test]
+    fn bare_is_zero_opinion() {
+        let b = <Config as TieredConfig>::bare();
+        assert!(b.workspaces.is_empty());
+
+        let bw = <Workspace as TieredConfig>::bare();
+        assert_eq!(bw.name, "");
+        assert_eq!(bw.provider, "");
+        assert_eq!(bw.base_dir, "");
+        assert!(!bw.discover);
+        assert!(bw.watch.is_none());
+        assert!(bw.exclude.is_empty());
+        assert!(bw.flake_deps.is_empty());
+
+        let ba = <AiTaskConfig as TieredConfig>::bare();
+        assert_eq!(ba.name, "");
+        assert_eq!(ba.retries, 0);
+        assert_eq!(ba.timeout_secs, 0);
+
+        let bwatch = <WatchConfig as TieredConfig>::bare();
+        assert!(!bwatch.enable);
+        assert!(bwatch.flake_refresh.is_none());
+        assert!(bwatch.ci_hygiene.is_none());
+
+        let bch = <CiHygieneConfig as TieredConfig>::bare();
+        assert!(!bch.enable);
+        assert!(!bch.auto_cancel_duplicate_queued);
+        assert_eq!(bch.recent_run_limit, 0);
+        assert_eq!(bch.stale_queue_alert_minutes, 0);
+
+        let bna = <NixAuditConfig as TieredConfig>::bare();
+        assert!(!bna.enable);
+        assert!(!bna.auto_fix);
+
+        let bfr = <FlakeRefreshConfig as TieredConfig>::bare();
+        assert!(!bfr.enable);
+        assert_eq!(bfr.interval, 0);
+        assert_eq!(bfr.branch, "");
+        assert!(!bfr.pull_before_update);
+        assert_eq!(bfr.update_command, "");
+        assert!(!bfr.staleness_check);
+    }
+
+    #[test]
+    fn prescribed_matches_default() {
+        // Workspace prescribed_default applies the serde-default-fn values.
+        let pw = <Workspace as TieredConfig>::prescribed_default();
+        assert_eq!(pw.provider, default_provider());
+        assert_eq!(pw.clone_method, default_clone_method());
+
+        // AiTaskConfig prescribed_default carries default_retries/default_timeout.
+        let pa = <AiTaskConfig as TieredConfig>::prescribed_default();
+        assert_eq!(pa.retries, default_retries());
+        assert_eq!(pa.timeout_secs, default_timeout());
+
+        // CiHygieneConfig prescribed_default carries the curated auto-cancel + limits.
+        let pch = <CiHygieneConfig as TieredConfig>::prescribed_default();
+        assert!(pch.auto_cancel_duplicate_queued);
+        assert_eq!(pch.recent_run_limit, default_recent_run_limit());
+        assert_eq!(pch.stale_queue_alert_minutes, default_stale_queue_minutes());
+
+        // FlakeRefreshConfig prescribed_default = the existing Default::default().
+        let pfr = <FlakeRefreshConfig as TieredConfig>::prescribed_default();
+        let dfr = FlakeRefreshConfig::default();
+        assert_eq!(pfr.interval, dfr.interval);
+        assert_eq!(pfr.branch, dfr.branch);
+        assert_eq!(pfr.update_command, dfr.update_command);
+        assert_eq!(pfr.staleness_check, dfr.staleness_check);
+    }
+
+    #[test]
+    fn diff_bare_vs_default_is_non_empty() {
+        // Workspace has serde-default-fn-driven differences.
+        let b = <Workspace as TieredConfig>::bare();
+        let d = <Workspace as TieredConfig>::prescribed_default();
+        let diff = d.diff_against(&b);
+        assert!(
+            !diff.is_empty_diff(),
+            "Workspace bare and prescribed_default must differ"
+        );
+
+        // AiTaskConfig retries/timeout differ.
+        let ab = <AiTaskConfig as TieredConfig>::bare();
+        let ad = <AiTaskConfig as TieredConfig>::prescribed_default();
+        assert!(
+            !ad.diff_against(&ab).is_empty_diff(),
+            "AiTaskConfig bare and prescribed_default must differ"
+        );
+
+        // CiHygieneConfig has 3 curated defaults.
+        let cb = <CiHygieneConfig as TieredConfig>::bare();
+        let cd = <CiHygieneConfig as TieredConfig>::prescribed_default();
+        assert!(
+            !cd.diff_against(&cb).is_empty_diff(),
+            "CiHygieneConfig bare and prescribed_default must differ"
+        );
+
+        // FlakeRefreshConfig has multiple curated defaults.
+        let fb = <FlakeRefreshConfig as TieredConfig>::bare();
+        let fd = <FlakeRefreshConfig as TieredConfig>::prescribed_default();
+        assert!(
+            !fd.diff_against(&fb).is_empty_diff(),
+            "FlakeRefreshConfig bare and prescribed_default must differ"
+        );
+    }
+
+    #[test]
+    fn resolve_tier_dispatches() {
+        assert_eq!(
+            <Workspace as TieredConfig>::resolve_tier(ConfigTier::Bare).provider,
+            ""
+        );
+        assert_eq!(
+            <Workspace as TieredConfig>::resolve_tier(ConfigTier::Default).provider,
+            "github"
+        );
+        assert_eq!(
+            <AiTaskConfig as TieredConfig>::resolve_tier(ConfigTier::Bare).retries,
+            0
+        );
+        assert_eq!(
+            <AiTaskConfig as TieredConfig>::resolve_tier(ConfigTier::Default).retries,
+            3
+        );
+        assert_eq!(
+            <CiHygieneConfig as TieredConfig>::resolve_tier(ConfigTier::Default).recent_run_limit,
+            50
+        );
+        assert_eq!(
+            <FlakeRefreshConfig as TieredConfig>::resolve_tier(ConfigTier::Default).interval,
+            3600
+        );
+        assert!(
+            <Config as TieredConfig>::resolve_tier(ConfigTier::Bare)
+                .workspaces
+                .is_empty()
+        );
     }
 }
