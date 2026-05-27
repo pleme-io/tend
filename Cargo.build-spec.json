@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workspace": {
     "root": "/Users/drzzln/code/github/pleme-io/tend",
     "members": [
@@ -23,6 +23,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "adler2",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -46,6 +51,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "ahash",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cfg_if",
@@ -175,6 +185,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "aho_corasick",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "memchr",
@@ -213,6 +228,16 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [
+        {
+          "name": "example",
+          "path": "src/bin/example.rs"
+        }
+      ],
+      "lib_target": {
+        "name": "alloc_no_stdlib",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -231,6 +256,16 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [
+        {
+          "name": "example",
+          "path": "src/bin/example.rs"
+        }
+      ],
+      "lib_target": {
+        "name": "alloc_stdlib",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "alloc_no_stdlib",
@@ -278,6 +313,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "allocator_api2",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -300,6 +340,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "anstream",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "anstyle",
@@ -444,6 +489,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "anstyle",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -465,6 +515,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "anstyle_parse",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "utf8parse",
@@ -503,6 +558,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "anstyle_query",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -524,6 +584,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "anyhow",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -542,6 +607,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "arc_swap",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "rustversion",
@@ -580,6 +650,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "async_broadcast",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "event_listener",
@@ -684,15 +759,15 @@
         ]
       }
     },
-    "async-compression-0.4.41": {
+    "async-compression-0.4.42": {
       "name": "async-compression",
-      "version": "0.4.41",
+      "version": "0.4.42",
       "edition": "2018",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/async-compression/0.4.41/download",
-        "sha256": "d0f9ee0f6e02ffd7ad5816e9464499fba7b3effd01123b515c41d1697c43dad1",
-        "name_with_ext": "async-compression-0.4.41.tar.gz"
+        "url": "https://crates.io/api/v1/crates/async-compression/0.4.42/download",
+        "sha256": "e79b3f8a79cccc2898f31920fc69f304859b3bd567490f75ebf51ae1c792a9ac",
+        "name_with_ext": "async-compression-0.4.42.tar.gz"
       },
       "features": [
         "brotli",
@@ -701,10 +776,15 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "async_compression",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "compression_codecs",
-          "package_key": "compression-codecs-0.4.37",
+          "package_key": "compression-codecs-0.4.38",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -713,7 +793,7 @@
         },
         {
           "name": "compression_core",
-          "package_key": "compression-core-0.4.31",
+          "package_key": "compression-core-0.4.32",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -731,7 +811,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -742,7 +822,7 @@
       "runtime_dependencies": [
         {
           "name": "compression_codecs",
-          "package_key": "compression-codecs-0.4.37",
+          "package_key": "compression-codecs-0.4.38",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -751,7 +831,7 @@
         },
         {
           "name": "compression_core",
-          "package_key": "compression-core-0.4.31",
+          "package_key": "compression-core-0.4.32",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -769,7 +849,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -781,13 +861,13 @@
       "crate_renames": {
         "compression-codecs": [
           {
-            "version": "0.4.37",
+            "version": "0.4.38",
             "rename": "compression_codecs"
           }
         ],
         "compression-core": [
           {
-            "version": "0.4.31",
+            "version": "0.4.32",
             "rename": "compression_core"
           }
         ],
@@ -816,6 +896,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "async_nats",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "base64",
@@ -886,7 +971,7 @@
         },
         {
           "name": "pin_project",
-          "package_key": "pin-project-1.1.11",
+          "package_key": "pin-project-1.1.13",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -969,7 +1054,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -1019,7 +1104,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "macros",
@@ -1159,7 +1244,7 @@
         },
         {
           "name": "pin_project",
-          "package_key": "pin-project-1.1.11",
+          "package_key": "pin-project-1.1.13",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -1242,7 +1327,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -1292,7 +1377,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "macros",
@@ -1366,7 +1451,7 @@
       "crate_renames": {
         "pin-project": [
           {
-            "version": "1.1.11",
+            "version": "1.1.13",
             "rename": "pin_project"
           }
         ],
@@ -1427,6 +1512,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "async_stream",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "async_stream_impl",
@@ -1520,6 +1610,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "async_stream_impl",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -1607,6 +1702,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "async_trait",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -1702,24 +1802,34 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "atomic_waker",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
       "crate_renames": {}
     },
-    "autocfg-1.5.0": {
+    "autocfg-1.5.1": {
       "name": "autocfg",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "edition": "2015",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/autocfg/1.5.0/download",
-        "sha256": "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8",
-        "name_with_ext": "autocfg-1.5.0.tar.gz"
+        "url": "https://crates.io/api/v1/crates/autocfg/1.5.1/download",
+        "sha256": "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53",
+        "name_with_ext": "autocfg-1.5.1.tar.gz"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "autocfg",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -1740,6 +1850,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "backoff",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "getrandom",
@@ -1818,6 +1933,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "base64",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -1838,6 +1958,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "base64ct",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -1858,6 +1983,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "bitflags",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -1876,6 +2006,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "block_buffer",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "generic_array",
@@ -1925,6 +2060,20 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [
+        {
+          "name": "brotli",
+          "path": "src/bin/brotli.rs"
+        },
+        {
+          "name": "catbrotli",
+          "path": "src/bin/catbrotli.rs"
+        }
+      ],
+      "lib_target": {
+        "name": "brotli",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "alloc_no_stdlib",
@@ -2021,6 +2170,16 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [
+        {
+          "name": "brotli-decompressor",
+          "path": "src/bin/brotli-decompressor.rs"
+        }
+      ],
+      "lib_target": {
+        "name": "brotli_decompressor",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "alloc_no_stdlib",
@@ -2094,6 +2253,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "bytes",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "serde",
@@ -2123,19 +2287,24 @@
       "build_dependencies": [],
       "crate_renames": {}
     },
-    "cc-1.2.60": {
+    "cc-1.2.62": {
       "name": "cc",
-      "version": "1.2.60",
+      "version": "1.2.62",
       "edition": "2018",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/cc/1.2.60/download",
-        "sha256": "43c5703da9466b66a946814e1adf53ea2c90f10063b86290cc9eb67ce3478a20",
-        "name_with_ext": "cc-1.2.60.tar.gz"
+        "url": "https://crates.io/api/v1/crates/cc/1.2.62/download",
+        "sha256": "a1dce859f0832a7d088c4f1119888ab94ef4b5d6795d1ce05afb7fe159d79f98",
+        "name_with_ext": "cc-1.2.62.tar.gz"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "cc",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "find_msvc_tools",
@@ -2199,6 +2368,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "cfg_if",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -2217,6 +2391,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "cfg_aliases",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -2249,6 +2428,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "chrono",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "iana_time_zone",
@@ -2345,6 +2529,16 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [
+        {
+          "name": "stdio-fixture",
+          "path": "src/bin/stdio-fixture.rs"
+        }
+      ],
+      "lib_target": {
+        "name": "clap",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "clap_builder",
@@ -2408,6 +2602,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "clap_builder",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "anstream",
@@ -2502,6 +2701,11 @@
       ],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "clap_derive",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "heck",
@@ -2605,6 +2809,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "clap_lex",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -2623,6 +2832,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "colorchoice",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -2641,6 +2855,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "colored",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "lazy_static",
@@ -2666,15 +2885,15 @@
       "build_dependencies": [],
       "crate_renames": {}
     },
-    "compression-codecs-0.4.37": {
+    "compression-codecs-0.4.38": {
       "name": "compression-codecs",
-      "version": "0.4.37",
+      "version": "0.4.38",
       "edition": "2018",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/compression-codecs/0.4.37/download",
-        "sha256": "eb7b51a7d9c967fc26773061ba86150f19c50c0d65c887cb1fbe295fd16619b7",
-        "name_with_ext": "compression-codecs-0.4.37.tar.gz"
+        "url": "https://crates.io/api/v1/crates/compression-codecs/0.4.38/download",
+        "sha256": "ce2548391e9c1929c21bf6aa2680af86fe4c1b33e6cea9ac1cfeec0bd11218cf",
+        "name_with_ext": "compression-codecs-0.4.38.tar.gz"
       },
       "features": [
         "brotli",
@@ -2684,6 +2903,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "compression_codecs",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "brotli",
@@ -2696,7 +2920,7 @@
         },
         {
           "name": "compression_core",
-          "package_key": "compression-core-0.4.31",
+          "package_key": "compression-core-0.4.32",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -2734,7 +2958,7 @@
         },
         {
           "name": "compression_core",
-          "package_key": "compression-core-0.4.31",
+          "package_key": "compression-core-0.4.32",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -2764,25 +2988,30 @@
       "crate_renames": {
         "compression-core": [
           {
-            "version": "0.4.31",
+            "version": "0.4.32",
             "rename": "compression_core"
           }
         ]
       }
     },
-    "compression-core-0.4.31": {
+    "compression-core-0.4.32": {
       "name": "compression-core",
-      "version": "0.4.31",
+      "version": "0.4.32",
       "edition": "2018",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/compression-core/0.4.31/download",
-        "sha256": "75984efb6ed102a0d42db99afb6c1948f0380d1d91808d5529916e6c08b49d8d",
-        "name_with_ext": "compression-core-0.4.31.tar.gz"
+        "url": "https://crates.io/api/v1/crates/compression-core/0.4.32/download",
+        "sha256": "cc14f565cf027a105f7a44ccf9e5b424348421a1d8952a8fc9d499d313107789",
+        "name_with_ext": "compression-core-0.4.32.tar.gz"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "compression_core",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -2803,6 +3032,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "concurrent_queue",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "crossbeam_utils",
@@ -2848,6 +3082,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "const_oid",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -2869,6 +3108,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "cookie",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "percent_encoding",
@@ -2966,6 +3210,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "cookie_store",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cookie",
@@ -2998,7 +3247,7 @@
         },
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -3034,7 +3283,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -3092,7 +3341,7 @@
         },
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -3128,7 +3377,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -3180,6 +3429,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "core_foundation",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "core_foundation_sys",
@@ -3192,7 +3446,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -3212,7 +3466,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -3246,6 +3500,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "core_foundation",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "core_foundation_sys",
@@ -3258,7 +3517,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -3278,7 +3537,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -3312,6 +3571,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "core_foundation_sys",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -3330,6 +3594,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "countme",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -3348,10 +3617,15 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "cpufeatures",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -3362,7 +3636,7 @@
       "runtime_dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -3389,6 +3663,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "crc32fast",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cfg_if",
@@ -3434,6 +3713,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "cron",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "chrono",
@@ -3512,6 +3796,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "crossbeam_utils",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -3532,6 +3821,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "crypto_common",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "generic_array",
@@ -3597,6 +3891,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "curve25519_dalek",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cfg_if",
@@ -3700,6 +3999,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "darling",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "darling_core",
@@ -3759,6 +4063,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "darling_core",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "fnv",
@@ -3900,6 +4209,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "darling_macro",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "darling_core",
@@ -3978,6 +4292,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "data_encoding",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -4002,6 +4321,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "der",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "const_oid",
@@ -4093,6 +4417,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "deranged",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "powerfmt",
@@ -4155,6 +4484,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "digest",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "block_buffer",
@@ -4224,6 +4558,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "dirs",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "dirs_sys",
@@ -4269,10 +4608,15 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "dirs_sys",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -4292,7 +4636,7 @@
       "runtime_dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -4332,6 +4676,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "displaydoc",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -4415,6 +4764,11 @@
       ],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "document_features",
+        "path": "lib.rs"
+      },
       "dependencies": [
         {
           "name": "litrs",
@@ -4453,6 +4807,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "dyn_clone",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -4471,6 +4830,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "ed25519",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "signature",
@@ -4512,6 +4876,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "ed25519_dalek",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "curve25519_dalek",
@@ -4634,6 +5003,11 @@
       ],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "educe",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "enum_ordinalize",
@@ -4726,15 +5100,15 @@
         ]
       }
     },
-    "either-1.15.0": {
+    "either-1.16.0": {
       "name": "either",
-      "version": "1.15.0",
+      "version": "1.16.0",
       "edition": "2021",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/either/1.15.0/download",
-        "sha256": "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719",
-        "name_with_ext": "either-1.15.0.tar.gz"
+        "url": "https://crates.io/api/v1/crates/either/1.16.0/download",
+        "sha256": "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e",
+        "name_with_ext": "either-1.16.0.tar.gz"
       },
       "features": [
         "default",
@@ -4742,6 +5116,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "either",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -4763,6 +5142,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "encoding_rs",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cfg_if",
@@ -4810,6 +5194,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "enum_ordinalize",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "enum_ordinalize_derive",
@@ -4855,6 +5244,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "enum_ordinalize_derive",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -4936,6 +5330,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "equivalent",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -4957,10 +5356,15 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "errno",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -4971,7 +5375,7 @@
       "runtime_dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -4999,6 +5403,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "event_listener",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "concurrent_queue",
@@ -5089,6 +5498,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "event_listener_strategy",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "event_listener",
@@ -5162,6 +5576,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "fastrand",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -5187,6 +5606,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "figment",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "pear",
@@ -5316,6 +5740,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "find_msvc_tools",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -5334,6 +5763,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "fixedbitset",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -5357,6 +5791,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "flate2",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "crc32fast",
@@ -5422,6 +5861,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "fnv",
+        "path": "lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -5440,6 +5884,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "foldhash",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -5462,6 +5911,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "form_urlencoded",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "percent_encoding",
@@ -5507,10 +5961,15 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "fsevent_sys",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -5521,7 +5980,7 @@
       "runtime_dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -5552,6 +6011,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "futures",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "futures_channel",
@@ -5747,6 +6211,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "futures_channel",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "futures_core",
@@ -5820,6 +6289,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "futures_core",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -5840,6 +6314,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "futures_executor",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "futures_core",
@@ -5935,6 +6414,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "futures_io",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -5953,6 +6437,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "futures_macro",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -6042,6 +6531,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "futures_sink",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -6063,6 +6557,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "futures_task",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -6095,6 +6594,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "futures_util",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "futures_channel",
@@ -6322,6 +6826,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "generic_array",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "typenum",
@@ -6385,6 +6894,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "getrandom",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cfg_if",
@@ -6397,7 +6911,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -6417,7 +6931,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -6451,6 +6965,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "getrandom",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cfg_if",
@@ -6463,7 +6982,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -6483,7 +7002,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -6514,6 +7033,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "getrandom",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cfg_if",
@@ -6526,7 +7050,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -6546,7 +7070,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -6564,19 +7088,24 @@
         ]
       }
     },
-    "h2-0.4.13": {
+    "h2-0.4.14": {
       "name": "h2",
-      "version": "0.4.13",
+      "version": "0.4.14",
       "edition": "2021",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/h2/0.4.13/download",
-        "sha256": "2f44da3a8150a6703ed5d34e164b875fd14c2cdab9af1252a9a1020bde2bdc54",
-        "name_with_ext": "h2-0.4.13.tar.gz"
+        "url": "https://crates.io/api/v1/crates/h2/0.4.14/download",
+        "sha256": "171fefbc92fe4a4de27e0698d6a5b392d6a0e333506bc49133760b3bcf948733",
+        "name_with_ext": "h2-0.4.14.tar.gz"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "h2",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "atomic_waker",
@@ -6625,7 +7154,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -6654,7 +7183,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "io-util"
@@ -6732,7 +7261,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -6761,7 +7290,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "io-util"
@@ -6834,6 +7363,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "hashbrown",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -6859,6 +7393,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "hashbrown",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "allocator_api2",
@@ -6927,19 +7466,24 @@
         ]
       }
     },
-    "hashbrown-0.17.0": {
+    "hashbrown-0.17.1": {
       "name": "hashbrown",
-      "version": "0.17.0",
+      "version": "0.17.1",
       "edition": "2024",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/hashbrown/0.17.0/download",
-        "sha256": "4f467dd6dccf739c208452f8014c75c18bb8301b050ad1cfb27153803edb0f51",
-        "name_with_ext": "hashbrown-0.17.0.tar.gz"
+        "url": "https://crates.io/api/v1/crates/hashbrown/0.17.1/download",
+        "sha256": "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a",
+        "name_with_ext": "hashbrown-0.17.1.tar.gz"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "hashbrown",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -6958,6 +7502,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "headers",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "base64",
@@ -6988,7 +7537,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -7053,7 +7602,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -7111,10 +7660,15 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "headers_core",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -7125,7 +7679,7 @@
       "runtime_dependencies": [
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -7149,6 +7703,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "heck",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -7167,6 +7726,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "home",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -7187,6 +7751,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "hostname",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cfg_if",
@@ -7199,7 +7768,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -7219,7 +7788,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -7237,15 +7806,15 @@
         ]
       }
     },
-    "http-1.4.0": {
+    "http-1.4.1": {
       "name": "http",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "edition": "2021",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/http/1.4.0/download",
-        "sha256": "e3ba2a386d7f85a81f119ad7498ebe444d2e22c2af0b86b069416ace48b3311a",
-        "name_with_ext": "http-1.4.0.tar.gz"
+        "url": "https://crates.io/api/v1/crates/http/1.4.1/download",
+        "sha256": "8be7462df143984c4598a256ef469b251d7d7f9e271135073e78fc535414f3d0",
+        "name_with_ext": "http-1.4.1.tar.gz"
       },
       "features": [
         "default",
@@ -7253,6 +7822,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "http",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "bytes",
@@ -7309,6 +7883,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "http_body",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "bytes",
@@ -7321,7 +7900,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -7341,7 +7920,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -7367,6 +7946,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "http_body_util",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "bytes",
@@ -7388,7 +7972,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -7435,7 +8019,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -7499,6 +8083,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "httparse",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -7517,6 +8106,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "httpdate",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -7541,6 +8135,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "hyper",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "atomic_waker",
@@ -7580,7 +8179,7 @@
         },
         {
           "name": "h2",
-          "package_key": "h2-0.4.13",
+          "package_key": "h2-0.4.14",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -7589,7 +8188,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -7655,7 +8254,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "sync"
@@ -7713,7 +8312,7 @@
         },
         {
           "name": "h2",
-          "package_key": "h2-0.4.13",
+          "package_key": "h2-0.4.14",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -7722,7 +8321,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -7788,7 +8387,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "sync"
@@ -7858,6 +8457,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "hyper_http_proxy",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "bytes",
@@ -7888,7 +8492,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -7944,7 +8548,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "io-std",
@@ -8003,7 +8607,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -8059,7 +8663,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "io-std",
@@ -8158,10 +8762,15 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "hyper_rustls",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -8188,7 +8797,7 @@
         },
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -8197,7 +8806,7 @@
         },
         {
           "name": "rustls",
-          "package_key": "rustls-0.23.38",
+          "package_key": "rustls-0.23.40",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -8215,7 +8824,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -8253,7 +8862,7 @@
       "runtime_dependencies": [
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -8280,7 +8889,7 @@
         },
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -8289,7 +8898,7 @@
         },
         {
           "name": "rustls",
-          "package_key": "rustls-0.23.38",
+          "package_key": "rustls-0.23.40",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -8307,7 +8916,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -8389,6 +8998,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "hyper_timeout",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "hyper",
@@ -8419,7 +9033,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -8466,7 +9080,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -8518,6 +9132,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "hyper_tls",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "bytes",
@@ -8566,7 +9185,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -8640,7 +9259,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -8723,6 +9342,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "hyper_util",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "base64",
@@ -8762,7 +9386,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -8798,7 +9422,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -8845,7 +9469,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -8912,7 +9536,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -8948,7 +9572,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -8995,7 +9619,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -9084,6 +9708,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "iana_time_zone",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "core_foundation_sys",
@@ -9129,6 +9758,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "icu_collections",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "displaydoc",
@@ -9172,7 +9806,7 @@
         },
         {
           "name": "zerofrom",
-          "package_key": "zerofrom-0.1.7",
+          "package_key": "zerofrom-0.1.8",
           "kind": "normal",
           "features": [
             "derive"
@@ -9237,7 +9871,7 @@
         },
         {
           "name": "zerofrom",
-          "package_key": "zerofrom-0.1.7",
+          "package_key": "zerofrom-0.1.8",
           "kind": "normal",
           "features": [
             "derive"
@@ -9277,6 +9911,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "icu_locale_core",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "displaydoc",
@@ -9389,6 +10028,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "icu_normalizer",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "icu_collections",
@@ -9517,6 +10161,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "icu_normalizer_data",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -9537,6 +10186,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "icu_properties",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "icu_collections",
@@ -9681,6 +10335,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "icu_properties_data",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -9701,6 +10360,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "icu_provider",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "displaydoc",
@@ -9742,7 +10406,7 @@
         },
         {
           "name": "zerofrom",
-          "package_key": "zerofrom-0.1.7",
+          "package_key": "zerofrom-0.1.8",
           "kind": "normal",
           "features": [
             "derive"
@@ -9813,7 +10477,7 @@
         },
         {
           "name": "zerofrom",
-          "package_key": "zerofrom-0.1.7",
+          "package_key": "zerofrom-0.1.8",
           "kind": "normal",
           "features": [
             "derive"
@@ -9859,6 +10523,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "ident_case",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -9882,10 +10551,15 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "idna",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "idna_adapter",
-          "package_key": "idna_adapter-1.2.1",
+          "package_key": "idna_adapter-1.2.2",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -9916,7 +10590,7 @@
       "runtime_dependencies": [
         {
           "name": "idna_adapter",
-          "package_key": "idna_adapter-1.2.1",
+          "package_key": "idna_adapter-1.2.2",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -9947,21 +10621,26 @@
       "build_dependencies": [],
       "crate_renames": {}
     },
-    "idna_adapter-1.2.1": {
+    "idna_adapter-1.2.2": {
       "name": "idna_adapter",
-      "version": "1.2.1",
-      "edition": "2021",
+      "version": "1.2.2",
+      "edition": "2024",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/idna_adapter/1.2.1/download",
-        "sha256": "3acae9609540aa318d1bc588455225fb2085b9ed0c4f6bd0d9d5bcd86f1a0344",
-        "name_with_ext": "idna_adapter-1.2.1.tar.gz"
+        "url": "https://crates.io/api/v1/crates/idna_adapter/1.2.2/download",
+        "sha256": "cb68373c0d6620ef8105e855e7745e18b0d00d3bdb07fb532e434244cdb9a714",
+        "name_with_ext": "idna_adapter-1.2.2.tar.gz"
       },
       "features": [
         "compiled_data"
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "idna_adapter",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "icu_normalizer",
@@ -10022,6 +10701,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "indexmap",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "equivalent",
@@ -10034,7 +10718,7 @@
         },
         {
           "name": "hashbrown",
-          "package_key": "hashbrown-0.17.0",
+          "package_key": "hashbrown-0.17.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -10063,7 +10747,7 @@
         },
         {
           "name": "hashbrown",
-          "package_key": "hashbrown-0.17.0",
+          "package_key": "hashbrown-0.17.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -10096,6 +10780,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "inlinable_string",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -10114,6 +10803,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "instant",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cfg_if",
@@ -10162,72 +10856,13 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "ipnet",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
-      "build_dependencies": [],
-      "crate_renames": {}
-    },
-    "iri-string-0.7.12": {
-      "name": "iri-string",
-      "version": "0.7.12",
-      "edition": "2021",
-      "source": {
-        "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/iri-string/0.7.12/download",
-        "sha256": "25e659a4bb38e810ebc252e53b5814ff908a8c58c2a9ce2fae1bbec24cbf4e20",
-        "name_with_ext": "iri-string-0.7.12.tar.gz"
-      },
-      "features": [
-        "alloc",
-        "default",
-        "std"
-      ],
-      "proc_macro": false,
-      "build_script": null,
-      "dependencies": [
-        {
-          "name": "memchr",
-          "package_key": "memchr-2.8.0",
-          "kind": "normal",
-          "features": [],
-          "uses_default_features": false,
-          "optional": true,
-          "target": null
-        },
-        {
-          "name": "serde",
-          "package_key": "serde-1.0.228",
-          "kind": "normal",
-          "features": [
-            "derive"
-          ],
-          "uses_default_features": false,
-          "optional": true,
-          "target": null
-        }
-      ],
-      "runtime_dependencies": [
-        {
-          "name": "memchr",
-          "package_key": "memchr-2.8.0",
-          "kind": "normal",
-          "features": [],
-          "uses_default_features": false,
-          "optional": true,
-          "target": null
-        },
-        {
-          "name": "serde",
-          "package_key": "serde-1.0.228",
-          "kind": "normal",
-          "features": [
-            "derive"
-          ],
-          "uses_default_features": false,
-          "optional": true,
-          "target": null
-        }
-      ],
       "build_dependencies": [],
       "crate_renames": {}
     },
@@ -10246,6 +10881,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "is_terminal_polyfill",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -10264,6 +10904,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "itoa",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -10285,6 +10930,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "json_patch",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "jsonptr",
@@ -10308,7 +10958,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -10348,7 +10998,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -10381,6 +11031,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "jsonpath_rust",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "pest",
@@ -10411,7 +11066,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -10458,7 +11113,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -10499,6 +11154,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "jsonptr",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "serde",
@@ -10513,7 +11173,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [
             "alloc"
@@ -10537,7 +11197,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [
             "alloc"
@@ -10565,6 +11225,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "k8s_openapi",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "base64",
@@ -10609,7 +11274,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [
             "alloc"
@@ -10663,7 +11328,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [
             "alloc"
@@ -10706,6 +11371,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "kube",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "k8s_openapi",
@@ -10875,6 +11545,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "kube_client",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "base64",
@@ -10905,7 +11580,7 @@
         },
         {
           "name": "either",
-          "package_key": "either-1.15.0",
+          "package_key": "either-1.16.0",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -10934,7 +11609,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -11045,7 +11720,7 @@
         },
         {
           "name": "rustls",
-          "package_key": "rustls-0.23.38",
+          "package_key": "rustls-0.23.40",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -11083,7 +11758,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -11110,7 +11785,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "time",
@@ -11145,7 +11820,7 @@
         },
         {
           "name": "tower_http",
-          "package_key": "tower-http-0.6.8",
+          "package_key": "tower-http-0.6.11",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -11194,7 +11869,7 @@
         },
         {
           "name": "either",
-          "package_key": "either-1.15.0",
+          "package_key": "either-1.16.0",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -11223,7 +11898,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -11334,7 +12009,7 @@
         },
         {
           "name": "rustls",
-          "package_key": "rustls-0.23.38",
+          "package_key": "rustls-0.23.40",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -11372,7 +12047,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -11399,7 +12074,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "time",
@@ -11434,7 +12109,7 @@
         },
         {
           "name": "tower_http",
-          "package_key": "tower-http-0.6.8",
+          "package_key": "tower-http-0.6.11",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -11523,7 +12198,7 @@
         ],
         "tower-http": [
           {
-            "version": "0.6.8",
+            "version": "0.6.11",
             "rename": "tower_http"
           }
         ]
@@ -11547,6 +12222,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "kube_core",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "chrono",
@@ -11570,7 +12250,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -11626,7 +12306,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -11666,7 +12346,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -11722,7 +12402,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -11774,6 +12454,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "kube_derive",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "darling",
@@ -11804,7 +12489,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -11853,7 +12538,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -11895,6 +12580,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "kube_runtime",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "ahash",
@@ -12031,7 +12721,7 @@
         },
         {
           "name": "pin_project",
-          "package_key": "pin-project-1.1.11",
+          "package_key": "pin-project-1.1.13",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -12049,7 +12739,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -12067,7 +12757,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "time"
@@ -12231,7 +12921,7 @@
         },
         {
           "name": "pin_project",
-          "package_key": "pin-project-1.1.11",
+          "package_key": "pin-project-1.1.13",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -12249,7 +12939,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -12267,7 +12957,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "time"
@@ -12335,7 +13025,7 @@
         ],
         "pin-project": [
           {
-            "version": "1.1.11",
+            "version": "1.1.13",
             "rename": "pin_project"
           }
         ],
@@ -12360,20 +13050,25 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "lazy_static",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
       "crate_renames": {}
     },
-    "libc-0.2.185": {
+    "libc-0.2.186": {
       "name": "libc",
-      "version": "0.2.185",
+      "version": "0.2.186",
       "edition": "2021",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/libc/0.2.185/download",
-        "sha256": "52ff2c0fe9bc6cb6b14a0592c2ff4fa9ceb83eea9db979b0487cd054946a2b8f",
-        "name_with_ext": "libc-0.2.185.tar.gz"
+        "url": "https://crates.io/api/v1/crates/libc/0.2.186/download",
+        "sha256": "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66",
+        "name_with_ext": "libc-0.2.186.tar.gz"
       },
       "features": [
         "default",
@@ -12381,6 +13076,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "libc",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -12399,6 +13099,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "litemap",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -12417,6 +13122,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "litrs",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -12438,6 +13148,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "lock_api",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "scopeguard",
@@ -12463,21 +13178,26 @@
       "build_dependencies": [],
       "crate_renames": {}
     },
-    "log-0.4.29": {
+    "log-0.4.30": {
       "name": "log",
-      "version": "0.4.29",
+      "version": "0.4.30",
       "edition": "2021",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/log/0.4.29/download",
-        "sha256": "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897",
-        "name_with_ext": "log-0.4.29.tar.gz"
+        "url": "https://crates.io/api/v1/crates/log/0.4.30/download",
+        "sha256": "616ec5685824bcc94416c6d4a7a446eea774a31efd7062c8480ba6fd06d7a6e5",
+        "name_with_ext": "log-0.4.30.tar.gz"
       },
       "features": [
         "std"
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "log",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -12496,6 +13216,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "lru_slab",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -12514,6 +13239,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "matchers",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "regex_automata",
@@ -12563,6 +13293,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "memchr",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -12583,10 +13318,15 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "memoffset",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "autocfg",
-          "package_key": "autocfg-1.5.0",
+          "package_key": "autocfg-1.5.1",
           "kind": "build",
           "features": [],
           "uses_default_features": true,
@@ -12598,7 +13338,7 @@
       "build_dependencies": [
         {
           "name": "autocfg",
-          "package_key": "autocfg-1.5.0",
+          "package_key": "autocfg-1.5.1",
           "kind": "build",
           "features": [],
           "uses_default_features": true,
@@ -12621,6 +13361,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "mime",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -12639,6 +13384,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "mime_guess",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "mime",
@@ -12699,6 +13449,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "miniz_oxide",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "adler2",
@@ -12768,10 +13523,15 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "mio",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -12780,7 +13540,7 @@
         },
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -12791,7 +13551,7 @@
       "runtime_dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -12800,7 +13560,7 @@
         },
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -12826,10 +13586,15 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "native_tls",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -12867,7 +13632,7 @@
       "runtime_dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -12931,6 +13696,16 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [
+        {
+          "name": "nk",
+          "path": "src/bin/nk/main.rs"
+        }
+      ],
+      "lib_target": {
+        "name": "nkeys",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "data_encoding",
@@ -12961,7 +13736,7 @@
         },
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -13017,7 +13792,7 @@
         },
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -13076,6 +13851,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "notify",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "bitflags",
@@ -13097,7 +13877,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -13106,7 +13886,7 @@
         },
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -13153,7 +13933,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -13162,7 +13942,7 @@
         },
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -13217,6 +13997,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "notify_types",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "bitflags",
@@ -13258,6 +14043,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "nu_ansi_term",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -13276,6 +14066,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "nuid",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "rand",
@@ -13301,19 +14096,24 @@
       "build_dependencies": [],
       "crate_renames": {}
     },
-    "num-conv-0.2.1": {
+    "num-conv-0.2.2": {
       "name": "num-conv",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "edition": "2021",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/num-conv/0.2.1/download",
-        "sha256": "c6673768db2d862beb9b39a78fdcb1a69439615d5794a1be50caa9bc92c81967",
-        "name_with_ext": "num-conv-0.2.1.tar.gz"
+        "url": "https://crates.io/api/v1/crates/num-conv/0.2.2/download",
+        "sha256": "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441",
+        "name_with_ext": "num-conv-0.2.2.tar.gz"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "num_conv",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -13334,10 +14134,15 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "num_traits",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "autocfg",
-          "package_key": "autocfg-1.5.0",
+          "package_key": "autocfg-1.5.1",
           "kind": "build",
           "features": [],
           "uses_default_features": true,
@@ -13349,7 +14154,7 @@
       "build_dependencies": [
         {
           "name": "autocfg",
-          "package_key": "autocfg-1.5.0",
+          "package_key": "autocfg-1.5.1",
           "kind": "build",
           "features": [],
           "uses_default_features": true,
@@ -13377,20 +14182,25 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "once_cell",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
       "crate_renames": {}
     },
-    "opencode-zen-0.1.0": {
+    "opencode-zen-0.1.1": {
       "name": "opencode-zen",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "edition": "2021",
       "source": {
         "kind": "git",
         "url": "https://github.com/pleme-io/opencode-zen",
-        "rev": "5c065b2f0ed6d187e590b4968e7f20dcf4040be4",
-        "sha256": null
+        "rev": "7b02e9e8a86005f753c8b33d1cde458510d39560",
+        "sha256": "1lmn36jn0zgpsk3m9mbvlnzh3p9c7bczxr9h36mwjj7hvqvva7sj"
       },
       "features": [
         "default",
@@ -13398,6 +14208,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "opencode_zen",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "reqwest",
@@ -13424,7 +14239,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -13476,7 +14291,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -13518,6 +14333,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "option_ext",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -13539,6 +14359,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "ordered_float",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "num_traits",
@@ -13584,6 +14409,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "parking",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -13604,6 +14434,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "parking_lot",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "lock_api",
@@ -13660,6 +14495,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "parking_lot_core",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cfg_if",
@@ -13672,7 +14512,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -13701,7 +14541,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -13745,6 +14585,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "pear",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "inlinable_string",
@@ -13819,6 +14664,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "pear_codegen",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -13935,6 +14785,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "pem",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "base64",
@@ -13997,6 +14852,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "pem_rfc7468",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "base64ct",
@@ -14039,6 +14899,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "percent_encoding",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -14061,6 +14926,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "pest",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "memchr",
@@ -14127,6 +14997,11 @@
       ],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "pest_derive",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "pest",
@@ -14185,6 +15060,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "pest_generator",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "pest",
@@ -14304,6 +15184,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "pest_meta",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "pest",
@@ -14366,6 +15251,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "petgraph",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "fixedbitset",
@@ -14409,23 +15299,28 @@
       "build_dependencies": [],
       "crate_renames": {}
     },
-    "pin-project-1.1.11": {
+    "pin-project-1.1.13": {
       "name": "pin-project",
-      "version": "1.1.11",
+      "version": "1.1.13",
       "edition": "2021",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/pin-project/1.1.11/download",
-        "sha256": "f1749c7ed4bcaf4c3d0a3efc28538844fb29bcdd7d2b67b2be7e20ba861ff517",
-        "name_with_ext": "pin-project-1.1.11.tar.gz"
+        "url": "https://crates.io/api/v1/crates/pin-project/1.1.13/download",
+        "sha256": "2466b2336ed02bcdca6b294417127b90ec92038d1d5c4fbeac971a922e0e0924",
+        "name_with_ext": "pin-project-1.1.13.tar.gz"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "pin_project",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "pin_project_internal",
-          "package_key": "pin-project-internal-1.1.11",
+          "package_key": "pin-project-internal-1.1.13",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -14436,7 +15331,7 @@
       "runtime_dependencies": [
         {
           "name": "pin_project_internal",
-          "package_key": "pin-project-internal-1.1.11",
+          "package_key": "pin-project-internal-1.1.13",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -14448,25 +15343,30 @@
       "crate_renames": {
         "pin-project-internal": [
           {
-            "version": "1.1.11",
+            "version": "1.1.13",
             "rename": "pin_project_internal"
           }
         ]
       }
     },
-    "pin-project-internal-1.1.11": {
+    "pin-project-internal-1.1.13": {
       "name": "pin-project-internal",
-      "version": "1.1.11",
+      "version": "1.1.13",
       "edition": "2021",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/pin-project-internal/1.1.11/download",
-        "sha256": "d9b20ed30f105399776b9c883e68e536ef602a16ae6f596d2c473591d6ad64c6",
-        "name_with_ext": "pin-project-internal-1.1.11.tar.gz"
+        "url": "https://crates.io/api/v1/crates/pin-project-internal/1.1.13/download",
+        "sha256": "c96395f0a926bc13b1c17622aaddda1ecb55d49c8f1bf9777e4d877800a43f8b",
+        "name_with_ext": "pin-project-internal-1.1.13.tar.gz"
       },
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "pin_project_internal",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -14562,6 +15462,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "pin_project_lite",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -14584,6 +15489,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "pkcs8",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "der",
@@ -14645,6 +15555,13 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [
+        {
+          "name": "tend",
+          "path": "src/main.rs"
+        }
+      ],
+      "lib_target": null,
       "dependencies": [
         {
           "name": "anyhow",
@@ -14785,7 +15702,7 @@
         },
         {
           "name": "opencode_zen",
-          "package_key": "opencode-zen-0.1.0",
+          "package_key": "opencode-zen-0.1.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -14851,7 +15768,7 @@
         },
         {
           "name": "samba",
-          "package_key": "samba-0.1.0",
+          "package_key": "samba-0.1.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -14882,7 +15799,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -15001,7 +15918,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "full"
@@ -15048,7 +15965,7 @@
         },
         {
           "name": "tsunagu",
-          "package_key": "tsunagu-0.1.0",
+          "package_key": "tsunagu-0.1.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -15207,7 +16124,7 @@
         },
         {
           "name": "opencode_zen",
-          "package_key": "opencode-zen-0.1.0",
+          "package_key": "opencode-zen-0.1.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -15273,7 +16190,7 @@
         },
         {
           "name": "samba",
-          "package_key": "samba-0.1.0",
+          "package_key": "samba-0.1.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -15304,7 +16221,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -15423,7 +16340,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "full"
@@ -15470,7 +16387,7 @@
         },
         {
           "name": "tsunagu",
-          "package_key": "tsunagu-0.1.0",
+          "package_key": "tsunagu-0.1.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -15523,7 +16440,7 @@
         ],
         "opencode-zen": [
           {
-            "version": "0.1.0",
+            "version": "0.1.1",
             "rename": "opencode_zen"
           }
         ],
@@ -15593,6 +16510,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "portable_atomic",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -15613,6 +16535,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "potential_utf",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "zerovec",
@@ -15651,6 +16578,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "powerfmt",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -15672,6 +16604,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "ppv_lite86",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "zerocopy",
@@ -15717,6 +16654,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "proc_macro2",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "unicode_ident",
@@ -15766,6 +16708,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "proc_macro2_diagnostics",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -15887,6 +16834,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "prometheus",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cfg_if",
@@ -16040,6 +16992,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "protobuf",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -16058,6 +17015,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "psl_types",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -16080,6 +17042,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "publicsuffix",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "idna",
@@ -16148,6 +17115,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "quinn",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "bytes",
@@ -16207,7 +17179,7 @@
         },
         {
           "name": "rustls",
-          "package_key": "rustls-0.23.38",
+          "package_key": "rustls-0.23.40",
           "kind": "normal",
           "features": [
             "std"
@@ -16236,7 +17208,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "sync"
@@ -16307,7 +17279,7 @@
         },
         {
           "name": "rustls",
-          "package_key": "rustls-0.23.38",
+          "package_key": "rustls-0.23.40",
           "kind": "normal",
           "features": [
             "std"
@@ -16336,7 +17308,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "sync"
@@ -16411,6 +17383,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "quinn_proto",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "bytes",
@@ -16459,7 +17436,7 @@
         },
         {
           "name": "rustls",
-          "package_key": "rustls-0.23.38",
+          "package_key": "rustls-0.23.40",
           "kind": "normal",
           "features": [
             "std"
@@ -16558,7 +17535,7 @@
         },
         {
           "name": "rustls",
-          "package_key": "rustls-0.23.38",
+          "package_key": "rustls-0.23.40",
           "kind": "normal",
           "features": [
             "std"
@@ -16640,6 +17617,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "quinn_udp",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cfg_aliases",
@@ -16652,7 +17634,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -16683,7 +17665,7 @@
       "runtime_dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -16740,6 +17722,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "quote",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -16793,10 +17780,15 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "rand",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -16825,7 +17817,7 @@
       "runtime_dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -16875,6 +17867,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "rand",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "rand_chacha",
@@ -16933,6 +17930,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "rand_chacha",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "ppv_lite86",
@@ -16998,6 +18000,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "rand_chacha",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "ppv_lite86",
@@ -17065,6 +18072,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "rand_core",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "getrandom",
@@ -17106,6 +18118,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "rand_core",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "getrandom",
@@ -17162,6 +18179,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "regex",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "aho_corasick",
@@ -17298,6 +18320,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "regex_automata",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "aho_corasick",
@@ -17396,6 +18423,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "regex_syntax",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -17432,6 +18464,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "reqwest",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "base64",
@@ -17498,7 +18535,7 @@
         },
         {
           "name": "h2",
-          "package_key": "h2-0.4.13",
+          "package_key": "h2-0.4.14",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -17507,7 +18544,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -17573,7 +18610,7 @@
         },
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -17639,7 +18676,7 @@
         },
         {
           "name": "rustls",
-          "package_key": "rustls-0.23.38",
+          "package_key": "rustls-0.23.40",
           "kind": "normal",
           "features": [
             "std",
@@ -17651,7 +18688,7 @@
         },
         {
           "name": "rustls_pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -17669,7 +18706,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -17698,7 +18735,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "net",
@@ -17741,7 +18778,7 @@
         },
         {
           "name": "tower_http",
-          "package_key": "tower-http-0.6.8",
+          "package_key": "tower-http-0.6.11",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -17842,7 +18879,7 @@
         },
         {
           "name": "h2",
-          "package_key": "h2-0.4.13",
+          "package_key": "h2-0.4.14",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -17851,7 +18888,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -17917,7 +18954,7 @@
         },
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -17983,7 +19020,7 @@
         },
         {
           "name": "rustls",
-          "package_key": "rustls-0.23.38",
+          "package_key": "rustls-0.23.40",
           "kind": "normal",
           "features": [
             "std",
@@ -17995,7 +19032,7 @@
         },
         {
           "name": "rustls_pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -18013,7 +19050,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -18042,7 +19079,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "net",
@@ -18085,7 +19122,7 @@
         },
         {
           "name": "tower_http",
-          "package_key": "tower-http-0.6.8",
+          "package_key": "tower-http-0.6.11",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -18190,7 +19227,7 @@
         ],
         "rustls-pki-types": [
           {
-            "version": "1.14.0",
+            "version": "1.14.1",
             "rename": "rustls_pki_types"
           }
         ],
@@ -18208,7 +19245,7 @@
         ],
         "tower-http": [
           {
-            "version": "0.6.8",
+            "version": "0.6.11",
             "rename": "tower_http"
           }
         ],
@@ -18244,10 +19281,15 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "ring",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cc",
-          "package_key": "cc-1.2.60",
+          "package_key": "cc-1.2.62",
           "kind": "build",
           "features": [],
           "uses_default_features": false,
@@ -18274,7 +19316,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -18312,7 +19354,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -18332,7 +19374,7 @@
       "build_dependencies": [
         {
           "name": "cc",
-          "package_key": "cc-1.2.60",
+          "package_key": "cc-1.2.62",
           "kind": "build",
           "features": [],
           "uses_default_features": false,
@@ -18362,6 +19404,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "rnix",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "rowan",
@@ -18400,6 +19447,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "rowan",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "countme",
@@ -18530,6 +19582,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "rustc_hash",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -18551,6 +19608,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "rustc_hash",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -18569,6 +19631,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "rustc_version",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "semver",
@@ -18612,6 +19679,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "rustix",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "bitflags",
@@ -18633,7 +19705,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -18662,7 +19734,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -18680,15 +19752,15 @@
         ]
       }
     },
-    "rustls-0.23.38": {
+    "rustls-0.23.40": {
       "name": "rustls",
-      "version": "0.23.38",
+      "version": "0.23.40",
       "edition": "2021",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/rustls/0.23.38/download",
-        "sha256": "69f9466fb2c14ea04357e91413efb882e2a6d4a406e625449bc0a5d360d53a21",
-        "name_with_ext": "rustls-0.23.38.tar.gz"
+        "url": "https://crates.io/api/v1/crates/rustls/0.23.40/download",
+        "sha256": "ef86cd5876211988985292b91c96a8f2d298df24e75989a43a3c73f2d4d8168b",
+        "name_with_ext": "rustls-0.23.40.tar.gz"
       },
       "features": [
         "log",
@@ -18699,10 +19771,15 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "rustls",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -18732,7 +19809,7 @@
         },
         {
           "name": "pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -18772,7 +19849,7 @@
       "runtime_dependencies": [
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -18802,7 +19879,7 @@
         },
         {
           "name": "pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -18843,7 +19920,7 @@
       "crate_renames": {
         "rustls-pki-types": [
           {
-            "version": "1.14.0",
+            "version": "1.14.1",
             "rename": "pki_types"
           }
         ],
@@ -18868,6 +19945,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "rustls_native_certs",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "rustls_pemfile",
@@ -18880,7 +19962,7 @@
         },
         {
           "name": "pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -18909,7 +19991,7 @@
         },
         {
           "name": "pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -18936,7 +20018,7 @@
         ],
         "rustls-pki-types": [
           {
-            "version": "1.14.0",
+            "version": "1.14.1",
             "rename": "pki_types"
           }
         ],
@@ -18961,10 +20043,15 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "rustls_native_certs",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -18984,7 +20071,7 @@
       "runtime_dependencies": [
         {
           "name": "pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -19005,7 +20092,7 @@
       "crate_renames": {
         "rustls-pki-types": [
           {
-            "version": "1.14.0",
+            "version": "1.14.1",
             "rename": "pki_types"
           }
         ],
@@ -19033,10 +20120,15 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "rustls_pemfile",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -19047,7 +20139,7 @@
       "runtime_dependencies": [
         {
           "name": "pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -19059,21 +20151,21 @@
       "crate_renames": {
         "rustls-pki-types": [
           {
-            "version": "1.14.0",
+            "version": "1.14.1",
             "rename": "pki_types"
           }
         ]
       }
     },
-    "rustls-pki-types-1.14.0": {
+    "rustls-pki-types-1.14.1": {
       "name": "rustls-pki-types",
-      "version": "1.14.0",
+      "version": "1.14.1",
       "edition": "2021",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/rustls-pki-types/1.14.0/download",
-        "sha256": "be040f8b0a225e40375822a563fa9524378b9d63112f53e19ffff34df5d33fdd",
-        "name_with_ext": "rustls-pki-types-1.14.0.tar.gz"
+        "url": "https://crates.io/api/v1/crates/rustls-pki-types/1.14.1/download",
+        "sha256": "30a7197ae7eb376e574fe940d068c30fe0462554a3ddbe4eca7838e049c937a9",
+        "name_with_ext": "rustls-pki-types-1.14.1.tar.gz"
       },
       "features": [
         "alloc",
@@ -19084,6 +20176,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "rustls_pki_types",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "zeroize",
@@ -19127,6 +20224,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "webpki",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "ring",
@@ -19139,7 +20241,7 @@
         },
         {
           "name": "pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -19168,7 +20270,7 @@
         },
         {
           "name": "pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -19189,7 +20291,7 @@
       "crate_renames": {
         "rustls-pki-types": [
           {
-            "version": "1.14.0",
+            "version": "1.14.1",
             "rename": "pki_types"
           }
         ]
@@ -19212,6 +20314,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "webpki",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "ring",
@@ -19224,7 +20331,7 @@
         },
         {
           "name": "pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -19253,7 +20360,7 @@
         },
         {
           "name": "pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -19274,7 +20381,7 @@
       "crate_renames": {
         "rustls-pki-types": [
           {
-            "version": "1.14.0",
+            "version": "1.14.1",
             "rename": "pki_types"
           }
         ]
@@ -19293,6 +20400,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": "build/build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "rustversion",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -19311,24 +20423,34 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "ryu",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
       "crate_renames": {}
     },
-    "samba-0.1.0": {
+    "samba-0.1.1": {
       "name": "samba",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "edition": "2024",
       "source": {
         "kind": "git",
         "url": "https://github.com/pleme-io/samba",
-        "rev": "aa83abd34975786167510407f16421bcb33c7b4b",
-        "sha256": null
+        "rev": "3696ed2ab16b7bfdd7614bb1ccad86e71a78df4a",
+        "sha256": "11qax96kbjzdfhf6n9brjx9970xgz3qbmvi3bsxs3ylzq5c0ha02"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "samba",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "async_nats",
@@ -19427,7 +20549,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -19454,7 +20576,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "rt-multi-thread",
@@ -19584,7 +20706,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -19611,7 +20733,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "rt-multi-thread",
@@ -19690,6 +20812,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "same_file",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -19713,6 +20840,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "schemars",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "chrono",
@@ -19754,7 +20886,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -19803,7 +20935,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -19834,6 +20966,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "schemars_derive",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -19937,6 +21074,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "scopeguard",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -19955,6 +21097,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "secrecy",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "zeroize",
@@ -20003,6 +21150,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "security_framework",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "bitflags",
@@ -20033,7 +21185,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -20080,7 +21232,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -20137,6 +21289,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "security_framework",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "bitflags",
@@ -20167,7 +21324,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -20214,7 +21371,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -20273,6 +21430,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "security_framework_sys",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "core_foundation_sys",
@@ -20285,7 +21447,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -20305,7 +21467,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -20339,6 +21501,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "semver",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -20363,6 +21530,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "serde",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "serde_core",
@@ -20423,6 +21595,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "serde_value",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "ordered_float",
@@ -20490,6 +21667,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "serde_core",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -20510,6 +21692,11 @@
       ],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "serde_derive",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -20607,6 +21794,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "serde_derive_internals",
+        "path": "lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -20685,15 +21877,15 @@
         ]
       }
     },
-    "serde_json-1.0.149": {
+    "serde_json-1.0.150": {
       "name": "serde_json",
-      "version": "1.0.149",
+      "version": "1.0.150",
       "edition": "2021",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/serde_json/1.0.149/download",
-        "sha256": "83fc039473c5595ace860d8c4fafa220ff474b3fc6bfdb4293327f1a37e94d86",
-        "name_with_ext": "serde_json-1.0.149.tar.gz"
+        "url": "https://crates.io/api/v1/crates/serde_json/1.0.150/download",
+        "sha256": "e8014e44b4736ed0538adeecded0fce2a272f22dc9578a7eb6b2d9993c74cfb9",
+        "name_with_ext": "serde_json-1.0.150.tar.gz"
       },
       "features": [
         "alloc",
@@ -20702,6 +21894,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "serde_json",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "itoa",
@@ -20794,6 +21991,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "serde_nanos",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "serde",
@@ -20832,6 +22034,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "serde_repr",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -20915,6 +22122,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "serde_spanned",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "serde",
@@ -20953,6 +22165,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "serde_urlencoded",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "form_urlencoded",
@@ -21045,6 +22262,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "serde_yaml",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "indexmap",
@@ -21162,6 +22384,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "serde_yaml_ng",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "indexmap",
@@ -21282,6 +22509,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "sha1",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cfg_if",
@@ -21363,6 +22595,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "sha2",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cfg_if",
@@ -21444,6 +22681,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "sharded_slab",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "lazy_static",
@@ -21487,6 +22729,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "shellexpand",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "dirs",
@@ -21519,12 +22766,17 @@
       "source": {
         "kind": "git",
         "url": "https://github.com/pleme-io/shigoto",
-        "rev": "45b288fa5234530bd1121cf5448263bb7c18c4e4",
-        "sha256": null
+        "rev": "458a1f2b1985a03d0bcd00624d7bb94cd23779b3",
+        "sha256": "1648i5gpy465ndya7rjkmihvrn2kip0wi0mgz0pv3qj2xrhwx495"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "shigoto_budget",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "serde",
@@ -21604,12 +22856,17 @@
       "source": {
         "kind": "git",
         "url": "https://github.com/pleme-io/shigoto",
-        "rev": "45b288fa5234530bd1121cf5448263bb7c18c4e4",
-        "sha256": null
+        "rev": "458a1f2b1985a03d0bcd00624d7bb94cd23779b3",
+        "sha256": "1648i5gpy465ndya7rjkmihvrn2kip0wi0mgz0pv3qj2xrhwx495"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "shigoto_dag",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "petgraph",
@@ -21707,12 +22964,17 @@
       "source": {
         "kind": "git",
         "url": "https://github.com/pleme-io/shigoto",
-        "rev": "45b288fa5234530bd1121cf5448263bb7c18c4e4",
-        "sha256": null
+        "rev": "458a1f2b1985a03d0bcd00624d7bb94cd23779b3",
+        "sha256": "1648i5gpy465ndya7rjkmihvrn2kip0wi0mgz0pv3qj2xrhwx495"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "shigoto_emit",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "async_trait",
@@ -21736,7 +22998,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -21785,7 +23047,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -21834,12 +23096,17 @@
       "source": {
         "kind": "git",
         "url": "https://github.com/pleme-io/shigoto",
-        "rev": "45b288fa5234530bd1121cf5448263bb7c18c4e4",
-        "sha256": null
+        "rev": "458a1f2b1985a03d0bcd00624d7bb94cd23779b3",
+        "sha256": "1648i5gpy465ndya7rjkmihvrn2kip0wi0mgz0pv3qj2xrhwx495"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "shigoto_gate",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "shigoto_dag",
@@ -21903,12 +23170,17 @@
       "source": {
         "kind": "git",
         "url": "https://github.com/pleme-io/shigoto",
-        "rev": "45b288fa5234530bd1121cf5448263bb7c18c4e4",
-        "sha256": null
+        "rev": "458a1f2b1985a03d0bcd00624d7bb94cd23779b3",
+        "sha256": "1648i5gpy465ndya7rjkmihvrn2kip0wi0mgz0pv3qj2xrhwx495"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "shigoto_retry",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "serde",
@@ -21970,12 +23242,17 @@
       "source": {
         "kind": "git",
         "url": "https://github.com/pleme-io/shigoto",
-        "rev": "45b288fa5234530bd1121cf5448263bb7c18c4e4",
-        "sha256": null
+        "rev": "458a1f2b1985a03d0bcd00624d7bb94cd23779b3",
+        "sha256": "1648i5gpy465ndya7rjkmihvrn2kip0wi0mgz0pv3qj2xrhwx495"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "shigoto_scheduler",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "anyhow",
@@ -22071,7 +23348,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "rt-multi-thread",
@@ -22188,7 +23465,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "rt-multi-thread",
@@ -22263,12 +23540,17 @@
       "source": {
         "kind": "git",
         "url": "https://github.com/pleme-io/shigoto",
-        "rev": "45b288fa5234530bd1121cf5448263bb7c18c4e4",
-        "sha256": null
+        "rev": "458a1f2b1985a03d0bcd00624d7bb94cd23779b3",
+        "sha256": "1648i5gpy465ndya7rjkmihvrn2kip0wi0mgz0pv3qj2xrhwx495"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "shigoto_types",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "async_trait",
@@ -22314,7 +23596,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -22376,7 +23658,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -22410,8 +23692,8 @@
       "source": {
         "kind": "git",
         "url": "https://github.com/pleme-io/shikumi",
-        "rev": "5db7873c9a109f619474228cbea15d64b4825b8a",
-        "sha256": null
+        "rev": "0cda5c4bb596d1e9b816e16be8a3291ffb7a85f9",
+        "sha256": "0p34im3qyj1b0akjsyg5bvg4xcsi9n0n7y1cmahr41p6mbxk7sh4"
       },
       "features": [
         "cli",
@@ -22419,6 +23701,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "shikumi",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "arc_swap",
@@ -22484,7 +23771,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -22584,7 +23871,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -22651,6 +23938,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "shlex",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -22669,6 +23961,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "signal_hook_registry",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "errno",
@@ -22681,7 +23978,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -22701,7 +23998,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -22728,6 +24025,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "signatory",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "pkcs8",
@@ -22830,6 +24132,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "signature",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "digest",
@@ -22886,6 +24193,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "simd_adler32",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -22907,6 +24219,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "slab",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -22928,6 +24245,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "smallvec",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -22948,10 +24270,15 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "socket2",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -22962,7 +24289,7 @@
       "runtime_dependencies": [
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -22990,6 +24317,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "spki",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "base64ct",
@@ -23050,6 +24382,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "stable_deref_trait",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -23068,6 +24405,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "strsim",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -23086,6 +24428,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "subtle",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -23116,6 +24463,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "syn",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -23206,6 +24558,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "sync_wrapper",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "futures_core",
@@ -23254,6 +24611,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "synstructure",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -23349,6 +24711,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "system_configuration",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "bitflags",
@@ -23436,6 +24803,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "system_configuration_sys",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "core_foundation_sys",
@@ -23448,7 +24820,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -23468,7 +24840,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -23502,6 +24874,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tempfile",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "fastrand",
@@ -23602,6 +24979,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "text_size",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -23620,6 +25002,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "thiserror",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "thiserror_impl",
@@ -23668,6 +25055,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "thiserror",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "thiserror_impl",
@@ -23713,6 +25105,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "thiserror_impl",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -23794,6 +25191,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "thiserror_impl",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -23875,6 +25277,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "thread_local",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "cfg_if",
@@ -23929,6 +25336,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "time",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "deranged",
@@ -23952,7 +25364,7 @@
         },
         {
           "name": "num_conv",
-          "package_key": "num-conv-0.2.1",
+          "package_key": "num-conv-0.2.2",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -24019,7 +25431,7 @@
         },
         {
           "name": "num_conv",
-          "package_key": "num-conv-0.2.1",
+          "package_key": "num-conv-0.2.2",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -24067,7 +25479,7 @@
       "crate_renames": {
         "num-conv": [
           {
-            "version": "0.2.1",
+            "version": "0.2.2",
             "rename": "num_conv"
           }
         ],
@@ -24098,6 +25510,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "time_core",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -24120,10 +25537,15 @@
       ],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "time_macros",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "num_conv",
-          "package_key": "num-conv-0.2.1",
+          "package_key": "num-conv-0.2.2",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -24143,7 +25565,7 @@
       "runtime_dependencies": [
         {
           "name": "num_conv",
-          "package_key": "num-conv-0.2.1",
+          "package_key": "num-conv-0.2.2",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -24164,7 +25586,7 @@
       "crate_renames": {
         "num-conv": [
           {
-            "version": "0.2.1",
+            "version": "0.2.2",
             "rename": "num_conv"
           }
         ],
@@ -24191,6 +25613,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tinystr",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "displaydoc",
@@ -24251,6 +25678,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tinyvec",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "tinyvec_macros",
@@ -24289,6 +25721,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tinyvec_macros",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -24301,12 +25738,17 @@
       "source": {
         "kind": "git",
         "url": "https://github.com/pleme-io/todoku",
-        "rev": "f87606e68bd3a25e42261d94a0be93ff59b1b8e2",
-        "sha256": null
+        "rev": "785b265c75c9dbacbbf195d15bbd1da8b56ce4be",
+        "sha256": "0jli9va27418z60b11vckm50f10w7c9lbx2g3iyszj2xqdgxh33q"
       },
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "todoku",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "async_trait",
@@ -24345,7 +25787,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -24363,7 +25805,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "time"
@@ -24420,7 +25862,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -24438,7 +25880,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "time"
@@ -24467,15 +25909,15 @@
         ]
       }
     },
-    "tokio-1.52.1": {
+    "tokio-1.52.3": {
       "name": "tokio",
-      "version": "1.52.1",
+      "version": "1.52.3",
       "edition": "2021",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/tokio/1.52.1/download",
-        "sha256": "b67dee974fe86fd92cc45b7a95fdd2f99a36a6d7b0d431a231178d3d670bbcc6",
-        "name_with_ext": "tokio-1.52.1.tar.gz"
+        "url": "https://crates.io/api/v1/crates/tokio/1.52.3/download",
+        "sha256": "8fc7f01b389ac15039e4dc9531aa973a135d7a4135281b12d7c1bc79fd57fffe",
+        "name_with_ext": "tokio-1.52.3.tar.gz"
       },
       "features": [
         "bytes",
@@ -24503,6 +25945,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tokio",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "bytes",
@@ -24515,7 +25962,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -24591,7 +26038,7 @@
         },
         {
           "name": "libc",
-          "package_key": "libc-0.2.185",
+          "package_key": "libc-0.2.186",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -24690,6 +26137,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tokio_macros",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -24775,6 +26227,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tokio_native_tls",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "native_tls",
@@ -24787,7 +26244,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -24807,7 +26264,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -24842,10 +26299,15 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tokio_rustls",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "rustls",
-          "package_key": "rustls-0.23.38",
+          "package_key": "rustls-0.23.40",
           "kind": "normal",
           "features": [
             "std"
@@ -24856,7 +26318,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -24867,7 +26329,7 @@
       "runtime_dependencies": [
         {
           "name": "rustls",
-          "package_key": "rustls-0.23.38",
+          "package_key": "rustls-0.23.40",
           "kind": "normal",
           "features": [
             "std"
@@ -24878,7 +26340,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -24908,6 +26370,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tokio_util",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "bytes",
@@ -24956,7 +26423,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "sync"
@@ -25014,7 +26481,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "sync"
@@ -25064,6 +26531,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tokio_websockets",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "base64",
@@ -25103,7 +26575,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [
             "std"
@@ -25153,7 +26625,7 @@
         },
         {
           "name": "rustls_pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -25162,7 +26634,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -25227,7 +26699,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [
             "std"
@@ -25277,7 +26749,7 @@
         },
         {
           "name": "rustls_pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -25286,7 +26758,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -25334,7 +26806,7 @@
         ],
         "rustls-pki-types": [
           {
-            "version": "1.14.0",
+            "version": "1.14.1",
             "rename": "rustls_pki_types"
           }
         ],
@@ -25369,6 +26841,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "toml",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "serde",
@@ -25475,6 +26952,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "toml_datetime",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "serde",
@@ -25518,6 +27000,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "toml_edit",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "indexmap",
@@ -25658,6 +27145,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "toml_write",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -25689,6 +27181,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tower",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "futures_core",
@@ -25728,7 +27225,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -25813,7 +27310,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -25899,18 +27396,17 @@
         ]
       }
     },
-    "tower-http-0.6.8": {
+    "tower-http-0.6.11": {
       "name": "tower-http",
-      "version": "0.6.8",
+      "version": "0.6.11",
       "edition": "2018",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/tower-http/0.6.8/download",
-        "sha256": "d4e6559d53cc268e5031cd8429d05415bc4cb4aefc4aa5d6cc35fbf5b924a1f8",
-        "name_with_ext": "tower-http-0.6.8.tar.gz"
+        "url": "https://crates.io/api/v1/crates/tower-http/0.6.11/download",
+        "sha256": "4cfcf7e2740e6fc6d4d688b4ef00650406bb94adf4731e43c096c3a19fe40840",
+        "name_with_ext": "tower-http-0.6.11.tar.gz"
       },
       "features": [
-        "async-compression",
         "auth",
         "base64",
         "decompression-br",
@@ -25919,10 +27415,8 @@
         "follow-redirect",
         "futures-core",
         "futures-util",
-        "iri-string",
         "map-response-body",
         "mime",
-        "tokio",
         "tokio-util",
         "tower",
         "trace",
@@ -25931,10 +27425,15 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tower_http",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "async_compression",
-          "package_key": "async-compression-0.4.41",
+          "package_key": "async-compression-0.4.42",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -25988,7 +27487,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -26007,15 +27506,6 @@
         {
           "name": "http_body_util",
           "package_key": "http-body-util-0.1.3",
-          "kind": "normal",
-          "features": [],
-          "uses_default_features": true,
-          "optional": false,
-          "target": null
-        },
-        {
-          "name": "iri_string",
-          "package_key": "iri-string-0.7.12",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -26042,7 +27532,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -26091,6 +27581,15 @@
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
+          "optional": true,
+          "target": null
+        },
+        {
+          "name": "url",
+          "package_key": "url-2.5.8",
+          "kind": "normal",
+          "features": [],
+          "uses_default_features": true,
           "optional": true,
           "target": null
         }
@@ -26098,7 +27597,7 @@
       "runtime_dependencies": [
         {
           "name": "async_compression",
-          "package_key": "async-compression-0.4.41",
+          "package_key": "async-compression-0.4.42",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -26152,7 +27651,7 @@
         },
         {
           "name": "http",
-          "package_key": "http-1.4.0",
+          "package_key": "http-1.4.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -26171,15 +27670,6 @@
         {
           "name": "http_body_util",
           "package_key": "http-body-util-0.1.3",
-          "kind": "normal",
-          "features": [],
-          "uses_default_features": true,
-          "optional": false,
-          "target": null
-        },
-        {
-          "name": "iri_string",
-          "package_key": "iri-string-0.7.12",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -26206,7 +27696,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -26255,6 +27745,15 @@
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
+          "optional": true,
+          "target": null
+        },
+        {
+          "name": "url",
+          "package_key": "url-2.5.8",
+          "kind": "normal",
+          "features": [],
+          "uses_default_features": true,
           "optional": true,
           "target": null
         }
@@ -26263,7 +27762,7 @@
       "crate_renames": {
         "async-compression": [
           {
-            "version": "0.4.41",
+            "version": "0.4.42",
             "rename": "async_compression"
           }
         ],
@@ -26289,12 +27788,6 @@
           {
             "version": "0.1.3",
             "rename": "http_body_util"
-          }
-        ],
-        "iri-string": [
-          {
-            "version": "0.7.12",
-            "rename": "iri_string"
           }
         ],
         "pin-project-lite": [
@@ -26336,6 +27829,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tower_layer",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -26354,6 +27852,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tower_service",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -26378,10 +27881,15 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tracing",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -26419,7 +27927,7 @@
       "runtime_dependencies": [
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -26489,6 +27997,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tracing_attributes",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -26590,6 +28103,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tracing_core",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "once_cell",
@@ -26631,10 +28149,15 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tracing_log",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -26663,7 +28186,7 @@
       "runtime_dependencies": [
         {
           "name": "log",
-          "package_key": "log-0.4.29",
+          "package_key": "log-0.4.30",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -26712,6 +28235,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tracing_serde",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "serde",
@@ -26795,6 +28323,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tracing_subscriber",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "matchers",
@@ -26843,7 +28376,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -26962,7 +28495,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -27086,6 +28619,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "try_lock",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -27104,6 +28642,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tryhard",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "pin_project_lite",
@@ -27116,7 +28659,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "rt",
@@ -27142,7 +28685,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "rt",
@@ -27166,21 +28709,26 @@
         ]
       }
     },
-    "tsunagu-0.1.0": {
+    "tsunagu-0.1.1": {
       "name": "tsunagu",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "edition": "2024",
       "source": {
         "kind": "git",
         "url": "https://github.com/pleme-io/tsunagu",
-        "rev": "abc9944a8b0fc46db7d0f50e0fde9a4aeed8afb5",
-        "sha256": null
+        "rev": "00a785cc41dc39a8788c3072925f267c24b51f30",
+        "sha256": "1zhcknkfbc7yyq2pyv05269klawz7rbyfp18zjvgag7fjqhfh8za"
       },
       "features": [
         "default"
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "tsunagu",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "dirs",
@@ -27204,7 +28752,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -27222,7 +28770,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "rt",
@@ -27270,7 +28818,7 @@
         },
         {
           "name": "serde_json",
-          "package_key": "serde_json-1.0.149",
+          "package_key": "serde_json-1.0.150",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -27288,7 +28836,7 @@
         },
         {
           "name": "tokio",
-          "package_key": "tokio-1.52.1",
+          "package_key": "tokio-1.52.3",
           "kind": "normal",
           "features": [
             "rt",
@@ -27329,6 +28877,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "typenum",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -27349,6 +28902,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "ucd_trie",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -27370,6 +28928,11 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "uncased",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "version_check",
@@ -27408,6 +28971,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "unicase",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -27426,6 +28994,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "unicode_ident",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -27444,6 +29017,20 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [
+        {
+          "name": "run-emitter-test-suite",
+          "path": "src/bin/run-emitter-test-suite.rs"
+        },
+        {
+          "name": "run-parser-test-suite",
+          "path": "src/bin/run-parser-test-suite.rs"
+        }
+      ],
+      "lib_target": {
+        "name": "unsafe_libyaml",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -27462,6 +29049,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "untrusted",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -27483,6 +29075,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "url",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "form_urlencoded",
@@ -27592,6 +29189,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "utf8_iter",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -27612,6 +29214,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "utf8parse",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -27635,6 +29242,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "uuid",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "getrandom",
@@ -27673,6 +29285,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "version_check",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -27691,6 +29308,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "walkdir",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "same_file",
@@ -27736,6 +29358,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "want",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "try_lock",
@@ -27781,10 +29408,15 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "webpki_roots",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -27795,7 +29427,7 @@
       "runtime_dependencies": [
         {
           "name": "pki_types",
-          "package_key": "rustls-pki-types-1.14.0",
+          "package_key": "rustls-pki-types-1.14.1",
           "kind": "normal",
           "features": [],
           "uses_default_features": true,
@@ -27807,7 +29439,7 @@
       "crate_renames": {
         "rustls-pki-types": [
           {
-            "version": "1.14.0",
+            "version": "1.14.1",
             "rename": "pki_types"
           }
         ]
@@ -27830,6 +29462,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "winnow",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "memchr",
@@ -27872,6 +29509,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "winnow",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "memchr",
@@ -27910,6 +29552,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "writeable",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -27932,6 +29579,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "yansi",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -27953,6 +29605,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "yoke",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "stable_deref_trait",
@@ -27974,7 +29631,7 @@
         },
         {
           "name": "zerofrom",
-          "package_key": "zerofrom-0.1.7",
+          "package_key": "zerofrom-0.1.8",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -28003,7 +29660,7 @@
         },
         {
           "name": "zerofrom",
-          "package_key": "zerofrom-0.1.7",
+          "package_key": "zerofrom-0.1.8",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -28034,6 +29691,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "yoke_derive",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -28139,26 +29801,36 @@
       ],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "zerocopy",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
       "crate_renames": {}
     },
-    "zerofrom-0.1.7": {
+    "zerofrom-0.1.8": {
       "name": "zerofrom",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "edition": "2021",
       "source": {
         "kind": "registry",
-        "url": "https://crates.io/api/v1/crates/zerofrom/0.1.7/download",
-        "sha256": "69faa1f2a1ea75661980b013019ed6687ed0e83d069bc1114e2cc74c6c04c4df",
-        "name_with_ext": "zerofrom-0.1.7.tar.gz"
+        "url": "https://crates.io/api/v1/crates/zerofrom/0.1.8/download",
+        "sha256": "0ec05a11813ea801ff6d75110ad09cd0824ddba17dfe17128ea0d5f68e6c5272",
+        "name_with_ext": "zerofrom-0.1.8.tar.gz"
       },
       "features": [
         "derive"
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "zerofrom",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "zerofrom_derive",
@@ -28204,6 +29876,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "zerofrom_derive",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -28310,6 +29987,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "zeroize",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -28331,6 +30013,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "zerotrie",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "displaydoc",
@@ -28354,7 +30041,7 @@
         },
         {
           "name": "zerofrom",
-          "package_key": "zerofrom-0.1.7",
+          "package_key": "zerofrom-0.1.8",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -28385,7 +30072,7 @@
         },
         {
           "name": "zerofrom",
-          "package_key": "zerofrom-0.1.7",
+          "package_key": "zerofrom-0.1.8",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -28412,6 +30099,11 @@
       ],
       "proc_macro": false,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "zerovec",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "yoke",
@@ -28424,7 +30116,7 @@
         },
         {
           "name": "zerofrom",
-          "package_key": "zerofrom-0.1.7",
+          "package_key": "zerofrom-0.1.8",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -28453,7 +30145,7 @@
         },
         {
           "name": "zerofrom",
-          "package_key": "zerofrom-0.1.7",
+          "package_key": "zerofrom-0.1.8",
           "kind": "normal",
           "features": [],
           "uses_default_features": false,
@@ -28493,6 +30185,11 @@
       "features": [],
       "proc_macro": true,
       "build_script": null,
+      "binaries": [],
+      "lib_target": {
+        "name": "zerovec_derive",
+        "path": "src/lib.rs"
+      },
       "dependencies": [
         {
           "name": "proc_macro2",
@@ -28578,6 +30275,11 @@
       "features": [],
       "proc_macro": false,
       "build_script": "build.rs",
+      "binaries": [],
+      "lib_target": {
+        "name": "zmij",
+        "path": "src/lib.rs"
+      },
       "dependencies": [],
       "runtime_dependencies": [],
       "build_dependencies": [],
@@ -28587,5 +30289,11 @@
   "root_crate": "pleme-tend-0.1.0",
   "workspace_members": [
     "pleme-tend-0.1.0"
-  ]
+  ],
+  "flake_metadata": {
+    "pleme-tend": {
+      "default_bin": "tend",
+      "repo": "pleme-io/tend"
+    }
+  }
 }
