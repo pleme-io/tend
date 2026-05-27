@@ -2161,7 +2161,7 @@ checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
 
 [[package]]
 name = "pleme-tend"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3655,7 +3655,7 @@ dependencies = [
 [[package]]
 name = "tsunagu"
 version = "0.1.1"
-source = "git+https://github.com/pleme-io/tsunagu#00a785cc41dc39a8788c3072925f267c24b51f30"
+source = "git+https://github.com/pleme-io/tsunagu#7a7e1d2557560ec4417972a271821164568d6360"
 dependencies = [
  "dirs",
  "serde",
