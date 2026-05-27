@@ -6918,7 +6918,7 @@ rec {
       };
       "pleme-tend" = rec {
         crateName = "pleme-tend";
-        version = "0.1.1";
+        version = "0.1.2";
         edition = "2021";
         crateBin = [
           {
@@ -12120,7 +12120,7 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/tsunagu";
-          rev = "00a785cc41dc39a8788c3072925f267c24b51f30";
+          rev = "7a7e1d2557560ec4417972a271821164568d6360";
           sha256 = "1zhcknkfbc7yyq2pyv05269klawz7rbyfp18zjvgag7fjqhfh8za";
         };
         dependencies = [
