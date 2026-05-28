@@ -260,10 +260,113 @@ makes the action `Escalate` instead.
    if upstream comes back. Re-detection on each tick handles this;
    no special TTL needed.
 
-## 10. References
+## 10. Canonical alignment with pangea-operator (2026-05-28 review)
+
+After pulling `pangea-operator` and reading its reconciliation
+primitives, the SAFE-CONVERGENCE design adopts these canonical
+patterns rather than inventing parallel ones:
+
+### MAPE-K spine
+
+Per `pangea-operator/docs/design/0005-autonomic-convergence-on-magma.md`,
+every typed pleme-io reconciler is shaped as a MAPE-K loop:
+
+| Stage | In tend |
+|---|---|
+| **Monitor** | watch workspace config + `git status`/`git ls-remote` per repo |
+| **Analyze** | `derive_from_receipt` + `classify_pull_failure` → typed `DriftEvent` |
+| **Plan** | `ReactionPolicy` matrix (cascade per-repo → per-workspace → fleet default) |
+| **Execute** | `RemediationAction` via typed `shigoto::Job` |
+| **Knowledge** | `DriftSink` (JSONL audit) + future `OutcomeChain` BLAKE3 attestation |
+
+This is also the "edge-triggered (real change) + level-triggered
+(periodic resync, anti-entropy)" hybrid the operator uses. Tend's
+daemon interval is the level-trigger; future fs/git/webhook signals
+are the edge-trigger.
+
+### SettlingOutcome — adopt verbatim
+
+`pangea-operator/src/controller/settling.rs` defines:
+
+```rust
+pub enum SettlingOutcome {
+    Settled,
+    Progressing { cycles: u32 },
+    StuckByFingerprint { cycles, fingerprint, stuck_addresses },  // ← KEY
+    StuckByCount { cycles, stuck_addresses },
+}
+```
+
+The `StuckByFingerprint` class catches "we're cycling but the diff is
+identical every time" — the EXACT pattern observed in 2026-05-28 Loop 3
+(`argocd-akeyless-plugin: NoUpstream` failing identically across 3
+daemon cycles, no recovery attempt). Tend's reconcile-receipt should
+fingerprint its DriftEvent set + carry that through the daemon loop;
+detection of repeating fingerprint promotes a `NoUpstream` event from
+plain Escalate to `StuckByFingerprint` and triggers a louder alert.
+
+### EffectiveReactivePolicy cascade — proven shape
+
+`pangea-operator/src/controller/reactive.rs` already implements the
+"cascade levels (innermost wins per field)" pattern across
+gem → workspace → template. Tend adopts: repo-override →
+workspace-policy → fleet-default, innermost wins per `DriftEvent`
+class. The `ReactivePolicy` struct shape (with `Option`-per-field +
+hard defaults + `resolve` merging) is directly portable.
+
+### Typed errors with retry intent
+
+`pangea-operator/src/controller/error_policy.rs` lifts a shared
+helper after 13 controllers drifted on their hand-rolled error
+callbacks. Two backoff shapes — `Fixed(d)` and
+`Tiered { retryable, non_retryable }` — driven by an
+`Error::is_retryable()` predicate. Tend's `Reaction::AutoAct` should
+similarly classify each `RemediationAction` as retryable vs
+non-retryable; `tiered_backoff(action.is_retryable())` is the
+shared call site.
+
+### Lyapunov-style stability — hysteresis
+
+Pangea-operator's design doc 0005 §3 names this: "converge
+monotonically, never oscillate → backoff + hysteresis so it never
+flaps on transient drift." For SAFE-CONVERGENCE: if tend just
+applied `AutoAct(AbortRebase)` on a repo and the SAME drift event
+re-emerges within N cycles, escalate instead of re-acting. Prevents
+oscillation when the auto-action's pre-condition somehow re-arises.
+
+### Bounded reconcile workers
+
+Pangea-operator: `DEFAULT_RECONCILE_WORKERS = 4`, env-overridable,
+clamped to `[1, 32]`. Tend already has `--max-inflight 16`; the
+extracted-trait + clamp pattern is the same shape.
+
+### Implementation-shape consequences
+
+The original M1-M6 milestones from this doc map cleanly:
+
+| M | Maps to pangea-operator primitive |
+|---|---|
+| M1 typed DriftEvent + Reaction | `crd/*.rs` typed CR + `controller/reactive.rs` Escalation enum |
+| M2 DriftDetector trait | per-controller `derive_*` functions in `controller/*.rs` |
+| M3 ReactionPolicy + cascade | `controller/reactive.rs::EffectiveReactivePolicy::resolve` |
+| M4 Wire into `tend reconcile` | `controller::reconciler::ReconcileAction` |
+| M5 Tend daemon auto-recover | `kube::runtime::Controller` event loop |
+| M6 `tend report --convergence` | `controller/status.rs::status_patch` |
+
+The substrate already proved the pattern at fleet scale (the live
+pangea-operator on rio runs ~14 typed controllers under this shape).
+Tend's M1-M6 is extending the same proven shape to the workspace
+layer — no architectural innovation, just lifting + adapting.
+
+## 11. References
 
 - 2026-05-28 incident memory: `incident_pleme_io_mass_rebase_wedge_2026_05_28.md`
-- Existing M5/M6 work: `src/jobs/reactions.rs` (already ships typed
-  reactions for `PullFailed+no-such-ref → FetchRepoJob`)
+- Existing tend M5/M6: `src/jobs/reactions.rs` (typed
+  `PullFailed+no-such-ref → FetchRepoJob` reaction) + `src/drift.rs`
+  (typed DriftEvent enum + three DriftSinks)
+- Pangea-operator design doc: `pangea-operator/docs/design/0005-autonomic-convergence-on-magma.md`
+- Pangea-operator reactive policy: `pangea-operator/src/controller/reactive.rs`
+- Pangea-operator settling tracker: `pangea-operator/src/controller/settling.rs`
+- Pangea-operator error policy: `pangea-operator/src/controller/error_policy.rs`
 - Viggy Method: `pleme-io/theory/CONTINUOUS-SOLUTION-MACHINE.md`
 - shigoto: `pleme-io/theory/SHIGOTO.md`

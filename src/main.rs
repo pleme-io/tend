@@ -505,6 +505,15 @@ async fn main() -> Result<()> {
                         drift::DriftEvent::StubDirectoryFound { .. } => "stub-directory",
                         drift::DriftEvent::DirtyTreeBlocksPull { .. } => "dirty-tree",
                         drift::DriftEvent::PullFailed { .. } => "pull-failed",
+                        drift::DriftEvent::PullFailedNoUpstream { .. } => "pull-failed-no-upstream",
+                        drift::DriftEvent::PullFailedBranchRenamed { .. } => {
+                            "pull-failed-branch-renamed"
+                        }
+                        drift::DriftEvent::PullFailedDiverged { .. } => "pull-failed-diverged",
+                        drift::DriftEvent::PullFailedRepoMissing { .. } => {
+                            "pull-failed-repo-missing"
+                        }
+                        drift::DriftEvent::PullFailedTransient { .. } => "pull-failed-transient",
                         drift::DriftEvent::SyncFailed { .. } => "sync-failed",
                         drift::DriftEvent::JobUnhealed { .. } => "job-unhealed",
                         drift::DriftEvent::LocalRepoNotInDiscovery { .. } => {
@@ -540,7 +549,22 @@ async fn main() -> Result<()> {
                             "  dirty tree [{repo_name}]: review changes with `git -C <path> status` — commit, stash, or discard"
                         )),
                         drift::DriftEvent::PullFailed { repo_name, .. } => Some(format!(
-                            "  pull failed [{repo_name}]: M6 reactions auto-trigger fetch for ref errors; check `tend report` for the full stderr"
+                            "  pull failed (unclassified) [{repo_name}]: check `tend report` for the full stderr — consider adding a typed classifier arm if the failure shape repeats"
+                        )),
+                        drift::DriftEvent::PullFailedNoUpstream { repo_name, .. } => Some(format!(
+                            "  no upstream [{repo_name}]: `git -C <path> branch --set-upstream-to=origin/<branch> <branch>` — SAFE-CONVERGENCE M2 will auto-apply"
+                        )),
+                        drift::DriftEvent::PullFailedBranchRenamed { repo_name, expected_ref, .. } => Some(format!(
+                            "  branch renamed [{repo_name}]: expected {expected_ref} missing on remote — M6 auto-fetches; if persistent, set tracking to the new default branch (`git remote set-head origin --auto` + retry)"
+                        )),
+                        drift::DriftEvent::PullFailedDiverged { repo_name, .. } => Some(format!(
+                            "  diverged [{repo_name}]: local has commits not on origin (often stale substrate-bump leftover); decide push vs `git reset --hard origin/<branch>` — see `incident_pleme_io_mass_rebase_wedge_2026_05_28`"
+                        )),
+                        drift::DriftEvent::PullFailedRepoMissing { repo_name, .. } => Some(format!(
+                            "  upstream gone [{repo_name}]: remote returned 404 — confirm intent then `tend adopt` (preserve local) or `rm -rf <path>` (remove)"
+                        )),
+                        drift::DriftEvent::PullFailedTransient { repo_name, snippet, .. } => Some(format!(
+                            "  transient [{repo_name}]: {snippet} — next reconcile cycle should retry; no action needed unless it persists"
                         )),
                         drift::DriftEvent::SyncFailed { repo_name, .. } => Some(format!(
                             "  sync failed [{repo_name}]: check GitHub creds + network; retry with `tend reconcile`"

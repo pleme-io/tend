@@ -47,13 +47,72 @@ pub(crate) enum DriftEvent {
         workspace: String,
         repo_name: String,
     },
-    /// `git pull` returned non-zero. Often a remote-branch divergence
-    /// or a refs-not-fetched issue. Carries the trimmed stderr for
-    /// triage.
+    /// `git pull` returned non-zero. Unclassified fallback — set by
+    /// [`classify_pull_failure`] when no typed sub-class matches.
+    /// Carries the trimmed stderr for triage. The typed sub-classes
+    /// (`PullFailedNoUpstream`, `PullFailedBranchRenamed`,
+    /// `PullFailedDiverged`, `PullFailedRepoMissing`,
+    /// `PullFailedTransient`) below cover the empirically observed
+    /// failure modes from the 2026-05-28 fleet sweep; new failure
+    /// shapes that appear in the wild get a new variant + a classifier
+    /// arm rather than living as opaque-stderr `PullFailed`.
     PullFailed {
         workspace: String,
         repo_name: String,
         stderr: String,
+    },
+
+    /// `git pull` failed because the local branch has no upstream
+    /// tracking configured (`There is no tracking information for the
+    /// current branch`). Auto-recoverable: `git branch
+    /// --set-upstream-to=origin/<branch> <branch>` if origin has the
+    /// matching branch. SAFE-CONVERGENCE M2's `AutoAct(SetUpstream)`.
+    PullFailedNoUpstream {
+        workspace: String,
+        repo_name: String,
+    },
+
+    /// `git pull` failed because the configured upstream ref doesn't
+    /// exist on the remote (`Your configuration specifies to merge
+    /// with the ref 'refs/heads/X' from the remote, but no such ref
+    /// was fetched`). Typically means upstream renamed the default
+    /// branch (master→main, etc.) or removed the ref entirely. The
+    /// existing M6 reaction kicks a `FetchRepoJob`; SAFE-CONVERGENCE
+    /// M2 will add `AutoAct(RenameBranch)` for the rename case.
+    PullFailedBranchRenamed {
+        workspace: String,
+        repo_name: String,
+        expected_ref: String,
+    },
+
+    /// `git pull --ff-only` refused because local and origin diverged
+    /// (`Diverging branches can't be fast-forwarded` /
+    /// `Not possible to fast-forward`). Operator decision: merge,
+    /// rebase, or reset. Default reaction = Escalate.
+    PullFailedDiverged {
+        workspace: String,
+        repo_name: String,
+    },
+
+    /// Remote repo is gone (`Repository not found`, `ERROR: Repository
+    /// not found`). Mark as quarantined in the workspace config until
+    /// the operator decides to remove the local clone or restore the
+    /// upstream. Default reaction = Escalate; SAFE-CONVERGENCE M2's
+    /// `Quarantine` once the marker mechanism lands.
+    PullFailedRepoMissing {
+        workspace: String,
+        repo_name: String,
+    },
+
+    /// Transient network or SSH-layer failure (`mux_client_request_session`,
+    /// `Could not read from remote repository`, `Connection timed out`,
+    /// `Connection refused`, etc.). Often clears on the next reconcile
+    /// cycle — default reaction = retry next tick (no autoAct needed,
+    /// the next cycle will re-attempt).
+    PullFailedTransient {
+        workspace: String,
+        repo_name: String,
+        snippet: String,
     },
     /// `git clone` returned non-zero. Wrong URL, auth failure, or
     /// network issue.
@@ -91,6 +150,11 @@ impl DriftEvent {
             Self::StubDirectoryFound { workspace, .. }
             | Self::DirtyTreeBlocksPull { workspace, .. }
             | Self::PullFailed { workspace, .. }
+            | Self::PullFailedNoUpstream { workspace, .. }
+            | Self::PullFailedBranchRenamed { workspace, .. }
+            | Self::PullFailedDiverged { workspace, .. }
+            | Self::PullFailedRepoMissing { workspace, .. }
+            | Self::PullFailedTransient { workspace, .. }
             | Self::SyncFailed { workspace, .. }
             | Self::LocalRepoNotInDiscovery { workspace, .. } => Some(workspace.as_str()),
             Self::JobUnhealed { job_id, .. } => match &job_id.scope {
@@ -99,6 +163,101 @@ impl DriftEvent {
                 shigoto_types::JobScope::Global => None,
             },
         }
+    }
+}
+
+/// Classify a `git pull` stderr into the most specific typed
+/// `DriftEvent` variant. Patterns are matched in priority order;
+/// the catch-all `PullFailed` is returned only when no typed pattern
+/// matches.
+///
+/// The priority order is set by the empirical clustering from the
+/// 2026-05-28 fleet sweep — `BranchRenamed` is the most common
+/// (~18 of 23), `Diverged` is next, `NoUpstream` is third. Order
+/// matters only when two predicates could match (which shouldn't
+/// happen in practice, but is defensive).
+pub(crate) fn classify_pull_failure(
+    workspace: &str,
+    repo_name: &str,
+    stderr: &str,
+) -> DriftEvent {
+    // BranchRenamed / ref-not-fetched: try to extract the ref name
+    // from the message body ("refs/heads/<X>") for traceability.
+    if stderr.contains("no such ref was fetched") {
+        let expected_ref = parse_expected_ref(stderr).unwrap_or_else(|| "refs/heads/main".into());
+        return DriftEvent::PullFailedBranchRenamed {
+            workspace: workspace.to_string(),
+            repo_name: repo_name.to_string(),
+            expected_ref,
+        };
+    }
+    if stderr.contains("Repository not found")
+        || stderr.contains("ERROR: Repository not found")
+    {
+        return DriftEvent::PullFailedRepoMissing {
+            workspace: workspace.to_string(),
+            repo_name: repo_name.to_string(),
+        };
+    }
+    if stderr.contains("Diverging branches can't be fast-forwarded")
+        || stderr.contains("Not possible to fast-forward")
+    {
+        return DriftEvent::PullFailedDiverged {
+            workspace: workspace.to_string(),
+            repo_name: repo_name.to_string(),
+        };
+    }
+    if stderr.contains("There is no tracking information for the current branch") {
+        return DriftEvent::PullFailedNoUpstream {
+            workspace: workspace.to_string(),
+            repo_name: repo_name.to_string(),
+        };
+    }
+    if stderr.contains("mux_client_request_session")
+        || stderr.contains("Could not read from remote repository")
+        || stderr.contains("Connection timed out")
+        || stderr.contains("Connection refused")
+        || stderr.contains("Connection reset")
+    {
+        let snippet = stderr
+            .lines()
+            .find(|l| {
+                l.contains("mux_client")
+                    || l.contains("Could not read")
+                    || l.contains("Connection")
+            })
+            .unwrap_or(stderr)
+            .trim()
+            .to_string();
+        return DriftEvent::PullFailedTransient {
+            workspace: workspace.to_string(),
+            repo_name: repo_name.to_string(),
+            snippet,
+        };
+    }
+    // Catch-all: unclassified failure modes still surface, but new
+    // empirical patterns get a new variant + classifier arm rather
+    // than living as opaque-stderr forever.
+    DriftEvent::PullFailed {
+        workspace: workspace.to_string(),
+        repo_name: repo_name.to_string(),
+        stderr: stderr.to_string(),
+    }
+}
+
+/// Extract the expected ref from a "no such ref was fetched" message.
+/// The git message has the form:
+///   `Your configuration specifies to merge with the ref
+///    'refs/heads/<X>' from the remote, but no such ref was fetched.`
+/// Returns `Some("refs/heads/<X>")` when the quoted ref is present,
+/// `None` when the message format has shifted.
+fn parse_expected_ref(stderr: &str) -> Option<String> {
+    let after = stderr.split("merge with the ref ").nth(1)?;
+    let inside = after.split('\'').nth(1)?;
+    if inside.is_empty() {
+        None
+    } else {
+        Some(inside.to_string())
     }
 }
 
@@ -226,11 +385,11 @@ pub(crate) fn derive_from_receipt(receipt: &ReconcileReceipt) -> Vec<DriftEvent>
                 workspace: receipt.workspace.clone(),
                 repo_name,
             }),
-            PullOutcome::Failed { stderr } => events.push(DriftEvent::PullFailed {
-                workspace: receipt.workspace.clone(),
-                repo_name,
-                stderr: stderr.clone(),
-            }),
+            PullOutcome::Failed { stderr } => events.push(classify_pull_failure(
+                &receipt.workspace,
+                &repo_name,
+                stderr,
+            )),
             PullOutcome::Updated | PullOutcome::UpToDate | PullOutcome::MissingSkipped => {}
         }
     }
@@ -364,12 +523,16 @@ mod tests {
     }
 
     #[test]
-    fn pull_failed_carries_stderr() {
+    fn pull_failed_unclassified_carries_stderr() {
+        // Stderr that matches NO typed pattern should fall through to
+        // the catch-all PullFailed variant — preserves operator
+        // visibility into novel failure modes while typed coverage
+        // catches up.
         let mut r = empty_receipt();
         r.outcomes.insert(
-            pull_id("broken"),
+            pull_id("novel"),
             PullOutcome::Failed {
-                stderr: "no such ref".into(),
+                stderr: "totally novel error message".into(),
             },
         );
 
@@ -381,11 +544,137 @@ mod tests {
                 stderr,
             } => {
                 assert_eq!(workspace, "ws");
-                assert_eq!(repo_name, "broken");
-                assert!(stderr.contains("no such ref"));
+                assert_eq!(repo_name, "novel");
+                assert!(stderr.contains("novel error"));
             }
             other => panic!("expected PullFailed, got {other:?}"),
         }
+    }
+
+    // ── classifier tests ────────────────────────────────────────────
+    //
+    // Each canonical git error message from the 2026-05-28 fleet sweep
+    // gets a typed-variant assertion. Adding a new variant here keeps
+    // the typed surface a forcing function: an unclassified message
+    // surfaces as plain `PullFailed`, never silently masked.
+
+    #[test]
+    fn classifier_no_such_ref_becomes_branch_renamed() {
+        let stderr = "Your configuration specifies to merge with the ref \
+            'refs/heads/main'\nfrom the remote, but no such ref was fetched.";
+        match classify_pull_failure("ws", "r", stderr) {
+            DriftEvent::PullFailedBranchRenamed {
+                workspace,
+                repo_name,
+                expected_ref,
+            } => {
+                assert_eq!(workspace, "ws");
+                assert_eq!(repo_name, "r");
+                assert_eq!(expected_ref, "refs/heads/main");
+            }
+            other => panic!("expected PullFailedBranchRenamed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn classifier_no_such_ref_extracts_non_main_ref() {
+        // akeyless-go is on branch v5; the expected ref differs.
+        let stderr = "Your configuration specifies to merge with the ref \
+            'refs/heads/v5'\nfrom the remote, but no such ref was fetched.";
+        match classify_pull_failure("ws", "akeyless-go", stderr) {
+            DriftEvent::PullFailedBranchRenamed { expected_ref, .. } => {
+                assert_eq!(expected_ref, "refs/heads/v5");
+            }
+            other => panic!("expected PullFailedBranchRenamed with v5 ref, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn classifier_diverging_branches_becomes_diverged() {
+        let stderr = "hint: Diverging branches can't be fast-forwarded, \
+            you need to either:\nfatal: Not possible to fast-forward, aborting.";
+        match classify_pull_failure("ws", "r", stderr) {
+            DriftEvent::PullFailedDiverged { workspace, repo_name } => {
+                assert_eq!(workspace, "ws");
+                assert_eq!(repo_name, "r");
+            }
+            other => panic!("expected PullFailedDiverged, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn classifier_no_tracking_becomes_no_upstream() {
+        let stderr = "There is no tracking information for the current branch.\n\
+            Please specify which branch you want to merge with.";
+        match classify_pull_failure("ws", "r", stderr) {
+            DriftEvent::PullFailedNoUpstream { workspace, repo_name } => {
+                assert_eq!(workspace, "ws");
+                assert_eq!(repo_name, "r");
+            }
+            other => panic!("expected PullFailedNoUpstream, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn classifier_repository_not_found_becomes_repo_missing() {
+        let stderr = "ERROR: Repository not found.\nfatal: Could not read from remote repository.";
+        match classify_pull_failure("ws", "r", stderr) {
+            DriftEvent::PullFailedRepoMissing { workspace, repo_name } => {
+                assert_eq!(workspace, "ws");
+                assert_eq!(repo_name, "r");
+            }
+            other => panic!("expected PullFailedRepoMissing, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn classifier_mux_client_becomes_transient() {
+        let stderr = "mux_client_request_session: session request failed: \
+            Session open refused by peer";
+        match classify_pull_failure("ws", "r", stderr) {
+            DriftEvent::PullFailedTransient { snippet, .. } => {
+                assert!(snippet.contains("mux_client"));
+            }
+            other => panic!("expected PullFailedTransient, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn classifier_unknown_pattern_falls_through_to_pull_failed() {
+        let stderr = "some entirely new failure mode we haven't seen yet";
+        match classify_pull_failure("ws", "r", stderr) {
+            DriftEvent::PullFailed { stderr: s, .. } => {
+                assert_eq!(s, stderr);
+            }
+            other => panic!("expected fallback PullFailed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn classifier_priority_repo_missing_over_transient() {
+        // "Repository not found" + "Could not read" both present —
+        // RepoMissing takes priority (more specific).
+        let stderr = "ERROR: Repository not found.\nfatal: Could not read from remote repository.";
+        match classify_pull_failure("ws", "r", stderr) {
+            DriftEvent::PullFailedRepoMissing { .. } => {}
+            other => panic!("expected RepoMissing priority, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_expected_ref_extracts_quoted_ref() {
+        let msg = "Your configuration specifies to merge with the ref \
+            'refs/heads/v5' from the remote, but no such ref was fetched.";
+        assert_eq!(parse_expected_ref(msg), Some("refs/heads/v5".into()));
+    }
+
+    #[test]
+    fn parse_expected_ref_returns_none_on_shifted_format() {
+        assert_eq!(parse_expected_ref("unrelated text"), None);
+        assert_eq!(
+            parse_expected_ref("merge with the ref without quotes"),
+            None
+        );
     }
 
     #[test]

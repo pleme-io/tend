@@ -45,11 +45,24 @@ pub(crate) fn react_to_drift(
     workspace: &Workspace,
 ) -> Option<Arc<dyn ErasedJob>> {
     match event {
-        // A "no such ref" pull failure is the canonical case where a
-        // plain `git fetch --all --prune` is the right next step.
-        // Often happens when upstream renamed/deleted a branch and
-        // local config still points at the old name. A fresh fetch
-        // pulls refs so the next reconcile cycle can succeed.
+        // BranchRenamed (upstream renamed/removed the configured ref):
+        // a plain `git fetch --all --prune` updates refs so the next
+        // reconcile cycle can pick up the new HEAD. Typed via
+        // `classify_pull_failure` from the canonical git error message.
+        DriftEvent::PullFailedBranchRenamed {
+            workspace: ws,
+            repo_name,
+            ..
+        } => {
+            let repo_path = workspace_repo_path(workspace, ws, repo_name)?;
+            let job = FetchRepoJob::new(ws, repo_name, repo_path);
+            Some(Arc::new(job))
+        }
+
+        // Legacy bare `PullFailed` may still appear from old audit-log
+        // replay or from a future failure shape not yet typed. Apply
+        // the same string-sniff heuristic to keep behavior backwards-
+        // compatible while the typed surface fills in.
         DriftEvent::PullFailed {
             workspace: ws,
             repo_name,
@@ -61,16 +74,19 @@ pub(crate) fn react_to_drift(
         }
 
         // Other drift variants currently have no automatic reaction.
-        // They surface in `tend report` for operator action:
-        // - StubDirectoryFound  : operator decides adopt-or-remove
-        //                          (future M8 doctor commands).
-        // - DirtyTreeBlocksPull : operator decides stash/commit/discard.
-        //                          Auto-stashing risks data loss.
-        // - PullFailed (other)  : non-ref-related failures need
-        //                          human triage (auth, network, etc.).
-        // - SyncFailed          : clone failures usually need
-        //                          credential / network fixes.
-        // - JobUnhealed         : scheduler retry policy handles it.
+        // They surface in `tend report` for operator action. The
+        // SAFE-CONVERGENCE M2 milestone will add:
+        //   - PullFailedNoUpstream  → AutoAct(SetUpstream)
+        //   - PullFailedDiverged    → Escalate (need operator decision)
+        //   - PullFailedRepoMissing → Quarantine (mark workspace entry)
+        //   - PullFailedTransient   → NoOp (next cycle retries naturally)
+        //   - StubDirectoryFound    : operator decides adopt-or-remove
+        //                              (future M8 doctor commands)
+        //   - DirtyTreeBlocksPull   : operator decides stash/commit/discard
+        //                              (auto-stashing risks data loss)
+        //   - SyncFailed            : clone failures usually need
+        //                              credential / network fixes
+        //   - JobUnhealed           : scheduler retry policy handles it
         _ => None,
     }
 }

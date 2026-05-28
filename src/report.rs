@@ -298,6 +298,21 @@ fn format_drift_event(event: &DriftEvent) -> String {
             repo_name,
             stderr,
         } => format!("[{workspace}] {repo_name}: pull failed — {}", stderr.lines().next().unwrap_or("")),
+        DriftEvent::PullFailedNoUpstream { workspace, repo_name } => {
+            format!("[{workspace}] {repo_name}: pull failed — no upstream tracking")
+        }
+        DriftEvent::PullFailedBranchRenamed { workspace, repo_name, expected_ref } => {
+            format!("[{workspace}] {repo_name}: pull failed — expected ref {expected_ref} not on remote (branch renamed?)")
+        }
+        DriftEvent::PullFailedDiverged { workspace, repo_name } => {
+            format!("[{workspace}] {repo_name}: pull failed — diverged from origin (ff-only refused)")
+        }
+        DriftEvent::PullFailedRepoMissing { workspace, repo_name } => {
+            format!("[{workspace}] {repo_name}: pull failed — upstream repo gone (404)")
+        }
+        DriftEvent::PullFailedTransient { workspace, repo_name, snippet } => {
+            format!("[{workspace}] {repo_name}: pull failed — transient ({snippet})")
+        }
         DriftEvent::SyncFailed {
             workspace,
             repo_name,

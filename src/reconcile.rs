@@ -671,6 +671,7 @@ mod tests {
     #[test]
     fn default_pull_retry_policy_retries_twice_then_deadletters() {
         use shigoto_retry::{FailureRecord, RetryDecision};
+        use shigoto_types::failure::FailureKind;
         let policy = default_pull_retry_policy();
 
         let r1 = policy.decide(1, &[]);
@@ -681,14 +682,15 @@ mod tests {
                 attempt: 1,
                 at_ms: 0,
                 error: "boom".into(),
+                kind: FailureKind::Transient,
             }],
         );
         assert!(matches!(r2, RetryDecision::Retry { .. }), "attempt 2 should retry, got {r2:?}");
         let r3 = policy.decide(
             3,
             &[
-                FailureRecord { attempt: 1, at_ms: 0, error: "boom".into() },
-                FailureRecord { attempt: 2, at_ms: 0, error: "boom".into() },
+                FailureRecord { attempt: 1, at_ms: 0, error: "boom".into(), kind: FailureKind::Transient },
+                FailureRecord { attempt: 2, at_ms: 0, error: "boom".into(), kind: FailureKind::Transient },
             ],
         );
         assert!(
