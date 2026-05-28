@@ -19,6 +19,7 @@ mod head_cache;
 mod jobs;
 mod placeholder;
 mod planner;
+mod prebuild;
 mod reconcile;
 mod report;
 mod provider;
@@ -400,6 +401,88 @@ enum Commands {
         /// Path to file containing GitHub token (for launchd environments)
         #[arg(long)]
         github_token_file: Option<PathBuf>,
+    },
+
+    /// Build every workspace flake repo whose HEAD has moved since
+    /// last cycle, optionally pushing each closure to an Attic cache.
+    /// One-shot; pair with `prebuild-daemon` for continuous fill.
+    Prebuild {
+        /// Path to config file
+        #[arg(long)]
+        config: Option<PathBuf>,
+
+        /// Only process a specific workspace
+        #[arg(long)]
+        workspace: Option<String>,
+
+        /// Suppress per-repo log lines (audit log still written)
+        #[arg(long)]
+        quiet: bool,
+
+        /// Maximum concurrent `nix build` invocations
+        #[arg(long, default_value = "1")]
+        max_inflight: usize,
+
+        /// Attic cache name (e.g. `nexus`). Omit to build without push.
+        #[arg(long)]
+        attic_cache: Option<String>,
+
+        /// Attic server alias for `attic login`
+        #[arg(long, default_value = "nexus")]
+        attic_server: String,
+
+        /// Attic server URL (e.g. `http://rio:8080/`)
+        #[arg(long)]
+        attic_url: Option<String>,
+
+        /// Path to file containing the Attic JWT token (SOPS-managed)
+        #[arg(long)]
+        attic_token_file: Option<PathBuf>,
+    },
+
+    /// Run `prebuild` continuously with exponential backoff. Idempotent:
+    /// converged cycles (zero builds) double the sleep up to
+    /// `max_interval`; any build resets sleep to `min_interval`.
+    PrebuildDaemon {
+        /// Path to config file
+        #[arg(long)]
+        config: Option<PathBuf>,
+
+        /// Only process a specific workspace
+        #[arg(long)]
+        workspace: Option<String>,
+
+        /// Minimum sleep between cycles, in seconds (reset interval after work)
+        #[arg(long, default_value = "120")]
+        min_interval: u64,
+
+        /// Maximum sleep between cycles when converged, in seconds
+        #[arg(long, default_value = "3600")]
+        max_interval: u64,
+
+        /// Maximum concurrent `nix build` invocations
+        #[arg(long, default_value = "1")]
+        max_inflight: usize,
+
+        /// Suppress per-step output
+        #[arg(long)]
+        quiet: bool,
+
+        /// Attic cache name (e.g. `nexus`). Omit to build without push.
+        #[arg(long)]
+        attic_cache: Option<String>,
+
+        /// Attic server alias for `attic login`
+        #[arg(long, default_value = "nexus")]
+        attic_server: String,
+
+        /// Attic server URL (e.g. `http://rio:8080/`)
+        #[arg(long)]
+        attic_url: Option<String>,
+
+        /// Path to file containing the Attic JWT token (SOPS-managed)
+        #[arg(long)]
+        attic_token_file: Option<PathBuf>,
     },
 
     /// Run as the fleet update controller (K8s operator).
@@ -955,6 +1038,67 @@ async fn main() -> Result<()> {
             .await?;
         }
 
+        Commands::Prebuild {
+            config: config_path,
+            workspace: ws_filter,
+            quiet,
+            max_inflight,
+            attic_cache,
+            attic_server,
+            attic_url,
+            attic_token_file,
+        } => {
+            let cfg = load_config(config_path.as_deref())?;
+            let opts = prebuild::PrebuildOptions {
+                quiet,
+                max_inflight,
+                attic: build_attic_push(
+                    attic_cache.as_deref(),
+                    &attic_server,
+                    attic_url.as_deref(),
+                    attic_token_file.as_deref(),
+                )?,
+            };
+            let audit = audit::AuditLog::default_path();
+            let summary =
+                prebuild::run_cycle(&cfg, ws_filter.as_deref(), &opts, &audit).await?;
+            println!(
+                "prebuild: {} built, {} no-change, {} no-default, {} failed, {} pushed",
+                summary.built,
+                summary.no_change,
+                summary.skipped_no_default,
+                summary.failed,
+                summary.pushed,
+            );
+        }
+
+        Commands::PrebuildDaemon {
+            config: config_path,
+            workspace: ws_filter,
+            min_interval,
+            max_interval,
+            max_inflight,
+            quiet,
+            attic_cache,
+            attic_server,
+            attic_url,
+            attic_token_file,
+        } => {
+            run_prebuild_daemon(
+                config_path,
+                ws_filter,
+                min_interval,
+                max_interval,
+                max_inflight,
+                quiet,
+                attic_cache,
+                attic_server,
+                attic_url,
+                attic_token_file,
+            )
+            .await?;
+        }
+
         Commands::Watch {
             config: config_path,
             workspace: ws_filter,
@@ -1382,6 +1526,120 @@ async fn run_flake_update_cycle(
         summary.skipped += ws_summary.skipped;
     }
     Ok(summary)
+}
+
+/// Translate CLI flags into a `prebuild::AtticPush`. Returns `None`
+/// if no cache is configured (i.e. build-only mode). Returns an
+/// `Err` if a cache is named but the URL/token are missing, because
+/// that's almost certainly an operator mistake we want to surface
+/// loudly rather than silently building without pushing.
+fn build_attic_push(
+    cache_name: Option<&str>,
+    server_name: &str,
+    server_url: Option<&str>,
+    token_file: Option<&std::path::Path>,
+) -> Result<Option<prebuild::AtticPush>> {
+    let Some(cache) = cache_name else {
+        return Ok(None);
+    };
+    let url = server_url.ok_or_else(|| {
+        anyhow::anyhow!("--attic-url is required when --attic-cache is set")
+    })?;
+    let token = token_file.ok_or_else(|| {
+        anyhow::anyhow!("--attic-token-file is required when --attic-cache is set")
+    })?;
+    Ok(Some(prebuild::AtticPush {
+        cache_name: cache.to_string(),
+        server_name: server_name.to_string(),
+        server_url: url.to_string(),
+        token_file: token.to_path_buf(),
+    }))
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn run_prebuild_daemon(
+    config_path: Option<PathBuf>,
+    ws_filter: Option<String>,
+    min_interval: u64,
+    max_interval: u64,
+    max_inflight: usize,
+    quiet: bool,
+    attic_cache: Option<String>,
+    attic_server: String,
+    attic_url: Option<String>,
+    attic_token_file: Option<PathBuf>,
+) -> Result<()> {
+    let min = min_interval.max(1);
+    let max = max_interval.max(min);
+    let mut interval = min;
+    let audit = audit::AuditLog::default_path();
+
+    if !quiet {
+        println!(
+            "prebuild daemon starting (min={min}s max={max}s max_inflight={max_inflight}). Ctrl-C to stop."
+        );
+    }
+
+    loop {
+        let cycle_start = std::time::Instant::now();
+        audit.log(
+            "prebuild_cycle_start",
+            serde_json::json!({ "interval_secs": interval }),
+        );
+
+        // Re-load config + attic push spec each cycle so an operator
+        // can edit either without restarting the daemon.
+        let cycle_result: Result<prebuild::PrebuildSummary> = async {
+            let cfg = load_config(config_path.as_deref())?;
+            let opts = prebuild::PrebuildOptions {
+                quiet,
+                max_inflight,
+                attic: build_attic_push(
+                    attic_cache.as_deref(),
+                    &attic_server,
+                    attic_url.as_deref(),
+                    attic_token_file.as_deref(),
+                )?,
+            };
+            prebuild::run_cycle(&cfg, ws_filter.as_deref(), &opts, &audit).await
+        }
+        .await;
+
+        match cycle_result {
+            Ok(summary) => {
+                let duration_ms = cycle_start.elapsed().as_millis() as u64;
+                audit.log(
+                    "prebuild_cycle_complete",
+                    serde_json::json!({
+                        "duration_ms": duration_ms,
+                        "built": summary.built,
+                        "no_change": summary.no_change,
+                        "skipped_no_default": summary.skipped_no_default,
+                        "failed": summary.failed,
+                        "pushed": summary.pushed,
+                    }),
+                );
+                if summary.work() > 0 {
+                    interval = min;
+                } else {
+                    interval = (interval.saturating_mul(2)).min(max);
+                }
+            }
+            Err(e) => {
+                eprintln!("prebuild daemon cycle failed: {e:#}");
+                audit.log(
+                    "prebuild_cycle_error",
+                    serde_json::json!({ "error": format!("{e:#}") }),
+                );
+                interval = min;
+            }
+        }
+
+        if !quiet {
+            println!("prebuild daemon sleeping {interval}s");
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
+    }
 }
 
 pub(crate) fn filter_workspaces<'a>(

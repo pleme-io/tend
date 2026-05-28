@@ -6918,7 +6918,7 @@ rec {
       };
       "pleme-tend" = rec {
         crateName = "pleme-tend";
-        version = "0.1.4";
+        version = "0.2.0";
         edition = "2021";
         crateBin = [
           {
