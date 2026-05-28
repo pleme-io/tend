@@ -100,7 +100,12 @@
     # deployment target so far) is amd64.
     imageSystem = "x86_64-linux";
     pkgsLinux = import nixpkgs { system = imageSystem; };
-    cargoNix = pkgsLinux.callPackage ./Cargo.nix {};
+    lockfileBuilderLinux = import "${substrate}/lib/build/rust/lockfile-builder.nix" { pkgs = pkgsLinux; };
+    plemeCrateOverrides = import "${substrate}/lib/build/rust/pleme-crate-overrides.nix";
+    cargoNix = lockfileBuilderLinux.mkProject {
+      src = self;
+      defaultCrateOverrides = pkgsLinux.defaultCrateOverrides // plemeCrateOverrides;
+    };
     tendBin = cargoNix.workspaceMembers."pleme-tend".build;
 
     # Minimal /etc/passwd + /etc/group + writable /home/tend so nix's
