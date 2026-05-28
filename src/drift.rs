@@ -261,109 +261,33 @@ fn parse_expected_ref(stderr: &str) -> Option<String> {
     }
 }
 
-/// Receivers of `DriftEvent`. Synchronous by design — emitters call
-/// `record` from the reconcile path which is already async; the sink
-/// implementations either buffer (`InMemoryDriftSink`) or write
-/// synchronously to disk (`AuditFileDriftSink`).
+/// Receivers of `DriftEvent`. Thin trait over the canonical
+/// `shigoto_types::sink::Sink<DriftEvent>` so every tend caller
+/// writing `&dyn DriftSink` keeps working unchanged after the
+/// theory/CONVERGENCE-ADOPTION.md Phase 0.1 extraction. The blanket
+/// impl below means any `Sink<DriftEvent>` impl auto-satisfies
+/// `DriftSink` — no per-impl wiring at the consumer side.
+///
+/// The concrete impls (`NullDriftSink`, `InMemoryDriftSink`,
+/// `AuditFileDriftSink`, plus the new `MultiDriftSink` for fan-out)
+/// are now type aliases over the generic `shigoto_types::sink::*`
+/// shapes — same behavior, fleet-wide reuse, ~100 lines of duplicate
+/// code deleted.
 pub(crate) trait DriftSink: Send + Sync {
     fn record(&self, event: &DriftEvent);
 }
 
-/// No-op sink. Default for ad-hoc paths that don't want drift
-/// captured.
-#[derive(Debug, Default)]
-pub(crate) struct NullDriftSink;
-
-impl DriftSink for NullDriftSink {
-    fn record(&self, _event: &DriftEvent) {}
-}
-
-/// Buffer events in memory. Used by tests + by `tend report`'s
-/// receipt-time aggregation.
-#[derive(Debug, Default)]
-pub(crate) struct InMemoryDriftSink {
-    events: Mutex<Vec<DriftEvent>>,
-}
-
-impl InMemoryDriftSink {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Snapshot the events captured so far. Doesn't clear the buffer.
-    pub fn snapshot(&self) -> Vec<DriftEvent> {
-        self.events
-            .lock()
-            .expect("InMemoryDriftSink mutex poisoned")
-            .clone()
-    }
-
-    /// Take all events, clearing the buffer.
-    pub fn drain(&self) -> Vec<DriftEvent> {
-        std::mem::take(
-            &mut *self
-                .events
-                .lock()
-                .expect("InMemoryDriftSink mutex poisoned"),
-        )
-    }
-
-    pub fn len(&self) -> usize {
-        self.events
-            .lock()
-            .expect("InMemoryDriftSink mutex poisoned")
-            .len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
-
-impl DriftSink for InMemoryDriftSink {
+impl<T: shigoto_types::sink::Sink<DriftEvent> + ?Sized> DriftSink for T {
     fn record(&self, event: &DriftEvent) {
-        self.events
-            .lock()
-            .expect("InMemoryDriftSink mutex poisoned")
-            .push(event.clone());
+        shigoto_types::sink::Sink::record(self, event)
     }
 }
 
-/// Append every recorded event as one JSON line to `path`. Same
-/// shape as the scheduler-transitions log + tend's high-level audit
-/// log so operators have one tool (`jq`) for everything.
-pub(crate) struct AuditFileDriftSink {
-    file: Mutex<std::fs::File>,
-}
-
-impl AuditFileDriftSink {
-    pub fn new(path: &Path) -> anyhow::Result<Self> {
-        use anyhow::Context;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("creating drift log parent {}", parent.display()))?;
-        }
-        let file = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)
-            .with_context(|| format!("opening drift log {}", path.display()))?;
-        Ok(Self {
-            file: Mutex::new(file),
-        })
-    }
-}
-
-impl DriftSink for AuditFileDriftSink {
-    fn record(&self, event: &DriftEvent) {
-        use std::io::Write;
-        if let Ok(line) = serde_json::to_string(event) {
-            if let Ok(mut f) = self.file.lock() {
-                let _ = writeln!(f, "{line}");
-            }
-        }
-    }
-}
+pub(crate) type NullDriftSink = shigoto_types::sink::NullSink<DriftEvent>;
+pub(crate) type InMemoryDriftSink = shigoto_types::sink::InMemorySink<DriftEvent>;
+pub(crate) type AuditFileDriftSink = shigoto_types::sink::AuditFileSink<DriftEvent>;
+#[allow(dead_code)]
+pub(crate) type MultiDriftSink = shigoto_types::sink::MultiSink<DriftEvent>;
 
 /// Project a `ReconcileReceipt` into a flat list of `DriftEvent`s.
 /// Centralizes drift detection so all consumers see the same events
