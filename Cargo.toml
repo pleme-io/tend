@@ -1,6 +1,6 @@
 [package]
 name = "pleme-tend"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 description = "Workspace repository manager — keeps your repos in sync"
 license = "MIT"
@@ -39,6 +39,10 @@ tokio = { version = "1.40", features = ["full"] }
 toml = "0.8"
 toml_edit = "0.22"
 async-trait = "0.1"
+# `notify` matches the version shikumi pulls in, so the daemon's
+# hot-reload watcher can pattern-match on EventKind without a
+# duplicate crate version.
+notify = "8.2"
 shikumi = { git = "https://github.com/pleme-io/shikumi", features = ["cli"] }
 tsunagu = { git = "https://github.com/pleme-io/tsunagu" }
 opencode-zen = { git = "https://github.com/pleme-io/opencode-zen" }

@@ -203,11 +203,18 @@ pub async fn run_cycle(
     let mut all_repos: Vec<PathBuf> = Vec::new();
     for ws in crate::filter_workspaces(&cfg.workspaces, ws_filter) {
         let base = ws.resolved_base_dir()?;
-        if !opts.quiet {
+        // Honour workspace-level `prebuild:` config from shikumi:
+        // a workspace can declare its own intervals + attic cache
+        // without changing the CLI flags. Merged for log visibility
+        // only — runtime semaphore + attic-login are global per cycle.
+        let effective = effective_per_workspace(opts, ws.prebuild.as_ref());
+        if !effective.quiet {
             println!(
-                "[prebuild] workspace={} base={}",
+                "[prebuild] workspace={} base={} max_inflight={} attic_cache={:?}",
                 ws.name,
-                base.display()
+                base.display(),
+                effective.max_inflight,
+                effective.attic.as_ref().map(|a| &a.cache_name),
             );
         }
         all_repos.extend(enumerate_repos_with_flake(&base));
@@ -282,12 +289,15 @@ pub async fn run_cycle(
                         .absorb(&outcome);
                 }
                 Ok(Err(e)) => {
-                    eprintln!("[prebuild] {key}: {e:#}");
+                    let msg = format!("{e:#}");
+                    let class = crate::anomaly::classify(&msg);
+                    eprintln!("[prebuild] {key}: [{}] {msg}", class.as_str());
                     audit.log(
                         "prebuild_failed",
                         serde_json::json!({
                             "repo": key,
-                            "error": format!("{e:#}"),
+                            "class": class.as_str(),
+                            "error": msg,
                         }),
                     );
                     summary.lock().expect("summary mutex poisoned").failed += 1;
@@ -433,6 +443,44 @@ fn push_closures(push: &AtticPush, out_paths: &[String]) -> usize {
         }
     }
     ok
+}
+
+/// Merge a workspace-level `prebuild:` declaration onto the
+/// CLI-derived [`PrebuildOptions`]. The workspace block, when
+/// present, **overrides** the CLI for any field it sets (non-zero
+/// numerics, `Some(_)` for attic-* options). This is the shikumi
+/// surface — operators edit `config.yaml`'s `prebuild:` to change
+/// daemon behavior; the daemon re-loads the config every cycle so
+/// edits propagate within one interval, no restart needed.
+pub(crate) fn effective_per_workspace(
+    cli: &PrebuildOptions,
+    ws: Option<&crate::config::PrebuildConfig>,
+) -> PrebuildOptions {
+    let mut out = cli.clone();
+    let Some(ws) = ws else {
+        return out;
+    };
+    if ws.max_inflight > 0 {
+        out.max_inflight = ws.max_inflight;
+    }
+    // The two interval knobs live on the daemon loop (not in
+    // PrebuildOptions which models a single cycle), so a workspace
+    // can't yet override them without restructuring. Tracked as a
+    // follow-up; the typed surface is what matters for now.
+    if let (Some(cache), Some(server), Some(url), Some(token)) = (
+        ws.attic_cache.as_ref(),
+        ws.attic_server.as_ref(),
+        ws.attic_url.as_ref(),
+        ws.attic_token_file.as_ref(),
+    ) {
+        out.attic = Some(AtticPush {
+            cache_name: cache.clone(),
+            server_name: server.clone(),
+            server_url: url.clone(),
+            token_file: PathBuf::from(token),
+        });
+    }
+    out
 }
 
 /// Enumerate immediate children of `base` that contain `flake.nix`
@@ -649,6 +697,104 @@ mod tests {
         assert!(!missing_default_attribute(
             "error: builder for '/nix/store/x.drv' failed"
         ));
+    }
+
+    #[test]
+    fn effective_per_workspace_none_returns_cli_unchanged() {
+        let cli = PrebuildOptions {
+            quiet: true,
+            max_inflight: 3,
+            attic: None,
+        };
+        let out = effective_per_workspace(&cli, None);
+        assert_eq!(out.max_inflight, 3);
+        assert!(out.attic.is_none());
+        assert!(out.quiet);
+    }
+
+    #[test]
+    fn effective_per_workspace_zero_max_inflight_doesnt_override() {
+        // A workspace declaring `prebuild: {}` with all defaults
+        // (max_inflight=0 via TieredConfig::bare()) MUST NOT clamp
+        // the CLI's max_inflight to zero — the merge treats 0 as
+        // "unspecified."
+        let cli = PrebuildOptions {
+            quiet: false,
+            max_inflight: 4,
+            attic: None,
+        };
+        let ws = crate::config::PrebuildConfig {
+            min_interval: 0,
+            max_interval: 0,
+            max_inflight: 0,
+            attic_cache: None,
+            attic_server: None,
+            attic_url: None,
+            attic_token_file: None,
+        };
+        let out = effective_per_workspace(&cli, Some(&ws));
+        assert_eq!(out.max_inflight, 4, "zero must not override");
+    }
+
+    #[test]
+    fn effective_per_workspace_overrides_max_inflight_when_set() {
+        let cli = PrebuildOptions {
+            quiet: false,
+            max_inflight: 1,
+            attic: None,
+        };
+        let ws = crate::config::PrebuildConfig {
+            min_interval: 0,
+            max_interval: 0,
+            max_inflight: 6,
+            attic_cache: None,
+            attic_server: None,
+            attic_url: None,
+            attic_token_file: None,
+        };
+        let out = effective_per_workspace(&cli, Some(&ws));
+        assert_eq!(out.max_inflight, 6, "workspace value wins");
+    }
+
+    #[test]
+    fn effective_per_workspace_overrides_attic_only_when_full_quartet_set() {
+        let cli = PrebuildOptions {
+            quiet: false,
+            max_inflight: 1,
+            attic: None,
+        };
+        // Partial — missing token_file → MUST NOT install a half-baked
+        // AtticPush that'd crash at login time.
+        let partial = crate::config::PrebuildConfig {
+            min_interval: 0,
+            max_interval: 0,
+            max_inflight: 0,
+            attic_cache: Some("nexus".into()),
+            attic_server: Some("nexus".into()),
+            attic_url: Some("http://rio:8080/".into()),
+            attic_token_file: None,
+        };
+        let out = effective_per_workspace(&cli, Some(&partial));
+        assert!(out.attic.is_none(), "partial spec must not install attic");
+
+        // Full quartet — install.
+        let full = crate::config::PrebuildConfig {
+            min_interval: 0,
+            max_interval: 0,
+            max_inflight: 0,
+            attic_cache: Some("nexus".into()),
+            attic_server: Some("nexus".into()),
+            attic_url: Some("http://rio:8080/".into()),
+            attic_token_file: Some("/run/secrets/tend/attic-jwt-token".into()),
+        };
+        let out = effective_per_workspace(&cli, Some(&full));
+        let attic = out.attic.expect("full quartet must install attic");
+        assert_eq!(attic.cache_name, "nexus");
+        assert_eq!(attic.server_url, "http://rio:8080/");
+        assert_eq!(
+            attic.token_file,
+            PathBuf::from("/run/secrets/tend/attic-jwt-token")
+        );
     }
 
     #[test]

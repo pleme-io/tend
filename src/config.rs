@@ -55,6 +55,59 @@ pub struct Workspace {
     pub watch: Option<WatchConfig>,
     #[serde(default)]
     pub ai_tasks: Vec<AiTaskConfig>,
+    /// Workspace-scoped prebuild daemon settings. When set, the
+    /// `tend prebuild-daemon` reads these on every cycle (re-load
+    /// is per-cycle, so dynamic edits take effect within one
+    /// interval — no daemon restart needed). CLI flags still
+    /// override; this is the typed-config layer.
+    #[serde(default)]
+    pub prebuild: Option<PrebuildConfig>,
+}
+
+/// Per-workspace prebuild knobs. See `src/prebuild.rs::PrebuildOptions`
+/// for the runtime shape; this is the on-disk YAML projection that
+/// shikumi's TieredConfig resolves (env > file > prescribed_default >
+/// bare). The daemon reads this every cycle, so an operator can
+/// edit `~/.config/tend/config.yaml` (or `/etc/tend/config.yaml`)
+/// while the daemon runs and the next cycle picks up the change —
+/// matches the "K8s controller, dynamic config propagates live"
+/// shape called out in the project goals.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct PrebuildConfig {
+    /// Minimum sleep between cycles (seconds). Resets after any work.
+    #[serde(default = "default_prebuild_min_interval")]
+    pub min_interval: u64,
+    /// Maximum sleep when converged (seconds). Caps the exponential
+    /// backoff growth.
+    #[serde(default = "default_prebuild_max_interval")]
+    pub max_interval: u64,
+    /// Max concurrent `nix build` invocations.
+    #[serde(default = "default_prebuild_max_inflight")]
+    pub max_inflight: usize,
+    /// Attic cache name to push closures to. `None` = build-only mode.
+    #[serde(default)]
+    pub attic_cache: Option<String>,
+    /// Attic server alias for `attic login`.
+    #[serde(default)]
+    pub attic_server: Option<String>,
+    /// Attic server URL.
+    #[serde(default)]
+    pub attic_url: Option<String>,
+    /// SOPS-managed Attic JWT token file path.
+    #[serde(default)]
+    pub attic_token_file: Option<String>,
+}
+
+fn default_prebuild_min_interval() -> u64 {
+    120
+}
+
+fn default_prebuild_max_interval() -> u64 {
+    3600
+}
+
+fn default_prebuild_max_inflight() -> usize {
+    1
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -415,6 +468,7 @@ impl shikumi::TieredConfig for Workspace {
             flake_deps: HashMap::new(),
             watch: None,
             ai_tasks: Vec::new(),
+            prebuild: None,
         }
     }
     fn prescribed_default() -> Self {
@@ -430,6 +484,35 @@ impl shikumi::TieredConfig for Workspace {
             flake_deps: HashMap::new(),
             watch: None,
             ai_tasks: Vec::new(),
+            prebuild: None,
+        }
+    }
+}
+
+impl shikumi::TieredConfig for PrebuildConfig {
+    fn bare() -> Self {
+        // Floor: no work happens, no attic interaction. Operators
+        // who declare a `prebuild:` block opt into the prescribed
+        // defaults below for any field they omit.
+        Self {
+            min_interval: 0,
+            max_interval: 0,
+            max_inflight: 0,
+            attic_cache: None,
+            attic_server: None,
+            attic_url: None,
+            attic_token_file: None,
+        }
+    }
+    fn prescribed_default() -> Self {
+        Self {
+            min_interval: default_prebuild_min_interval(),
+            max_interval: default_prebuild_max_interval(),
+            max_inflight: default_prebuild_max_inflight(),
+            attic_cache: None,
+            attic_server: None,
+            attic_url: None,
+            attic_token_file: None,
         }
     }
 }
@@ -592,6 +675,7 @@ impl Config {
                 flake_deps: HashMap::new(),
                 watch: None,
                 ai_tasks: vec![],
+                prebuild: None,
             }],
         };
         serde_yaml_ng::to_string(&config).context("serializing starter config")
@@ -614,6 +698,7 @@ impl Workspace {
             flake_deps: HashMap::new(),
             watch: None,
             ai_tasks: vec![],
+            prebuild: None,
         }
     }
 

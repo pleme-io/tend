@@ -18,6 +18,7 @@ mod drift;
 mod head_cache;
 mod jobs;
 mod placeholder;
+mod anomaly;
 mod planner;
 mod prebuild;
 mod reconcile;
@@ -1569,14 +1570,57 @@ async fn run_prebuild_daemon(
     attic_url: Option<String>,
     attic_token_file: Option<PathBuf>,
 ) -> Result<()> {
+    use std::sync::Arc;
+    use tokio::sync::Notify;
+
     let min = min_interval.max(1);
     let max = max_interval.max(min);
     let mut interval = min;
     let audit = audit::AuditLog::default_path();
 
+    // Resolve the config path to a concrete file so we can install
+    // an inotify-style watcher on it. K8s-controller-style live
+    // config: file changes wake the daemon mid-sleep, the next
+    // cycle runs immediately against the fresh config — no restart,
+    // no waiting for the exp-backoff window to close.
+    let resolved_path: PathBuf = match config_path.as_ref() {
+        Some(p) => p.clone(),
+        None => config::Config::default_path(),
+    };
+
+    let reload_signal = Arc::new(Notify::new());
+    let watch_signal = Arc::clone(&reload_signal);
+    let audit_for_watcher = audit::AuditLog::default_path();
+    let watcher = shikumi::ConfigWatcher::watch(&resolved_path, move |event| {
+        // shikumi's pinned ConfigWatcher hands us the raw notify::Event
+        // and leaves classification to the caller. We trigger reload
+        // on Create + Modify, ignore Access + Remove (Remove will
+        // surface a not-found at next load_config() and re-arm on
+        // the next file appearance via the parent-dir watch).
+        use notify::EventKind;
+        match event.kind {
+            EventKind::Modify(_) | EventKind::Create(_) => {
+                audit_for_watcher.log(
+                    "prebuild_config_reload_detected",
+                    serde_json::json!({
+                        "kind": format!("{:?}", event.kind),
+                        "paths": event.paths.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
+                    }),
+                );
+                watch_signal.notify_one();
+            }
+            _ => {}
+        }
+    });
+    // Don't fail the daemon if the file doesn't exist yet — the
+    // existing per-cycle load_config() error already reports that.
+    // We just lose hot-reload until the path materialises.
+    let _watcher_handle = watcher.ok();
+
     if !quiet {
         println!(
-            "prebuild daemon starting (min={min}s max={max}s max_inflight={max_inflight}). Ctrl-C to stop."
+            "prebuild daemon starting (min={min}s max={max}s max_inflight={max_inflight}). Hot-reload watching {}. Ctrl-C to stop.",
+            resolved_path.display()
         );
     }
 
@@ -1588,7 +1632,10 @@ async fn run_prebuild_daemon(
         );
 
         // Re-load config + attic push spec each cycle so an operator
-        // can edit either without restarting the daemon.
+        // can edit either without restarting the daemon. The
+        // ConfigWatcher above signals reload_signal on file change,
+        // which wakes the sleep below — so config edits propagate
+        // within milliseconds, not within one backoff interval.
         let cycle_result: Result<prebuild::PrebuildSummary> = async {
             let cfg = load_config(config_path.as_deref())?;
             let opts = prebuild::PrebuildOptions {
@@ -1638,7 +1685,24 @@ async fn run_prebuild_daemon(
         if !quiet {
             println!("prebuild daemon sleeping {interval}s");
         }
-        tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
+
+        // select! between the backoff timer and a config-change
+        // notification. The notification is a Notify (not a channel)
+        // so multiple file changes during one sleep collapse into a
+        // single wake — exactly what we want.
+        tokio::select! {
+            biased;
+            () = reload_signal.notified() => {
+                audit.log(
+                    "prebuild_woken_by_config_change",
+                    serde_json::json!({ "interval_remaining_secs": interval }),
+                );
+                // Reset interval on a config change so the operator
+                // gets a fresh cycle immediately at the floor.
+                interval = min;
+            }
+            () = tokio::time::sleep(std::time::Duration::from_secs(interval)) => {}
+        }
     }
 }
 

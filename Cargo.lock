@@ -2161,7 +2161,7 @@ checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
 
 [[package]]
 name = "pleme-tend"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -2177,6 +2177,7 @@ dependencies = [
  "hyper-util",
  "k8s-openapi",
  "kube",
+ "notify",
  "opencode-zen",
  "petgraph",
  "prometheus",

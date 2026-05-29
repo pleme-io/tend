@@ -6918,7 +6918,7 @@ rec {
       };
       "pleme-tend" = rec {
         crateName = "pleme-tend";
-        version = "0.2.1";
+        version = "0.3.0";
         edition = "2021";
         crateBin = [
           {
@@ -7000,6 +7000,10 @@ rec {
             packageId = "kube";
             optional = true;
             features = [ "runtime" "derive" "client" ];
+          }
+          {
+            name = "notify";
+            packageId = "notify";
           }
           {
             name = "opencode-zen";
