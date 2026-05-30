@@ -10,6 +10,7 @@ mod ci_trim;
 mod config;
 mod daemon;
 mod display;
+mod kanshou_state;
 mod flake;
 mod flake_lock;
 mod git;
@@ -1219,6 +1220,26 @@ async fn main() -> Result<()> {
                 let token = std::fs::read_to_string(token_path)
                     .with_context(|| format!("reading token from {}", token_path.display()))?;
                 std::env::set_var("GITHUB_TOKEN", token.trim());
+            }
+
+            // Open the kanshou introspection socket so operators can
+            // query the live tend daemon — ticks completed, current
+            // workspace/repo, pull/fetch counters — via
+            // `gen kanshou query tend <field>`. Best-effort: bind
+            // failure logs and continues so introspection-disabled
+            // mode is graceful.
+            let kanshou_state = std::sync::Arc::new(
+                kanshou_state::TendDaemonState::new(),
+            );
+            match kanshou_state::spawn_server("tend", kanshou_state) {
+                Ok(path) => tracing::info!(
+                    socket = %path.display(),
+                    "kanshou introspection live"
+                ),
+                Err(e) => tracing::warn!(
+                    err = %e,
+                    "kanshou bind failed; introspection disabled"
+                ),
             }
 
             daemon::run(daemon::DaemonOpts {

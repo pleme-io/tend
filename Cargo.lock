@@ -1549,6 +1549,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "kanshou"
+version = "0.1.0"
+source = "git+https://github.com/pleme-io/kanshou#cb1fb0f30dd3a22e9773ad0e9fceae9d26daae16"
+dependencies = [
+ "kanshou-derive",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "kanshou-derive"
+version = "0.1.0"
+source = "git+https://github.com/pleme-io/kanshou#cb1fb0f30dd3a22e9773ad0e9fceae9d26daae16"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "kqueue"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2176,9 +2199,11 @@ dependencies = [
  "hyper",
  "hyper-util",
  "k8s-openapi",
+ "kanshou",
  "kube",
  "notify",
  "opencode-zen",
+ "parking_lot",
  "petgraph",
  "prometheus",
  "rand 0.8.6",
