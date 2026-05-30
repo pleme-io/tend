@@ -4957,6 +4957,93 @@ rec {
         };
         resolvedDefaultFeatures = [ "v1_31" ];
       };
+      "kanshou" = rec {
+        crateName = "kanshou";
+        version = "0.1.0";
+        edition = "2024";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/pleme-io/kanshou";
+          rev = "cb1fb0f30dd3a22e9773ad0e9fceae9d26daae16";
+          sha256 = "0vjgnk59gnn0m9vlmz4v13nwqpyl6pd9sqnfrpfxn4l8x612lxwr";
+        };
+        authors = [
+          "pleme-io"
+        ];
+        dependencies = [
+          {
+            name = "kanshou-derive";
+            packageId = "kanshou-derive";
+            optional = true;
+          }
+          {
+            name = "serde";
+            packageId = "serde";
+            features = [ "derive" ];
+          }
+          {
+            name = "serde_json";
+            packageId = "serde_json";
+          }
+          {
+            name = "thiserror";
+            packageId = "thiserror 2.0.18";
+          }
+          {
+            name = "tokio";
+            packageId = "tokio";
+            features = [ "net" "io-util" "sync" "rt" "macros" "time" ];
+          }
+          {
+            name = "tracing";
+            packageId = "tracing";
+          }
+        ];
+        devDependencies = [
+          {
+            name = "tokio";
+            packageId = "tokio";
+            features = [ "full" ];
+          }
+        ];
+        features = {
+          "default" = [ "derive" ];
+          "derive" = [ "dep:kanshou-derive" ];
+        };
+        resolvedDefaultFeatures = [ "default" "derive" ];
+      };
+      "kanshou-derive" = rec {
+        crateName = "kanshou-derive";
+        version = "0.1.0";
+        edition = "2024";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/pleme-io/kanshou";
+          rev = "cb1fb0f30dd3a22e9773ad0e9fceae9d26daae16";
+          sha256 = "0vjgnk59gnn0m9vlmz4v13nwqpyl6pd9sqnfrpfxn4l8x612lxwr";
+        };
+        procMacro = true;
+        libName = "kanshou_derive";
+        authors = [
+          "pleme-io"
+        ];
+        dependencies = [
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2";
+          }
+          {
+            name = "quote";
+            packageId = "quote";
+          }
+          {
+            name = "syn";
+            packageId = "syn";
+            features = [ "full" ];
+          }
+        ];
+
+      };
       "kqueue" = rec {
         crateName = "kqueue";
         version = "1.1.1";
@@ -6918,7 +7005,7 @@ rec {
       };
       "pleme-tend" = rec {
         crateName = "pleme-tend";
-        version = "0.3.1";
+        version = "0.3.2";
         edition = "2021";
         crateBin = [
           {
@@ -6996,6 +7083,10 @@ rec {
             features = [ "v1_31" ];
           }
           {
+            name = "kanshou";
+            packageId = "kanshou";
+          }
+          {
             name = "kube";
             packageId = "kube";
             optional = true;
@@ -7008,6 +7099,10 @@ rec {
           {
             name = "opencode-zen";
             packageId = "opencode-zen";
+          }
+          {
+            name = "parking_lot";
+            packageId = "parking_lot";
           }
           {
             name = "petgraph";
