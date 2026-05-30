@@ -1638,7 +1638,7 @@ dependencies = [
 [[package]]
 name = "kanshou"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/kanshou#cb1fb0f30dd3a22e9773ad0e9fceae9d26daae16"
+source = "git+https://github.com/pleme-io/kanshou#a246092105ae0c674713ac7d56fedeed14d40791"
 dependencies = [
  "kanshou-derive",
  "serde",
@@ -1651,7 +1651,7 @@ dependencies = [
 [[package]]
 name = "kanshou-derive"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/kanshou#cb1fb0f30dd3a22e9773ad0e9fceae9d26daae16"
+source = "git+https://github.com/pleme-io/kanshou#a246092105ae0c674713ac7d56fedeed14d40791"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2271,7 +2271,7 @@ checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "anyhow",
  "async-nats",
