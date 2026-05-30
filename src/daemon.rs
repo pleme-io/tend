@@ -1,8 +1,11 @@
 use anyhow::Result;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use crate::{display, git, github, load_config, filter_workspaces, planner, reconcile, sync, watch, watch_cache};
+use crate::kanshou_state::TendDaemonState;
 use crate::planner::{ExecutionPlan, WorkItem, WorkKind};
 
 /// Options for the daemon command.
@@ -30,6 +33,16 @@ pub(crate) struct DaemonOpts {
 ///
 /// Workspaces are processed in parallel using tokio tasks.
 pub(crate) async fn run(opts: DaemonOpts) -> Result<()> {
+    run_with_kanshou(opts, Arc::new(TendDaemonState::new())).await
+}
+
+/// Variant that accepts a pre-constructed kanshou state. The main()
+/// dispatch wraps the kanshou-server bind around this so the state
+/// shared with the introspection socket IS the state the loop ticks.
+pub(crate) async fn run_with_kanshou(
+    opts: DaemonOpts,
+    kanshou_state: Arc<TendDaemonState>,
+) -> Result<()> {
     let mut cycle = 0u64;
 
     // Single drain coordinator for the whole loop — handles SIGTERM and
@@ -105,6 +118,16 @@ pub(crate) async fn run(opts: DaemonOpts) -> Result<()> {
             display::print_daemon_cycle_done(cycle, ws_count);
             display::print_daemon_sleeping(opts.interval);
         }
+
+        // Wire the kanshou counters at the cycle boundary so external
+        // observers see "tick N completed at T, ms_since_last = now-T"
+        // and "tend has done X total cycles."
+        kanshou_state.ticks_completed.fetch_add(1, Ordering::Relaxed);
+        kanshou_state
+            .last_tick_unix_ms
+            .store(now_unix_ms(), Ordering::Relaxed);
+        kanshou_state.current_repo.write().take();
+        kanshou_state.current_workspace.write().take();
 
         let mut tok = shutdown.token();
         tokio::select! {
@@ -385,4 +408,11 @@ async fn run_hook(hook: &crate::config::PostHook, audit: &crate::audit::AuditLog
     };
 
     audit.hook_executed(&hook.trigger, &hook.command, exit_code, duration_ms);
+}
+
+fn now_unix_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
+        .unwrap_or(0)
 }

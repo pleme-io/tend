@@ -1231,7 +1231,7 @@ async fn main() -> Result<()> {
             let kanshou_state = std::sync::Arc::new(
                 kanshou_state::TendDaemonState::new(),
             );
-            match kanshou_state::spawn_server("tend", kanshou_state) {
+            match kanshou_state::spawn_server("tend", std::sync::Arc::clone(&kanshou_state)) {
                 Ok(path) => tracing::info!(
                     socket = %path.display(),
                     "kanshou introspection live"
@@ -1242,15 +1242,18 @@ async fn main() -> Result<()> {
                 ),
             }
 
-            daemon::run(daemon::DaemonOpts {
-                config: config_path,
-                workspace: ws_filter,
-                interval,
-                pull,
-                fetch,
-                quiet,
-                max_inflight,
-            })
+            daemon::run_with_kanshou(
+                daemon::DaemonOpts {
+                    config: config_path,
+                    workspace: ws_filter,
+                    interval,
+                    pull,
+                    fetch,
+                    quiet,
+                    max_inflight,
+                },
+                kanshou_state,
+            )
             .await?;
         }
 
