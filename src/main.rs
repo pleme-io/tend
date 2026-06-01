@@ -485,6 +485,28 @@ enum Commands {
         /// Path to file containing the Attic JWT token (SOPS-managed)
         #[arg(long)]
         attic_token_file: Option<PathBuf>,
+
+        /// Probe whether the Attic server (`--attic-url`) is reachable
+        /// before each cycle; when it's down, back off (separately from
+        /// the converged backoff) and don't build closures we can't
+        /// push. Defaults to ON when `--attic-url` is set, OFF otherwise.
+        /// Pass `--attic-probe=false` to force-disable.
+        #[arg(long, action = clap::ArgAction::Set, default_value_t = true)]
+        attic_probe: bool,
+
+        /// Floor of the unreachable-backoff, in seconds (first
+        /// unreachable cycle sleeps this long).
+        #[arg(long, default_value = "60")]
+        attic_unreachable_min_interval: u64,
+
+        /// Ceiling of the unreachable-backoff, in seconds (the doubling
+        /// caps here during a sustained outage).
+        #[arg(long, default_value = "1800")]
+        attic_unreachable_max_interval: u64,
+
+        /// Per-probe HTTP timeout, in seconds.
+        #[arg(long, default_value = "5")]
+        attic_probe_timeout: u64,
     },
 
     /// Run as the fleet update controller (K8s operator).
@@ -1085,7 +1107,20 @@ async fn main() -> Result<()> {
             attic_server,
             attic_url,
             attic_token_file,
+            attic_probe,
+            attic_unreachable_min_interval,
+            attic_unreachable_max_interval,
+            attic_probe_timeout,
         } => {
+            // The probe is meaningful only when we know where attic
+            // lives. Enable it iff requested AND a URL is present.
+            let reachability = prebuild::ReachabilityOptions {
+                enabled: attic_probe && attic_url.is_some(),
+                url: attic_url.clone().unwrap_or_default(),
+                min_interval: attic_unreachable_min_interval,
+                max_interval: attic_unreachable_max_interval,
+                probe_timeout: attic_probe_timeout,
+            };
             run_prebuild_daemon(
                 config_path,
                 ws_filter,
@@ -1097,6 +1132,7 @@ async fn main() -> Result<()> {
                 attic_server,
                 attic_url,
                 attic_token_file,
+                reachability,
             )
             .await?;
         }
@@ -1593,6 +1629,7 @@ async fn run_prebuild_daemon(
     attic_server: String,
     attic_url: Option<String>,
     attic_token_file: Option<PathBuf>,
+    reachability: prebuild::ReachabilityOptions,
 ) -> Result<()> {
     use std::sync::Arc;
     use tokio::sync::Notify;
@@ -1601,6 +1638,11 @@ async fn run_prebuild_daemon(
     let max = max_interval.max(min);
     let mut interval = min;
     let audit = audit::AuditLog::default_path();
+
+    // Tracks a run of consecutive "attic unreachable" cycles so the
+    // separate unreachable-backoff can double. Reset to 0 whenever the
+    // server is reachable (or probing is disabled).
+    let mut unreachable_streak: u32 = 0;
 
     // Resolve the config path to a concrete file so we can install
     // an inotify-style watcher on it. K8s-controller-style live
@@ -1649,6 +1691,68 @@ async fn run_prebuild_daemon(
     }
 
     loop {
+        // Attic-reachability gate. When probing is enabled and the
+        // server is down, skip the build entirely and back off on the
+        // separate unreachable-backoff ladder — there's no point
+        // producing closures we can't push. When it comes back up we
+        // reset the streak and fall through to a normal cycle.
+        if reachability.enabled {
+            let reachable = prebuild::probe_attic_reachable(
+                &reachability.url,
+                reachability.probe_timeout,
+            )
+            .await;
+            if !reachable {
+                unreachable_streak = unreachable_streak.saturating_add(1);
+                let sleep_secs = reachability.unreachable_sleep(unreachable_streak);
+                // Log the transition INTO the unreachable state once
+                // (first strike), then stay quiet per re-probe.
+                if unreachable_streak == 1 {
+                    if !quiet {
+                        println!(
+                            "prebuild: attic unreachable ({}), backing off {sleep_secs}s",
+                            reachability.url
+                        );
+                    }
+                    audit.log(
+                        "prebuild_attic_unreachable",
+                        serde_json::json!({
+                            "url": reachability.url,
+                            "backoff_secs": sleep_secs,
+                        }),
+                    );
+                }
+                // Honour config-change wakes even while backing off, so
+                // an operator edit doesn't get stuck behind a long
+                // unreachable sleep.
+                tokio::select! {
+                    biased;
+                    () = reload_signal.notified() => {
+                        audit.log(
+                            "prebuild_woken_by_config_change",
+                            serde_json::json!({ "during": "attic_unreachable_backoff" }),
+                        );
+                        interval = min;
+                    }
+                    () = tokio::time::sleep(std::time::Duration::from_secs(sleep_secs)) => {}
+                }
+                continue;
+            } else if unreachable_streak > 0 {
+                // Transition back to reachable — log once, reset both
+                // the streak and the converged interval so we resume
+                // at the floor.
+                if !quiet {
+                    println!("prebuild: attic reachable, resuming");
+                }
+                audit.log(
+                    "prebuild_attic_reachable",
+                    serde_json::json!({ "url": reachability.url }),
+                );
+                unreachable_streak = 0;
+                interval = min;
+            }
+        }
+
         let cycle_start = std::time::Instant::now();
         audit.log(
             "prebuild_cycle_start",

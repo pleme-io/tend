@@ -105,6 +105,101 @@ impl Default for PrebuildOptions {
     }
 }
 
+/// Attic-reachability awareness for the daemon loop.
+///
+/// When the daemon's push target (the Attic server named by
+/// `--attic-url`) is unreachable, building locally is pure waste: we
+/// produce closures we can't ship to the cache the rest of the fleet
+/// reads from. Rather than burn CPU/IO on builds that strand in the
+/// local store, the daemon probes reachability before each cycle and,
+/// when the server is down, enters a *separate* exponential backoff —
+/// distinct from the converged-backoff that governs steady-state idle
+/// polling — sleeping and re-probing without building.
+///
+/// All knobs carry best-default values via [`Default`]; an operator who
+/// sets nothing gets a 60s→1800s doubling probe with a 5s timeout.
+#[derive(Debug, Clone)]
+pub struct ReachabilityOptions {
+    /// When false, the daemon never probes and always builds (legacy
+    /// behavior). Defaults to true *only when an attic URL is present*
+    /// — the wiring in `main.rs` enables it iff `--attic-url` is given.
+    pub enabled: bool,
+    /// The URL probed each cycle (the attic server root, e.g.
+    /// `http://rio:8080/`). Reused from `--attic-url` so there's one
+    /// source of truth for "where attic lives".
+    pub url: String,
+    /// Floor of the unreachable-backoff (seconds). First unreachable
+    /// cycle sleeps this long.
+    pub min_interval: u64,
+    /// Ceiling of the unreachable-backoff (seconds). The doubling
+    /// caps here so a long outage settles into a steady re-probe pace.
+    pub max_interval: u64,
+    /// Per-probe HTTP timeout (seconds). A short timeout keeps a dead
+    /// server from stalling the loop.
+    pub probe_timeout: u64,
+}
+
+impl Default for ReachabilityOptions {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            url: String::new(),
+            min_interval: 60,
+            max_interval: 1800,
+            probe_timeout: 5,
+        }
+    }
+}
+
+impl ReachabilityOptions {
+    /// Compute the next unreachable-backoff sleep given how many cycles
+    /// in a row the server has been unreachable. Pure function: exposed
+    /// for unit testing the doubling/cap behavior without a network.
+    ///
+    /// `consecutive_unreachable` is 1-based: the *first* unreachable
+    /// observation passes `1` and yields `min_interval`; `2` yields
+    /// `2*min`; capped at `max_interval`. A reachable observation never
+    /// calls this — the caller resets to the normal converged loop.
+    #[must_use]
+    pub fn unreachable_sleep(&self, consecutive_unreachable: u32) -> u64 {
+        let min = self.min_interval.max(1);
+        let max = self.max_interval.max(min);
+        // First strike (n=1) → min; each subsequent strike doubles.
+        // Double via saturating_mul so the value (not just the shift
+        // amount) can't overflow on a long outage — `checked_shl`
+        // guards the shift count but silently *wraps* the value, which
+        // would zero out a large product. Cap at `max` each step so we
+        // bail early instead of churning through u32::MAX iterations.
+        let mut scaled = min;
+        for _ in 1..consecutive_unreachable {
+            scaled = scaled.saturating_mul(2);
+            if scaled >= max {
+                return max;
+            }
+        }
+        scaled.min(max)
+    }
+}
+
+/// Probe whether the Attic server at `url` is reachable. A cheap HTTP
+/// GET with a short timeout — any response (even a 4xx/5xx) proves the
+/// server is *up* and answering, which is all we need to decide it's
+/// worth building+pushing. Only a connect/timeout/DNS error counts as
+/// unreachable. Uses the non-optional `reqwest` dep (rustls-tls) so no
+/// new dependency enters the lockfile.
+pub async fn probe_attic_reachable(url: &str, timeout_secs: u64) -> bool {
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(timeout_secs.max(1)))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    // A bare GET to the server root. atticd answers with a redirect or
+    // status page; either way a transport-level success means "up".
+    client.get(url).send().await.is_ok()
+}
+
 #[derive(Debug, Clone)]
 pub struct AtticPush {
     /// Cache name as known by atticd (e.g. `nexus`).
@@ -795,6 +890,53 @@ mod tests {
             attic.token_file,
             PathBuf::from("/run/secrets/tend/attic-jwt-token")
         );
+    }
+
+    #[test]
+    fn reachability_unreachable_sleep_doubles_then_caps() {
+        let opts = ReachabilityOptions {
+            enabled: true,
+            url: "http://rio:8080/".into(),
+            min_interval: 60,
+            max_interval: 1800,
+            probe_timeout: 5,
+        };
+        // 1-based: first strike = min, then doubling.
+        assert_eq!(opts.unreachable_sleep(1), 60);
+        assert_eq!(opts.unreachable_sleep(2), 120);
+        assert_eq!(opts.unreachable_sleep(3), 240);
+        assert_eq!(opts.unreachable_sleep(4), 480);
+        assert_eq!(opts.unreachable_sleep(5), 960);
+        // 6th strike would be 1920 > 1800 → cap.
+        assert_eq!(opts.unreachable_sleep(6), 1800);
+        // Far-future strikes stay capped, never overflow.
+        assert_eq!(opts.unreachable_sleep(40), 1800);
+        assert_eq!(opts.unreachable_sleep(u32::MAX), 1800);
+    }
+
+    #[test]
+    fn reachability_unreachable_sleep_respects_floor_and_min_ge_one() {
+        // Degenerate config: min=0 must clamp to >=1 so we never
+        // busy-spin probing a dead server.
+        let opts = ReachabilityOptions {
+            enabled: true,
+            url: String::new(),
+            min_interval: 0,
+            max_interval: 0,
+            probe_timeout: 0,
+        };
+        // min clamps to 1; max clamps to >= min, so everything is 1.
+        assert_eq!(opts.unreachable_sleep(1), 1);
+        assert_eq!(opts.unreachable_sleep(10), 1);
+    }
+
+    #[test]
+    fn reachability_default_has_best_defaults() {
+        let opts = ReachabilityOptions::default();
+        assert!(!opts.enabled, "off until an attic url is wired");
+        assert_eq!(opts.min_interval, 60);
+        assert_eq!(opts.max_interval, 1800);
+        assert_eq!(opts.probe_timeout, 5);
     }
 
     #[test]
