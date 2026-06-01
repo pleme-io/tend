@@ -1027,7 +1027,7 @@ dependencies = [
 [[package]]
 name = "gen-macros"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/gen#572d0579e56832116a23e87c3ce979c3ccf6a509"
+source = "git+https://github.com/pleme-io/gen#213b137b300fa39f4a9c86406342389474883c3f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1037,7 +1037,7 @@ dependencies = [
 [[package]]
 name = "gen-platform"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/gen#572d0579e56832116a23e87c3ce979c3ccf6a509"
+source = "git+https://github.com/pleme-io/gen#213b137b300fa39f4a9c86406342389474883c3f"
 dependencies = [
  "gen-macros",
  "gen-types",
@@ -1050,7 +1050,7 @@ dependencies = [
 [[package]]
 name = "gen-types"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/gen#572d0579e56832116a23e87c3ce979c3ccf6a509"
+source = "git+https://github.com/pleme-io/gen#213b137b300fa39f4a9c86406342389474883c3f"
 dependencies = [
  "blake3",
  "chrono",
@@ -1301,7 +1301,7 @@ dependencies = [
  "hyper-util",
  "log",
  "rustls",
- "rustls-native-certs 0.8.3",
+ "rustls-native-certs 0.8.4",
  "tokio",
  "tokio-rustls",
  "tower-service",
@@ -1660,9 +1660,9 @@ dependencies = [
 
 [[package]]
 name = "kqueue"
-version = "1.1.1"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eac30106d7dce88daf4a3fcb4879ea939476d5074a9b7ddd0fb97fa4bed5596a"
+checksum = "273c0752728918e0ac4976f2b275b6fefb9ecd400585dec929419f3844cd87b5"
 dependencies = [
  "kqueue-sys",
  "libc",
@@ -2024,7 +2024,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 [[package]]
 name = "opencode-zen"
 version = "0.1.1"
-source = "git+https://github.com/pleme-io/opencode-zen#5a2a3bef10fc2e1801d4794d66da4d5be448e892"
+source = "git+https://github.com/pleme-io/opencode-zen#a7fb3fe43781aef0b07f00c7096569cbcdd41bc8"
 dependencies = [
  "reqwest",
  "serde",
@@ -2271,7 +2271,7 @@ checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -2754,9 +2754,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-native-certs"
-version = "0.8.3"
+version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "612460d5f7bea540c490b2b6395d8e34a953e52b491accd6c86c8164c5932a63"
+checksum = "dab5152771c58876a2146916e53e35057e1a4dfa2b9df0f0305b07f611fdea4d"
 dependencies = [
  "openssl-probe 0.2.1",
  "rustls-pki-types",
@@ -2820,7 +2820,7 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 [[package]]
 name = "samba"
 version = "0.1.1"
-source = "git+https://github.com/pleme-io/samba#1861a345f1adf546aa12e20e555b032ef4155feb"
+source = "git+https://github.com/pleme-io/samba#57dd1788a7010fa78aa23a847a865fcfcd7d7b52"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -3199,7 +3199,7 @@ dependencies = [
 [[package]]
 name = "shikumi"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/shikumi#9161fde44527ec6572640d8a77f6919583f6b342"
+source = "git+https://github.com/pleme-io/shikumi#b727d74b43615bcd0e8da9f2062e3c01648d1fe4"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -3488,7 +3488,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 [[package]]
 name = "todoku"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/todoku#92c747dbeaf03d81c94d2044d181d1adff7ed2a9"
+source = "git+https://github.com/pleme-io/todoku#549e2d40b0a4e83e9583e7a3a9398364d767dfdb"
 dependencies = [
  "async-trait",
  "reqwest",
@@ -3575,7 +3575,7 @@ dependencies = [
  "httparse",
  "rand 0.8.6",
  "ring",
- "rustls-native-certs 0.8.3",
+ "rustls-native-certs 0.8.4",
  "rustls-pki-types",
  "tokio",
  "tokio-rustls",
@@ -3772,7 +3772,7 @@ dependencies = [
 [[package]]
 name = "tsunagu"
 version = "0.1.1"
-source = "git+https://github.com/pleme-io/tsunagu#c29a385ef35aa59c596cda9f95e512a99d43f451"
+source = "git+https://github.com/pleme-io/tsunagu#334f2aa407214175b99f4e9845ec9b998fa1f3bf"
 dependencies = [
  "dirs",
  "serde",
