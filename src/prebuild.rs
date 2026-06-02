@@ -389,6 +389,9 @@ pub async fn run_cycle(
     // shared across many repos/packages is pushed to each cache at most
     // once — keeps network + atticd load proportional to *new* closure.
     let dedup: Arc<Mutex<ClosureDedup>> = Arc::new(Mutex::new(ClosureDedup::new()));
+    // The effectful seam (real nix/attic/git). `Arc<dyn CacheFillEnv>` is
+    // Send+Sync because the trait is, so it crosses spawn_blocking fine.
+    let env_arc: Arc<dyn prebuild_cache::CacheFillEnv> = Arc::new(prebuild_cache::RealEnv);
 
     // Snapshot the full repo list up front so the iteration doesn't
     // straddle the await boundary with a borrow of `cfg`.
@@ -429,6 +432,7 @@ pub async fn run_cycle(
         let opts = Arc::clone(&opts_arc);
         let caches = Arc::clone(&caches_arc);
         let dedup = Arc::clone(&dedup);
+        let env = Arc::clone(&env_arc);
         let seen_path = seen_path.clone();
 
         tasks.spawn(async move {
@@ -454,9 +458,11 @@ pub async fn run_cycle(
             let opts_for_task = Arc::clone(&opts);
             let caches_for_task = Arc::clone(&caches);
             let dedup_for_task = Arc::clone(&dedup);
+            let env_for_task = Arc::clone(&env);
             let repo_for_task = repo.clone();
             let blocking = tokio::task::spawn_blocking(move || {
                 prebuild_one(
+                    &*env_for_task,
                     &repo_for_task,
                     prev_rev.as_deref(),
                     &opts_for_task,
@@ -546,6 +552,7 @@ pub async fn run_cycle(
 /// shared cache so this function is trivially callable from inside a
 /// `spawn_blocking` closure.
 pub(crate) fn prebuild_one(
+    env: &dyn prebuild_cache::CacheFillEnv,
     repo: &Path,
     prev_rev: Option<&str>,
     opts: &PrebuildOptions,
@@ -553,7 +560,7 @@ pub(crate) fn prebuild_one(
     dedup: &Mutex<ClosureDedup>,
     audit: &AuditLog,
 ) -> Result<BuildOutcome> {
-    let rev = git_head_rev(repo)?;
+    let rev = env.git_head_rev(repo)?;
     let key = repo.display().to_string();
     if prev_rev == Some(rev.as_str()) {
         return Ok(BuildOutcome::NoChange);
@@ -570,7 +577,7 @@ pub(crate) fn prebuild_one(
     let installables: Vec<String> = match &opts.selector {
         PackageSelector::Default => vec![".".to_string()],
         sel => {
-            let json = match prebuild_cache::run_flake_show(repo) {
+            let json = match env.flake_show(repo) {
                 Ok(j) => j,
                 Err(e) => {
                     // A flake that can't even `flake show` is a non-build
@@ -595,7 +602,7 @@ pub(crate) fn prebuild_one(
     let mut any_built = false;
 
     for installable in &installables {
-        let out = prebuild_cache::nix_build_installable(repo, installable)?;
+        let out = env.build(repo, installable)?;
         if out.is_empty() {
             // Selected attr absent here (e.g. a Named output a given repo
             // lacks) — soft skip this installable, keep going.
@@ -604,26 +611,37 @@ pub(crate) fn prebuild_one(
         any_built = true;
 
         // Anti-poison gate (2026-06-02 incident): never push a
-        // non-reproducible closure to a substitution-source cache. Build
-        // and compare; on mismatch, keep the local artifact but withhold
-        // the push so the fleet never substitutes an SVH-fragile build.
-        if !caches.is_empty()
-            && opts.repro.verifies()
-            && !prebuild_cache::verify_deterministic(repo, installable)
-        {
-            audit.log(
-                "prebuild_nonreproducible_withheld",
-                serde_json::json!({ "repo": key, "installable": installable }),
-            );
-            if !opts.quiet {
-                eprintln!("[prebuild] {key}: {installable} non-reproducible — built, push withheld");
+        // non-reproducible closure to a substitution-source cache. The
+        // gate is closure-deep — it `--check`s every locally-built
+        // derivation in this installable's pushed closure (substituted
+        // paths are skipped, trusted-by-origin) and withholds the WHOLE
+        // installable unless ALL are provably reproducible. On withhold,
+        // keep the local artifact but skip the push so the fleet never
+        // substitutes an SVH-fragile build. `verifies()` short-circuits
+        // BEFORE `verify_closure` so Trusting never pays the cost.
+        if !caches.is_empty() && opts.repro.verifies() {
+            let outcome = env.verify_closure(repo, &out);
+            if outcome != prebuild_cache::DeterminismOutcome::Reproducible {
+                audit.log(
+                    "prebuild_nonreproducible_withheld",
+                    serde_json::json!({
+                        "repo": key,
+                        "installable": installable,
+                        "outcome": format!("{outcome:?}"),
+                    }),
+                );
+                if !opts.quiet {
+                    eprintln!(
+                        "[prebuild] {key}: {installable} not provably reproducible ({outcome:?}) — built, push withheld"
+                    );
+                }
+                all_out_paths.extend(out);
+                continue;
             }
-            all_out_paths.extend(out);
-            continue;
         }
 
         for path in &out {
-            pushed += prebuild_cache::push_path_to_caches(caches, path, dedup);
+            pushed += prebuild_cache::push_path_to_caches(env, caches, path, dedup);
         }
         all_out_paths.extend(out);
     }
@@ -743,7 +761,141 @@ pub(crate) fn missing_default_attribute(stderr: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::Workspace;
+    use crate::prebuild_cache::DeterminismOutcome;
+    use std::collections::HashMap;
     use std::fs;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// A no-real-I/O [`prebuild_cache::CacheFillEnv`] for the WS3 truth
+    /// tables. Every method is programmable; nothing touches nix, git,
+    /// attic, or the network — so these tests run anywhere.
+    struct MockCacheFillEnv {
+        /// Returned by `git_head_rev`.
+        head: String,
+        /// Returned by `flake_show` (the json) or an Err if `None`.
+        flake_show: std::result::Result<String, String>,
+        /// Per-installable `build` results. Default below when absent.
+        builds: HashMap<String, std::result::Result<Vec<String>, String>>,
+        /// Default `build` result for installables not in `builds`.
+        default_build: std::result::Result<Vec<String>, String>,
+        /// Per-installable verify outcome; default `verify_default`.
+        verifies: HashMap<String, DeterminismOutcome>,
+        verify_default: DeterminismOutcome,
+        /// Interior call counter — proves `verify_closure` was/wasn't run.
+        verify_calls: AtomicUsize,
+        /// Recorded `(cache, path)` pushes.
+        pushes: Mutex<Vec<(String, String)>>,
+        /// A cache name that `attic_push` programmatically fails for.
+        fail_push_cache: Option<String>,
+    }
+
+    impl MockCacheFillEnv {
+        fn new() -> Self {
+            Self {
+                head: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef".to_string(),
+                flake_show: Ok(r#"{"packages":{}}"#.to_string()),
+                builds: HashMap::new(),
+                default_build: Ok(vec!["/nix/store/hash-default".to_string()]),
+                verifies: HashMap::new(),
+                verify_default: DeterminismOutcome::Reproducible,
+                verify_calls: AtomicUsize::new(0),
+                pushes: Mutex::new(Vec::new()),
+                fail_push_cache: None,
+            }
+        }
+
+        fn with_verify_default(mut self, o: DeterminismOutcome) -> Self {
+            self.verify_default = o;
+            self
+        }
+
+        fn with_build(
+            mut self,
+            installable: &str,
+            r: std::result::Result<Vec<String>, String>,
+        ) -> Self {
+            self.builds.insert(installable.to_string(), r);
+            self
+        }
+
+        fn with_verify(mut self, installable: &str, o: DeterminismOutcome) -> Self {
+            self.verifies.insert(installable.to_string(), o);
+            self
+        }
+
+        fn with_flake_show(mut self, json: &str) -> Self {
+            self.flake_show = Ok(json.to_string());
+            self
+        }
+
+        fn with_push_failure(mut self, cache: &str) -> Self {
+            self.fail_push_cache = Some(cache.to_string());
+            self
+        }
+
+        fn pushes(&self) -> Vec<(String, String)> {
+            self.pushes.lock().expect("pushes mutex poisoned").clone()
+        }
+
+        fn verify_call_count(&self) -> usize {
+            self.verify_calls.load(Ordering::SeqCst)
+        }
+    }
+
+    impl prebuild_cache::CacheFillEnv for MockCacheFillEnv {
+        fn git_head_rev(&self, _repo: &Path) -> Result<String> {
+            Ok(self.head.clone())
+        }
+
+        fn flake_show(&self, _repo: &Path) -> Result<String> {
+            self.flake_show
+                .clone()
+                .map_err(|e| anyhow::anyhow!("mock flake_show err: {e}"))
+        }
+
+        fn build(&self, _repo: &Path, installable: &str) -> Result<Vec<String>> {
+            let r = self.builds.get(installable).unwrap_or(&self.default_build);
+            r.clone().map_err(|e| anyhow::anyhow!("mock build err: {e}"))
+        }
+
+        fn verify_closure(&self, _repo: &Path, _out_paths: &[String]) -> DeterminismOutcome {
+            self.verify_calls.fetch_add(1, Ordering::SeqCst);
+            // verify is modeled PER-INSTALLABLE in prebuild (the gate
+            // runs once per installable's closure). The mock keys verify
+            // outcomes off the out-path so a test can give one installable
+            // a Reproducible result and another NonReproducible without
+            // implying any transitive verification across installables.
+            for p in _out_paths {
+                if let Some(o) = self.verifies.get(p) {
+                    return o.clone();
+                }
+            }
+            self.verify_default.clone()
+        }
+
+        fn attic_push(&self, cache: &str, path: &str) -> Result<()> {
+            if self.fail_push_cache.as_deref() == Some(cache) {
+                anyhow::bail!("mock programmed push failure for cache {cache}");
+            }
+            self.pushes
+                .lock()
+                .expect("pushes mutex poisoned")
+                .push((cache.to_string(), path.to_string()));
+            Ok(())
+        }
+    }
+
+    /// One usable cache target for the WS3 push tests.
+    fn usable_cache(name: &str) -> CacheTarget {
+        CacheTarget {
+            cache_name: name.to_string(),
+            server_name: name.to_string(),
+            server_url: "http://rio:8080/".to_string(),
+            token_file: "/run/secrets/tend/jwt".to_string(),
+            enabled: true,
+        }
+    }
 
     fn tmpdir() -> PathBuf {
         let p = std::env::temp_dir().join(format!(
@@ -1101,7 +1253,9 @@ mod tests {
         // NoChange without ever invoking nix build (so no flake.nix is
         // required for the test).
         let dedup = Mutex::new(ClosureDedup::new());
-        let outcome = prebuild_one(&dir, Some(&rev), &opts, &[], &dedup, &audit).unwrap();
+        let outcome =
+            prebuild_one(&prebuild_cache::RealEnv, &dir, Some(&rev), &opts, &[], &dedup, &audit)
+                .unwrap();
         assert_eq!(outcome, BuildOutcome::NoChange);
         let _ = fs::remove_dir_all(&dir);
     }
@@ -1126,7 +1280,8 @@ mod tests {
         let audit = AuditLog::default_path();
         // prev_rev is None → mismatch, build will be attempted, will fail.
         let dedup = Mutex::new(ClosureDedup::new());
-        let outcome = prebuild_one(&dir, None, &opts, &[], &dedup, &audit);
+        let outcome =
+            prebuild_one(&prebuild_cache::RealEnv, &dir, None, &opts, &[], &dedup, &audit);
         // Either NoDefault (preferred) or an Err containing the nix
         // failure — both are acceptable signals that the non-flake
         // repo wasn't silently treated as Built.
@@ -1141,5 +1296,422 @@ mod tests {
             Err(_) => {} // nix may emit a phrasing we don't classify
         }
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ── WS3: prebuild_one + push_path_to_caches via MockCacheFillEnv ──
+    // No nix / git / attic / network. The mock's HEAD is "deadbeef…";
+    // passing prev_rev=Some("old") forces the build path. Selector
+    // Default builds installable ".".
+
+    /// Build VerifyBeforePush options with the given caches.
+    fn verify_opts(caches: Vec<CacheTarget>) -> PrebuildOptions {
+        PrebuildOptions {
+            quiet: true,
+            caches,
+            repro: ReproPolicy::VerifyBeforePush,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn prebuild_one_withholds_push_on_nonreproducible_but_keeps_artifact() {
+        // (a) VerifyBeforePush + non-empty caches + verify→NonReproducible.
+        let env = MockCacheFillEnv::new()
+            .with_verify_default(DeterminismOutcome::NonReproducible {
+                path: Some("/nix/store/poison".into()),
+            });
+        let opts = verify_opts(vec![usable_cache("nexus")]);
+        let caches = opts.effective_caches();
+        let dedup = Mutex::new(ClosureDedup::new());
+        let audit = AuditLog::default_path();
+        let outcome = prebuild_one(
+            &env,
+            Path::new("/tmp/repo"),
+            Some("oldrev"),
+            &opts,
+            &caches,
+            &dedup,
+            &audit,
+        )
+        .unwrap();
+        // Built — the local artifact is kept even when the push is withheld.
+        match outcome {
+            BuildOutcome::Built { out_paths, pushed } => {
+                assert_eq!(pushed, 0, "non-reproducible → nothing pushed");
+                assert!(!out_paths.is_empty(), "artifact kept locally");
+            }
+            other => panic!("expected Built, got {other:?}"),
+        }
+        // The withheld path: verify ran once, nothing reached attic.
+        assert_eq!(env.verify_call_count(), 1);
+        assert!(env.pushes().is_empty(), "withheld → no attic_push");
+    }
+
+    #[test]
+    fn prebuild_one_pushes_when_reproducible() {
+        // (b) verify→Reproducible ⇒ pushed==1, pushes()==[(cache,path)].
+        let env = MockCacheFillEnv::new(); // default verify = Reproducible
+        let opts = verify_opts(vec![usable_cache("nexus")]);
+        let caches = opts.effective_caches();
+        let dedup = Mutex::new(ClosureDedup::new());
+        let audit = AuditLog::default_path();
+        let outcome = prebuild_one(
+            &env,
+            Path::new("/tmp/repo"),
+            Some("oldrev"),
+            &opts,
+            &caches,
+            &dedup,
+            &audit,
+        )
+        .unwrap();
+        assert_eq!(
+            outcome,
+            BuildOutcome::Built {
+                out_paths: vec!["/nix/store/hash-default".into()],
+                pushed: 1,
+            }
+        );
+        assert_eq!(env.verify_call_count(), 1);
+        assert_eq!(
+            env.pushes(),
+            vec![("nexus".to_string(), "/nix/store/hash-default".to_string())]
+        );
+    }
+
+    #[test]
+    fn prebuild_one_trusting_never_verifies_or_withholds() {
+        // (c) Trusting + non-empty caches ⇒ verify_call_count()==0 AND
+        // pushed==1. Trusting must short-circuit BEFORE verify_closure.
+        let env = MockCacheFillEnv::new()
+            // Even if verify WERE called it'd say NonReproducible — proving
+            // Trusting never calls it (else this would withhold).
+            .with_verify_default(DeterminismOutcome::NonReproducible { path: None });
+        let opts = PrebuildOptions {
+            quiet: true,
+            caches: vec![usable_cache("nexus")],
+            repro: ReproPolicy::Trusting,
+            ..Default::default()
+        };
+        let caches = opts.effective_caches();
+        let dedup = Mutex::new(ClosureDedup::new());
+        let audit = AuditLog::default_path();
+        let outcome = prebuild_one(
+            &env,
+            Path::new("/tmp/repo"),
+            Some("oldrev"),
+            &opts,
+            &caches,
+            &dedup,
+            &audit,
+        )
+        .unwrap();
+        assert_eq!(env.verify_call_count(), 0, "Trusting must not verify");
+        match outcome {
+            BuildOutcome::Built { pushed, .. } => assert_eq!(pushed, 1),
+            other => panic!("expected Built, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn prebuild_one_empty_caches_never_verifies_or_pushes() {
+        // (d) empty caches + VerifyBeforePush ⇒ verify_call_count()==0
+        // and pushed==0 (no caches → nothing to gate or push).
+        let env = MockCacheFillEnv::new();
+        let opts = verify_opts(vec![]); // no caches
+        let caches = opts.effective_caches();
+        assert!(caches.is_empty());
+        let dedup = Mutex::new(ClosureDedup::new());
+        let audit = AuditLog::default_path();
+        let outcome = prebuild_one(
+            &env,
+            Path::new("/tmp/repo"),
+            Some("oldrev"),
+            &opts,
+            &caches,
+            &dedup,
+            &audit,
+        )
+        .unwrap();
+        assert_eq!(env.verify_call_count(), 0, "no caches → no verify");
+        match outcome {
+            BuildOutcome::Built { pushed, .. } => assert_eq!(pushed, 0),
+            other => panic!("expected Built, got {other:?}"),
+        }
+        assert!(env.pushes().is_empty());
+    }
+
+    #[test]
+    fn push_path_to_caches_fans_out_dedups_and_never_aborts() {
+        let env = MockCacheFillEnv::new();
+        let targets = vec![
+            usable_cache("a"),
+            usable_cache("b"),
+            // disabled → never reaches attic_push.
+            CacheTarget { enabled: false, ..usable_cache("c") },
+            // half-specified → unusable → never reaches attic_push.
+            CacheTarget { token_file: String::new(), ..usable_cache("d") },
+        ];
+        let dedup = Mutex::new(ClosureDedup::new());
+        // First call: one path → 2 usable caches, pushed once each.
+        let n = prebuild_cache::push_path_to_caches(&env, &targets, "/nix/store/p", &dedup);
+        assert_eq!(n, 2, "two usable caches");
+        assert_eq!(env.pushes().len(), 2, "disabled/half-spec never pushed");
+        // Second call, SAME path + SAME dedup → 0 (already claimed).
+        let n2 = prebuild_cache::push_path_to_caches(&env, &targets, "/nix/store/p", &dedup);
+        assert_eq!(n2, 0, "dedup blocks the repeat");
+        assert_eq!(env.pushes().len(), 2, "no extra pushes on repeat");
+    }
+
+    #[test]
+    fn push_path_to_caches_per_cache_failure_does_not_abort_fanout() {
+        // [good, broken] and [broken, good] both attempt BOTH and return
+        // the usable-count minus the failing push — pins non-aborting
+        // continue.
+        for order in [["good", "broken"], ["broken", "good"]] {
+            let env = MockCacheFillEnv::new().with_push_failure("broken");
+            let targets = vec![usable_cache(order[0]), usable_cache(order[1])];
+            let dedup = Mutex::new(ClosureDedup::new());
+            let n = prebuild_cache::push_path_to_caches(&env, &targets, "/nix/store/p", &dedup);
+            assert_eq!(n, 1, "only the good cache counts as success");
+            // The good cache was pushed; the broken one was attempted
+            // (claimed under dedup) but errored — exactly one recorded push.
+            let pushes = env.pushes();
+            assert_eq!(pushes.len(), 1, "only the good push recorded");
+            assert_eq!(pushes[0].0, "good");
+        }
+    }
+
+    #[test]
+    fn prebuild_one_multi_package_soft_skip_and_per_installable_gate() {
+        // Selector Named(["present","absent"]); flake_show exposes both.
+        // build("absent")→Ok(empty) soft-skips; build("present")→Ok(["p"]).
+        let flake_json = r#"{"packages":{"host":{"present":{},"absent":{}}}}"#;
+        let present = ".#packages.host.present";
+        let absent = ".#packages.host.absent";
+        let env = MockCacheFillEnv::new()
+            .with_flake_show(flake_json)
+            .with_build(present, Ok(vec!["/nix/store/p".into()]))
+            .with_build(absent, Ok(vec![]));
+        let opts = PrebuildOptions {
+            quiet: true,
+            caches: vec![usable_cache("nexus")],
+            repro: ReproPolicy::VerifyBeforePush,
+            selector: PackageSelector::Named(vec!["present".into(), "absent".into()]),
+            systems: vec!["host".into()],
+            ..Default::default()
+        };
+        let caches = opts.effective_caches();
+        let dedup = Mutex::new(ClosureDedup::new());
+        let audit = AuditLog::default_path();
+        let outcome = prebuild_one(
+            &env,
+            Path::new("/tmp/repo"),
+            Some("oldrev"),
+            &opts,
+            &caches,
+            &dedup,
+            &audit,
+        )
+        .unwrap();
+        match outcome {
+            BuildOutcome::Built { out_paths, pushed } => {
+                assert_eq!(out_paths, vec!["/nix/store/p".to_string()], "only the present path");
+                assert_eq!(pushed, 1);
+            }
+            other => panic!("expected Built, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn prebuild_one_mixed_repro_withholds_only_flaky_keeps_both_local() {
+        // present(verify→Reproducible) + flaky(verify→NonReproducible)
+        // both build non-empty ⇒ Built, pushes() contains present only,
+        // all_out_paths includes BOTH (withheld keeps local).
+        // NOTE: verify is modeled PER-INSTALLABLE in the mock (keyed off
+        // the out-path) — matching prebuild's per-installable gate. The
+        // mock does NOT imply transitive verification across installables.
+        let flake_json = r#"{"packages":{"host":{"present":{},"flaky":{}}}}"#;
+        let present = ".#packages.host.present";
+        let flaky = ".#packages.host.flaky";
+        let env = MockCacheFillEnv::new()
+            .with_flake_show(flake_json)
+            .with_build(present, Ok(vec!["/nix/store/present".into()]))
+            .with_build(flaky, Ok(vec!["/nix/store/flaky".into()]))
+            .with_verify("/nix/store/present", DeterminismOutcome::Reproducible)
+            .with_verify(
+                "/nix/store/flaky",
+                DeterminismOutcome::NonReproducible { path: Some("/nix/store/flaky".into()) },
+            );
+        let opts = PrebuildOptions {
+            quiet: true,
+            caches: vec![usable_cache("nexus")],
+            repro: ReproPolicy::VerifyBeforePush,
+            selector: PackageSelector::Named(vec!["present".into(), "flaky".into()]),
+            systems: vec!["host".into()],
+            ..Default::default()
+        };
+        let caches = opts.effective_caches();
+        let dedup = Mutex::new(ClosureDedup::new());
+        let audit = AuditLog::default_path();
+        let outcome = prebuild_one(
+            &env,
+            Path::new("/tmp/repo"),
+            Some("oldrev"),
+            &opts,
+            &caches,
+            &dedup,
+            &audit,
+        )
+        .unwrap();
+        match outcome {
+            BuildOutcome::Built { out_paths, pushed } => {
+                assert_eq!(pushed, 1, "only the reproducible one pushed");
+                // Both artifacts kept locally (withheld keeps local).
+                assert!(out_paths.contains(&"/nix/store/present".to_string()));
+                assert!(out_paths.contains(&"/nix/store/flaky".to_string()));
+            }
+            other => panic!("expected Built, got {other:?}"),
+        }
+        assert_eq!(
+            env.pushes(),
+            vec![("nexus".to_string(), "/nix/store/present".to_string())],
+            "only the reproducible installable reached attic"
+        );
+    }
+
+    // ── WS4: pure PrebuildOptions methods (no seam, no nix host) ──────
+
+    #[test]
+    fn effective_caches_promotes_legacy_attic_when_no_explicit_caches() {
+        let opts = PrebuildOptions {
+            attic: Some(AtticPush {
+                cache_name: "nexus".into(),
+                server_name: "nexus".into(),
+                server_url: "http://rio:8080/".into(),
+                token_file: PathBuf::from("/run/secrets/tend/jwt"),
+            }),
+            caches: vec![],
+            ..Default::default()
+        };
+        let eff = opts.effective_caches();
+        assert_eq!(eff.len(), 1, "legacy attic promoted to one element");
+        assert_eq!(eff[0].cache_name, "nexus");
+        assert_eq!(eff[0].server_url, "http://rio:8080/");
+        assert_eq!(eff[0].token_file, "/run/secrets/tend/jwt");
+        assert!(eff[0].is_usable());
+    }
+
+    #[test]
+    fn effective_caches_explicit_list_wins_over_legacy_attic() {
+        let opts = PrebuildOptions {
+            attic: Some(AtticPush {
+                cache_name: "legacy".into(),
+                server_name: "legacy".into(),
+                server_url: "http://rio:8080/".into(),
+                token_file: PathBuf::from("/run/secrets/tend/jwt"),
+            }),
+            caches: vec![usable_cache("explicit")],
+            ..Default::default()
+        };
+        let eff = opts.effective_caches();
+        assert_eq!(eff.len(), 1);
+        assert_eq!(eff[0].cache_name, "explicit", "explicit caches win");
+    }
+
+    #[test]
+    fn effective_caches_retains_only_usable_from_explicit_list() {
+        let opts = PrebuildOptions {
+            caches: vec![
+                usable_cache("good"),
+                CacheTarget { enabled: false, ..usable_cache("disabled") },
+            ],
+            ..Default::default()
+        };
+        let eff = opts.effective_caches();
+        assert_eq!(eff.len(), 1, "disabled dropped by retain(is_usable)");
+        assert_eq!(eff[0].cache_name, "good");
+    }
+
+    #[test]
+    fn effective_caches_empty_when_no_attic_and_no_caches() {
+        let opts = PrebuildOptions { attic: None, caches: vec![], ..Default::default() };
+        assert!(opts.effective_caches().is_empty());
+    }
+
+    /// A Config whose Nth workspace carries the given PrebuildConfig.
+    fn config_with_prebuild_on(idx: usize, total: usize, pc: crate::config::PrebuildConfig) -> Config {
+        let workspaces = (0..total)
+            .map(|i| {
+                let mut ws = Workspace::test_default(&format!("ws{i}"));
+                if i == idx {
+                    ws.prebuild = Some(pc.clone());
+                }
+                ws
+            })
+            .collect();
+        Config { workspaces }
+    }
+
+    #[test]
+    fn with_fill_from_config_reads_first_declaring_workspace_not_index_zero() {
+        // Prebuild block on the SECOND workspace (first has None). find_map
+        // must pick it — a [0]-indexed regression would miss it entirely.
+        let pc = crate::config::PrebuildConfig {
+            packages: "mado,tear".into(),
+            systems: vec!["aarch64-darwin".into()],
+            repro: "verify".into(),
+            ..Default::default()
+        };
+        let cfg = config_with_prebuild_on(1, 2, pc);
+        let out = PrebuildOptions::default().with_fill_from_config(&cfg);
+        assert_eq!(
+            out.selector,
+            PackageSelector::Named(vec!["mado".into(), "tear".into()])
+        );
+        assert_eq!(out.systems, vec!["aarch64-darwin".to_string()]);
+        assert!(out.repro.verifies());
+    }
+
+    #[test]
+    fn with_fill_from_config_empty_caches_preserve_cli_caches_but_apply_rest() {
+        // The prebuild block sets selector/systems/repro but has an EMPTY
+        // caches list — the narrow guard must NOT clobber the CLI caches,
+        // yet must still apply selector/systems/repro.
+        let pc = crate::config::PrebuildConfig {
+            packages: "all".into(),
+            systems: vec!["x86_64-linux".into()],
+            repro: "verify".into(),
+            caches: vec![], // empty
+            ..Default::default()
+        };
+        let cfg = config_with_prebuild_on(0, 1, pc);
+        let cli = PrebuildOptions {
+            caches: vec![usable_cache("cli-cache")],
+            ..Default::default()
+        };
+        let out = cli.with_fill_from_config(&cfg);
+        assert_eq!(out.caches.len(), 1, "CLI caches preserved");
+        assert_eq!(out.caches[0].cache_name, "cli-cache");
+        assert_eq!(out.selector, PackageSelector::All);
+        assert_eq!(out.systems, vec!["x86_64-linux".to_string()]);
+        assert!(out.repro.verifies());
+    }
+
+    #[test]
+    fn with_fill_from_config_no_prebuild_block_is_identity() {
+        let cfg = Config {
+            workspaces: vec![Workspace::test_default("ws0"), Workspace::test_default("ws1")],
+        };
+        let cli = PrebuildOptions {
+            caches: vec![usable_cache("cli-cache")],
+            selector: PackageSelector::Default,
+            ..Default::default()
+        };
+        let out = cli.clone().with_fill_from_config(&cfg);
+        assert_eq!(out.caches.len(), 1);
+        assert_eq!(out.caches[0].cache_name, "cli-cache");
+        assert_eq!(out.selector, PackageSelector::Default);
+        assert!(!out.repro.verifies(), "Trusting preserved (identity)");
     }
 }

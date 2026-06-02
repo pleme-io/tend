@@ -24,12 +24,20 @@
 //! 3. **Reproducibility gate — never amplify cache poison.** The
 //!    2026-06-02 incident proved that pushing non-reproducible artifacts
 //!    (the derive_deftly / wasmtime / cranelift SVH-fragile closures)
-//!    poisons the cache for the whole fleet. [`ReproPolicy`] lets the
-//!    fill loop *verify determinism before pushing* — build-and-compare
-//!    via `nix build --rebuild` — so the cache-filler becomes the thing
-//!    that keeps the cache CONSISTENT rather than the thing that breaks
-//!    it. Off by default (it doubles build cost); on for any cache the
-//!    fleet trusts for substitution.
+//!    poisons the cache for the whole fleet. The poison lived in an
+//!    *intermediate* proc-macro `.rustc` crate-SVH — never in the
+//!    top-level output — so the gate has to be **closure-deep**:
+//!    [`ReproPolicy::VerifyBeforePush`] makes the fill loop
+//!    `nix-store --realise --check` EVERY locally-built derivation in
+//!    the pushed closure (skipping substituted / unknown-deriver paths,
+//!    which were verified by whoever built them), classify each result
+//!    with [`classify_determinism`], and withhold the WHOLE leaf unless
+//!    ALL are provably [`DeterminismOutcome::Reproducible`]
+//!    ([`aggregate_closure_determinism`]). So the cache-filler becomes
+//!    the thing that keeps the cache CONSISTENT rather than the thing
+//!    that breaks it. Off by default — it rebuilds the locally-built
+//!    closure, which is expensive; on for any cache the fleet trusts for
+//!    substitution.
 
 use serde::Deserialize;
 use std::collections::HashSet;
@@ -263,9 +271,16 @@ pub enum ReproPolicy {
     /// Push whatever was built. Fast, but a non-reproducible build
     /// poisons the cache for the fleet (the 2026-06-02 incident).
     Trusting,
-    /// Before pushing, `nix build --rebuild` the closure; push only if
-    /// the rebuild is byte-identical. Doubles build cost; the price of a
-    /// cache the fleet can safely substitute from.
+    /// Before pushing, `--check` every *locally-built* derivation in the
+    /// pushed closure (substituted / unknown-deriver paths are skipped —
+    /// they were verified by whoever originally built them) and push only
+    /// when ALL of them are provably reproducible. This is genuinely
+    /// closure-deep: it catches the intermediate proc-macro SVH that
+    /// poisoned the cache in the 2026-06-02 incident, which a top-level
+    /// `nix build --rebuild` would have missed (nix reuses already-built
+    /// dependency crates as-valid and never re-checks them). The cost is
+    /// honest — it rebuilds the locally-built closure — so it's opt-in,
+    /// for any cache the fleet trusts as a substitution source.
     VerifyBeforePush,
 }
 
@@ -281,6 +296,119 @@ impl ReproPolicy {
     #[must_use]
     pub fn verifies(self) -> bool {
         matches!(self, Self::VerifyBeforePush)
+    }
+}
+
+/// The typed result of `--check`ing ONE locally-built derivation, and —
+/// after [`aggregate_closure_determinism`] — of the whole pushed closure.
+/// Replaces the old `bool` so the fill loop can distinguish "proven
+/// reproducible" from "proven non-reproducible" from "couldn't prove
+/// either way" — the last two both withhold the push, but for different
+/// reasons the audit log records faithfully.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeterminismOutcome {
+    /// The `--check` rebuild matched the resident output byte-for-byte.
+    /// Safe to push.
+    Reproducible,
+    /// nix reported the build "may not be deterministic" — the poison
+    /// class. `path` is the differing output path when nix names it.
+    NonReproducible { path: Option<String> },
+    /// The derivation isn't resident / was substituted, so `--check`
+    /// can't run on it. Not a failure — someone else built+verified it;
+    /// we simply have nothing to prove here. `reason` is the tail of
+    /// nix's message for the audit trail.
+    Uncheckable { reason: String },
+    /// nix exited nonzero for some reason we don't classify. Conservative:
+    /// an unknown failure must withhold, never push on a maybe. `stderr_tail`
+    /// is the tail of the message for the audit trail.
+    Inconclusive { stderr_tail: String },
+}
+
+/// Tail of `s` (last `n` chars), trimmed. Used to keep audit-trail
+/// reasons bounded without dragging a whole nix stderr into the log.
+fn tail_trimmed(s: &str, n: usize) -> String {
+    let t = s.trim();
+    if t.chars().count() <= n {
+        return t.to_string();
+    }
+    let start = t.chars().count() - n;
+    t.chars().skip(start).collect::<String>().trim().to_string()
+}
+
+/// Extract the differing output path from a nix `--check` failure, i.e.
+/// the `<path>` in `output '<path>' differs`. Returns `None` when nix
+/// names no path (older phrasings just say "may not be deterministic").
+fn extract_differs_path(stderr: &str) -> Option<String> {
+    let marker = "output '";
+    let start = stderr.find(marker)? + marker.len();
+    let rest = &stderr[start..];
+    let end = rest.find('\'')?;
+    Some(rest[..end].to_string())
+}
+
+/// Pure classifier of ONE `nix-store --realise --check <drv>` result into
+/// a [`DeterminismOutcome`]. No I/O — the caller runs nix and hands the
+/// (success, stderr) pair here so this stays unit-testable without a
+/// store. Precedence is "worst signal wins" within a single check:
+/// success → reproducible; the determinism phrasing → non-reproducible;
+/// the can't-check phrasings → uncheckable; anything else → inconclusive.
+#[must_use]
+pub fn classify_determinism(success: bool, stderr: &str) -> DeterminismOutcome {
+    if success {
+        return DeterminismOutcome::Reproducible;
+    }
+    if stderr.contains("may not be deterministic") {
+        return DeterminismOutcome::NonReproducible {
+            path: extract_differs_path(stderr),
+        };
+    }
+    if stderr.contains("is not valid") || stderr.contains("checking is not possible") {
+        return DeterminismOutcome::Uncheckable {
+            reason: tail_trimmed(stderr, 120),
+        };
+    }
+    DeterminismOutcome::Inconclusive {
+        stderr_tail: tail_trimmed(stderr, 200),
+    }
+}
+
+/// Pure all-or-none aggregator over a closure's per-derivation checks.
+/// The whole leaf is only pushable when at least one derivation proved
+/// [`DeterminismOutcome::Reproducible`] and NONE failed. Precedence,
+/// in order:
+///
+/// 1. any [`DeterminismOutcome::NonReproducible`] ⇒ NonReproducible (the
+///    first, preserving its `path`) — poison present, withhold.
+/// 2. else any [`DeterminismOutcome::Inconclusive`] ⇒ Inconclusive (the
+///    first) — an unknown failure must withhold, never push on a maybe.
+/// 3. else any [`DeterminismOutcome::Reproducible`] ⇒ Reproducible —
+///    ≥1 proven and nothing failed; trailing `Uncheckable`s are
+///    substituted paths we legitimately skip.
+/// 4. else (empty, or every check was `Uncheckable`) ⇒ Uncheckable —
+///    we proved nothing, so conservatively withhold rather than push a
+///    closure none of which we could verify.
+#[must_use]
+pub fn aggregate_closure_determinism(per_drv: &[DeterminismOutcome]) -> DeterminismOutcome {
+    if let Some(nonrepro) = per_drv
+        .iter()
+        .find(|o| matches!(o, DeterminismOutcome::NonReproducible { .. }))
+    {
+        return nonrepro.clone();
+    }
+    if let Some(inconc) = per_drv
+        .iter()
+        .find(|o| matches!(o, DeterminismOutcome::Inconclusive { .. }))
+    {
+        return inconc.clone();
+    }
+    if per_drv
+        .iter()
+        .any(|o| matches!(o, DeterminismOutcome::Reproducible))
+    {
+        return DeterminismOutcome::Reproducible;
+    }
+    DeterminismOutcome::Uncheckable {
+        reason: "no resident derivations to check".to_string(),
     }
 }
 
@@ -363,23 +491,162 @@ pub fn nix_build_installable(repo: &std::path::Path, installable: &str) -> Resul
         .collect())
 }
 
-/// Verify a built installable is reproducible before trusting it for the
-/// cache: `nix build <installable> --rebuild` rebuilds and compares to
-/// the resident output, failing with "may not be deterministic" on a
-/// mismatch. Returns true iff the rebuild matched (safe to push). This
-/// is the anti-poison gate from the 2026-06-02 incident — a
-/// non-reproducible artifact never reaches a substitution-source cache.
-pub fn verify_deterministic(repo: &std::path::Path, installable: &str) -> bool {
-    Command::new("nix")
-        .args([
-            "build", installable,
-            "--rebuild", "--no-link",
-            "--option", "warn-dirty", "false",
-        ])
-        .current_dir(repo)
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+/// The effectful seam the cache-fill loop runs against. Mirrors
+/// [`crate::git::GitOps`] exactly: a `Send + Sync` trait of typed
+/// subprocess wrappers ([`RealEnv`] in production) so the orchestration
+/// in [`crate::prebuild::prebuild_one`] / [`push_path_to_caches`] is
+/// unit-testable with a mock — no nix, no attic, no git, no network.
+/// `Send + Sync` is what lets an `Arc<dyn CacheFillEnv>` cross the
+/// `spawn_blocking` boundary in [`crate::prebuild::run_cycle`].
+pub(crate) trait CacheFillEnv: Send + Sync {
+    /// HEAD rev of `repo` (`git rev-parse HEAD`).
+    fn git_head_rev(&self, repo: &std::path::Path) -> Result<String>;
+    /// `nix flake show --json` in `repo` — raw JSON for
+    /// [`flake_show_packages`] to parse.
+    fn flake_show(&self, repo: &std::path::Path) -> Result<String>;
+    /// `nix build <installable> --print-out-paths` in `repo`. `Ok(empty)`
+    /// is a soft skip — the selected attr is absent here.
+    fn build(&self, repo: &std::path::Path, installable: &str) -> Result<Vec<String>>;
+    /// Closure-deep reproducibility check of the union runtime closure of
+    /// `out_paths` (see [`RealEnv::verify_closure`] for the algorithm).
+    fn verify_closure(&self, repo: &std::path::Path, out_paths: &[String]) -> DeterminismOutcome;
+    /// `attic push <cache> <path>`. Result-returning so a per-cache
+    /// failure is assertable and the fan-out in [`push_path_to_caches`]
+    /// can `continue` past it without aborting the rest.
+    fn attic_push(&self, cache: &str, path: &str) -> Result<()>;
+}
+
+/// Production [`CacheFillEnv`] — real subprocess calls.
+pub(crate) struct RealEnv;
+
+impl CacheFillEnv for RealEnv {
+    fn git_head_rev(&self, repo: &std::path::Path) -> Result<String> {
+        crate::prebuild::git_head_rev(repo)
+    }
+
+    fn flake_show(&self, repo: &std::path::Path) -> Result<String> {
+        run_flake_show(repo)
+    }
+
+    fn build(&self, repo: &std::path::Path, installable: &str) -> Result<Vec<String>> {
+        nix_build_installable(repo, installable)
+    }
+
+    /// Closure-deep reproducibility verification — the genuinely
+    /// closure-deep gate the 2026-06-02 incident demanded. A top-level
+    /// `nix build --rebuild` only re-checks the LEAF output; nix reuses
+    /// already-built dependency crates as-valid and never re-checks
+    /// them, so the intermediate proc-macro SVH that actually poisoned
+    /// the cache slips through. This instead:
+    ///
+    /// 1. `nix-store -qR <out_path…>` — the union runtime closure of the
+    ///    pushed paths.
+    /// 2. for each store path, `nix-store -q --deriver <path>` — its
+    ///    `.drv`. Paths whose deriver is unknown / empty / not a resident
+    ///    `.drv` file were SUBSTITUTED (built+verified by someone else),
+    ///    so we skip them — not our responsibility.
+    /// 3. for each remaining resident `.drv`,
+    ///    `nix-store --realise --check <drv>` — rebuild-and-compare.
+    ///    Classify each via [`classify_determinism`].
+    /// 4. [`aggregate_closure_determinism`] folds the per-drv results
+    ///    all-or-none.
+    ///
+    /// Any nix invocation that errors folds in as
+    /// [`DeterminismOutcome::Inconclusive`] — an unknown failure
+    /// conservatively withholds rather than pushing on a maybe.
+    fn verify_closure(&self, repo: &std::path::Path, out_paths: &[String]) -> DeterminismOutcome {
+        if out_paths.is_empty() {
+            return aggregate_closure_determinism(&[]);
+        }
+        // 1. Union runtime closure of every pushed out-path.
+        let mut qr = Command::new("nix-store");
+        qr.arg("-qR");
+        for p in out_paths {
+            qr.arg(p);
+        }
+        let closure = match qr.current_dir(repo).output() {
+            Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .map(|l| l.trim().to_string())
+                .filter(|l| !l.is_empty())
+                .collect::<Vec<_>>(),
+            Ok(o) => {
+                return DeterminismOutcome::Inconclusive {
+                    stderr_tail: tail_trimmed(&String::from_utf8_lossy(&o.stderr), 200),
+                };
+            }
+            Err(e) => {
+                return DeterminismOutcome::Inconclusive {
+                    stderr_tail: tail_trimmed(&e.to_string(), 200),
+                };
+            }
+        };
+
+        let mut per_drv: Vec<DeterminismOutcome> = Vec::new();
+        // Dedupe derivers: a multi-output drv reaches the closure via
+        // several store paths, but rebuild-and-compare need only run once.
+        let mut checked: HashSet<String> = HashSet::new();
+        for store_path in &closure {
+            // 2. Find the deriver. Substituted paths report
+            // "unknown-deriver" or an empty line — skip them.
+            let deriver = match Command::new("nix-store")
+                .args(["-q", "--deriver", store_path])
+                .current_dir(repo)
+                .output()
+            {
+                Ok(o) if o.status.success() => {
+                    String::from_utf8_lossy(&o.stdout).trim().to_string()
+                }
+                Ok(_) => continue, // can't resolve a deriver → skip (substituted)
+                Err(e) => {
+                    per_drv.push(DeterminismOutcome::Inconclusive {
+                        stderr_tail: tail_trimmed(&e.to_string(), 200),
+                    });
+                    continue;
+                }
+            };
+            if deriver.is_empty()
+                || deriver == "unknown-deriver"
+                || !deriver.ends_with(".drv")
+                || !std::path::Path::new(&deriver).is_file()
+            {
+                // Substituted / unknown-deriver — verified by its origin.
+                continue;
+            }
+            if !checked.insert(deriver.clone()) {
+                continue; // already rebuilt-and-compared this drv this closure
+            }
+
+            // 3. Rebuild-and-compare this one derivation.
+            match Command::new("nix-store")
+                .args(["--realise", "--check", &deriver])
+                .current_dir(repo)
+                .output()
+            {
+                Ok(o) => {
+                    let stderr = String::from_utf8_lossy(&o.stderr);
+                    per_drv.push(classify_determinism(o.status.success(), &stderr));
+                }
+                Err(e) => per_drv.push(DeterminismOutcome::Inconclusive {
+                    stderr_tail: tail_trimmed(&e.to_string(), 200),
+                }),
+            }
+        }
+
+        // 4. All-or-none fold.
+        aggregate_closure_determinism(&per_drv)
+    }
+
+    fn attic_push(&self, cache: &str, path: &str) -> Result<()> {
+        let status = Command::new("attic")
+            .args(["push", cache, path])
+            .status()
+            .with_context(|| format!("running attic push {cache} {path}"))?;
+        if !status.success() {
+            anyhow::bail!("attic push {cache} {path} exited {status}");
+        }
+        Ok(())
+    }
 }
 
 /// Fan one store path out to every usable cache target, deduping via the
@@ -390,8 +657,11 @@ pub fn verify_deterministic(repo: &std::path::Path, installable: &str) -> bool {
 ///
 /// Returns the count of `(cache, path)` pushes that succeeded this call.
 /// A failed push to one cache never aborts the others — one stuck cache
-/// must not strand the rest of the fan-out.
-pub fn push_path_to_caches(
+/// must not strand the rest of the fan-out. The push itself routes
+/// through [`CacheFillEnv::attic_push`] so the fan-out + dedup logic is
+/// unit-testable against a mock.
+pub(crate) fn push_path_to_caches(
+    env: &dyn CacheFillEnv,
     targets: &[CacheTarget],
     path: &str,
     dedup: &Mutex<ClosureDedup>,
@@ -407,13 +677,9 @@ pub fn push_path_to_caches(
         if !fresh {
             continue;
         }
-        match Command::new("attic")
-            .args(["push", &t.cache_name, path])
-            .status()
-        {
-            Ok(s) if s.success() => ok += 1,
-            Ok(s) => eprintln!("[prebuild] attic push {}→{} exit {}", t.cache_name, path, s),
-            Err(e) => eprintln!("[prebuild] attic push {}→{} {}", t.cache_name, path, e),
+        match env.attic_push(&t.cache_name, path) {
+            Ok(()) => ok += 1,
+            Err(e) => eprintln!("[prebuild] attic push {}→{} {e:#}", t.cache_name, path),
         }
     }
     ok
@@ -579,5 +845,107 @@ mod tests {
         assert_eq!(ReproPolicy::parse("trusting"), ReproPolicy::Trusting);
         assert!(ReproPolicy::VerifyBeforePush.verifies());
         assert!(!ReproPolicy::Trusting.verifies());
+    }
+
+    #[test]
+    fn classify_determinism_covers_four_branches_and_path_extraction() {
+        // success → Reproducible.
+        assert_eq!(
+            classify_determinism(true, ""),
+            DeterminismOutcome::Reproducible
+        );
+
+        // "may not be deterministic" with a named path → NonReproducible
+        // carrying the differing path.
+        let nonrepro = classify_determinism(
+            false,
+            "error: derivation '/nix/store/x.drv' may not be deterministic: \
+             output '/nix/store/y-mado' differs",
+        );
+        assert_eq!(
+            nonrepro,
+            DeterminismOutcome::NonReproducible {
+                path: Some("/nix/store/y-mado".to_string())
+            }
+        );
+
+        // determinism phrasing WITHOUT a named path → NonReproducible{None}.
+        assert_eq!(
+            classify_determinism(false, "error: build may not be deterministic"),
+            DeterminismOutcome::NonReproducible { path: None }
+        );
+
+        // "is not valid" → Uncheckable.
+        match classify_determinism(false, "error: path '/nix/store/z' is not valid") {
+            DeterminismOutcome::Uncheckable { reason } => {
+                assert!(reason.contains("is not valid"));
+            }
+            other => panic!("expected Uncheckable, got {other:?}"),
+        }
+        // "checking is not possible" → Uncheckable too.
+        assert!(matches!(
+            classify_determinism(false, "error: checking is not possible for a substituted path"),
+            DeterminismOutcome::Uncheckable { .. }
+        ));
+
+        // Anything else nonzero → Inconclusive.
+        match classify_determinism(false, "error: out of disk space while building") {
+            DeterminismOutcome::Inconclusive { stderr_tail } => {
+                assert!(stderr_tail.contains("disk space"));
+            }
+            other => panic!("expected Inconclusive, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn aggregate_closure_determinism_precedence() {
+        use DeterminismOutcome::{Inconclusive, NonReproducible, Reproducible, Uncheckable};
+
+        // 1. any NonReproducible wins (first one, preserving its path) —
+        // even when a Reproducible and an Inconclusive are also present.
+        let nonrepro = NonReproducible { path: Some("/nix/store/p".into()) };
+        assert_eq!(
+            aggregate_closure_determinism(&[
+                Reproducible,
+                nonrepro.clone(),
+                Inconclusive { stderr_tail: "x".into() },
+                NonReproducible { path: Some("/nix/store/other".into()) },
+            ]),
+            nonrepro,
+            "first NonReproducible (with its path) takes precedence"
+        );
+
+        // 2. else any Inconclusive withholds (no NonReproducible present).
+        let inconc = Inconclusive { stderr_tail: "boom".into() };
+        assert_eq!(
+            aggregate_closure_determinism(&[Reproducible, inconc.clone(), Uncheckable { reason: "r".into() }]),
+            inconc,
+            "Inconclusive withholds over Reproducible"
+        );
+
+        // 3. else ≥1 Reproducible + only Uncheckables → Reproducible.
+        assert_eq!(
+            aggregate_closure_determinism(&[
+                Uncheckable { reason: "substituted".into() },
+                Reproducible,
+                Uncheckable { reason: "substituted".into() },
+            ]),
+            Reproducible,
+            "one proven + trailing substituted-skips → Reproducible"
+        );
+
+        // 4. empty → Uncheckable (proved nothing, conservative withhold).
+        assert_eq!(
+            aggregate_closure_determinism(&[]),
+            Uncheckable { reason: "no resident derivations to check".into() }
+        );
+        // all-Uncheckable → same conservative withhold.
+        assert_eq!(
+            aggregate_closure_determinism(&[
+                Uncheckable { reason: "a".into() },
+                Uncheckable { reason: "b".into() },
+            ]),
+            Uncheckable { reason: "no resident derivations to check".into() }
+        );
     }
 }
