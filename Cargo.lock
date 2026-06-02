@@ -1026,8 +1026,8 @@ dependencies = [
 
 [[package]]
 name = "gen-macros"
-version = "0.1.1"
-source = "git+https://github.com/pleme-io/gen#1815517f8c0ed3e9c5eac7098029750f5da94694"
+version = "0.1.3"
+source = "git+https://github.com/pleme-io/gen#892c0440c7eeecc36591ae2c2936766f106e56a0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1036,8 +1036,8 @@ dependencies = [
 
 [[package]]
 name = "gen-platform"
-version = "0.1.1"
-source = "git+https://github.com/pleme-io/gen#1815517f8c0ed3e9c5eac7098029750f5da94694"
+version = "0.1.3"
+source = "git+https://github.com/pleme-io/gen#892c0440c7eeecc36591ae2c2936766f106e56a0"
 dependencies = [
  "gen-macros",
  "gen-types",
@@ -1049,8 +1049,8 @@ dependencies = [
 
 [[package]]
 name = "gen-types"
-version = "0.1.1"
-source = "git+https://github.com/pleme-io/gen#1815517f8c0ed3e9c5eac7098029750f5da94694"
+version = "0.1.3"
+source = "git+https://github.com/pleme-io/gen#892c0440c7eeecc36591ae2c2936766f106e56a0"
 dependencies = [
  "blake3",
  "chrono",
@@ -2271,7 +2271,7 @@ checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.7"
+version = "0.3.8"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3114,7 +3114,7 @@ dependencies = [
 [[package]]
 name = "shigoto-budget"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/shigoto#0a30877d119a14e2238bbb254d882e10a0c83cf1"
+source = "git+https://github.com/pleme-io/shigoto#0490153bb3ae0e7dc1893036a95a12845186f2de"
 dependencies = [
  "serde",
  "shigoto-types",
@@ -3124,7 +3124,7 @@ dependencies = [
 [[package]]
 name = "shigoto-dag"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/shigoto#0a30877d119a14e2238bbb254d882e10a0c83cf1"
+source = "git+https://github.com/pleme-io/shigoto#0490153bb3ae0e7dc1893036a95a12845186f2de"
 dependencies = [
  "petgraph",
  "serde",
@@ -3135,7 +3135,7 @@ dependencies = [
 [[package]]
 name = "shigoto-emit"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/shigoto#0a30877d119a14e2238bbb254d882e10a0c83cf1"
+source = "git+https://github.com/pleme-io/shigoto#0490153bb3ae0e7dc1893036a95a12845186f2de"
 dependencies = [
  "async-trait",
  "serde",
@@ -3147,7 +3147,7 @@ dependencies = [
 [[package]]
 name = "shigoto-gate"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/shigoto#0a30877d119a14e2238bbb254d882e10a0c83cf1"
+source = "git+https://github.com/pleme-io/shigoto#0490153bb3ae0e7dc1893036a95a12845186f2de"
 dependencies = [
  "shigoto-dag",
  "shigoto-types",
@@ -3156,7 +3156,7 @@ dependencies = [
 [[package]]
 name = "shigoto-retry"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/shigoto#0a30877d119a14e2238bbb254d882e10a0c83cf1"
+source = "git+https://github.com/pleme-io/shigoto#0490153bb3ae0e7dc1893036a95a12845186f2de"
 dependencies = [
  "serde",
  "shigoto-types",
@@ -3165,7 +3165,7 @@ dependencies = [
 [[package]]
 name = "shigoto-scheduler"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/shigoto#0a30877d119a14e2238bbb254d882e10a0c83cf1"
+source = "git+https://github.com/pleme-io/shigoto#0490153bb3ae0e7dc1893036a95a12845186f2de"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3184,7 +3184,7 @@ dependencies = [
 [[package]]
 name = "shigoto-types"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/shigoto#0a30877d119a14e2238bbb254d882e10a0c83cf1"
+source = "git+https://github.com/pleme-io/shigoto#0490153bb3ae0e7dc1893036a95a12845186f2de"
 dependencies = [
  "async-trait",
  "chrono",

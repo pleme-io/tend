@@ -870,9 +870,9 @@ rec {
       };
       "bitflags" = rec {
         crateName = "bitflags";
-        version = "2.11.1";
+        version = "2.12.1";
         edition = "2021";
-        sha256 = "1cvqijg3rvwgis20a66vfdxannjsxfy5fgjqkaq3l13gyfcj4lf4";
+        sha256 = "02phhjm7w380zdh8928zf13cfi1bw2qz2ay36ml2jmwmmv8cxmw4";
         authors = [
           "The Rust Project Developers"
         ];
@@ -3098,13 +3098,13 @@ rec {
       };
       "gen-macros" = rec {
         crateName = "gen-macros";
-        version = "0.1.0";
+        version = "0.1.1";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/gen";
-          rev = "213b137b300fa39f4a9c86406342389474883c3f";
-          sha256 = "14l52r97naj92djkjsygb88gwk385nd2jpxdacmp5pvw2ffcqzai";
+          rev = "1815517f8c0ed3e9c5eac7098029750f5da94694";
+          sha256 = "0bgajyglydvx1a7hisc1qiz6ap7sqncg9blgyqpp2k5zb2is7q0q";
         };
         procMacro = true;
         libName = "gen_macros";
@@ -3130,13 +3130,13 @@ rec {
       };
       "gen-platform" = rec {
         crateName = "gen-platform";
-        version = "0.1.0";
+        version = "0.1.1";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/gen";
-          rev = "213b137b300fa39f4a9c86406342389474883c3f";
-          sha256 = "14l52r97naj92djkjsygb88gwk385nd2jpxdacmp5pvw2ffcqzai";
+          rev = "1815517f8c0ed3e9c5eac7098029750f5da94694";
+          sha256 = "0bgajyglydvx1a7hisc1qiz6ap7sqncg9blgyqpp2k5zb2is7q0q";
         };
         libName = "gen_platform";
         authors = [
@@ -3173,13 +3173,13 @@ rec {
       };
       "gen-types" = rec {
         crateName = "gen-types";
-        version = "0.1.0";
+        version = "0.1.1";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/gen";
-          rev = "213b137b300fa39f4a9c86406342389474883c3f";
-          sha256 = "14l52r97naj92djkjsygb88gwk385nd2jpxdacmp5pvw2ffcqzai";
+          rev = "1815517f8c0ed3e9c5eac7098029750f5da94694";
+          sha256 = "0bgajyglydvx1a7hisc1qiz6ap7sqncg9blgyqpp2k5zb2is7q0q";
         };
         libName = "gen_types";
         authors = [
@@ -5231,8 +5231,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/kanshou";
-          rev = "a246092105ae0c674713ac7d56fedeed14d40791";
-          sha256 = "1jfi1bsn9yh1fqsqs5dy5djvyc3yh7zwap0b8238cwf9a3m2s4my";
+          rev = "e9ecfedc9918c9ce5d2e41b11afe7d4b8d7b0660";
+          sha256 = "0i8kw1lhghg3s5rfkfayajbzrz1zarbf3l3pii6nq97hn4r2rl0a";
         };
         authors = [
           "pleme-io"
@@ -5286,8 +5286,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/kanshou";
-          rev = "a246092105ae0c674713ac7d56fedeed14d40791";
-          sha256 = "1jfi1bsn9yh1fqsqs5dy5djvyc3yh7zwap0b8238cwf9a3m2s4my";
+          rev = "e9ecfedc9918c9ce5d2e41b11afe7d4b8d7b0660";
+          sha256 = "0i8kw1lhghg3s5rfkfayajbzrz1zarbf3l3pii6nq97hn4r2rl0a";
         };
         procMacro = true;
         libName = "kanshou_derive";
@@ -6055,9 +6055,9 @@ rec {
       };
       "log" = rec {
         crateName = "log";
-        version = "0.4.30";
+        version = "0.4.31";
         edition = "2021";
-        sha256 = "1rd6sw3gv9hb93464w7x3sip99zf8sjagm662r2ckg14b1lcavk1";
+        sha256 = "0kq2fh6q2bjkrm8m6hj8kb7gxfd7cr7qbcpxd1lc1xq5rns30fqi";
         authors = [
           "The Rust Project Developers"
         ];
@@ -7272,7 +7272,7 @@ rec {
       };
       "pleme-tend" = rec {
         crateName = "pleme-tend";
-        version = "0.3.7";
+        version = "0.3.8";
         edition = "2021";
         crateBin = [
           {
