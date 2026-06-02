@@ -276,9 +276,9 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
 name = "bitflags"
-version = "2.11.1"
+version = "2.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4512299f36f043ab09a583e57bceb5a5aab7a73db1805848e8fef3c9e8c78b3"
+checksum = "84d7ced0ae9557296835c32bf1b1e02b44c746701f898460fb000d7eaa84f00a"
 
 [[package]]
 name = "blake3"
@@ -1026,8 +1026,8 @@ dependencies = [
 
 [[package]]
 name = "gen-macros"
-version = "0.1.0"
-source = "git+https://github.com/pleme-io/gen#213b137b300fa39f4a9c86406342389474883c3f"
+version = "0.1.1"
+source = "git+https://github.com/pleme-io/gen#1815517f8c0ed3e9c5eac7098029750f5da94694"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1036,8 +1036,8 @@ dependencies = [
 
 [[package]]
 name = "gen-platform"
-version = "0.1.0"
-source = "git+https://github.com/pleme-io/gen#213b137b300fa39f4a9c86406342389474883c3f"
+version = "0.1.1"
+source = "git+https://github.com/pleme-io/gen#1815517f8c0ed3e9c5eac7098029750f5da94694"
 dependencies = [
  "gen-macros",
  "gen-types",
@@ -1049,8 +1049,8 @@ dependencies = [
 
 [[package]]
 name = "gen-types"
-version = "0.1.0"
-source = "git+https://github.com/pleme-io/gen#213b137b300fa39f4a9c86406342389474883c3f"
+version = "0.1.1"
+source = "git+https://github.com/pleme-io/gen#1815517f8c0ed3e9c5eac7098029750f5da94694"
 dependencies = [
  "blake3",
  "chrono",
@@ -1638,7 +1638,7 @@ dependencies = [
 [[package]]
 name = "kanshou"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/kanshou#a246092105ae0c674713ac7d56fedeed14d40791"
+source = "git+https://github.com/pleme-io/kanshou#e9ecfedc9918c9ce5d2e41b11afe7d4b8d7b0660"
 dependencies = [
  "kanshou-derive",
  "serde",
@@ -1651,7 +1651,7 @@ dependencies = [
 [[package]]
 name = "kanshou-derive"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/kanshou#a246092105ae0c674713ac7d56fedeed14d40791"
+source = "git+https://github.com/pleme-io/kanshou#e9ecfedc9918c9ce5d2e41b11afe7d4b8d7b0660"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1845,9 +1845,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.30"
+version = "0.4.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "616ec5685824bcc94416c6d4a7a446eea774a31efd7062c8480ba6fd06d7a6e5"
+checksum = "113b30b4cd05f7c06868fdb2854f66a7b9fece9a48425351cd532e810d74024f"
 
 [[package]]
 name = "lru-slab"
@@ -2271,7 +2271,7 @@ checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.6"
+version = "0.3.7"
 dependencies = [
  "anyhow",
  "async-nats",
