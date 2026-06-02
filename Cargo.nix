@@ -4903,15 +4903,9 @@ rec {
       };
       "inotify" = rec {
         crateName = "inotify";
-        version = "0.11.1";
+        version = "0.11.2";
         edition = "2018";
-        sha256 = "16fiffnqhfdwzgrv3wcnaih0a9xbx1a44nma1yn5idr83apkwnxx";
-        authors = [
-          "Hanno Braun <mail@hannobraun.de>"
-          "Félix Saparelli <me@passcod.name>"
-          "Cristian Kubis <cristian.kubis@tsunix.de>"
-          "Frank Denis <github@pureftpd.org>"
-        ];
+        sha256 = "1hd2xixzzr8s6anxil0db57jbfxvr4zv17qmzr34jwrfhjjnhgjk";
         dependencies = [
           {
             name = "bitflags";
@@ -4928,8 +4922,8 @@ rec {
         ];
         features = {
           "default" = [ "stream" ];
-          "futures-core" = [ "dep:futures-core" ];
-          "stream" = [ "futures-core" "tokio" ];
+          "futures-util" = [ "dep:futures-util" ];
+          "stream" = [ "futures-util" "tokio" ];
           "tokio" = [ "dep:tokio" ];
         };
       };
@@ -7278,7 +7272,7 @@ rec {
       };
       "pleme-tend" = rec {
         crateName = "pleme-tend";
-        version = "0.3.5";
+        version = "0.3.6";
         edition = "2021";
         crateBin = [
           {
@@ -10499,8 +10493,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shikumi";
-          rev = "b727d74b43615bcd0e8da9f2062e3c01648d1fe4";
-          sha256 = "1bsm78g3g0ncjysg5w84rzx5kymp98cdl49rlriwilykj98pcglc";
+          rev = "5ca1a3b84502348c6e0311e00b7d35a8f31a97ee";
+          sha256 = "1ffz82npvkr1mhpwp7w72zjmj1rl53cydx9drx79zkg2r0dscfas";
         };
         dependencies = [
           {
