@@ -228,7 +228,7 @@ pub(crate) async fn reconcile_workspace_pull(
             AuditFileEmitter::new(path)
                 .with_context(|| format!("opening transition log {}", path.display()))?,
         ),
-        None => Arc::new(NullEmitter),
+        None => Arc::new(NullEmitter::new()),
     };
 
     let scheduler = InProcessScheduler::new(&workspace.name).with_emitter(emitter);
@@ -420,7 +420,7 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
             AuditFileEmitter::new(path)
                 .with_context(|| format!("opening transition log {}", path.display()))?,
         ),
-        None => Arc::new(NullEmitter),
+        None => Arc::new(NullEmitter::new()),
     };
 
     let scheduler = InProcessScheduler::new(&workspace.name).with_emitter(emitter);

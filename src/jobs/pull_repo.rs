@@ -253,7 +253,7 @@ mod tests {
         let id = <PullRepoJob as Job>::id(&job);
 
         let scheduler =
-            InProcessScheduler::new("sink-roundtrip").with_emitter(Arc::new(NullEmitter));
+            InProcessScheduler::new("sink-roundtrip").with_emitter(Arc::new(NullEmitter::new()));
         scheduler.register_job(job).await;
 
         let mut dag = Dag::new();
@@ -327,7 +327,7 @@ mod tests {
         let missing_id = <PullRepoJob as Job>::id(&missing_job);
 
         let scheduler = InProcessScheduler::new("pull-repo-composition")
-            .with_emitter(Arc::new(NullEmitter));
+            .with_emitter(Arc::new(NullEmitter::new()));
 
         scheduler.register_job(stable_job).await;
         scheduler.register_job(ahead_job).await;
