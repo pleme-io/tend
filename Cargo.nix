@@ -3103,8 +3103,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/gen";
-          rev = "572d0579e56832116a23e87c3ce979c3ccf6a509";
-          sha256 = "0gb0laq01aw5iymrfp2mna047s4kgch70h13nl0hyx68aha7hqql";
+          rev = "213b137b300fa39f4a9c86406342389474883c3f";
+          sha256 = "14l52r97naj92djkjsygb88gwk385nd2jpxdacmp5pvw2ffcqzai";
         };
         procMacro = true;
         libName = "gen_macros";
@@ -3135,8 +3135,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/gen";
-          rev = "572d0579e56832116a23e87c3ce979c3ccf6a509";
-          sha256 = "0gb0laq01aw5iymrfp2mna047s4kgch70h13nl0hyx68aha7hqql";
+          rev = "213b137b300fa39f4a9c86406342389474883c3f";
+          sha256 = "14l52r97naj92djkjsygb88gwk385nd2jpxdacmp5pvw2ffcqzai";
         };
         libName = "gen_platform";
         authors = [
@@ -3178,8 +3178,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/gen";
-          rev = "572d0579e56832116a23e87c3ce979c3ccf6a509";
-          sha256 = "0gb0laq01aw5iymrfp2mna047s4kgch70h13nl0hyx68aha7hqql";
+          rev = "213b137b300fa39f4a9c86406342389474883c3f";
+          sha256 = "14l52r97naj92djkjsygb88gwk385nd2jpxdacmp5pvw2ffcqzai";
         };
         libName = "gen_types";
         authors = [
@@ -4087,7 +4087,7 @@ rec {
           }
           {
             name = "rustls-native-certs";
-            packageId = "rustls-native-certs 0.8.3";
+            packageId = "rustls-native-certs 0.8.4";
             optional = true;
           }
           {
@@ -5319,9 +5319,9 @@ rec {
       };
       "kqueue" = rec {
         crateName = "kqueue";
-        version = "1.1.1";
+        version = "1.2.0";
         edition = "2021";
-        sha256 = "0sjrsnza8zxr1zfpv6sa0zapd54kx9wlijrz9apqvs6wsw303hza";
+        sha256 = "1dc7rm23i7s1574xx185836rxyzynrsv5wkn96nf0649f990fg17";
         authors = [
           "William Orr <will@worrbase.com>"
         ];
@@ -6613,8 +6613,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/opencode-zen";
-          rev = "5a2a3bef10fc2e1801d4794d66da4d5be448e892";
-          sha256 = "1bsjap70j5zcpsml2pyhc55y21lm7bj2f3zhx0n9q28gsg7ww7cg";
+          rev = "a7fb3fe43781aef0b07f00c7096569cbcdd41bc8";
+          sha256 = "04rd4ccgbq47i54cbw1h9m4k3w42w00fniyhhrv3sm56pncld6c9";
         };
         libName = "opencode_zen";
         authors = [
@@ -7278,7 +7278,7 @@ rec {
       };
       "pleme-tend" = rec {
         crateName = "pleme-tend";
-        version = "0.3.4";
+        version = "0.3.5";
         edition = "2021";
         crateBin = [
           {
@@ -9174,11 +9174,11 @@ rec {
         ];
 
       };
-      "rustls-native-certs 0.8.3" = rec {
+      "rustls-native-certs 0.8.4" = rec {
         crateName = "rustls-native-certs";
-        version = "0.8.3";
+        version = "0.8.4";
         edition = "2021";
-        sha256 = "0qrajg2n90bcr3bcq6j95gjm7a9lirfkkdmjj32419dyyzan0931";
+        sha256 = "0kgazl8zc1sv63qg179bz96ilzh56lzfa5k92ji7d265f4kibdfs";
         libName = "rustls_native_certs";
         dependencies = [
           {
@@ -9351,8 +9351,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/samba";
-          rev = "1861a345f1adf546aa12e20e555b032ef4155feb";
-          sha256 = "0h4qdz0qb2q4lxzwivh6z9b02wv797wwbzl69lmhhqi3lsf2fqah";
+          rev = "57dd1788a7010fa78aa23a847a865fcfcd7d7b52";
+          sha256 = "0kiilqzf58fh04gw1rys4yk7nmsyrsmxqrfq83v6ghg3rbn75hc1";
         };
         dependencies = [
           {
@@ -10499,8 +10499,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shikumi";
-          rev = "9161fde44527ec6572640d8a77f6919583f6b342";
-          sha256 = "1djc3zsan4kk3mv1digyq7k2xjl3458lwz8y3dmd9y0igw6xsbgs";
+          rev = "b727d74b43615bcd0e8da9f2062e3c01648d1fe4";
+          sha256 = "1bsm78g3g0ncjysg5w84rzx5kymp98cdl49rlriwilykj98pcglc";
         };
         dependencies = [
           {
@@ -11324,8 +11324,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/todoku";
-          rev = "92c747dbeaf03d81c94d2044d181d1adff7ed2a9";
-          sha256 = "1sj9lqyhbjixmjgkr7yxasq0flzb8liilp3v8xf320lchms43nd4";
+          rev = "549e2d40b0a4e83e9583e7a3a9398364d767dfdb";
+          sha256 = "1j2wfsk0y9vl07wlf1k5222xwnm43ng80qqk6n6692khr1njzzv9";
         };
         dependencies = [
           {
@@ -11697,7 +11697,7 @@ rec {
           }
           {
             name = "rustls-native-certs";
-            packageId = "rustls-native-certs 0.8.3";
+            packageId = "rustls-native-certs 0.8.4";
             optional = true;
             usesDefaultFeatures = false;
           }
@@ -12516,8 +12516,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/tsunagu";
-          rev = "c29a385ef35aa59c596cda9f95e512a99d43f451";
-          sha256 = "1y70l4r8cyhcpswg0sbnp8dfgsabyg2i11frs2jddpw7h34zxshq";
+          rev = "334f2aa407214175b99f4e9845ec9b998fa1f3bf";
+          sha256 = "033lzsv1zz3ynbgdy5a4a88yrclbw8bg073acwwgj211jn47vpim";
         };
         dependencies = [
           {

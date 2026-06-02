@@ -1521,9 +1521,9 @@ checksum = "c8fae54786f62fb2918dcfae3d568594e50eb9b5c25bf04371af6fe7516452fb"
 
 [[package]]
 name = "inotify"
-version = "0.11.1"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd5b3eaf1a28b758ac0faa5a4254e8ab2705605496f1b1f3fbbc3988ad73d199"
+checksum = "533e68a5842e734946fe159fb03fc9bbbb254f590dd0d8ad321ae5ff7beca2c1"
 dependencies = [
  "bitflags",
  "inotify-sys",
@@ -2271,7 +2271,7 @@ checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3199,7 +3199,7 @@ dependencies = [
 [[package]]
 name = "shikumi"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/shikumi#b727d74b43615bcd0e8da9f2062e3c01648d1fe4"
+source = "git+https://github.com/pleme-io/shikumi#5ca1a3b84502348c6e0311e00b7d35a8f31a97ee"
 dependencies = [
  "arc-swap",
  "async-trait",
