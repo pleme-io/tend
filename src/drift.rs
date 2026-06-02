@@ -245,6 +245,31 @@ pub(crate) fn classify_pull_failure(
     }
 }
 
+/// Typed bundle of the inputs [`classify_pull_failure`] needs, so the
+/// classification is reachable through shigoto's `Classifier<I, O>`
+/// primitive (which classifies a single `&I`).
+pub(crate) struct PullFailureContext {
+    pub workspace: String,
+    pub repo_name: String,
+    pub stderr: String,
+}
+
+/// `classify_pull_failure` exposed as a typed
+/// [`shigoto_types::classify::Classifier`] — the same delegate-to-
+/// free-fn shape as the canonical
+/// `shigoto_types::classify::FailureClassifier`. Lets pull-failure
+/// classification compose + mock polymorphically instead of being a
+/// bespoke free fn (Phase 0.2b convergence adoption — the if-chain
+/// stays the single source of truth; this is the typed surface over it).
+#[derive(Debug, Default, Copy, Clone)]
+pub(crate) struct PullFailureClassifier;
+
+impl shigoto_types::classify::Classifier<PullFailureContext, DriftEvent> for PullFailureClassifier {
+    fn classify(&self, ctx: &PullFailureContext) -> DriftEvent {
+        classify_pull_failure(&ctx.workspace, &ctx.repo_name, &ctx.stderr)
+    }
+}
+
 /// Extract the expected ref from a "no such ref was fetched" message.
 /// The git message has the form:
 ///   `Your configuration specifies to merge with the ref
@@ -497,6 +522,26 @@ mod tests {
                 assert_eq!(expected_ref, "refs/heads/main");
             }
             other => panic!("expected PullFailedBranchRenamed, got {other:?}"),
+        }
+    }
+
+    /// The typed `PullFailureClassifier` produces the same typed event
+    /// as the free fn it wraps — the Phase-0.2b adoption is behaviour-
+    /// preserving, just polymorphic.
+    #[test]
+    fn pull_failure_classifier_trait_delegates_to_free_fn() {
+        use shigoto_types::classify::Classifier;
+        let ctx = PullFailureContext {
+            workspace: "ws".into(),
+            repo_name: "r".into(),
+            stderr: "ERROR: Repository not found".into(),
+        };
+        match PullFailureClassifier.classify(&ctx) {
+            DriftEvent::PullFailedRepoMissing { workspace, repo_name } => {
+                assert_eq!(workspace, "ws");
+                assert_eq!(repo_name, "r");
+            }
+            other => panic!("expected PullFailedRepoMissing, got {other:?}"),
         }
     }
 
