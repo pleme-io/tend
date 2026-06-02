@@ -30,12 +30,15 @@ use crate::prebuild_cache::{
 };
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use shigoto_budget::{BudgetSpec, BudgetTree};
+use shigoto_dag::Dag;
+use shigoto_emit::{AuditFileEmitter, InMemorySink, TransitionEmitter};
+use shigoto_scheduler::{InProcessScheduler, Scheduler};
+use shigoto_types::{JobId, JobKindId, JobPhase, OutputSink};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use tokio::sync::Semaphore;
-use tokio::task::JoinSet;
 
 /// One repo's outcome within a single prebuild cycle.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -326,11 +329,15 @@ impl SeenCache {
 /// repo whose HEAD has moved since last cycle, optionally pushes each
 /// resulting closure to attic. Returns a rollup [`PrebuildSummary`].
 ///
-/// Per-repo work is dispatched onto a [`JoinSet`] bounded by a
-/// [`Semaphore`] of `opts.max_inflight` permits, so the cycle drips
-/// builds in as the host's CPU/memory budget allows. Each build runs
-/// via [`tokio::task::spawn_blocking`] so the (synchronous) Command
-/// calls don't block the runtime's reactor.
+/// Per-repo work is dispatched as one
+/// [`PrebuildRepoJob`][crate::jobs::prebuild_repo] each, registered
+/// against a `shigoto::InProcessScheduler` — the canonical tend
+/// orchestrator, identical in shape to `reconcile`'s pull/sync path.
+/// Concurrency is bounded by a per-kind `BudgetSpec::max_concurrent`
+/// of `opts.max_inflight` (the typed replacement for the legacy
+/// `Semaphore`). Each Job runs `prebuild_one` inside
+/// [`tokio::task::spawn_blocking`] so the (synchronous) Command calls
+/// don't block the runtime's reactor.
 ///
 /// The `cfg` argument is the materialised tend config (same shape
 /// `flake-update` consumes). `ws_filter` matches `Workspace::name`
@@ -351,7 +358,6 @@ pub async fn run_cycle(
     let opts = opts.clone().with_fill_from_config(cfg);
     let seen_path = SeenCache::default_path();
     let seen = Arc::new(Mutex::new(SeenCache::load_from(&seen_path)));
-    let summary = Arc::new(Mutex::new(PrebuildSummary::default()));
 
     // Resolve the fan-out cache list (multi-cache `caches`, else the
     // legacy single `attic` quartet) and `attic login` each ONCE per
@@ -394,14 +400,16 @@ pub async fn run_cycle(
     let env_arc: Arc<dyn prebuild_cache::CacheFillEnv> = Arc::new(prebuild_cache::RealEnv);
 
     // Snapshot the full repo list up front so the iteration doesn't
-    // straddle the await boundary with a borrow of `cfg`.
-    let mut all_repos: Vec<PathBuf> = Vec::new();
+    // straddle the await boundary with a borrow of `cfg`. Each entry
+    // carries its owning workspace name so the per-repo Job can scope
+    // its JobId to `JobScope::Workspace(...)`.
+    let mut all_repos: Vec<(String, PathBuf)> = Vec::new();
     for ws in crate::filter_workspaces(&cfg.workspaces, ws_filter) {
         let base = ws.resolved_base_dir()?;
         // Honour workspace-level `prebuild:` config from shikumi:
         // a workspace can declare its own intervals + attic cache
         // without changing the CLI flags. Merged for log visibility
-        // only — runtime semaphore + attic-login are global per cycle.
+        // only — the runtime budget + attic-login are global per cycle.
         let effective = effective_per_workspace(&opts, ws.prebuild.as_ref());
         if !effective.quiet {
             println!(
@@ -412,117 +420,118 @@ pub async fn run_cycle(
                 effective.attic.as_ref().map(|a| &a.cache_name),
             );
         }
-        all_repos.extend(enumerate_repos_with_flake(&base));
+        for repo in enumerate_repos_with_flake(&base) {
+            all_repos.push((ws.name.clone(), repo));
+        }
     }
 
-    let max_inflight = opts.max_inflight.max(1);
-    let sem = Arc::new(Semaphore::new(max_inflight));
-    let mut tasks: JoinSet<()> = JoinSet::new();
+    // The concurrency bound, as a typed per-kind budget — the
+    // replacement for the legacy `Semaphore`. The scheduler will only
+    // execute up to `max_inflight` PrebuildRepoJobs simultaneously even
+    // when more are Ready (mirrors reconcile's pull-budget).
+    let max_inflight = u32::try_from(opts.max_inflight.max(1)).unwrap_or(u32::MAX);
+
     // AuditLog itself isn't Clone (it owns a PathBuf and an implicit
     // append-handle contract via the file path). Wrap once in Arc so
-    // every per-repo task gets a cheap reference-counted handle.
+    // every Job gets a cheap reference-counted handle.
     let audit_arc: Arc<AuditLog> = Arc::new(AuditLog::new(audit.path().to_path_buf()));
     let opts_arc: Arc<PrebuildOptions> = Arc::new(opts.clone());
 
-    for repo in all_repos {
-        let sem = Arc::clone(&sem);
-        let seen = Arc::clone(&seen);
-        let summary = Arc::clone(&summary);
-        let audit = Arc::clone(&audit_arc);
-        let opts = Arc::clone(&opts_arc);
-        let caches = Arc::clone(&caches_arc);
-        let dedup = Arc::clone(&dedup);
-        let env = Arc::clone(&env_arc);
-        let seen_path = seen_path.clone();
+    // The cycle is already audit-driven — point the scheduler's
+    // transition emitter at the same audit log so every Job's
+    // Pending→Ready→Running→Succeeded (+ retries) lands in the JSONL
+    // trail alongside the prebuild_built/prebuild_failed events.
+    let emitter: Arc<dyn TransitionEmitter> = Arc::new(
+        AuditFileEmitter::new(audit.path())
+            .with_context(|| format!("opening transition log {}", audit.path().display()))?,
+    );
+    let scheduler = InProcessScheduler::new("tend.prebuild").with_emitter(emitter);
 
-        tasks.spawn(async move {
-            // Permit acquired BEFORE spawn_blocking so the bound is
-            // honoured even under back-pressure on the blocking
-            // thread pool.
-            let _permit = match sem.acquire_owned().await {
-                Ok(p) => p,
-                Err(_) => return, // semaphore closed → cycle aborted
-            };
-            let key = repo.display().to_string();
+    let mut budget = BudgetTree::new();
+    budget.by_kind.insert(
+        JobKindId::new(crate::jobs::prebuild_repo::PREBUILD_REPO_KIND),
+        BudgetSpec::max_concurrent(max_inflight),
+    );
+    scheduler.install_budget(budget).await;
 
-            // Snapshot the previous-seen rev so prebuild_one doesn't
-            // need to hold the SeenCache lock across the build.
-            let prev_rev = seen
-                .lock()
-                .expect("seen cache mutex poisoned")
-                .revs
-                .get(&key)
-                .cloned();
+    // One shared sink captures every Job's typed BuildOutcome; the
+    // summary is folded from these after the cycle ticks to quiescence.
+    let sink: Arc<InMemorySink<BuildOutcome>> = Arc::new(InMemorySink::new());
+    let sink_for_jobs: Arc<dyn OutputSink<BuildOutcome>> = sink.clone();
 
-            let audit_for_task = Arc::clone(&audit);
-            let opts_for_task = Arc::clone(&opts);
-            let caches_for_task = Arc::clone(&caches);
-            let dedup_for_task = Arc::clone(&dedup);
-            let env_for_task = Arc::clone(&env);
-            let repo_for_task = repo.clone();
-            let blocking = tokio::task::spawn_blocking(move || {
-                prebuild_one(
-                    &*env_for_task,
-                    &repo_for_task,
-                    prev_rev.as_deref(),
-                    &opts_for_task,
-                    &caches_for_task,
-                    &dedup_for_task,
-                    &audit_for_task,
-                )
-            })
-            .await;
+    let mut dag = Dag::new();
+    let mut all_ids: Vec<JobId> = Vec::with_capacity(all_repos.len());
+    for (workspace, repo) in all_repos {
+        let key = repo.display().to_string();
+        // Snapshot the previous-seen rev so the Job doesn't hold the
+        // SeenCache lock across the build.
+        let prev_rev = seen
+            .lock()
+            .expect("seen cache mutex poisoned")
+            .revs
+            .get(&key)
+            .cloned();
+        let repo_name = repo
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| key.clone());
 
-            match blocking {
-                Ok(Ok(outcome)) => {
-                    if let BuildOutcome::Built { .. } = &outcome {
-                        // Re-read HEAD after the build so an upstream
-                        // push that arrived mid-build doesn't get
-                        // recorded as "built at the old rev".
-                        if let Ok(new_rev) = git_head_rev(&repo) {
-                            let mut s =
-                                seen.lock().expect("seen cache mutex poisoned");
-                            s.revs.insert(key.clone(), new_rev);
-                            let _ = s.save_to(&seen_path);
-                        }
-                    }
-                    summary
-                        .lock()
-                        .expect("summary mutex poisoned")
-                        .absorb(&outcome);
-                }
-                Ok(Err(e)) => {
-                    let msg = format!("{e:#}");
-                    let class = crate::anomaly::classify(&msg);
-                    eprintln!("[prebuild] {key}: [{}] {msg}", class.as_str());
-                    audit.log(
-                        "prebuild_failed",
-                        serde_json::json!({
-                            "repo": key,
-                            "class": class.as_str(),
-                            "error": msg,
-                        }),
-                    );
-                    summary.lock().expect("summary mutex poisoned").failed += 1;
-                }
-                Err(join_err) => {
-                    eprintln!("[prebuild] task panicked for {key}: {join_err}");
-                    audit.log(
-                        "prebuild_panic",
-                        serde_json::json!({
-                            "repo": key,
-                            "error": format!("{join_err}"),
-                        }),
-                    );
-                    summary.lock().expect("summary mutex poisoned").failed += 1;
-                }
-            }
-        });
+        let job = Arc::new(
+            crate::jobs::prebuild_repo::PrebuildRepoJob::new(
+                repo,
+                repo_name,
+                workspace,
+                prev_rev,
+                Arc::clone(&opts_arc),
+                Arc::clone(&caches_arc),
+                Arc::clone(&dedup),
+                Arc::clone(&audit_arc),
+                Arc::clone(&env_arc),
+                Arc::clone(&seen),
+                seen_path.clone(),
+            )
+            .with_output_sink(sink_for_jobs.clone()),
+        );
+        let id = <crate::jobs::prebuild_repo::PrebuildRepoJob as shigoto_types::Job>::id(&job);
+        all_ids.push(id.clone());
+        dag.ensure_node(id);
+        scheduler.register_job(job).await;
     }
 
-    // Drain — every task's outcome has already been absorbed into the
-    // shared summary, so we just wait for them all to finish.
-    while tasks.join_next().await.is_some() {}
+    // Tick the scheduler to quiescence — the loop EXITS as soon as a tick
+    // advances no Job (`transitions_this_tick.is_empty()`), so the cap is
+    // pure runaway-protection, never the normal exit. Unlike reconcile
+    // (high concurrency over cheap git-pulls, where a flat 64 always
+    // drains), prebuild runs at LOW `max_inflight` (builds are expensive)
+    // over the WHOLE org — 200+ repos at concurrency 1-2 needs far more
+    // than 64 waves to drain, and a premature cap would miscount still-
+    // pending Jobs as `failed` below. So scale the ceiling with the Job
+    // count (× a per-Job FSM+retry slack); a stuck/looping scheduler still
+    // trips it. Each Job's seen-cache update happens inside its own
+    // execute_body, so the cycle no longer re-reads HEAD here.
+    let max_ticks = all_ids.len().saturating_mul(8).saturating_add(64);
+    for _ in 0..max_ticks {
+        let receipt = scheduler.tick(&mut dag).await?;
+        if receipt.transitions_this_tick.is_empty() {
+            break;
+        }
+    }
+
+    // Fold the captured outcomes into the rollup summary.
+    let mut final_summary = PrebuildSummary::default();
+    for outcome in sink.drain().values() {
+        final_summary.absorb(outcome);
+    }
+    // The `failed` count comes from the scheduler snapshot, exactly like
+    // reconcile derives its Failed bucket: any Job whose terminal phase
+    // is not Succeeded (Deadlettered after retries, still Retrying at the
+    // tick cap, …). A `prebuild_one` `anyhow::Error` surfaces as a
+    // PrebuildRepoError::Invocation → the Job deadletters → it lands here.
+    let snap = scheduler.snapshot(&dag).await;
+    final_summary.failed = all_ids
+        .iter()
+        .filter(|id| !matches!(snap.phases.get(id), Some(JobPhase::Succeeded)))
+        .count();
 
     // Report the in-memory dedup effect: how many distinct (cache, path)
     // pushes the cycle issued after collapsing the org's overlapping
@@ -538,10 +547,6 @@ pub async fn run_cycle(
         }
     }
 
-    let final_summary = Arc::try_unwrap(summary)
-        .map_err(|_| anyhow::anyhow!("summary still has outstanding refs"))?
-        .into_inner()
-        .expect("summary mutex poisoned");
     Ok(final_summary)
 }
 
@@ -756,6 +761,67 @@ pub(crate) fn missing_default_attribute(stderr: &str) -> bool {
         || stderr.contains("attribute 'default' missing")
         || stderr.contains("error: flake 'git+file:")
             && stderr.contains("does not provide")
+}
+
+/// Shared test fixtures usable from sibling test modules (notably
+/// [`crate::jobs::prebuild_repo`]). Kept `pub(crate)` so the
+/// `PrebuildRepoJob` tests can drive `prebuild_one` through a no-real-IO
+/// seam without duplicating the mock. Compiled only under `cfg(test)`.
+#[cfg(test)]
+pub(crate) mod test_support {
+    use super::*;
+    use crate::prebuild_cache::{CacheFillEnv, DeterminismOutcome};
+
+    /// A minimal no-real-IO [`CacheFillEnv`] for Job-level tests. Unlike
+    /// the richer `MockCacheFillEnv` in `prebuild`'s own `tests` module
+    /// (which programs per-installable build/verify outcomes), this one
+    /// only needs to (a) hand back a canonical `Default`-selector build
+    /// path so `prebuild_one` reaches `Built`, and (b) optionally
+    /// `panic!` if `build` is ever reached — proving the `NoChange`
+    /// short-circuit never touched the seam. `git_head_rev` is delegated
+    /// to the real implementation so tempdir-git tests observe genuine
+    /// revs.
+    #[derive(Default)]
+    pub(crate) struct MinimalEnv {
+        /// When true, `build` panics — used to assert the no-build path.
+        panic_on_build: bool,
+    }
+
+    impl MinimalEnv {
+        /// A `MinimalEnv` whose `build` panics if reached.
+        pub(crate) fn panic_on_build() -> Self {
+            Self { panic_on_build: true }
+        }
+    }
+
+    impl CacheFillEnv for MinimalEnv {
+        fn git_head_rev(&self, repo: &Path) -> Result<String> {
+            // Defer to the real rev capture so tempdir-git fixtures see
+            // a genuine HEAD (the no-change short-circuit needs it).
+            git_head_rev(repo)
+        }
+
+        fn flake_show(&self, _repo: &Path) -> Result<String> {
+            Ok(r#"{"packages":{}}"#.to_string())
+        }
+
+        fn build(&self, _repo: &Path, _installable: &str) -> Result<Vec<String>> {
+            assert!(!self.panic_on_build, "build reached but the test forbade it");
+            Ok(vec!["/nix/store/hash-default".to_string()])
+        }
+
+        fn verify_closure(
+            &self,
+            _repo: &Path,
+            _out_paths: &[String],
+        ) -> DeterminismOutcome {
+            DeterminismOutcome::Reproducible
+        }
+
+        fn attic_push(&self, _cache: &str, _path: &str) -> Result<()> {
+            Ok(())
+        }
+    }
 }
 
 #[cfg(test)]
