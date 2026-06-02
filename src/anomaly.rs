@@ -129,6 +129,24 @@ pub fn classify(stderr: &str) -> FailureClass {
     FailureClass::Unknown
 }
 
+/// `classify` exposed as a typed
+/// [`shigoto_types::classify::Classifier`] — the same delegate shape as
+/// the canonical `shigoto_types::classify::FailureClassifier`. The rich
+/// 7-variant [`FailureClass`] output (fix-recipe routing) is preserved
+/// and is deliberately NOT collapsed into the binary
+/// `shigoto_types::failure::FailureKind` (a different domain: which
+/// recipe to apply vs whether to retry). Phase 0.2b convergence
+/// adoption — the free fn stays the single source of truth; this is the
+/// composable, mockable typed surface over it.
+#[derive(Debug, Default, Copy, Clone)]
+pub struct PrebuildFailureClassifier;
+
+impl shigoto_types::classify::Classifier<str, FailureClass> for PrebuildFailureClassifier {
+    fn classify(&self, stderr: &str) -> FailureClass {
+        classify(stderr)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,6 +158,22 @@ mod tests {
         // akeyless-servicenow-credential-resolver).
         let stderr = "[ERROR] 'version' must be a constant version but is '${revision}'. @ line 8, column 14";
         assert_eq!(classify(stderr), FailureClass::MavenCiFriendlyVersion);
+    }
+
+    /// The typed `PrebuildFailureClassifier` produces the same
+    /// `FailureClass` as the free fn it wraps — behaviour-preserving.
+    #[test]
+    fn prebuild_failure_classifier_trait_delegates_to_free_fn() {
+        use shigoto_types::classify::Classifier;
+        let stderr = "[ERROR] 'version' must be a constant version but is '${revision}'. @ line 8, column 14";
+        assert_eq!(
+            PrebuildFailureClassifier.classify(stderr),
+            classify(stderr),
+        );
+        assert_eq!(
+            PrebuildFailureClassifier.classify(stderr),
+            FailureClass::MavenCiFriendlyVersion,
+        );
     }
 
     #[test]
