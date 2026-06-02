@@ -67,6 +67,44 @@ impl CacheTarget {
     }
 }
 
+/// Wire form of a [`CacheTarget`] as a typed Nix module renders it:
+/// `builtins.toJSON` of a `caches` submodule list. Decouples the Nix/CLI
+/// boundary (snake_case JSON) from the runtime type so the module surface
+/// can evolve its attr names independently. This is the
+/// Nix → JSON → Rust machine boundary the fleet standardises on.
+#[derive(Debug, Deserialize)]
+struct CacheTargetSpec {
+    name: String,
+    server: String,
+    url: String,
+    token_file: String,
+    #[serde(default = "spec_enabled_default")]
+    enabled: bool,
+}
+
+fn spec_enabled_default() -> bool {
+    true
+}
+
+/// Parse a `--caches-json '[{…},…]'` argument (rendered by the Nix module
+/// from its typed `caches` list) into runtime [`CacheTarget`]s. Empty
+/// array ⇒ no multi-cache (caller falls back to the legacy single
+/// `--attic-*` quartet). A malformed value is a hard error — a typed Nix
+/// surface can't emit one, so seeing it means a hand-edit to fix.
+pub fn parse_caches_json(json: &str) -> Result<Vec<CacheTarget>, serde_json::Error> {
+    let specs: Vec<CacheTargetSpec> = serde_json::from_str(json)?;
+    Ok(specs
+        .into_iter()
+        .map(|s| CacheTarget {
+            cache_name: s.name,
+            server_name: s.server,
+            server_url: s.url,
+            token_file: s.token_file,
+            enabled: s.enabled,
+        })
+        .collect())
+}
+
 /// Which flake outputs a cycle realises. The whole point of "ship as
 /// many packages as possible" is [`PackageSelector::All`] — the default.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -401,6 +439,27 @@ mod tests {
 
         let partial = CacheTarget { token_file: String::new(), ..full };
         assert!(!partial.is_usable(), "missing token_file → unusable");
+    }
+
+    #[test]
+    fn parse_caches_json_roundtrips_nix_rendered_list() {
+        let json = r#"[
+          {"name":"nexus","server":"nexus","url":"http://rio:8080/","token_file":"/run/secrets/tend/jwt"},
+          {"name":"backup","server":"backup","url":"https://cache.example/","token_file":"/run/secrets/tend/jwt2","enabled":false}
+        ]"#;
+        let got = parse_caches_json(json).unwrap();
+        assert_eq!(got.len(), 2);
+        assert_eq!(got[0].cache_name, "nexus");
+        assert_eq!(got[0].server_url, "http://rio:8080/");
+        assert!(got[0].enabled, "enabled defaults to true when omitted");
+        assert!(got[0].is_usable());
+        assert_eq!(got[1].cache_name, "backup");
+        assert!(!got[1].enabled, "explicit enabled=false honoured");
+        assert!(!got[1].is_usable(), "disabled → unusable");
+        // Empty list is valid (fall back to legacy single cache).
+        assert!(parse_caches_json("[]").unwrap().is_empty());
+        // Malformed is a hard error.
+        assert!(parse_caches_json("not json").is_err());
     }
 
     #[test]

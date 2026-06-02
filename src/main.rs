@@ -441,6 +441,28 @@ enum Commands {
         /// Path to file containing the Attic JWT token (SOPS-managed)
         #[arg(long)]
         attic_token_file: Option<PathBuf>,
+
+        /// Which flake outputs to build: "all" (every
+        /// `packages.${system}.*` — max cache coverage), "default", or a
+        /// comma-separated allow-list (e.g. "mado,tear"). A `prebuild:`
+        /// block in the config overrides this when present.
+        #[arg(long, default_value = "all")]
+        packages: String,
+
+        /// Reproducibility gate before pushing: "trusting" (fast) or
+        /// "verify" (build-and-compare via `nix build --rebuild`; never
+        /// push a non-reproducible closure to a substitution-source
+        /// cache — the anti-poison gate).
+        #[arg(long, default_value = "trusting")]
+        repro: String,
+
+        /// JSON array of cache targets to fan every closure out to —
+        /// rendered by the typed Nix module from its `caches` list. Each
+        /// element: `{name, server, url, token_file, enabled?}`. Takes
+        /// precedence over the single `--attic-*` quartet; default `[]`
+        /// (use the single cache).
+        #[arg(long, default_value = "[]")]
+        caches_json: String,
     },
 
     /// Run `prebuild` continuously with exponential backoff. Idempotent:
@@ -508,6 +530,26 @@ enum Commands {
         /// Per-probe HTTP timeout, in seconds.
         #[arg(long, default_value = "5")]
         attic_probe_timeout: u64,
+
+        /// Which flake outputs to build: "all" (every
+        /// `packages.${system}.*` — max cache coverage; the fill
+        /// default), "default", or a comma-separated allow-list. A
+        /// `prebuild:` block in the config overrides this when present.
+        #[arg(long, default_value = "all")]
+        packages: String,
+
+        /// Reproducibility gate before pushing: "trusting" (fast) or
+        /// "verify" (build-and-compare; never push a non-reproducible
+        /// closure to a substitution-source cache).
+        #[arg(long, default_value = "trusting")]
+        repro: String,
+
+        /// JSON array of cache targets to fan every closure out to —
+        /// rendered by the typed Nix module from its `caches` list. Each
+        /// element: `{name, server, url, token_file, enabled?}`. Takes
+        /// precedence over the single `--attic-*` quartet; default `[]`.
+        #[arg(long, default_value = "[]")]
+        caches_json: String,
     },
 
     /// Run as the fleet update controller (K8s operator).
@@ -1072,6 +1114,9 @@ async fn main() -> Result<()> {
             attic_server,
             attic_url,
             attic_token_file,
+            packages,
+            repro,
+            caches_json,
         } => {
             let cfg = load_config(config_path.as_deref())?;
             let opts = prebuild::PrebuildOptions {
@@ -1083,6 +1128,12 @@ async fn main() -> Result<()> {
                     attic_url.as_deref(),
                     attic_token_file.as_deref(),
                 )?,
+                selector: prebuild_cache::PackageSelector::parse(&packages),
+                repro: prebuild_cache::ReproPolicy::parse(&repro),
+                caches: prebuild_cache::parse_caches_json(&caches_json).unwrap_or_else(|e| {
+                    eprintln!("[prebuild] invalid --caches-json, using single cache: {e}");
+                    Vec::new()
+                }),
                 ..Default::default()
             };
             let audit = audit::AuditLog::default_path();
@@ -1115,6 +1166,9 @@ async fn main() -> Result<()> {
             attic_unreachable_min_interval,
             attic_unreachable_max_interval,
             attic_probe_timeout,
+            packages,
+            repro,
+            caches_json,
         } => {
             // The probe is meaningful only when we know where attic
             // lives. Enable it iff requested AND a URL is present.
@@ -1137,6 +1191,9 @@ async fn main() -> Result<()> {
                 attic_url,
                 attic_token_file,
                 reachability,
+                packages,
+                repro,
+                caches_json,
             )
             .await?;
         }
@@ -1634,6 +1691,9 @@ async fn run_prebuild_daemon(
     attic_url: Option<String>,
     attic_token_file: Option<PathBuf>,
     reachability: prebuild::ReachabilityOptions,
+    packages: String,
+    repro: String,
+    caches_json: String,
 ) -> Result<()> {
     use std::sync::Arc;
     use tokio::sync::Notify;
@@ -1779,6 +1839,12 @@ async fn run_prebuild_daemon(
                     attic_url.as_deref(),
                     attic_token_file.as_deref(),
                 )?,
+                selector: prebuild_cache::PackageSelector::parse(&packages),
+                repro: prebuild_cache::ReproPolicy::parse(&repro),
+                caches: prebuild_cache::parse_caches_json(&caches_json).unwrap_or_else(|e| {
+                    eprintln!("[prebuild] invalid --caches-json, using single cache: {e}");
+                    Vec::new()
+                }),
                 ..Default::default()
             };
             prebuild::run_cycle(&cfg, ws_filter.as_deref(), &opts, &audit).await
