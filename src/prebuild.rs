@@ -25,6 +25,9 @@
 
 use crate::audit::AuditLog;
 use crate::config::Config;
+use crate::prebuild_cache::{
+    self, CacheTarget, ClosureDedup, PackageSelector, ReproPolicy,
+};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -93,6 +96,21 @@ pub struct PrebuildOptions {
     /// hard ceiling on real resource use lives in systemd's
     /// `CPUQuota`/`MemoryHigh`/`IOWeight` on the unit, not here.
     pub max_inflight: usize,
+
+    // ── Cache-fill extensions ───────────────────────────────────────
+    /// Push every produced closure to each of these caches (fan-out).
+    /// Takes precedence over the legacy single `attic` above; when
+    /// empty, `attic` (if set) is promoted to a one-element list in
+    /// [`run_cycle`] so existing CLI/config keeps working.
+    pub caches: Vec<CacheTarget>,
+    /// Which flake outputs to build. `Default` = legacy `nix build .`
+    /// fast-path (no `flake show`); `All`/`Named` enumerate via
+    /// `nix flake show --json`.
+    pub selector: PackageSelector,
+    /// Target systems for `All`/`Named`. Empty ⇒ this host's system.
+    pub systems: Vec<String>,
+    /// Reproducibility gate before pushing (anti-poison).
+    pub repro: ReproPolicy,
 }
 
 impl Default for PrebuildOptions {
@@ -101,7 +119,62 @@ impl Default for PrebuildOptions {
             quiet: false,
             attic: None,
             max_inflight: 1,
+            caches: Vec::new(),
+            selector: PackageSelector::Default,
+            systems: Vec::new(),
+            repro: ReproPolicy::Trusting,
         }
+    }
+}
+
+impl PrebuildOptions {
+    /// The effective fan-out cache list: the explicit `caches` when
+    /// non-empty, otherwise the legacy single `attic` quartet promoted
+    /// to a one-element list. Filters to *usable* targets so a
+    /// half-specified cache never reaches `attic login`.
+    #[must_use]
+    pub fn effective_caches(&self) -> Vec<CacheTarget> {
+        let mut out: Vec<CacheTarget> = if self.caches.is_empty() {
+            self.attic
+                .as_ref()
+                .map(|a| {
+                    vec![CacheTarget {
+                        cache_name: a.cache_name.clone(),
+                        server_name: a.server_name.clone(),
+                        server_url: a.server_url.clone(),
+                        token_file: a.token_file.display().to_string(),
+                        enabled: true,
+                    }]
+                })
+                .unwrap_or_default()
+        } else {
+            self.caches.clone()
+        };
+        out.retain(CacheTarget::is_usable);
+        out
+    }
+
+    /// Overlay the cache-fill knobs (`packages`/`systems`/`repro`/
+    /// `caches`) from the config's `prebuild:` block onto this
+    /// CLI-derived options value. Reads the FIRST workspace that
+    /// declares a `prebuild:` block — the common single-org case. The
+    /// daemon reloads config each cycle and re-applies this, so editing
+    /// `config.yaml` reshapes the fill within one interval, no restart.
+    /// Legacy CLI fields (`quiet`/`max_inflight`/`attic`) are preserved;
+    /// per-workspace legacy overrides still flow through
+    /// [`effective_per_workspace`].
+    #[must_use]
+    pub fn with_fill_from_config(mut self, cfg: &Config) -> Self {
+        let Some(pc) = cfg.workspaces.iter().find_map(|w| w.prebuild.as_ref()) else {
+            return self;
+        };
+        self.selector = PackageSelector::parse(&pc.packages);
+        self.systems = pc.systems.clone();
+        self.repro = ReproPolicy::parse(&pc.repro);
+        if !pc.caches.is_empty() {
+            self.caches = pc.caches.iter().map(|c| c.to_target()).collect();
+        }
+        self
     }
 }
 
@@ -272,26 +345,50 @@ pub async fn run_cycle(
     opts: &PrebuildOptions,
     audit: &AuditLog,
 ) -> Result<PrebuildSummary> {
+    // Overlay cache-fill knobs (packages/systems/repro/caches) from the
+    // config's `prebuild:` block. Owned shadow so the daemon's per-cycle
+    // config reload reshapes the fill without a restart.
+    let opts = opts.clone().with_fill_from_config(cfg);
     let seen_path = SeenCache::default_path();
     let seen = Arc::new(Mutex::new(SeenCache::load_from(&seen_path)));
     let summary = Arc::new(Mutex::new(PrebuildSummary::default()));
 
-    // attic login once per cycle, not per repo — keeps the per-build
-    // overhead bounded.
-    let attic_ready = match &opts.attic {
-        Some(push) => match attic_login(push) {
+    // Resolve the fan-out cache list (multi-cache `caches`, else the
+    // legacy single `attic` quartet) and `attic login` each ONCE per
+    // cycle. A cache whose login fails is dropped from the list — the
+    // rest still receive pushes, and builds happen regardless (closures
+    // land in the local store either way).
+    let logged_in_caches: Vec<CacheTarget> = opts
+        .effective_caches()
+        .into_iter()
+        .filter(|t| match prebuild_cache::attic_login_target(t) {
             Ok(()) => true,
             Err(e) => {
-                eprintln!("[prebuild] attic login failed; building without push: {e:#}");
+                eprintln!(
+                    "[prebuild] attic login for '{}' failed; skipping that cache: {e:#}",
+                    t.cache_name
+                );
                 audit.log(
                     "prebuild_attic_login_failed",
-                    serde_json::json!({ "error": format!("{e:#}") }),
+                    serde_json::json!({ "cache": t.cache_name, "error": format!("{e:#}") }),
                 );
                 false
             }
-        },
-        None => false,
-    };
+        })
+        .collect();
+    if !opts.quiet {
+        println!(
+            "[prebuild] cache fan-out: {} cache(s) ready, packages={:?}, repro={}",
+            logged_in_caches.len(),
+            opts.selector,
+            opts.repro.verifies(),
+        );
+    }
+    let caches_arc: Arc<Vec<CacheTarget>> = Arc::new(logged_in_caches);
+    // One in-memory closure-dedup table for the whole cycle, so a closure
+    // shared across many repos/packages is pushed to each cache at most
+    // once — keeps network + atticd load proportional to *new* closure.
+    let dedup: Arc<Mutex<ClosureDedup>> = Arc::new(Mutex::new(ClosureDedup::new()));
 
     // Snapshot the full repo list up front so the iteration doesn't
     // straddle the await boundary with a borrow of `cfg`.
@@ -302,7 +399,7 @@ pub async fn run_cycle(
         // a workspace can declare its own intervals + attic cache
         // without changing the CLI flags. Merged for log visibility
         // only — runtime semaphore + attic-login are global per cycle.
-        let effective = effective_per_workspace(opts, ws.prebuild.as_ref());
+        let effective = effective_per_workspace(&opts, ws.prebuild.as_ref());
         if !effective.quiet {
             println!(
                 "[prebuild] workspace={} base={} max_inflight={} attic_cache={:?}",
@@ -330,6 +427,8 @@ pub async fn run_cycle(
         let summary = Arc::clone(&summary);
         let audit = Arc::clone(&audit_arc);
         let opts = Arc::clone(&opts_arc);
+        let caches = Arc::clone(&caches_arc);
+        let dedup = Arc::clone(&dedup);
         let seen_path = seen_path.clone();
 
         tasks.spawn(async move {
@@ -353,13 +452,16 @@ pub async fn run_cycle(
 
             let audit_for_task = Arc::clone(&audit);
             let opts_for_task = Arc::clone(&opts);
+            let caches_for_task = Arc::clone(&caches);
+            let dedup_for_task = Arc::clone(&dedup);
             let repo_for_task = repo.clone();
             let blocking = tokio::task::spawn_blocking(move || {
                 prebuild_one(
                     &repo_for_task,
                     prev_rev.as_deref(),
                     &opts_for_task,
-                    attic_ready,
+                    &caches_for_task,
+                    &dedup_for_task,
                     &audit_for_task,
                 )
             })
@@ -416,6 +518,20 @@ pub async fn run_cycle(
     // shared summary, so we just wait for them all to finish.
     while tasks.join_next().await.is_some() {}
 
+    // Report the in-memory dedup effect: how many distinct (cache, path)
+    // pushes the cycle issued after collapsing the org's overlapping
+    // closures. A high number relative to repos built = the fan-out is
+    // doing real work; near-zero = everything was already cached.
+    if !opts.quiet {
+        let d = dedup.lock().expect("closure dedup mutex poisoned");
+        if !d.is_empty() {
+            println!(
+                "[prebuild] cache fan-out: {} unique (cache,path) pushes issued this cycle",
+                d.len()
+            );
+        }
+    }
+
     let final_summary = Arc::try_unwrap(summary)
         .map_err(|_| anyhow::anyhow!("summary still has outstanding refs"))?
         .into_inner()
@@ -433,7 +549,8 @@ pub(crate) fn prebuild_one(
     repo: &Path,
     prev_rev: Option<&str>,
     opts: &PrebuildOptions,
-    attic_ready: bool,
+    caches: &[CacheTarget],
+    dedup: &Mutex<ClosureDedup>,
     audit: &AuditLog,
 ) -> Result<BuildOutcome> {
     let rev = git_head_rev(repo)?;
@@ -446,98 +563,87 @@ pub(crate) fn prebuild_one(
         println!("[prebuild] building {} @ {}", repo.display(), &rev[..rev.len().min(8)]);
     }
 
-    let build = Command::new("nix")
-        .args([
-            "build",
-            "--no-link",
-            "--print-out-paths",
-            "--refresh",
-            // Suppress the "Git tree dirty" warning that would otherwise
-            // pollute the journal — tend pulls before the daemon cycle,
-            // so dirtiness here would be a user edit and we want to
-            // build what's on disk anyway.
-            "--option",
-            "warn-dirty",
-            "false",
-            ".",
-        ])
-        .current_dir(repo)
-        .output()
-        .with_context(|| format!("nix build {}", repo.display()))?;
-
-    if !build.status.success() {
-        let stderr = String::from_utf8_lossy(&build.stderr);
-        // Most pleme-io repos provide a `packages.${system}.default`; a
-        // sizeable minority (libraries, docs, scratch) do not. Treat
-        // that as a soft no-op so the daemon doesn't burn its
-        // exponential-backoff budget on repos that will never build.
-        if missing_default_attribute(&stderr) {
-            return Ok(BuildOutcome::NoDefault);
+    // Resolve the build units. `Default` keeps the legacy fast-path
+    // (`nix build .` → packages.${currentSystem}.default, no flake-show
+    // round-trip). `All`/`Named` enumerate every selected output across
+    // the wanted systems via `nix flake show --json`.
+    let installables: Vec<String> = match &opts.selector {
+        PackageSelector::Default => vec![".".to_string()],
+        sel => {
+            let json = match prebuild_cache::run_flake_show(repo) {
+                Ok(j) => j,
+                Err(e) => {
+                    // A flake that can't even `flake show` is a non-build
+                    // repo for our purposes — soft skip, like NoDefault.
+                    if !opts.quiet {
+                        eprintln!("[prebuild] {key}: flake show failed, skipping: {e:#}");
+                    }
+                    return Ok(BuildOutcome::NoDefault);
+                }
+            };
+            let pkgs = prebuild_cache::flake_show_packages(&json, &opts.systems, sel)
+                .with_context(|| format!("parsing flake show for {key}"))?;
+            if pkgs.is_empty() {
+                return Ok(BuildOutcome::NoDefault);
+            }
+            pkgs.iter().map(prebuild_cache::PackageRef::installable).collect()
         }
-        anyhow::bail!("nix build failed: {}", stderr);
+    };
+
+    let mut all_out_paths: Vec<String> = Vec::new();
+    let mut pushed = 0usize;
+    let mut any_built = false;
+
+    for installable in &installables {
+        let out = prebuild_cache::nix_build_installable(repo, installable)?;
+        if out.is_empty() {
+            // Selected attr absent here (e.g. a Named output a given repo
+            // lacks) — soft skip this installable, keep going.
+            continue;
+        }
+        any_built = true;
+
+        // Anti-poison gate (2026-06-02 incident): never push a
+        // non-reproducible closure to a substitution-source cache. Build
+        // and compare; on mismatch, keep the local artifact but withhold
+        // the push so the fleet never substitutes an SVH-fragile build.
+        if !caches.is_empty()
+            && opts.repro.verifies()
+            && !prebuild_cache::verify_deterministic(repo, installable)
+        {
+            audit.log(
+                "prebuild_nonreproducible_withheld",
+                serde_json::json!({ "repo": key, "installable": installable }),
+            );
+            if !opts.quiet {
+                eprintln!("[prebuild] {key}: {installable} non-reproducible — built, push withheld");
+            }
+            all_out_paths.extend(out);
+            continue;
+        }
+
+        for path in &out {
+            pushed += prebuild_cache::push_path_to_caches(caches, path, dedup);
+        }
+        all_out_paths.extend(out);
     }
 
-    let out_paths: Vec<String> = String::from_utf8_lossy(&build.stdout)
-        .lines()
-        .map(|l| l.trim().to_string())
-        .filter(|l| !l.is_empty())
-        .collect();
-
-    let pushed = if attic_ready {
-        if let Some(push) = opts.attic.as_ref() {
-            push_closures(push, &out_paths)
-        } else {
-            0
-        }
-    } else {
-        0
-    };
+    if !any_built {
+        return Ok(BuildOutcome::NoDefault);
+    }
 
     audit.log(
         "prebuild_built",
         serde_json::json!({
             "repo": key,
             "rev": rev,
-            "out_paths": out_paths.len(),
+            "installables": installables.len(),
+            "out_paths": all_out_paths.len(),
             "pushed": pushed,
         }),
     );
 
-    Ok(BuildOutcome::Built { out_paths, pushed })
-}
-
-/// `attic login <server> <url> <token>`. Run once per daemon cycle.
-fn attic_login(push: &AtticPush) -> Result<()> {
-    let token = std::fs::read_to_string(&push.token_file)
-        .with_context(|| format!("reading {}", push.token_file.display()))?;
-    let token = token.trim();
-    let status = Command::new("attic")
-        .args(["login", &push.server_name, &push.server_url, token])
-        .status()
-        .context("running attic login")?;
-    if !status.success() {
-        anyhow::bail!("attic login exited {}", status);
-    }
-    Ok(())
-}
-
-/// `attic push <cache> <out-path>` per closure. Returns the count of
-/// closures that pushed successfully — failures are logged via tracing
-/// but do not abort the cycle (one stuck closure shouldn't poison the
-/// daemon).
-fn push_closures(push: &AtticPush, out_paths: &[String]) -> usize {
-    let mut ok = 0;
-    for path in out_paths {
-        let status = Command::new("attic")
-            .args(["push", &push.cache_name, path])
-            .status();
-        match status {
-            Ok(s) if s.success() => ok += 1,
-            Ok(s) => eprintln!("[prebuild] attic push {} → exit {}", path, s),
-            Err(e) => eprintln!("[prebuild] attic push {} → {}", path, e),
-        }
-    }
-    ok
+    Ok(BuildOutcome::Built { out_paths: all_out_paths, pushed })
 }
 
 /// Merge a workspace-level `prebuild:` declaration onto the
@@ -800,6 +906,7 @@ mod tests {
             quiet: true,
             max_inflight: 3,
             attic: None,
+            ..Default::default()
         };
         let out = effective_per_workspace(&cli, None);
         assert_eq!(out.max_inflight, 3);
@@ -817,6 +924,7 @@ mod tests {
             quiet: false,
             max_inflight: 4,
             attic: None,
+            ..Default::default()
         };
         let ws = crate::config::PrebuildConfig {
             min_interval: 0,
@@ -826,6 +934,7 @@ mod tests {
             attic_server: None,
             attic_url: None,
             attic_token_file: None,
+            ..Default::default()
         };
         let out = effective_per_workspace(&cli, Some(&ws));
         assert_eq!(out.max_inflight, 4, "zero must not override");
@@ -837,6 +946,7 @@ mod tests {
             quiet: false,
             max_inflight: 1,
             attic: None,
+            ..Default::default()
         };
         let ws = crate::config::PrebuildConfig {
             min_interval: 0,
@@ -846,6 +956,7 @@ mod tests {
             attic_server: None,
             attic_url: None,
             attic_token_file: None,
+            ..Default::default()
         };
         let out = effective_per_workspace(&cli, Some(&ws));
         assert_eq!(out.max_inflight, 6, "workspace value wins");
@@ -857,6 +968,7 @@ mod tests {
             quiet: false,
             max_inflight: 1,
             attic: None,
+            ..Default::default()
         };
         // Partial — missing token_file → MUST NOT install a half-baked
         // AtticPush that'd crash at login time.
@@ -868,6 +980,7 @@ mod tests {
             attic_server: Some("nexus".into()),
             attic_url: Some("http://rio:8080/".into()),
             attic_token_file: None,
+            ..Default::default()
         };
         let out = effective_per_workspace(&cli, Some(&partial));
         assert!(out.attic.is_none(), "partial spec must not install attic");
@@ -881,6 +994,7 @@ mod tests {
             attic_server: Some("nexus".into()),
             attic_url: Some("http://rio:8080/".into()),
             attic_token_file: Some("/run/secrets/tend/attic-jwt-token".into()),
+            ..Default::default()
         };
         let out = effective_per_workspace(&cli, Some(&full));
         let attic = out.attic.expect("full quartet must install attic");
@@ -986,7 +1100,8 @@ mod tests {
         // Pass the current HEAD as prev_rev — prebuild_one must return
         // NoChange without ever invoking nix build (so no flake.nix is
         // required for the test).
-        let outcome = prebuild_one(&dir, Some(&rev), &opts, false, &audit).unwrap();
+        let dedup = Mutex::new(ClosureDedup::new());
+        let outcome = prebuild_one(&dir, Some(&rev), &opts, &[], &dedup, &audit).unwrap();
         assert_eq!(outcome, BuildOutcome::NoChange);
         let _ = fs::remove_dir_all(&dir);
     }
@@ -1010,7 +1125,8 @@ mod tests {
         let opts = PrebuildOptions::default();
         let audit = AuditLog::default_path();
         // prev_rev is None → mismatch, build will be attempted, will fail.
-        let outcome = prebuild_one(&dir, None, &opts, false, &audit);
+        let dedup = Mutex::new(ClosureDedup::new());
+        let outcome = prebuild_one(&dir, None, &opts, &[], &dedup, &audit);
         // Either NoDefault (preferred) or an Err containing the nix
         // failure — both are acceptable signals that the non-flake
         // repo wasn't silently treated as Built.

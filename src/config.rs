@@ -96,6 +96,64 @@ pub struct PrebuildConfig {
     /// SOPS-managed Attic JWT token file path.
     #[serde(default)]
     pub attic_token_file: Option<String>,
+
+    // ── Cache-fill extensions (multi-cache, multi-package) ──────────
+    /// Which flake outputs to build: `"all"` (every
+    /// `packages.${system}.*` — the fill default), `"default"`, or a
+    /// comma-separated allow-list (`"mado,tear"`). Parsed by
+    /// [`crate::prebuild_cache::PackageSelector::parse`].
+    #[serde(default = "default_prebuild_packages")]
+    pub packages: String,
+    /// Target systems to build for. Empty ⇒ this host's native system
+    /// only (no remote-builder fan-out unless the operator opts in by
+    /// listing extra triples like `x86_64-linux`).
+    #[serde(default)]
+    pub systems: Vec<String>,
+    /// Reproducibility policy before pushing to a trusted cache:
+    /// `"trusting"` (fast) or `"verify"` (build-and-compare; never
+    /// pushes a non-reproducible artifact — the anti-poison gate).
+    /// Parsed by [`crate::prebuild_cache::ReproPolicy::parse`].
+    #[serde(default)]
+    pub repro: String,
+    /// Many caches. Each produced closure fans out to every enabled
+    /// target. When empty, the legacy single `attic_*` quartet above is
+    /// promoted to a one-element list, so existing configs keep working.
+    #[serde(default)]
+    pub caches: Vec<CacheTargetConfig>,
+}
+
+/// One push destination in the multi-cache `caches:` list.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CacheTargetConfig {
+    /// atticd cache name (e.g. `nexus`).
+    pub cache: String,
+    /// Server alias for `attic login`.
+    pub server: String,
+    /// Server root URL (e.g. `http://rio:8080/`).
+    pub url: String,
+    /// SOPS-managed JWT token file path.
+    pub token_file: String,
+    /// Disable without deleting. Defaults to true.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+impl CacheTargetConfig {
+    /// Lower to the runtime [`crate::prebuild_cache::CacheTarget`].
+    #[must_use]
+    pub fn to_target(&self) -> crate::prebuild_cache::CacheTarget {
+        crate::prebuild_cache::CacheTarget {
+            cache_name: self.cache.clone(),
+            server_name: self.server.clone(),
+            server_url: self.url.clone(),
+            token_file: self.token_file.clone(),
+            enabled: self.enabled,
+        }
+    }
+}
+
+fn default_prebuild_packages() -> String {
+    "all".to_string()
 }
 
 fn default_prebuild_min_interval() -> u64 {
@@ -502,6 +560,10 @@ impl shikumi::TieredConfig for PrebuildConfig {
             attic_server: None,
             attic_url: None,
             attic_token_file: None,
+            packages: String::new(),
+            systems: Vec::new(),
+            repro: String::new(),
+            caches: Vec::new(),
         }
     }
     fn prescribed_default() -> Self {
@@ -513,6 +575,10 @@ impl shikumi::TieredConfig for PrebuildConfig {
             attic_server: None,
             attic_url: None,
             attic_token_file: None,
+            packages: default_prebuild_packages(),
+            systems: Vec::new(),
+            repro: String::new(),
+            caches: Vec::new(),
         }
     }
 }

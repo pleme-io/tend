@@ -22,6 +22,7 @@ mod placeholder;
 mod anomaly;
 mod planner;
 mod prebuild;
+mod prebuild_cache;
 mod reconcile;
 mod report;
 mod provider;
@@ -1082,8 +1083,11 @@ async fn main() -> Result<()> {
                     attic_url.as_deref(),
                     attic_token_file.as_deref(),
                 )?,
+                ..Default::default()
             };
             let audit = audit::AuditLog::default_path();
+            // run_cycle overlays the config's prebuild block
+            // (packages/caches/repro/systems) onto these CLI options.
             let summary =
                 prebuild::run_cycle(&cfg, ws_filter.as_deref(), &opts, &audit).await?;
             println!(
@@ -1775,6 +1779,7 @@ async fn run_prebuild_daemon(
                     attic_url.as_deref(),
                     attic_token_file.as_deref(),
                 )?,
+                ..Default::default()
             };
             prebuild::run_cycle(&cfg, ws_filter.as_deref(), &opts, &audit).await
         }
