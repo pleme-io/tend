@@ -24,6 +24,9 @@ pub trait GitOps: Send + Sync {
 
     /// Check if the working tree is clean (no uncommitted changes).
     fn is_clean(&self, repo_dir: &Path) -> Result<bool>;
+
+    /// Restore (revert) the given paths to HEAD, discarding working-tree edits.
+    fn restore(&self, repo_dir: &Path, paths: &[&Path]) -> Result<()>;
 }
 
 /// Real implementation using system git commands.
@@ -51,6 +54,23 @@ impl GitOps for SystemGitOps {
             .status()
             .context("checking staged changes")?;
         Ok(!status.success())
+    }
+
+    fn restore(&self, repo_dir: &Path, paths: &[&Path]) -> Result<()> {
+        let mut args = vec!["checkout".to_string(), "--".to_string()];
+        args.extend(paths.iter().map(|p| p.to_string_lossy().into_owned()));
+        let output = Command::new("git")
+            .args(&args)
+            .current_dir(repo_dir)
+            .output()
+            .context("running git checkout -- to restore files")?;
+        if !output.status.success() {
+            anyhow::bail!(
+                "git restore failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        Ok(())
     }
 
     fn commit(&self, repo_dir: &Path, message: &str) -> Result<()> {

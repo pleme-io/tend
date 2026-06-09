@@ -18,6 +18,7 @@ mod github;
 mod drift;
 mod head_cache;
 mod jobs;
+mod nixpkgs_align;
 mod placeholder;
 mod anomaly;
 mod planner;
@@ -84,6 +85,21 @@ enum Commands {
         /// Bypass discovery cache and always hit the GitHub API
         #[arg(long)]
         refresh: bool,
+    },
+
+    /// Align every clean repo's nixpkgs to follow substrate's pinned rev (the
+    /// one true version) so identical software builds once and is a cache hit
+    /// fleet-wide. Converts flake.nix to `nixpkgs.follows = "substrate/nixpkgs"`,
+    /// pulls the pinned substrate, commits + pushes. Idempotent; never touches a
+    /// dirty repo. The standing enforcement of the substrate-anchored nixpkgs.
+    NixpkgsAlign {
+        /// Path to config file
+        #[arg(long)]
+        config: Option<PathBuf>,
+
+        /// Only align a specific workspace by name
+        #[arg(long)]
+        workspace: Option<String>,
     },
 
     /// Mark or unmark a directory as a tend placeholder. Marked
@@ -610,6 +626,59 @@ async fn main() -> Result<()> {
                 let repos = sync::resolve_repos(ws, refresh).await?;
                 let summary = sync::pull_repos(ws, &repos, quiet).await?;
                 display::print_pull_summary(&ws.name, &summary);
+            }
+        }
+
+        Commands::NixpkgsAlign {
+            config: config_path,
+            workspace: ws_filter,
+        } => {
+            use crate::nixpkgs_align::{align_one_repo, substrate_canonical_rev, AlignOutcome};
+            let cfg = load_config(config_path.as_deref())?;
+            let git = crate::git::SystemGitOps;
+            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+                let base_dir = ws.resolved_base_dir()?;
+                let Some(canonical) = substrate_canonical_rev(&base_dir.join("substrate")) else {
+                    eprintln!(
+                        "[{}] substrate not found at {} — can't read the canonical nixpkgs rev; skipping",
+                        ws.name,
+                        base_dir.join("substrate").display()
+                    );
+                    continue;
+                };
+                let repos = sync::resolve_repos(ws, false).await?;
+                let (mut aligned, mut skipped, mut failed) = (0u32, 0u32, 0u32);
+                for repo in &repos {
+                    let repo_path = base_dir.join(repo);
+                    if !repo_path.join(".git").exists() {
+                        skipped += 1;
+                        continue;
+                    }
+                    match align_one_repo(&repo_path, &canonical, &git) {
+                        Ok(AlignOutcome::Aligned) => {
+                            aligned += 1;
+                            println!("  OK   {repo}");
+                        }
+                        Ok(AlignOutcome::Skipped(reason)) => {
+                            skipped += 1;
+                            if reason == "dirty" {
+                                println!("  skip {repo}: dirty (WIP untouched)");
+                            }
+                        }
+                        Ok(AlignOutcome::Failed(reason)) => {
+                            failed += 1;
+                            println!("  FAIL {repo}: {reason}");
+                        }
+                        Err(e) => {
+                            failed += 1;
+                            println!("  FAIL {repo}: {e}");
+                        }
+                    }
+                }
+                println!(
+                    "[{}] nixpkgs-align -> {canonical}: aligned={aligned} skipped={skipped} failed={failed}",
+                    ws.name
+                );
             }
         }
 

@@ -1775,6 +1775,7 @@ mod tests {
         fn current_branch(&self, _repo_dir: &std::path::Path) -> anyhow::Result<String> { Ok("main".to_string()) }
         fn pull(&self, _repo_dir: &std::path::Path, _branch: &str) -> anyhow::Result<()> { Ok(()) }
         fn is_clean(&self, _repo_dir: &std::path::Path) -> anyhow::Result<bool> { Ok(true) }
+        fn restore(&self, _repo_dir: &std::path::Path, _paths: &[&std::path::Path]) -> anyhow::Result<()> { Ok(()) }
     }
 
     fn make_test_workspace(name: &str, matrix_file: Option<&str>) -> Workspace {
@@ -1966,6 +1967,9 @@ repo = "repo-a"
         }
         fn is_clean(&self, _: &std::path::Path) -> anyhow::Result<bool> {
             self.calls.lock().unwrap().push("is_clean".into()); Ok(true)
+        }
+        fn restore(&self, _: &std::path::Path, _: &[&std::path::Path]) -> anyhow::Result<()> {
+            self.calls.lock().unwrap().push("restore".into()); Ok(())
         }
     }
 
