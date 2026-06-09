@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "cargo_lock_sha256": "18917c7b1ae60daa76139f3318ed77ad85a7d956e5a0eb0e95bcd1c5b68da979",
+  "cargo_lock_sha256": "c00fc9c0d0ace92e3bb170f3a82bb8742023ad308e43e4cc859887b7b72fc40a",
   "target_resolves": {
     "base": {
       "adler2-2.0.1": {
@@ -844,7 +844,7 @@
           "alloc"
         ]
       },
-      "bitflags-2.12.1": {
+      "bitflags-2.13.0": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": [
@@ -994,7 +994,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "chrono-0.4.44": {
+      "chrono-0.4.45": {
         "runtime_dependencies": [
           {
             "name": "iana_time_zone",
@@ -1375,7 +1375,7 @@
           },
           {
             "name": "log",
-            "package_key": "log-0.4.31",
+            "package_key": "log-0.4.32",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1480,7 +1480,7 @@
         "runtime_dependencies": [
           {
             "name": "chrono",
-            "package_key": "chrono-0.4.44",
+            "package_key": "chrono-0.4.45",
             "kind": "normal",
             "features": [
               "clock"
@@ -2725,7 +2725,7 @@
           "std"
         ]
       },
-      "gen-macros-0.1.3": {
+      "gen-macros-0.1.10-712c3466375ddb1d6876193f2afb0798d30efb70": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -2764,11 +2764,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "gen-platform-0.1.3": {
+      "gen-platform-0.1.10-712c3466375ddb1d6876193f2afb0798d30efb70": {
         "runtime_dependencies": [
           {
             "name": "gen_macros",
-            "package_key": "gen-macros-0.1.3",
+            "package_key": "gen-macros-0.1.10-712c3466375ddb1d6876193f2afb0798d30efb70",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -2778,7 +2778,7 @@
           },
           {
             "name": "gen_types",
-            "package_key": "gen-types-0.1.3",
+            "package_key": "gen-types-0.1.10-712c3466375ddb1d6876193f2afb0798d30efb70",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -2832,7 +2832,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "gen-types-0.1.3": {
+      "gen-types-0.1.10-712c3466375ddb1d6876193f2afb0798d30efb70": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -2846,7 +2846,7 @@
           },
           {
             "name": "chrono",
-            "package_key": "chrono-0.4.44",
+            "package_key": "chrono-0.4.45",
             "kind": "normal",
             "features": [
               "serde"
@@ -3224,7 +3224,7 @@
           },
           {
             "name": "http",
-            "package_key": "http-1.4.1",
+            "package_key": "http-1.4.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3381,7 +3381,7 @@
           },
           {
             "name": "http",
-            "package_key": "http-1.4.1",
+            "package_key": "http-1.4.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3427,7 +3427,7 @@
         "runtime_dependencies": [
           {
             "name": "http",
-            "package_key": "http-1.4.1",
+            "package_key": "http-1.4.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3443,6 +3443,15 @@
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
+      },
+      "hex-0.4.3": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "alloc",
+          "default",
+          "std"
+        ]
       },
       "home-0.5.12": {
         "runtime_dependencies": [],
@@ -3477,7 +3486,7 @@
           "default"
         ]
       },
-      "http-1.4.1": {
+      "http-1.4.2": {
         "runtime_dependencies": [
           {
             "name": "bytes",
@@ -3520,7 +3529,7 @@
           },
           {
             "name": "http",
-            "package_key": "http-1.4.1",
+            "package_key": "http-1.4.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3556,7 +3565,7 @@
           },
           {
             "name": "http",
-            "package_key": "http-1.4.1",
+            "package_key": "http-1.4.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3657,7 +3666,7 @@
           },
           {
             "name": "http",
-            "package_key": "http-1.4.1",
+            "package_key": "http-1.4.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3794,7 +3803,7 @@
           },
           {
             "name": "http",
-            "package_key": "http-1.4.1",
+            "package_key": "http-1.4.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3899,7 +3908,7 @@
         "runtime_dependencies": [
           {
             "name": "http",
-            "package_key": "http-1.4.1",
+            "package_key": "http-1.4.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3929,7 +3938,7 @@
           },
           {
             "name": "log",
-            "package_key": "log-0.4.31",
+            "package_key": "log-0.4.32",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -4190,7 +4199,7 @@
           },
           {
             "name": "yoke",
-            "package_key": "yoke-0.8.2",
+            "package_key": "yoke-0.8.3",
             "kind": "normal",
             "features": [
               "derive"
@@ -4475,7 +4484,7 @@
           },
           {
             "name": "yoke",
-            "package_key": "yoke-0.8.2",
+            "package_key": "yoke-0.8.3",
             "kind": "normal",
             "features": [
               "derive"
@@ -4848,7 +4857,7 @@
           },
           {
             "name": "chrono",
-            "package_key": "chrono-0.4.44",
+            "package_key": "chrono-0.4.45",
             "kind": "normal",
             "features": [
               "alloc",
@@ -4897,11 +4906,11 @@
           "v1_31"
         ]
       },
-      "kanshou-0.1.0": {
+      "kanshou-0.1.0-cd7b34f4d8737d58b18e411fb8aeba0a25f1d28f": {
         "runtime_dependencies": [
           {
             "name": "kanshou_derive",
-            "package_key": "kanshou-derive-0.1.0",
+            "package_key": "kanshou-derive-0.1.0-cd7b34f4d8737d58b18e411fb8aeba0a25f1d28f",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -4975,7 +4984,7 @@
           "derive"
         ]
       },
-      "kanshou-derive-0.1.0": {
+      "kanshou-derive-0.1.0-cd7b34f4d8737d58b18e411fb8aeba0a25f1d28f": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -5103,7 +5112,7 @@
           },
           {
             "name": "chrono",
-            "package_key": "chrono-0.4.44",
+            "package_key": "chrono-0.4.45",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -5145,7 +5154,7 @@
           },
           {
             "name": "http",
-            "package_key": "http-1.4.1",
+            "package_key": "http-1.4.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5434,7 +5443,7 @@
         "runtime_dependencies": [
           {
             "name": "chrono",
-            "package_key": "chrono-0.4.44",
+            "package_key": "chrono-0.4.45",
             "kind": "normal",
             "features": [
               "now"
@@ -5456,7 +5465,7 @@
           },
           {
             "name": "http",
-            "package_key": "http-1.4.1",
+            "package_key": "http-1.4.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5870,7 +5879,7 @@
           "default"
         ]
       },
-      "log-0.4.31": {
+      "log-0.4.32": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": [
@@ -6011,7 +6020,7 @@
           },
           {
             "name": "log",
-            "package_key": "log-0.4.31",
+            "package_key": "log-0.4.32",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6063,7 +6072,7 @@
           },
           {
             "name": "log",
-            "package_key": "log-0.4.31",
+            "package_key": "log-0.4.32",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6099,7 +6108,7 @@
         "runtime_dependencies": [
           {
             "name": "bitflags",
-            "package_key": "bitflags-2.12.1",
+            "package_key": "bitflags-2.13.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6168,7 +6177,7 @@
           "std"
         ]
       },
-      "opencode-zen-0.1.1": {
+      "opencode-zen-0.1.2-9236d493c383791d4289cddb817c11de7aa763c0": {
         "runtime_dependencies": [
           {
             "name": "reqwest",
@@ -6746,7 +6755,7 @@
           "std"
         ]
       },
-      "pleme-tend-0.3.9": {
+      "pleme-tend-0.3.10": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -6780,7 +6789,7 @@
           },
           {
             "name": "chrono",
-            "package_key": "chrono-0.4.44",
+            "package_key": "chrono-0.4.45",
             "kind": "normal",
             "features": [
               "serde"
@@ -6887,7 +6896,7 @@
           },
           {
             "name": "kanshou",
-            "package_key": "kanshou-0.1.0",
+            "package_key": "kanshou-0.1.0-cd7b34f4d8737d58b18e411fb8aeba0a25f1d28f",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6921,7 +6930,7 @@
           },
           {
             "name": "opencode_zen",
-            "package_key": "opencode-zen-0.1.1",
+            "package_key": "opencode-zen-0.1.2-9236d493c383791d4289cddb817c11de7aa763c0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6970,6 +6979,16 @@
             "tree": "target"
           },
           {
+            "name": "regex",
+            "package_key": "regex-1.12.3",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "reqwest",
             "package_key": "reqwest-0.12.28",
             "kind": "normal",
@@ -7004,7 +7023,7 @@
           },
           {
             "name": "samba",
-            "package_key": "samba-0.1.1",
+            "package_key": "samba-0.1.3-87cbeacb2e58dafa556aaf11db82512ede9df6de",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7068,7 +7087,7 @@
           },
           {
             "name": "shigoto_budget",
-            "package_key": "shigoto-budget-0.1.0",
+            "package_key": "shigoto-budget-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7078,7 +7097,7 @@
           },
           {
             "name": "shigoto_dag",
-            "package_key": "shigoto-dag-0.1.0",
+            "package_key": "shigoto-dag-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7088,7 +7107,7 @@
           },
           {
             "name": "shigoto_emit",
-            "package_key": "shigoto-emit-0.1.0",
+            "package_key": "shigoto-emit-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7098,7 +7117,7 @@
           },
           {
             "name": "shigoto_gate",
-            "package_key": "shigoto-gate-0.1.0",
+            "package_key": "shigoto-gate-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7108,7 +7127,7 @@
           },
           {
             "name": "shigoto_retry",
-            "package_key": "shigoto-retry-0.1.0",
+            "package_key": "shigoto-retry-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7118,7 +7137,7 @@
           },
           {
             "name": "shigoto_scheduler",
-            "package_key": "shigoto-scheduler-0.1.0",
+            "package_key": "shigoto-scheduler-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7128,7 +7147,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.0",
+            "package_key": "shigoto-types-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7138,7 +7157,7 @@
           },
           {
             "name": "shikumi",
-            "package_key": "shikumi-0.1.0",
+            "package_key": "shikumi-0.1.11-755e61532e19d783062a99e97206f6023bb3f169",
             "kind": "normal",
             "features": [
               "cli"
@@ -7160,7 +7179,7 @@
           },
           {
             "name": "todoku",
-            "package_key": "todoku-0.1.0",
+            "package_key": "todoku-0.1.0-4e19678dbeac02a0903a67f1f06b73c7c76c9437",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7222,7 +7241,7 @@
           },
           {
             "name": "tsunagu",
-            "package_key": "tsunagu-0.1.1",
+            "package_key": "tsunagu-0.1.1-0e1b3a99d5a91925e288bd4ccf36b03b64cbd002",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8224,7 +8243,7 @@
           },
           {
             "name": "http",
-            "package_key": "http-1.4.1",
+            "package_key": "http-1.4.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8297,7 +8316,7 @@
           },
           {
             "name": "log",
-            "package_key": "log-0.4.31",
+            "package_key": "log-0.4.32",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8662,7 +8681,7 @@
         "runtime_dependencies": [
           {
             "name": "log",
-            "package_key": "log-0.4.31",
+            "package_key": "log-0.4.32",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8877,7 +8896,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "samba-0.1.1": {
+      "samba-0.1.3-87cbeacb2e58dafa556aaf11db82512ede9df6de": {
         "runtime_dependencies": [
           {
             "name": "async_nats",
@@ -8905,7 +8924,7 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -8915,7 +8934,7 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -8938,7 +8957,7 @@
               "http1"
             ],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -8958,7 +8977,7 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -8980,7 +8999,7 @@
               "derive"
             ],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9000,7 +9019,7 @@
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
+            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -9052,7 +9071,10 @@
           }
         ],
         "build_dependencies": [],
-        "features": []
+        "features": [
+          "default",
+          "worker"
+        ]
       },
       "same-file-1.0.6": {
         "runtime_dependencies": [],
@@ -9063,7 +9085,7 @@
         "runtime_dependencies": [
           {
             "name": "chrono",
-            "package_key": "chrono-0.4.44",
+            "package_key": "chrono-0.4.45",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -9747,7 +9769,7 @@
           "tilde"
         ]
       },
-      "shigoto-budget-0.1.0": {
+      "shigoto-budget-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": {
         "runtime_dependencies": [
           {
             "name": "serde",
@@ -9763,7 +9785,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.0",
+            "package_key": "shigoto-types-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -9785,7 +9807,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-dag-0.1.0": {
+      "shigoto-dag-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": {
         "runtime_dependencies": [
           {
             "name": "petgraph",
@@ -9811,7 +9833,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.0",
+            "package_key": "shigoto-types-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -9833,7 +9855,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-emit-0.1.0": {
+      "shigoto-emit-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": {
         "runtime_dependencies": [
           {
             "name": "async_trait",
@@ -9869,7 +9891,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.0",
+            "package_key": "shigoto-types-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -9891,11 +9913,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-gate-0.1.0": {
+      "shigoto-gate-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": {
         "runtime_dependencies": [
           {
             "name": "shigoto_dag",
-            "package_key": "shigoto-dag-0.1.0",
+            "package_key": "shigoto-dag-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -9905,7 +9927,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.0",
+            "package_key": "shigoto-types-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -9917,7 +9939,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-retry-0.1.0": {
+      "shigoto-retry-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": {
         "runtime_dependencies": [
           {
             "name": "serde",
@@ -9933,7 +9955,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.0",
+            "package_key": "shigoto-types-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -9945,7 +9967,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-scheduler-0.1.0": {
+      "shigoto-scheduler-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -9969,7 +9991,7 @@
           },
           {
             "name": "chrono",
-            "package_key": "chrono-0.4.44",
+            "package_key": "chrono-0.4.45",
             "kind": "normal",
             "features": [
               "serde"
@@ -9981,7 +10003,7 @@
           },
           {
             "name": "shigoto_budget",
-            "package_key": "shigoto-budget-0.1.0",
+            "package_key": "shigoto-budget-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -9991,7 +10013,7 @@
           },
           {
             "name": "shigoto_dag",
-            "package_key": "shigoto-dag-0.1.0",
+            "package_key": "shigoto-dag-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10001,7 +10023,7 @@
           },
           {
             "name": "shigoto_emit",
-            "package_key": "shigoto-emit-0.1.0",
+            "package_key": "shigoto-emit-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10011,7 +10033,7 @@
           },
           {
             "name": "shigoto_gate",
-            "package_key": "shigoto-gate-0.1.0",
+            "package_key": "shigoto-gate-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10021,7 +10043,7 @@
           },
           {
             "name": "shigoto_retry",
-            "package_key": "shigoto-retry-0.1.0",
+            "package_key": "shigoto-retry-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10031,7 +10053,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.0",
+            "package_key": "shigoto-types-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10078,7 +10100,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-types-0.1.0": {
+      "shigoto-types-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": {
         "runtime_dependencies": [
           {
             "name": "async_trait",
@@ -10091,8 +10113,18 @@
             "tree": "host"
           },
           {
+            "name": "blake3",
+            "package_key": "blake3-1.8.5",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "chrono",
-            "package_key": "chrono-0.4.44",
+            "package_key": "chrono-0.4.45",
             "kind": "normal",
             "features": [
               "serde"
@@ -10104,7 +10136,7 @@
           },
           {
             "name": "gen_platform",
-            "package_key": "gen-platform-0.1.3",
+            "package_key": "gen-platform-0.1.10-712c3466375ddb1d6876193f2afb0798d30efb70",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10114,7 +10146,17 @@
           },
           {
             "name": "gen_types",
-            "package_key": "gen-types-0.1.3",
+            "package_key": "gen-types-0.1.10-712c3466375ddb1d6876193f2afb0798d30efb70",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "hex",
+            "package_key": "hex-0.4.3",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10170,7 +10212,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shikumi-0.1.0": {
+      "shikumi-0.1.11-755e61532e19d783062a99e97206f6023bb3f169": {
         "runtime_dependencies": [
           {
             "name": "arc_swap",
@@ -10220,7 +10262,7 @@
           },
           {
             "name": "gen_platform",
-            "package_key": "gen-platform-0.1.3",
+            "package_key": "gen-platform-0.1.10-712c3466375ddb1d6876193f2afb0798d30efb70",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10230,7 +10272,7 @@
           },
           {
             "name": "gen_types",
-            "package_key": "gen-types-0.1.3",
+            "package_key": "gen-types-0.1.10-712c3466375ddb1d6876193f2afb0798d30efb70",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10988,7 +11030,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "todoku-0.1.0": {
+      "todoku-0.1.0-4e19678dbeac02a0903a67f1f06b73c7c76c9437": {
         "runtime_dependencies": [
           {
             "name": "async_trait",
@@ -11429,7 +11471,7 @@
           },
           {
             "name": "http",
-            "package_key": "http-1.4.1",
+            "package_key": "http-1.4.2",
             "kind": "normal",
             "features": [
               "std"
@@ -11824,7 +11866,7 @@
           },
           {
             "name": "bitflags",
-            "package_key": "bitflags-2.12.1",
+            "package_key": "bitflags-2.13.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11864,7 +11906,7 @@
           },
           {
             "name": "http",
-            "package_key": "http-1.4.1",
+            "package_key": "http-1.4.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12016,7 +12058,7 @@
         "runtime_dependencies": [
           {
             "name": "log",
-            "package_key": "log-0.4.31",
+            "package_key": "log-0.4.32",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12132,7 +12174,7 @@
         "runtime_dependencies": [
           {
             "name": "log",
-            "package_key": "log-0.4.31",
+            "package_key": "log-0.4.32",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12386,7 +12428,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "tsunagu-0.1.1": {
+      "tsunagu-0.1.1-0e1b3a99d5a91925e288bd4ccf36b03b64cbd002": {
         "runtime_dependencies": [
           {
             "name": "dirs",
@@ -12709,7 +12751,7 @@
           "std"
         ]
       },
-      "yoke-0.8.2": {
+      "yoke-0.8.3": {
         "runtime_dependencies": [
           {
             "name": "stable_deref_trait",
@@ -12891,7 +12933,7 @@
           },
           {
             "name": "yoke",
-            "package_key": "yoke-0.8.2",
+            "package_key": "yoke-0.8.3",
             "kind": "normal",
             "features": [
               "derive"
@@ -12922,7 +12964,7 @@
         "runtime_dependencies": [
           {
             "name": "yoke",
-            "package_key": "yoke-0.8.2",
+            "package_key": "yoke-0.8.3",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -13285,7 +13327,7 @@
               },
               {
                 "name": "http",
-                "package_key": "http-1.4.1",
+                "package_key": "http-1.4.2",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -13469,7 +13511,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": false,
@@ -13543,7 +13585,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -13593,7 +13635,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.31",
+                "package_key": "log-0.4.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -13744,7 +13786,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": false,
@@ -13877,7 +13919,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -13939,7 +13981,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -14033,7 +14075,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -14408,7 +14450,7 @@
               },
               {
                 "name": "http",
-                "package_key": "http-1.4.1",
+                "package_key": "http-1.4.2",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -14592,7 +14634,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": false,
@@ -14666,7 +14708,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -14716,7 +14758,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.31",
+                "package_key": "log-0.4.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -14847,7 +14889,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": false,
@@ -14980,7 +15022,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15042,7 +15084,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15136,7 +15178,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15450,7 +15492,7 @@
               },
               {
                 "name": "http",
-                "package_key": "http-1.4.1",
+                "package_key": "http-1.4.2",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15587,7 +15629,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15651,7 +15693,7 @@
             "runtime_dependencies": [
               {
                 "name": "log",
-                "package_key": "log-0.4.31",
+                "package_key": "log-0.4.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15719,7 +15761,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.31",
+                "package_key": "log-0.4.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15798,7 +15840,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16018,7 +16060,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": false,
@@ -16428,7 +16470,7 @@
               },
               {
                 "name": "http",
-                "package_key": "http-1.4.1",
+                "package_key": "http-1.4.2",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16565,7 +16607,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16629,7 +16671,7 @@
             "runtime_dependencies": [
               {
                 "name": "log",
-                "package_key": "log-0.4.31",
+                "package_key": "log-0.4.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16697,7 +16739,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.31",
+                "package_key": "log-0.4.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16776,7 +16818,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16996,7 +17038,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": false,
@@ -17374,7 +17416,7 @@
               },
               {
                 "name": "http",
-                "package_key": "http-1.4.1",
+                "package_key": "http-1.4.2",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17511,7 +17553,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17575,7 +17617,7 @@
             "runtime_dependencies": [
               {
                 "name": "log",
-                "package_key": "log-0.4.31",
+                "package_key": "log-0.4.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17643,7 +17685,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.31",
+                "package_key": "log-0.4.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17722,7 +17764,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17962,7 +18004,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": false,
@@ -18340,7 +18382,7 @@
               },
               {
                 "name": "http",
-                "package_key": "http-1.4.1",
+                "package_key": "http-1.4.2",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18477,7 +18519,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18541,7 +18583,7 @@
             "runtime_dependencies": [
               {
                 "name": "log",
-                "package_key": "log-0.4.31",
+                "package_key": "log-0.4.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18609,7 +18651,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.31",
+                "package_key": "log-0.4.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18688,7 +18730,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18928,7 +18970,7 @@
             "runtime_dependencies": [
               {
                 "name": "bitflags",
-                "package_key": "bitflags-2.12.1",
+                "package_key": "bitflags-2.13.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": false,
@@ -19178,7 +19220,7 @@
     "base64ct-1.8.3": {
       "edition": "2024"
     },
-    "bitflags-2.12.1": {
+    "bitflags-2.13.0": {
       "edition": "2021"
     },
     "blake3-1.8.5": {
@@ -19222,7 +19264,7 @@
     "cfg_aliases-0.2.1": {
       "edition": "2018"
     },
-    "chrono-0.4.44": {
+    "chrono-0.4.45": {
       "edition": "2021"
     },
     "clap-4.6.1": {
@@ -19272,20 +19314,14 @@
     "cookie_store-0.22.1": {
       "edition": "2021"
     },
-    "core-foundation-0.9.4": {
-      "edition": "2018"
-    },
-    "core-foundation-0.10.1": {
-      "edition": "2021"
-    },
-    "core-foundation-sys-0.8.7": {
-      "edition": "2018"
-    },
     "countme-3.0.1": {
       "edition": "2018"
     },
     "cpufeatures-0.2.17": {
       "edition": "2018"
+    },
+    "cpufeatures-0.3.0": {
+      "edition": "2024"
     },
     "crc32fast-1.5.0": {
       "edition": "2021",
@@ -19304,6 +19340,10 @@
     "curve25519-dalek-4.1.3": {
       "edition": "2021",
       "build_script": "build.rs"
+    },
+    "curve25519-dalek-derive-0.1.1": {
+      "edition": "2021",
+      "proc_macro": true
     },
     "darling-0.20.11": {
       "edition": "2021"
@@ -19409,10 +19449,13 @@
     "foldhash-0.1.5": {
       "edition": "2021"
     },
-    "form_urlencoded-1.2.2": {
-      "edition": "2018"
+    "foreign-types-0.3.2": {
+      "edition": "2015"
     },
-    "fsevent-sys-4.1.0": {
+    "foreign-types-shared-0.1.1": {
+      "edition": "2015"
+    },
+    "form_urlencoded-1.2.2": {
       "edition": "2018"
     },
     "futures-0.3.32": {
@@ -19443,14 +19486,14 @@
     "futures-util-0.3.32": {
       "edition": "2018"
     },
-    "gen-macros-0.1.3": {
+    "gen-macros-0.1.10-712c3466375ddb1d6876193f2afb0798d30efb70": {
       "edition": "2024",
       "proc_macro": true
     },
-    "gen-platform-0.1.3": {
+    "gen-platform-0.1.10-712c3466375ddb1d6876193f2afb0798d30efb70": {
       "edition": "2024"
     },
-    "gen-types-0.1.3": {
+    "gen-types-0.1.10-712c3466375ddb1d6876193f2afb0798d30efb70": {
       "edition": "2024"
     },
     "generic-array-0.14.7": {
@@ -19489,13 +19532,16 @@
     "heck-0.5.0": {
       "edition": "2021"
     },
+    "hex-0.4.3": {
+      "edition": "2018"
+    },
     "home-0.5.12": {
       "edition": "2024"
     },
     "hostname-0.4.2": {
       "edition": "2021"
     },
-    "http-1.4.1": {
+    "http-1.4.2": {
       "edition": "2021"
     },
     "http-body-1.0.1": {
@@ -19570,6 +19616,12 @@
     "inlinable_string-0.1.15": {
       "edition": "2018"
     },
+    "inotify-0.11.2": {
+      "edition": "2018"
+    },
+    "inotify-sys-0.1.5": {
+      "edition": "2015"
+    },
     "instant-0.1.13": {
       "edition": "2018"
     },
@@ -19599,18 +19651,12 @@
       "build_script": "build.rs",
       "links": "k8s-openapi-0.24.0"
     },
-    "kanshou-0.1.0": {
+    "kanshou-0.1.0-cd7b34f4d8737d58b18e411fb8aeba0a25f1d28f": {
       "edition": "2024"
     },
-    "kanshou-derive-0.1.0": {
+    "kanshou-derive-0.1.0-cd7b34f4d8737d58b18e411fb8aeba0a25f1d28f": {
       "edition": "2024",
       "proc_macro": true
-    },
-    "kqueue-1.2.0": {
-      "edition": "2021"
-    },
-    "kqueue-sys-1.1.2": {
-      "edition": "2021"
     },
     "kube-0.98.0": {
       "edition": "2021"
@@ -19635,6 +19681,9 @@
       "edition": "2021",
       "build_script": "build.rs"
     },
+    "linux-raw-sys-0.12.1": {
+      "edition": "2021"
+    },
     "litemap-0.8.2": {
       "edition": "2021"
     },
@@ -19644,7 +19693,7 @@
     "lock_api-0.4.14": {
       "edition": "2021"
     },
-    "log-0.4.31": {
+    "log-0.4.32": {
       "edition": "2021"
     },
     "lru-slab-0.1.2": {
@@ -19714,8 +19763,27 @@
     "once_cell-1.21.4": {
       "edition": "2021"
     },
-    "opencode-zen-0.1.1": {
+    "opencode-zen-0.1.2-9236d493c383791d4289cddb817c11de7aa763c0": {
       "edition": "2021"
+    },
+    "openssl-0.10.80": {
+      "edition": "2021",
+      "build_script": "build.rs"
+    },
+    "openssl-macros-0.1.1": {
+      "edition": "2018",
+      "proc_macro": true
+    },
+    "openssl-probe-0.1.6": {
+      "edition": "2021"
+    },
+    "openssl-probe-0.2.1": {
+      "edition": "2021"
+    },
+    "openssl-sys-0.9.116": {
+      "edition": "2021",
+      "build_script": "build/main.rs",
+      "links": "openssl"
     },
     "option-ext-0.2.0": {
       "edition": "2015"
@@ -19778,7 +19846,10 @@
     "pkcs8-0.10.2": {
       "edition": "2021"
     },
-    "pleme-tend-0.3.9": {
+    "pkg-config-0.3.33": {
+      "edition": "2018"
+    },
+    "pleme-tend-0.3.10": {
       "edition": "2021",
       "binaries": [
         {
@@ -19929,7 +20000,7 @@
     "ryu-1.0.23": {
       "edition": "2021"
     },
-    "samba-0.1.1": {
+    "samba-0.1.3-87cbeacb2e58dafa556aaf11db82512ede9df6de": {
       "edition": "2024"
     },
     "same-file-1.0.6": {
@@ -19947,15 +20018,6 @@
       "edition": "2015"
     },
     "secrecy-0.10.3": {
-      "edition": "2021"
-    },
-    "security-framework-2.11.1": {
-      "edition": "2021"
-    },
-    "security-framework-3.7.0": {
-      "edition": "2024"
-    },
-    "security-framework-sys-2.17.0": {
       "edition": "2021"
     },
     "semver-1.0.28": {
@@ -20018,28 +20080,28 @@
     "shellexpand-3.1.2": {
       "edition": "2018"
     },
-    "shigoto-budget-0.1.0": {
+    "shigoto-budget-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": {
       "edition": "2024"
     },
-    "shigoto-dag-0.1.0": {
+    "shigoto-dag-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": {
       "edition": "2024"
     },
-    "shigoto-emit-0.1.0": {
+    "shigoto-emit-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": {
       "edition": "2024"
     },
-    "shigoto-gate-0.1.0": {
+    "shigoto-gate-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": {
       "edition": "2024"
     },
-    "shigoto-retry-0.1.0": {
+    "shigoto-retry-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": {
       "edition": "2024"
     },
-    "shigoto-scheduler-0.1.0": {
+    "shigoto-scheduler-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": {
       "edition": "2024"
     },
-    "shigoto-types-0.1.0": {
+    "shigoto-types-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": {
       "edition": "2024"
     },
-    "shikumi-0.1.0": {
+    "shikumi-0.1.11-755e61532e19d783062a99e97206f6023bb3f169": {
       "edition": "2024"
     },
     "shlex-2.0.1": {
@@ -20087,13 +20149,6 @@
     "synstructure-0.13.2": {
       "edition": "2018"
     },
-    "system-configuration-0.7.0": {
-      "edition": "2021"
-    },
-    "system-configuration-sys-0.6.0": {
-      "edition": "2021",
-      "build_script": "build.rs"
-    },
     "tempfile-3.27.0": {
       "edition": "2021"
     },
@@ -20138,7 +20193,7 @@
     "tinyvec_macros-0.1.1": {
       "edition": "2018"
     },
-    "todoku-0.1.0": {
+    "todoku-0.1.0-4e19678dbeac02a0903a67f1f06b73c7c76c9437": {
       "edition": "2024"
     },
     "tokio-1.52.3": {
@@ -20209,7 +20264,7 @@
     "tryhard-0.5.2": {
       "edition": "2018"
     },
-    "tsunagu-0.1.1": {
+    "tsunagu-0.1.1-0e1b3a99d5a91925e288bd4ccf36b03b64cbd002": {
       "edition": "2024"
     },
     "typenum-1.20.1": {
@@ -20256,6 +20311,9 @@
     "uuid-1.23.2": {
       "edition": "2021"
     },
+    "vcpkg-0.2.15": {
+      "edition": "2015"
+    },
     "version_check-0.9.5": {
       "edition": "2015"
     },
@@ -20280,7 +20338,7 @@
     "yansi-1.0.1": {
       "edition": "2021"
     },
-    "yoke-0.8.2": {
+    "yoke-0.8.3": {
       "edition": "2021"
     },
     "yoke-derive-0.8.2": {
@@ -20315,72 +20373,59 @@
       "edition": "2021",
       "build_script": "build.rs"
     },
-    "cpufeatures-0.3.0": {
+    "core-foundation-0.9.4": {
+      "edition": "2018"
+    },
+    "core-foundation-0.10.1": {
+      "edition": "2021"
+    },
+    "core-foundation-sys-0.8.7": {
+      "edition": "2018"
+    },
+    "fsevent-sys-4.1.0": {
+      "edition": "2018"
+    },
+    "kqueue-1.2.0": {
+      "edition": "2021"
+    },
+    "kqueue-sys-1.1.2": {
+      "edition": "2021"
+    },
+    "security-framework-2.11.1": {
+      "edition": "2021"
+    },
+    "security-framework-3.7.0": {
       "edition": "2024"
     },
-    "curve25519-dalek-derive-0.1.1": {
-      "edition": "2021",
-      "proc_macro": true
-    },
-    "foreign-types-0.3.2": {
-      "edition": "2015"
-    },
-    "foreign-types-shared-0.1.1": {
-      "edition": "2015"
-    },
-    "inotify-0.11.2": {
-      "edition": "2018"
-    },
-    "inotify-sys-0.1.5": {
-      "edition": "2015"
-    },
-    "linux-raw-sys-0.12.1": {
+    "security-framework-sys-2.17.0": {
       "edition": "2021"
     },
-    "openssl-0.10.80": {
+    "system-configuration-0.7.0": {
+      "edition": "2021"
+    },
+    "system-configuration-sys-0.6.0": {
       "edition": "2021",
       "build_script": "build.rs"
-    },
-    "openssl-macros-0.1.1": {
-      "edition": "2018",
-      "proc_macro": true
-    },
-    "openssl-probe-0.1.6": {
-      "edition": "2021"
-    },
-    "openssl-probe-0.2.1": {
-      "edition": "2021"
-    },
-    "openssl-sys-0.9.116": {
-      "edition": "2021",
-      "build_script": "build/main.rs",
-      "links": "openssl"
-    },
-    "pkg-config-0.3.33": {
-      "edition": "2018"
-    },
-    "vcpkg-0.2.15": {
-      "edition": "2015"
     }
   },
   "git_nar_sha256": {
-    "gen-macros-0.1.3": "sha256-rezL4nR7aAILZVgcM6f99QAa+9bM3n8Omq7qRUnarDw=",
-    "gen-platform-0.1.3": "sha256-rezL4nR7aAILZVgcM6f99QAa+9bM3n8Omq7qRUnarDw=",
-    "gen-types-0.1.3": "sha256-rezL4nR7aAILZVgcM6f99QAa+9bM3n8Omq7qRUnarDw=",
-    "kanshou-0.1.0": "sha256-CtAsMrHwJGxNjHfQ4VZWP/z8l1Reuely0ePBB2ngE0U=",
-    "kanshou-derive-0.1.0": "sha256-CtAsMrHwJGxNjHfQ4VZWP/z8l1Reuely0ePBB2ngE0U=",
-    "opencode-zen-0.1.1": "sha256-iZlGmb2mVD12htBH6wDggvAxSU0w8MVIiYfg9RgjLRM=",
-    "samba-0.1.1": "sha256-gcFy7MrjwWf2QNhl3KvOXld7pifa58AfAdCh4j6mMU4=",
-    "shigoto-budget-0.1.0": "sha256-v2POcN8j/HFh4D+bm4mT+c3SDdQsGKJHo4yx6FwySXw=",
-    "shigoto-dag-0.1.0": "sha256-v2POcN8j/HFh4D+bm4mT+c3SDdQsGKJHo4yx6FwySXw=",
-    "shigoto-emit-0.1.0": "sha256-v2POcN8j/HFh4D+bm4mT+c3SDdQsGKJHo4yx6FwySXw=",
-    "shigoto-gate-0.1.0": "sha256-v2POcN8j/HFh4D+bm4mT+c3SDdQsGKJHo4yx6FwySXw=",
-    "shigoto-retry-0.1.0": "sha256-v2POcN8j/HFh4D+bm4mT+c3SDdQsGKJHo4yx6FwySXw=",
-    "shigoto-scheduler-0.1.0": "sha256-v2POcN8j/HFh4D+bm4mT+c3SDdQsGKJHo4yx6FwySXw=",
-    "shigoto-types-0.1.0": "sha256-v2POcN8j/HFh4D+bm4mT+c3SDdQsGKJHo4yx6FwySXw=",
-    "shikumi-0.1.0": "sha256-WjmmG8jizZ9Ozy315tkoNAdZ5ReHn8svrCHPfa1A37k=",
-    "todoku-0.1.0": "sha256-af8vbchwimSMNRNjgJ4dpFrehRBlBkf5AXQnD6Z2XMg=",
-    "tsunagu-0.1.1": "sha256-Nd59iJUhCPk4Z2oc8Bbii7LsEVJEFd/esn78H7b+dAw="
+    "gen-macros-0.1.10-712c3466375ddb1d6876193f2afb0798d30efb70": "sha256-7BNW4JfFa8nTvkq9O7Thxt1P6fSgcmPU4sthBdBfMgM=",
+    "gen-platform-0.1.10-712c3466375ddb1d6876193f2afb0798d30efb70": "sha256-7BNW4JfFa8nTvkq9O7Thxt1P6fSgcmPU4sthBdBfMgM=",
+    "gen-types-0.1.10-712c3466375ddb1d6876193f2afb0798d30efb70": "sha256-7BNW4JfFa8nTvkq9O7Thxt1P6fSgcmPU4sthBdBfMgM=",
+    "kanshou-0.1.0-cd7b34f4d8737d58b18e411fb8aeba0a25f1d28f": "sha256-wmwL7P5fEEvsEGa7YW4v+Xh3aEamhcnMz3KVz2hE0f4=",
+    "kanshou-derive-0.1.0-cd7b34f4d8737d58b18e411fb8aeba0a25f1d28f": "sha256-wmwL7P5fEEvsEGa7YW4v+Xh3aEamhcnMz3KVz2hE0f4=",
+    "opencode-zen-0.1.2-9236d493c383791d4289cddb817c11de7aa763c0": "sha256-R71RcxfIBFgoXLDxX8plu8LizeD6rBlT2+pm5fmliF4=",
+    "samba-0.1.3-87cbeacb2e58dafa556aaf11db82512ede9df6de": "sha256-fdv2B1QYamSEQNXuxfA04AWvsjittZZV3E9OeRIV8bQ=",
+    "shigoto-budget-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": "sha256-ScM7rAuDChSHnp35fGzOeQIxV/oix/7YpbiLmU/cDXc=",
+    "shigoto-dag-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": "sha256-ScM7rAuDChSHnp35fGzOeQIxV/oix/7YpbiLmU/cDXc=",
+    "shigoto-emit-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": "sha256-ScM7rAuDChSHnp35fGzOeQIxV/oix/7YpbiLmU/cDXc=",
+    "shigoto-gate-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": "sha256-ScM7rAuDChSHnp35fGzOeQIxV/oix/7YpbiLmU/cDXc=",
+    "shigoto-retry-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": "sha256-ScM7rAuDChSHnp35fGzOeQIxV/oix/7YpbiLmU/cDXc=",
+    "shigoto-scheduler-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": "sha256-ScM7rAuDChSHnp35fGzOeQIxV/oix/7YpbiLmU/cDXc=",
+    "shigoto-types-0.1.7-1f37e3ee4d4859264a11b688644f801ca718d1a5": "sha256-ScM7rAuDChSHnp35fGzOeQIxV/oix/7YpbiLmU/cDXc=",
+    "shikumi-0.1.11-755e61532e19d783062a99e97206f6023bb3f169": "sha256-HPp5MAUcCptTBYKD6lUgiKaOG4vZB5I2CwsWjipZXoA=",
+    "todoku-0.1.0-4e19678dbeac02a0903a67f1f06b73c7c76c9437": "sha256-Z9W17uSWmt3EsvDxLRKh0EYumT+nRAXvAxPeONuqU2s=",
+    "tsunagu-0.1.1-0e1b3a99d5a91925e288bd4ccf36b03b64cbd002": "sha256-0fgRg/6uNcA0DXRc9xNMejjZLHqDu06ERVoOugm5XTA="
   },
   "flake_metadata": {}
 }

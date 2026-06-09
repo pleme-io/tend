@@ -1,6 +1,6 @@
 [package]
 name = "pleme-tend"
-version = "0.3.9"
+version = "0.3.10"
 edition = "2021"
 description = "Workspace repository manager — keeps your repos in sync"
 license = "MIT"
