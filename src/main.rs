@@ -1382,6 +1382,8 @@ async fn main() -> Result<()> {
         } => {
             // In launchd/systemd environments, env vars may not be inherited.
             // Read the token from a file and set GITHUB_TOKEN for provider discovery.
+            // The path is also threaded into DaemonOpts below so a SIGHUP poke can
+            // re-read it and refresh this cache without a restart.
             if let Some(ref token_path) = github_token_file {
                 let token = std::fs::read_to_string(token_path)
                     .with_context(|| format!("reading token from {}", token_path.display()))?;
@@ -1417,6 +1419,7 @@ async fn main() -> Result<()> {
                     fetch,
                     quiet,
                     max_inflight,
+                    github_token_file,
                 },
                 kanshou_state,
             )

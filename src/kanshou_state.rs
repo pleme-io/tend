@@ -27,6 +27,12 @@ pub struct TendDaemonState {
     pub repos_pulled: Arc<AtomicU64>,
     pub repos_fetched: Arc<AtomicU64>,
     pub pull_failures: Arc<AtomicU64>,
+    /// Count of `GITHUB_TOKEN` cache refreshes triggered by an external
+    /// poke (SIGHUP). Lets `gen kanshou query tend token` confirm a
+    /// rotated token was picked up without a restart.
+    pub token_reloads: Arc<AtomicU64>,
+    /// Unix-ms of the last token reload (0 = none since daemon start).
+    pub token_last_reload_unix_ms: Arc<AtomicU64>,
     /// Currently in-flight repo path (None when idle).
     pub current_repo: Arc<parking_lot::RwLock<Option<String>>>,
     /// Current workspace being processed (None when idle).
@@ -49,6 +55,8 @@ impl TendDaemonState {
             repos_pulled: Arc::new(AtomicU64::new(0)),
             repos_fetched: Arc::new(AtomicU64::new(0)),
             pull_failures: Arc::new(AtomicU64::new(0)),
+            token_reloads: Arc::new(AtomicU64::new(0)),
+            token_last_reload_unix_ms: Arc::new(AtomicU64::new(0)),
             current_repo: Arc::new(parking_lot::RwLock::new(None)),
             current_workspace: Arc::new(parking_lot::RwLock::new(None)),
         }
@@ -84,6 +92,19 @@ impl Introspect for TendDaemonState {
                 "repo": self.current_repo.read().as_deref(),
                 "workspace": self.current_workspace.read().as_deref(),
             })),
+            "token" => {
+                let last = self.token_last_reload_unix_ms.load(Ordering::Relaxed);
+                let ms_since: serde_json::Value = if last == 0 {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::json!(now.saturating_sub(last))
+                };
+                Ok(serde_json::json!({
+                    "reloads": self.token_reloads.load(Ordering::Relaxed),
+                    "last_reload_unix_ms": last,
+                    "ms_since_last": ms_since,
+                }))
+            }
             "process" => Ok(serde_json::json!({
                 "pid": std::process::id(),
                 "binary": std::env::current_exe()
@@ -99,7 +120,7 @@ impl Introspect for TendDaemonState {
     }
 
     fn schema(&self) -> &'static [&'static str] {
-        &["ticks", "repos", "current", "process"]
+        &["ticks", "repos", "current", "process", "token"]
     }
 }
 

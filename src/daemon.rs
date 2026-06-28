@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -27,6 +27,28 @@ pub(crate) struct DaemonOpts {
     /// `tend.pull-repo` kind so the daemon doesn't saturate file
     /// handles / SSH multiplexers on large workspaces.
     pub max_inflight: u32,
+    /// Path to the GitHub token file (`--github-token-file`). Held so an
+    /// external poke (SIGHUP) can re-read it and refresh the process
+    /// `GITHUB_TOKEN` cache that `provider`/`sync` consume — a rotated
+    /// token then takes effect without restarting the daemon.
+    pub github_token_file: Option<PathBuf>,
+}
+
+/// Read + trim a token from `path`. Pure (no env mutation) so it is unit
+/// testable without racing other tests on the process env.
+fn read_token_file(path: &std::path::Path) -> Result<String> {
+    let token = std::fs::read_to_string(path)
+        .with_context(|| format!("reading token from {}", path.display()))?;
+    Ok(token.trim().to_string())
+}
+
+/// Re-read the GitHub token from `path` and refresh the process-global
+/// `GITHUB_TOKEN` that `provider::github_token` and `sync` read at call
+/// time. This is the body of the external reload poke (SIGHUP) — it lets
+/// a rotated credential take effect without a daemon restart.
+fn reload_github_token(path: &std::path::Path) -> Result<()> {
+    std::env::set_var("GITHUB_TOKEN", read_token_file(path)?);
+    Ok(())
 }
 
 /// Run the daemon loop: sync + pull + watch on interval, re-reading config each cycle.
@@ -48,6 +70,67 @@ pub(crate) async fn run_with_kanshou(
     // Single drain coordinator for the whole loop — handles SIGTERM and
     // SIGINT. `tokio::signal::ctrl_c` alone misses SIGTERM from launchd.
     let shutdown = tsunagu::ShutdownController::install();
+
+    // External reload poke: SIGHUP re-reads the token file and refreshes
+    // the `GITHUB_TOKEN` cache, then wakes the loop to reconcile with the
+    // fresh credential — so a rotated token (sops edit + rebuild, or a
+    // manual rotation) takes effect WITHOUT restarting the daemon. Poke
+    // with `kill -HUP <pid>` or
+    // `launchctl kill HUP gui/<uid>/io.pleme.tend-daemon`. The reload
+    // count + last-reload time are observable via
+    // `gen kanshou query tend token`.
+    let reload_now = Arc::new(tokio::sync::Notify::new());
+    if let Some(token_path) = opts.github_token_file.clone() {
+        let notify = Arc::clone(&reload_now);
+        let kstate = Arc::clone(&kanshou_state);
+        let quiet = opts.quiet;
+        tokio::spawn(async move {
+            let mut hup = match tokio::signal::unix::signal(
+                tokio::signal::unix::SignalKind::hangup(),
+            ) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("daemon: SIGHUP reload unavailable: {e}");
+                    return;
+                }
+            };
+            let audit = crate::audit::AuditLog::default_path();
+            while hup.recv().await.is_some() {
+                match reload_github_token(&token_path) {
+                    Ok(()) => {
+                        kstate.token_reloads.fetch_add(1, Ordering::Relaxed);
+                        kstate
+                            .token_last_reload_unix_ms
+                            .store(now_unix_ms(), Ordering::Relaxed);
+                        audit.log(
+                            "github_token_reloaded",
+                            serde_json::json!({
+                                "path": token_path.display().to_string(),
+                                "trigger": "SIGHUP",
+                            }),
+                        );
+                        if !quiet {
+                            eprintln!(
+                                "daemon: SIGHUP — reloaded GITHUB_TOKEN from {}; reconciling now",
+                                token_path.display()
+                            );
+                        }
+                        notify.notify_one();
+                    }
+                    Err(e) => {
+                        audit.log(
+                            "github_token_reload_failed",
+                            serde_json::json!({
+                                "path": token_path.display().to_string(),
+                                "error": e.to_string(),
+                            }),
+                        );
+                        eprintln!("daemon: SIGHUP reload failed: {e}");
+                    }
+                }
+            }
+        });
+    }
 
     loop {
         cycle += 1;
@@ -132,6 +215,10 @@ pub(crate) async fn run_with_kanshou(
         let mut tok = shutdown.token();
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_secs(opts.interval)) => {}
+            // External poke (SIGHUP) reloaded the token — start the next
+            // cycle immediately so the fresh credential is used now
+            // (e.g. previously-401 https workspaces retry at once).
+            () = reload_now.notified() => {}
             () = tok.wait_ref() => break,
         }
     }
@@ -415,4 +502,30 @@ fn now_unix_ms() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn read_token_file_trims_whitespace_and_newline() {
+        let mut f = tempfile::NamedTempFile::new().expect("temp file");
+        // Token files commonly carry a trailing newline (sops/echo) and
+        // sometimes surrounding whitespace — the reload must trim both so
+        // the value matches what GitHub expects.
+        write!(f, "  ghp_exampletoken123\n").expect("write");
+        let got = read_token_file(f.path()).expect("read");
+        assert_eq!(got, "ghp_exampletoken123");
+    }
+
+    #[test]
+    fn read_token_file_missing_path_errors() {
+        let err = read_token_file(std::path::Path::new(
+            "/nonexistent/tend/token/path/xyz",
+        ))
+        .unwrap_err();
+        assert!(err.to_string().contains("reading token from"));
+    }
 }
