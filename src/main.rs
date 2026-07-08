@@ -199,6 +199,12 @@ enum Commands {
         /// Bypass discovery cache and always hit the GitHub API
         #[arg(long)]
         refresh: bool,
+
+        /// Emit a machine-readable JSON array of `{name, path, state}`
+        /// (all filtered workspaces merged; `path` is empty for missing
+        /// repos). The contract izumi's `tend-repos` board source reads.
+        #[arg(long)]
+        json: bool,
     },
 
     /// List configured repos
@@ -962,12 +968,22 @@ async fn main() -> Result<()> {
             config: config_path,
             workspace: ws_filter,
             refresh,
+            json,
         } => {
             let cfg = load_config(config_path.as_deref())?;
+            let mut rows: Vec<display::StatusJsonRow> = Vec::new();
             for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
                 let repos = sync::resolve_repos(ws, refresh).await?;
                 let entries = sync::check_status(ws, &repos).await?;
-                display::print_status(&ws.name, &entries);
+                if json {
+                    let base_dir = ws.resolved_base_dir()?;
+                    rows.extend(entries.iter().map(|e| display::StatusJsonRow::new(e, &base_dir)));
+                } else {
+                    display::print_status(&ws.name, &entries);
+                }
+            }
+            if json {
+                println!("{}", serde_json::to_string(&rows)?);
             }
         }
 

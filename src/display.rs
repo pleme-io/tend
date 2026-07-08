@@ -3,6 +3,32 @@ use colored::Colorize;
 use crate::sync::{PullSummary, RepoEntry, RepoStatus};
 use crate::watch;
 
+/// One machine-readable `tend status --json` row — the typed contract
+/// izumi's `tend-repos` board source parses (`state` is the lowercase
+/// status word; `path` is the on-disk working copy, empty when the repo is
+/// missing so consumers know there is no cwd to land in yet).
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct StatusJsonRow {
+    pub name: String,
+    pub path: String,
+    pub state: String,
+}
+
+impl StatusJsonRow {
+    pub(crate) fn new(entry: &RepoEntry, base_dir: &std::path::Path) -> Self {
+        let path = if matches!(entry.status, RepoStatus::Missing) {
+            String::new()
+        } else {
+            base_dir.join(&entry.name).to_string_lossy().into_owned()
+        };
+        Self {
+            name: entry.name.clone(),
+            path,
+            state: entry.status.to_string(),
+        }
+    }
+}
+
 /// Print colored status table for all repos in a workspace.
 pub(crate) fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
     let clean = entries
