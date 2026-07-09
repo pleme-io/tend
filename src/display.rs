@@ -39,6 +39,10 @@ pub(crate) fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
         .iter()
         .filter(|e| matches!(e.status, RepoStatus::Dirty))
         .count();
+    let stuck = entries
+        .iter()
+        .filter(|e| matches!(e.status, RepoStatus::Stuck))
+        .count();
     let missing = entries
         .iter()
         .filter(|e| matches!(e.status, RepoStatus::Missing))
@@ -55,6 +59,7 @@ pub(crate) fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
         let icon = match &entry.status {
             RepoStatus::Clean => "ok".green().to_string(),
             RepoStatus::Dirty => "!!".yellow().to_string(),
+            RepoStatus::Stuck => "RB".red().bold().to_string(),
             RepoStatus::Missing => "--".red().to_string(),
             RepoStatus::Unknown => "??".cyan().to_string(),
         };
@@ -63,9 +68,10 @@ pub(crate) fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
 
     println!();
     println!(
-        "  {} clean, {} dirty, {} missing, {} unknown",
+        "  {} clean, {} dirty, {} stuck, {} missing, {} unknown",
         clean.to_string().green(),
         dirty.to_string().yellow(),
+        stuck.to_string().red().bold(),
         missing.to_string().red(),
         unknown.to_string().cyan(),
     );

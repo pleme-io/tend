@@ -13,6 +13,14 @@ pub(crate) enum RepoStatus {
     Clean,
     /// Repo exists but has uncommitted changes.
     Dirty,
+    /// Repo is mid rebase, merge, or cherry-pick — a conflict or an
+    /// abandoned operator session may be sitting on recoverable work.
+    /// Distinct from `Dirty`: a repo with one modified lockfile and a
+    /// repo with an abandoned rebase both show unmerged/modified paths
+    /// in `git status --porcelain`, but only the second one can silently
+    /// strand real work for weeks with no fleet-wide signal. Checked
+    /// before `Dirty` so it always wins.
+    Stuck,
     /// Repo is expected but not cloned.
     Missing,
     /// Repo exists on disk but not in config.
@@ -24,6 +32,7 @@ impl std::fmt::Display for RepoStatus {
         match self {
             Self::Clean => f.write_str("clean"),
             Self::Dirty => f.write_str("dirty"),
+            Self::Stuck => f.write_str("stuck"),
             Self::Missing => f.write_str("missing"),
             Self::Unknown => f.write_str("unknown"),
         }
@@ -437,6 +446,8 @@ pub(crate) async fn pull_repos(
 pub(crate) fn check_one_repo_status(repo_path: &Path) -> Result<RepoStatus> {
     if !is_git_worktree(repo_path) {
         Ok(RepoStatus::Missing)
+    } else if is_stuck(repo_path)? {
+        Ok(RepoStatus::Stuck)
     } else if is_dirty(repo_path)? {
         Ok(RepoStatus::Dirty)
     } else {
@@ -465,6 +476,42 @@ fn is_dirty(repo_path: &Path) -> Result<bool> {
     Ok(!output.stdout.is_empty())
 }
 
+/// Returns true iff `repo_path` is mid rebase, merge, or cherry-pick.
+///
+/// Resolves the real git-dir via `git rev-parse --git-dir` rather than
+/// assuming `<repo_path>/.git` is a directory — for a worktree, `.git` is a
+/// file pointing at `<main-repo>/.git/worktrees/<name>/`, which is where
+/// the marker files actually live. A repo mid-rebase/merge/cherry-pick can
+/// strand real committed and uncommitted work under a conflict for weeks
+/// with no other signal in `git status --porcelain` distinguishing it from
+/// routine drift — see `feedback_git_hygiene_stuck_rebase_detection` for
+/// the incident this guards against.
+fn is_stuck(repo_path: &Path) -> Result<bool> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--git-dir"])
+        .current_dir(repo_path)
+        .output()
+        .with_context(|| format!("resolving git-dir in {}", repo_path.display()))?;
+
+    if !output.status.success() {
+        return Ok(false);
+    }
+
+    let git_dir_raw = String::from_utf8_lossy(&output.stdout);
+    let git_dir = git_dir_raw.trim();
+    let git_dir = if Path::new(git_dir).is_absolute() {
+        std::path::PathBuf::from(git_dir)
+    } else {
+        repo_path.join(git_dir)
+    };
+
+    Ok(git_dir.join("rebase-merge").is_dir()
+        || git_dir.join("rebase-apply").is_dir()
+        || git_dir.join("MERGE_HEAD").is_file()
+        || git_dir.join("CHERRY_PICK_HEAD").is_file()
+        || git_dir.join("BISECT_LOG").is_file())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -473,6 +520,7 @@ mod tests {
     fn test_repo_status_display() {
         assert_eq!(RepoStatus::Clean.to_string(), "clean");
         assert_eq!(RepoStatus::Dirty.to_string(), "dirty");
+        assert_eq!(RepoStatus::Stuck.to_string(), "stuck");
         assert_eq!(RepoStatus::Missing.to_string(), "missing");
         assert_eq!(RepoStatus::Unknown.to_string(), "unknown");
     }
@@ -510,6 +558,55 @@ mod tests {
         std::fs::create_dir_all(&wt).unwrap();
         std::fs::write(wt.join(".git"), "gitdir: ../real/.git/worktrees/wt\n").unwrap();
         assert!(is_git_worktree(&wt), "dir with .git file pointer must be a worktree");
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    fn git(repo: &Path, args: &[&str]) {
+        let status = Command::new("git").args(args).current_dir(repo).status().unwrap();
+        assert!(status.success(), "git {args:?} failed in {}", repo.display());
+    }
+
+    fn init_repo(repo: &Path) {
+        std::fs::create_dir_all(repo).unwrap();
+        git(repo, &["init", "-q", "-b", "main"]);
+        git(repo, &["config", "user.email", "t@t"]);
+        git(repo, &["config", "user.name", "t"]);
+        git(repo, &["config", "commit.gpgsign", "false"]);
+    }
+
+    fn write_commit(repo: &Path, file: &str, content: &str, msg: &str) {
+        std::fs::write(repo.join(file), content).unwrap();
+        git(repo, &["add", "."]);
+        git(repo, &["commit", "-q", "-m", msg]);
+    }
+
+    /// Regression guard for the incident this variant exists to catch: a
+    /// repo mid rebase with a real conflict must report `Stuck`, not just
+    /// `Dirty` — `Dirty` alone gave zero fleet-wide signal that
+    /// `engenho-promessa-controllers` had a rebase abandoned for six weeks
+    /// with recoverable work underneath it.
+    #[test]
+    fn mid_rebase_conflict_reports_stuck_not_just_dirty() {
+        let tmp = std::env::temp_dir().join(format!("tend-stuck-test-{}", std::process::id()));
+        std::fs::remove_dir_all(&tmp).ok();
+        let repo = tmp.join("repo");
+        init_repo(&repo);
+        write_commit(&repo, "f.txt", "base\n", "base");
+        git(&repo, &["checkout", "-q", "-b", "feature"]);
+        write_commit(&repo, "f.txt", "feature change\n", "feature commit");
+        git(&repo, &["checkout", "-q", "main"]);
+        write_commit(&repo, "f.txt", "main change\n", "main commit");
+        git(&repo, &["checkout", "-q", "feature"]);
+        // This rebase conflicts by construction (both branches touched f.txt).
+        let _ = Command::new("git").args(["rebase", "main"]).current_dir(&repo).output().unwrap();
+
+        assert!(is_stuck(&repo).unwrap(), "mid-rebase-with-conflict must report stuck");
+        assert_eq!(check_one_repo_status(&repo).unwrap(), RepoStatus::Stuck);
+
+        // Abort cleanly and confirm the signal clears.
+        git(&repo, &["rebase", "--abort"]);
+        assert!(!is_stuck(&repo).unwrap(), "aborted rebase must clear the stuck signal");
 
         std::fs::remove_dir_all(&tmp).ok();
     }
