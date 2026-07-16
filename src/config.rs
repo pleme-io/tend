@@ -31,6 +31,56 @@ fn default_timeout() -> u64 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub workspaces: Vec<Workspace>,
+    #[serde(default)]
+    pub host_health: HostHealthConfig,
+}
+
+/// Host-level (not per-workspace) resource-hygiene knobs read by
+/// `tend status` -- see `src/host_health.rs`. Absent from a config file
+/// entirely, or with any field omitted, falls back to the defaults below.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HostHealthConfig {
+    /// Binary name fragments known to leave orphaned (PPID==1) processes
+    /// behind under some failure mode -- extend as new patterns are found
+    /// on the fleet. Default: `["frost"]` (the confirmed 2026-07-12 case).
+    #[serde(default = "default_watched_commands")]
+    pub watched_commands: Vec<String>,
+    /// Fraction of `kern.maxfiles` (0.0-1.0) at which `tend status` warns
+    /// about system-wide fd pressure, independent of any specific process.
+    /// Default 0.5 -- the actual 2026-07-12 incident hit ~0.99997, so this
+    /// gives a wide lead-time margin before the kernel table actually fills.
+    #[serde(default = "default_fd_pressure_threshold")]
+    pub fd_pressure_threshold: f64,
+    /// Whether `tend status` SIGKILLs confirmed orphans it finds (PPID==1
+    /// AND name-matched against `watched_commands`) rather than only
+    /// reporting them. Default true: this match is narrow enough (no
+    /// owning session exists any more) that killing it is a return to
+    /// baseline, not an interruption of anything live. `--no-fix` at the
+    /// CLI overrides this off for a single invocation.
+    #[serde(default = "default_host_health_fix")]
+    pub fix: bool,
+}
+
+impl Default for HostHealthConfig {
+    fn default() -> Self {
+        Self {
+            watched_commands: default_watched_commands(),
+            fd_pressure_threshold: default_fd_pressure_threshold(),
+            fix: true,
+        }
+    }
+}
+
+fn default_watched_commands() -> Vec<String> {
+    vec!["frost".to_string()]
+}
+
+fn default_fd_pressure_threshold() -> f64 {
+    0.5
+}
+
+fn default_host_health_fix() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -503,11 +553,13 @@ impl shikumi::TieredConfig for Config {
     fn bare() -> Self {
         Self {
             workspaces: Vec::new(),
+            host_health: HostHealthConfig::default(),
         }
     }
     fn prescribed_default() -> Self {
         Self {
             workspaces: Vec::new(),
+            host_health: HostHealthConfig::default(),
         }
     }
 }
@@ -729,6 +781,7 @@ impl Config {
     /// of a panic).
     pub fn generate_starter() -> Result<String> {
         let config = Config {
+            host_health: HostHealthConfig::default(),
             workspaces: vec![Workspace {
                 name: "my-org".to_string(),
                 provider: "github".to_string(),

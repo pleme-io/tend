@@ -17,6 +17,7 @@ mod git;
 mod github;
 mod drift;
 mod head_cache;
+mod host_health;
 mod jobs;
 mod nixpkgs_align;
 mod placeholder;
@@ -205,6 +206,12 @@ enum Commands {
         /// repos). The contract izumi's `tend-repos` board source reads.
         #[arg(long)]
         json: bool,
+
+        /// Skip the host-health autocorrect: report orphaned watched
+        /// processes (see host_health.rs) without SIGKILLing them.
+        /// Detection + audit logging still run either way.
+        #[arg(long)]
+        no_fix: bool,
     },
 
     /// List configured repos
@@ -969,6 +976,7 @@ async fn main() -> Result<()> {
             workspace: ws_filter,
             refresh,
             json,
+            no_fix,
         } => {
             let cfg = load_config(config_path.as_deref())?;
             let mut rows: Vec<display::StatusJsonRow> = Vec::new();
@@ -984,6 +992,53 @@ async fn main() -> Result<()> {
             }
             if json {
                 println!("{}", serde_json::to_string(&rows)?);
+            } else {
+                let host_audit = audit::AuditLog::default_path();
+                let report = host_health::run_host_health_check(
+                    &host_health::SystemProcessLister,
+                    &host_health::SystemProcessKiller,
+                    &host_health::SystemSysctlReader,
+                    &cfg.host_health.watched_commands,
+                    cfg.host_health.fd_pressure_threshold,
+                    cfg.host_health.fix && !no_fix,
+                    &host_audit,
+                );
+                if !report.orphans.is_empty() {
+                    println!();
+                    println!(
+                        "Host health: {} orphaned process(es) (PPID==1). Logged to {}:",
+                        report.orphans.len(),
+                        host_audit.path().display()
+                    );
+                    for o in &report.orphans {
+                        println!("  pid {} etime {} tty {} -- {}", o.pid, o.etime, o.tty, o.command);
+                    }
+                    if report.reap_outcomes.is_empty() {
+                        println!("  (not reaped -- pass without --no-fix, or set host_health.fix: true)");
+                    } else {
+                        for (o, outcome) in &report.reap_outcomes {
+                            let desc = match outcome {
+                                host_health::ReapOutcome::Killed => "killed".to_string(),
+                                host_health::ReapOutcome::AlreadyGone => "already gone".to_string(),
+                                host_health::ReapOutcome::Failed(e) => format!("FAILED: {e}"),
+                            };
+                            println!("  pid {} reap: {}", o.pid, desc);
+                        }
+                    }
+                }
+                if let Some(p) = report.fd_pressure {
+                    if report.fd_pressure_exceeded {
+                        println!();
+                        println!(
+                            "Host health: fd pressure {:.1}% ({}/{}) -- above the {:.0}% threshold. Logged to {}.",
+                            p.ratio() * 100.0,
+                            p.used,
+                            p.max,
+                            cfg.host_health.fd_pressure_threshold * 100.0,
+                            host_audit.path().display()
+                        );
+                    }
+                }
             }
         }
 

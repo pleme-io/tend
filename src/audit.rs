@@ -240,6 +240,49 @@ impl AuditLog {
         );
     }
 
+    /// Log an orphaned-process detection (host_health's `tend status` check).
+    /// One event per orphan so a growing count across runs is visible in
+    /// history, not just in whatever this one invocation printed.
+    pub fn orphaned_process_detected(&self, pid: u32, etime: &str, tty: &str, command: &str) {
+        self.log(
+            "orphaned_process_detected",
+            serde_json::json!({
+                "pid": pid,
+                "etime": etime,
+                "tty": tty,
+                "command": command,
+            }),
+        );
+    }
+
+    /// Log an orphan reap attempt (host_health's `tend status` autocorrect).
+    /// `outcome` is one of "killed", "already_gone", "failed" -- kept as a
+    /// plain string (not a Rust enum) here since the audit log is a stable
+    /// on-disk JSON contract, independent of host_health's internal type.
+    pub fn orphaned_process_reaped(&self, pid: u32, command: &str, outcome: &str) {
+        self.log(
+            "orphaned_process_reaped",
+            serde_json::json!({
+                "pid": pid,
+                "command": command,
+                "outcome": outcome,
+            }),
+        );
+    }
+
+    /// Log a system-wide fd-pressure threshold crossing (host_health's
+    /// `tend status` check). Detect-only -- there is no paired remediation.
+    pub fn fd_pressure_detected(&self, used: u64, max: u64, ratio: f64) {
+        self.log(
+            "fd_pressure_detected",
+            serde_json::json!({
+                "used": used,
+                "max": max,
+                "ratio": ratio,
+            }),
+        );
+    }
+
     /// Log a per-workspace pull cycle outcome. Emitted by the daemon after
     /// each pull pass so `tend report` (M7) can summarize unhealed drift
     /// without re-scanning every repo.

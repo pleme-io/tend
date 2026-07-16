@@ -1716,7 +1716,10 @@ mod tests {
                 ws
             })
             .collect();
-        Config { workspaces }
+        Config {
+            workspaces,
+            host_health: Default::default(),
+        }
     }
 
     #[test]
@@ -1768,6 +1771,7 @@ mod tests {
     fn with_fill_from_config_no_prebuild_block_is_identity() {
         let cfg = Config {
             workspaces: vec![Workspace::test_default("ws0"), Workspace::test_default("ws1")],
+            host_health: Default::default(),
         };
         let cli = PrebuildOptions {
             caches: vec![usable_cache("cli-cache")],
