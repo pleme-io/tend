@@ -267,9 +267,9 @@ pub trait RegistryClient: Send + Sync {
     ///
     /// Implementations are responsible for mapping HTTP-level errors
     /// to `RegistryError` variants and (where the protocol exposes
-    /// them) calling `RequestBudget::observe_pressure` with the
-    /// remaining/limit headers so the operator self-throttles before
-    /// hitting the cliff.
+    /// them) calling the pacer's `record_headroom`/`record_observed_limit`
+    /// (samba's `LeakyBucket`) with the remaining/limit headers so the
+    /// operator self-throttles before hitting the cliff.
     async fn head_conditional(
         &self,
         id: &UpstreamId,

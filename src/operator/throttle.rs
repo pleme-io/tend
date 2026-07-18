@@ -59,7 +59,6 @@ impl From<anyhow::Error> for ThrottleError {
     }
 }
 
-use crate::operator::budget::RequestBudget;
 use crate::operator::discovery::ReqwestHeadResolver;
 use crate::operator::upstream::{CachedHead, RegistryClient, UpstreamId};
 
@@ -122,12 +121,16 @@ impl TendGithubApi {
     /// without auth — unauthenticated GitHub gives 60 req/hr per IP,
     /// which defeats the throttle).
     ///
-    /// The internal `RequestBudget` runs at the operator's tunable cap
-    /// (`TEND_BUDGET_MAX_PER_HOUR`, default 100/hr/pod) — but with the
-    /// throttle worker as the *single* drain in the cluster, that
-    /// internal budget is mostly redundant with samba's `LeakyBucket`.
-    /// Both are kept in place so the worker is robust when run outside
-    /// a samba context too (e.g. CLI smoke-test).
+    /// The internal `ReqwestHeadResolver` pacer (also a samba
+    /// `LeakyBucket`, via `budget::pacer_from_env`) runs at the
+    /// operator's tunable cap (`TEND_BUDGET_MAX_PER_HOUR`, default
+    /// 100/hr/pod) — but with the throttle worker as the *single*
+    /// drain in the cluster, this inner bucket is mostly redundant
+    /// with the outer `JetStreamPullWorker`'s own `LeakyBucket`
+    /// (constructed from `samba::Config` in `run()` below). Both are
+    /// kept in place — same primitive, two independent scopes — so
+    /// the worker is robust when run outside a samba context too
+    /// (e.g. CLI smoke-test).
     pub fn from_env() -> Result<Self> {
         let token = load_github_token().context(
             "GITHUB_TOKEN env var unset — refusing to run unauthenticated \
@@ -140,7 +143,7 @@ impl TendGithubApi {
         let resolver = ReqwestHeadResolver::new(
             http,
             Some(token),
-            Arc::new(RequestBudget::from_env_or_default()),
+            Arc::new(super::budget::pacer_from_env()),
         );
         Ok(Self {
             client: Arc::new(resolver),

@@ -22,7 +22,8 @@ use std::collections::HashMap;
 
 use std::sync::Arc;
 
-use super::budget::RequestBudget;
+use samba::LeakyBucket;
+
 use super::crds::FlakeRev;
 use super::upstream::{
     CachedHead, HeadInfo, HeadOutcome, RegistryClient, RegistryError, SourceKind, UpstreamId,
@@ -126,10 +127,12 @@ fn graphql_batch_size() -> usize {
 pub struct ReqwestHeadResolver {
     pub client: reqwest::Client,
     pub token: Option<String>,
-    /// Shared rate-limit budget. Every head_conditional invocation
-    /// awaits a slot from this budget *before* sending; that's what
-    /// keeps us under behavioral abuse-detection thresholds.
-    pub budget: Arc<RequestBudget>,
+    /// Shared rate-limit pacer — samba's `LeakyBucket`, the same
+    /// canonical primitive `tend throttle`'s worker uses. Every
+    /// head_conditional invocation awaits a token from this bucket
+    /// *before* sending; that's what keeps us under behavioral
+    /// abuse-detection thresholds.
+    pub budget: Arc<LeakyBucket>,
     /// Latest `X-RateLimit-Remaining` observed from any response, or
     /// `u32::MAX` if no response has been seen yet (sentinel for
     /// "unknown" since `Option<AtomicU32>` is awkward). Read by the
@@ -144,7 +147,7 @@ pub struct ReqwestHeadResolver {
 
 impl ReqwestHeadResolver {
     /// Construct with token + shared budget, fresh remaining + limit trackers.
-    pub fn new(client: reqwest::Client, token: Option<String>, budget: Arc<RequestBudget>) -> Self {
+    pub fn new(client: reqwest::Client, token: Option<String>, budget: Arc<LeakyBucket>) -> Self {
         Self {
             client,
             token,
@@ -186,9 +189,8 @@ impl RegistryClient for ReqwestHeadResolver {
                 id.source
             )));
         }
-        // Rate-limit budget — block until a slot is free in the
-        // sliding 1h window. This is the load-bearing constraint for
-        // staying under GitHub's radar.
+        // Rate-limit pacer — block until a token is free. This is the
+        // load-bearing constraint for staying under GitHub's radar.
         self.budget.acquire().await;
 
         let url = format!("https://api.github.com/repos/{}/commits/{}", id.key, id.r#ref);
@@ -215,7 +217,7 @@ impl RegistryClient for ReqwestHeadResolver {
 
         // Observe rate-limit pressure unconditionally — even on
         // error/304 responses GitHub returns these headers, and the
-        // budget self-throttles based on the running snapshot.
+        // bucket self-throttles based on the running snapshot.
         let remaining = resp
             .headers()
             .get("x-ratelimit-remaining")
@@ -227,7 +229,8 @@ impl RegistryClient for ReqwestHeadResolver {
             .and_then(|v| v.to_str().ok())
             .and_then(|s| s.parse::<u32>().ok());
         if let (Some(r), Some(l)) = (remaining, limit) {
-            self.budget.observe_pressure(r, l);
+            self.budget.record_observed_limit(l).await;
+            self.budget.record_headroom(r, l).await;
         }
         // Stash the latest observed remaining so samba can read it
         // via RegistryClient::last_observed_remaining and shrink its
@@ -425,7 +428,7 @@ impl ReqwestHeadResolver {
         }
         query.push('}');
 
-        // Budget: 1 slot for the whole batch.
+        // Pacer: 1 token for the whole batch.
         self.budget.acquire().await;
 
         let body = serde_json::json!({ "query": query });
@@ -450,7 +453,8 @@ impl ReqwestHeadResolver {
                 .and_then(|v| v.to_str().ok())
                 .and_then(|s| s.parse::<u32>().ok()),
         ) {
-            self.budget.observe_pressure(rem, lim);
+            self.budget.record_observed_limit(lim).await;
+            self.budget.record_headroom(rem, lim).await;
         }
 
         let status = resp.status();

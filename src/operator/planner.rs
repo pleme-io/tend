@@ -6,21 +6,26 @@
 //!   - `ExtendedLockFile` — the parsed flake.lock
 //!   - `BTreeSet<String>` declared inputs from `flake_nix::read_flake_inputs`
 //!   - `FlakeUpdatePolicy` — per-input mode (Auto/Gated/Locked/Forbidden)
-//!   - `RequestBudget` — current effective req/hr + remaining slots
+//!   - `effective_max_per_hour: u32` — the caller's current effective req/hr
+//!     cap, read from samba's `LeakyBucket::effective_rpm() × 60` (async;
+//!     resolved by the caller before invoking this pure fn — see
+//!     `reconcile.rs`)
 //!   - `HashMap<UpstreamId, CachedHead>` — what we already know
 //!
 //! Output: `FlakeUpdatePlanSpec` (CRD persists for audit) + a derived
 //! ordered list of `UpstreamId`s to actually check.
 //!
-//! The planner is pure (no I/O) so it's easy to test and replay. The
-//! reconciler decides whether to emit the CR; the planner just builds
-//! the data.
+//! The planner is pure (no I/O, no async) so it's easy to test and
+//! replay. The reconciler decides whether to emit the CR; the planner
+//! just builds the data. Kept pure deliberately: `samba::LeakyBucket`'s
+//! getters are `async fn` (they lock a `tokio::Mutex`), so the caller
+//! resolves the numeric cap once up front rather than this fn taking a
+//! live bucket reference.
 
 use std::collections::{BTreeSet, HashMap};
 
 use chrono::{Duration, Utc};
 
-use super::budget::RequestBudget;
 use super::crds::{
     FlakeUpdatePlanSpec, FlakeUpdatePolicy, PlanAction, PlannedCheck, UpdateMode,
 };
@@ -58,12 +63,12 @@ pub fn plan(
     lock: &ExtendedLockFile,
     declared_inputs: Option<&BTreeSet<String>>,
     head_cache: &HashMap<UpstreamId, CachedHead>,
-    budget: &RequestBudget,
+    effective_max_per_hour: u32,
 ) -> PlanOutput {
     let now = Utc::now();
     let ttl = use_cached_ttl();
-    let effective_max = budget.effective_max_per_hour();
-    let mut slots_remaining = budget.slots_remaining();
+    let effective_max = effective_max_per_hour;
+    let mut slots_remaining = effective_max_per_hour;
 
     let mut checks: Vec<PlannedCheck> = Vec::new();
     let mut refresh_targets: Vec<(String, UpstreamId)> = Vec::new();
@@ -191,7 +196,15 @@ pub fn plan(
         policy_name: policy.metadata.name.clone().unwrap_or_default(),
         generated_at: now,
         budget_effective_max_per_hour: effective_max,
-        budget_slots_remaining: budget.slots_remaining(),
+        // Post-loop value: how many of this cycle's slots are still
+        // unspent after scheduling. (Previously this field re-read the
+        // live `RequestBudget`'s real state, which — since `plan()`
+        // never called `acquire()` — was always identical to the
+        // pre-loop value, not the locally-decremented count. Reporting
+        // the local post-loop value here is the more useful signal and
+        // a small behavior clarification that fell out of making this
+        // fn take a plain cap instead of a live budget reference.)
+        budget_slots_remaining: slots_remaining,
         checks,
     };
     PlanOutput { spec, refresh_targets }
@@ -266,8 +279,7 @@ mod tests {
         let lock = lock_with_inputs(&[("ghost", "ghost", "x", "y", "abc")]);
         let declared: BTreeSet<String> = ["other".into()].into_iter().collect();
         let cache = HashMap::new();
-        let budget = RequestBudget::new(100);
-        let out = plan(&policy, &lock, Some(&declared), &cache, &budget);
+        let out = plan(&policy, &lock, Some(&declared), &cache, 100);
         let g = out.spec.checks.iter().find(|c| c.input == "ghost").unwrap();
         assert_eq!(g.action, PlanAction::Skip);
         assert!(g.rationale.contains("ghost"));
@@ -290,8 +302,7 @@ mod tests {
             ("auto-input", "auto-input", "x", "y", "3"),
         ]);
         let cache = HashMap::new();
-        let budget = RequestBudget::new(100);
-        let out = plan(&policy, &lock, None, &cache, &budget);
+        let out = plan(&policy, &lock, None, &cache, 100);
 
         let l = out.spec.checks.iter().find(|c| c.input == "locked-input").unwrap();
         let f = out.spec.checks.iter().find(|c| c.input == "forbidden-input").unwrap();
@@ -319,8 +330,7 @@ mod tests {
                 fetched_at: Utc::now() - Duration::minutes(5),
             },
         );
-        let budget = RequestBudget::new(100);
-        let out = plan(&policy, &lock, None, &cache, &budget);
+        let out = plan(&policy, &lock, None, &cache, 100);
         let c = out.spec.checks.iter().find(|c| c.input == "input").unwrap();
         assert_eq!(c.action, PlanAction::UseCached);
         assert!(out.refresh_targets.is_empty());
@@ -340,8 +350,7 @@ mod tests {
                 fetched_at: Utc::now() - Duration::hours(1),
             },
         );
-        let budget = RequestBudget::new(100);
-        let out = plan(&policy, &lock, None, &cache, &budget);
+        let out = plan(&policy, &lock, None, &cache, 100);
         let c = out.spec.checks.iter().find(|c| c.input == "input").unwrap();
         assert_eq!(c.action, PlanAction::Refresh);
         assert!(c.rationale.contains("etag-conditional"));
@@ -361,9 +370,8 @@ mod tests {
         let policy = make_policy("p", BTreeMap::new());
         let lock = lock_with_inputs(&inputs);
         let cache = HashMap::new();
-        let budget = RequestBudget::new(2);
         // Pre-burn 0 — fresh budget gives 2 slots.
-        let out = plan(&policy, &lock, None, &cache, &budget);
+        let out = plan(&policy, &lock, None, &cache, 2);
 
         let refreshes: Vec<&str> = out
             .spec
@@ -401,8 +409,7 @@ mod tests {
         ];
         let lock = lock_with_inputs(&inputs);
         let cache = HashMap::new();
-        let budget = RequestBudget::new(10);
-        let out = plan(&policy, &lock, None, &cache, &budget);
+        let out = plan(&policy, &lock, None, &cache, 10);
 
         // First entry should be Refresh (y-auto), last should be Skip (z-locked).
         assert_eq!(out.spec.checks.first().unwrap().action, PlanAction::Refresh);

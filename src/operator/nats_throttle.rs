@@ -4,8 +4,8 @@
 //!
 //! Activated by `TEND_THROTTLE_ENABLED=true` (set by the chart's
 //! `throttle.enabled: true`). When inactive, the operator continues
-//! to use `ReqwestHeadResolver` (Phase A–E protections + RequestBudget)
-//! exactly as before.
+//! to use `ReqwestHeadResolver` (Phase A–E protections + a samba
+//! `LeakyBucket` pacer) exactly as before.
 //!
 //! Wire protocol mirrors the throttle worker side (see
 //! `src/operator/throttle.rs`):
@@ -32,7 +32,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::timeout;
 
-use crate::operator::budget::RequestBudget;
+use samba::LeakyBucket;
+
 use crate::operator::upstream::{
     CachedHead, HeadOutcome, RegistryClient, RegistryError, UpstreamId,
 };
@@ -50,10 +51,11 @@ pub struct NatsThrottleClient {
     /// reconciler's downstream code paths see fleet-wide pressure
     /// (not just per-pod). u32::MAX = unknown.
     last_remaining: Arc<AtomicU32>,
-    /// Operator-side budget — kept in step with fleet pressure via
-    /// observe_pressure on every result. Optional because some test
-    /// paths skip it; production wiring always supplies one.
-    budget: Option<Arc<RequestBudget>>,
+    /// Operator-side pacer (samba's `LeakyBucket`) — kept in step with
+    /// fleet pressure via `record_headroom`/`record_observed_limit` on
+    /// every result. Optional because some test paths skip it;
+    /// production wiring always supplies one.
+    budget: Option<Arc<LeakyBucket>>,
 }
 
 impl NatsThrottleClient {
@@ -67,11 +69,11 @@ impl NatsThrottleClient {
     ///   • `TEND_THROTTLE_RESULT_SUBJECT`  — result-job subject prefix
     ///   • `TEND_THROTTLE_RESULT_TIMEOUT`  — go-duration string (e.g. "30m")
     ///
-    /// `budget` is the operator's existing RequestBudget — passing it in
-    /// lets received rate-limit-remaining values feed the budget's
-    /// pressure tracking, so the operator's internal back-pressure mirrors
-    /// what samba sees fleet-wide.
-    pub async fn from_env(budget: Option<Arc<RequestBudget>>) -> Result<Self, anyhow::Error> {
+    /// `budget` is the operator's existing samba `LeakyBucket` — passing
+    /// it in lets received rate-limit-remaining/-total values feed the
+    /// bucket's pressure + rate tracking, so the operator's internal
+    /// back-pressure mirrors what samba sees fleet-wide.
+    pub async fn from_env(budget: Option<Arc<LeakyBucket>>) -> Result<Self, anyhow::Error> {
         let url = std::env::var("TEND_NATS_URL")
             .unwrap_or_else(|_| "nats://pleme-nats.nats.svc:4222".to_string());
         let refresh = std::env::var("TEND_THROTTLE_REFRESH_SUBJECT")
@@ -208,17 +210,20 @@ impl RegistryClient for NatsThrottleClient {
 
                 // ★ Adaptive feedback loop: capture observed
                 // rate-limit-remaining for downstream consumers
-                // (last_observed_remaining trait method) AND feed
-                // it into the operator's own RequestBudget so
+                // (last_observed_remaining trait method) AND feed it
+                // into the operator's own samba `LeakyBucket` so
                 // pressure self-throttling tracks the fleet-wide
-                // signal, not just per-pod observation.
+                // signal, not just per-pod observation. Prefer the
+                // throttle worker's actually-observed
+                // `rate_limit_total` (tracks GitHub's real ceiling —
+                // PAT vs GitHub App vs GHE all differ); 5000 is only a
+                // fallback for older workers that predate that field.
                 if let Some(remaining) = result.rate_limit_remaining {
                     self.last_remaining.store(remaining, Ordering::Relaxed);
                     if let Some(b) = &self.budget {
-                        // 5000 = GitHub authenticated cap. Encoding
-                        // the limit here is fine — the operator's
-                        // upstream is always GitHub.
-                        b.observe_pressure(remaining, 5000);
+                        let total = result.rate_limit_total.unwrap_or(5000);
+                        b.record_observed_limit(total).await;
+                        b.record_headroom(remaining, total).await;
                     }
                 }
 

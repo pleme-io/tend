@@ -90,9 +90,9 @@ pub async fn run() -> Result<()> {
                 .unwrap_or_else(|_| "/var/lib/tend-workspace/.tend-cache/head.json".into()),
         ))
         .await,
-        // Budget cap honoring TEND_BUDGET_MAX_PER_HOUR — chart-tunable
-        // via underTheRadar.budgetMaxPerHour values.
-        budget: Arc::new(budget::RequestBudget::from_env_or_default()),
+        // samba::LeakyBucket pacer honoring TEND_BUDGET_MAX_PER_HOUR —
+        // chart-tunable via underTheRadar.budgetMaxPerHour values.
+        budget: Arc::new(budget::pacer_from_env()),
     });
 
     // Prometheus metrics endpoint — vmagent scrapes via the chart's

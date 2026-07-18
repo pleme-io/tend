@@ -77,11 +77,13 @@ pub struct Context {
     /// carries an ETag so conditional requests return 304 (free)
     /// when nothing changed.
     pub head_cache: Arc<super::head_cache::PersistentHeadCache>,
-    /// Sliding-window rate budget shared across every domain
-    /// controller. Enforces a per-pod hourly cap on outgoing requests
-    /// (default 100/hr — 2% of GitHub's authenticated quota) and
-    /// adapts down when GitHub signals pressure via X-RateLimit-Remaining.
-    pub budget: Arc<super::budget::RequestBudget>,
+    /// Shared rate pacer — samba's `LeakyBucket`, the fleet's
+    /// canonical rate-limited-consumer primitive (also used by
+    /// `tend throttle`'s worker). Enforces a per-pod hourly cap on
+    /// outgoing requests (default 100/hr — 2% of GitHub's
+    /// authenticated quota) and adapts down when GitHub signals
+    /// pressure via X-RateLimit-Remaining.
+    pub budget: Arc<samba::LeakyBucket>,
 }
 
 impl Context {
@@ -215,6 +217,11 @@ pub async fn reconcile_policy(
     // what budget remains. Operators can `kubectl describe fpl` to
     // see what discovery is about to do — auditability +
     // reproducibility.
+    //
+    // `planner::plan` is a pure fn (see its module doc), so the one
+    // async read against the shared samba `LeakyBucket` happens here,
+    // up front — the numeric cap is what actually flows into the plan.
+    let effective_max_per_hour = (ctx.budget.effective_rpm().await * 60.0).round().max(0.0) as u32;
     let plan_output = {
         let cache_guard = ctx.head_cache.lock().await;
         super::planner::plan(
@@ -222,7 +229,7 @@ pub async fn reconcile_policy(
             &lock,
             declared_inputs.as_ref(),
             &cache_guard,
-            &ctx.budget,
+            effective_max_per_hour,
         )
     };
     // Emit the plan CR. Operator-tunable: TEND_PLANS_EMIT=false
@@ -242,8 +249,8 @@ pub async fn reconcile_policy(
     //
     //   • false (default) — `ReqwestHeadResolver` dispatches HEAD
     //     inline using the operator's Phase A–E protections (Phase D
-    //     RequestBudget caps at 100 req/hr/pod by default). Good for
-    //     single-cluster, single-pod operation.
+    //     is a samba `LeakyBucket` pacer capped at 100 req/hr/pod by
+    //     default). Good for single-cluster, single-pod operation.
     //
     //   • true — `NatsThrottleClient` publishes refresh jobs to
     //     `pleme-tend-throttle` over NATS and awaits the result.

@@ -1,138 +1,75 @@
-//! Request budget — sliding-window rate limiter shared across every
-//! domain controller (Phase 1 flake, Phase 2-4 helm/cargo/image).
+//! GitHub request pacing + requeue jitter.
 //!
 //! Why this exists: GitHub's abuse detector flags request patterns that
 //! look like scrapers — sustained rate, cron-shaped cycles, bursts.
 //! Our authenticated quota is 5000/hr but using even 10% of that
-//! consistently is enough to trip behavioral detection. The budget
+//! consistently is enough to trip behavioral detection. The pacer
 //! self-caps at a fraction of the theoretical limit and adapts down
 //! when GitHub signals pressure via `X-RateLimit-Remaining`.
 //!
-//! `acquire()` is a coordination point: each upstream HTTP request
-//! awaits the budget before firing. When the sliding window is full,
-//! the call yields and re-checks once the oldest entry expires —
-//! discovery slows down rather than racing to exhaustion. The cycle
-//! is supposed to take whatever time GitHub gives us, not whatever
-//! time the operator wants.
+//! The actual pacing primitive is `samba::LeakyBucket` — the same
+//! typed rate-limited-consumer primitive `tend throttle`'s worker uses
+//! (`src/operator/throttle.rs`). Before 2026-07 this module also
+//! defined a hand-rolled sliding-window limiter (`RequestBudget`) that
+//! duplicated `LeakyBucket`'s job for the in-process discovery path
+//! while the NATS-relayed throttle path already used samba. Both paths
+//! now share one canonical primitive — see
+//! pleme-io/theory/RATE-LIMITED-CONSUMERS.md.
 
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// Maximum requests per hour we'll send to GitHub from one pod.
 /// 100 = 2% of the 5000/hr authenticated quota — well below behavioral
 /// flag thresholds and leaves headroom for human use of the same token.
 const DEFAULT_MAX_PER_HOUR: u32 = 100;
 
-/// Sliding-window rate limiter. Thread-safe; shared via Arc.
-pub struct RequestBudget {
-    max_per_hour: u32,
-    /// Timestamps of past requests within the 1h window. Pruned on
-    /// every acquire(). std::sync::Mutex chosen over tokio's because
-    /// the protected operation is purely CPU-bound (vec push, vec
-    /// retain) and finishes in microseconds; awaiting is for the
-    /// outer "wait for slot" loop, not the inner critical section.
-    window: Mutex<Vec<Instant>>,
-    /// Backoff multiplier — 1× = full budget, 2×/4×/8× = halved each
-    /// time GitHub signals pressure. Resets to 1× on a clean response.
-    /// Atomic so observe_pressure() doesn't have to take the window mutex.
-    backoff_factor: AtomicU32,
+/// Headroom % below which the bucket halves — reproduces the old
+/// `RequestBudget::observe_pressure` cutoff (25–49% remaining → 2×
+/// backoff, i.e. a 0.5 pace multiplier).
+const PRESSURE_WARN_PCT: u8 = 50;
+
+/// Headroom % below which the bucket quarters — reproduces the old
+/// cutoff (10–24% remaining → 4× backoff, i.e. a 0.25 pace multiplier).
+/// samba's `PressureLevel::Emergency` tier (<10% → 0.125×, matching the
+/// old 8× backoff) is fixed at 10% internally, not configurable here.
+const PRESSURE_CRITICAL_PCT: u8 = 25;
+
+/// Construct a `samba::LeakyBucket` capped at `max_per_hour` requests/hour,
+/// with a full burst ceiling (so — like the old sliding-window budget —
+/// up to `max_per_hour` requests can go out immediately after an idle
+/// period, then the bucket paces the rest) and zero jitter (the old
+/// budget's `acquire()` had no randomized wait; jitter for *requeue*
+/// timing is handled separately by `jittered_from_env` below).
+///
+/// # Panics
+/// Never, in practice — every argument is a literal or a `max(1)`-guarded
+/// value, so `LeakyBucket::new`'s validation can't fail here.
+#[must_use]
+pub fn pacer(max_per_hour: u32) -> samba::LeakyBucket {
+    let capped = max_per_hour.max(1);
+    samba::LeakyBucket::new(
+        1.0,                    // quota_pct: capped is already the absolute req/hr cap
+        f64::from(capped),      // initial_rph
+        PRESSURE_WARN_PCT,
+        PRESSURE_CRITICAL_PCT,
+        0.0,                    // jitter_pct
+        capped,                 // burst — allow an immediate burst up to the cap
+    )
+    .expect("pacer: literal LeakyBucket params are always valid")
 }
 
-impl RequestBudget {
-    #[must_use]
-    pub fn new(max_per_hour: u32) -> Self {
-        Self {
-            max_per_hour,
-            window: Mutex::new(Vec::with_capacity(max_per_hour as usize)),
-            backoff_factor: AtomicU32::new(1),
-        }
-    }
-
-    /// Default — 100 req/hr ceiling.
-    #[must_use]
-    pub fn default_for_github() -> Self {
-        Self::new(DEFAULT_MAX_PER_HOUR)
-    }
-
-    /// Read `TEND_BUDGET_MAX_PER_HOUR` env var; fall back to the
-    /// 100 req/hr default. Invalid/empty values silently use default
-    /// so misconfiguration never wedges the operator.
-    #[must_use]
-    pub fn from_env_or_default() -> Self {
-        let max = std::env::var("TEND_BUDGET_MAX_PER_HOUR")
-            .ok()
-            .and_then(|s| s.parse::<u32>().ok())
-            .filter(|n| *n > 0)
-            .unwrap_or(DEFAULT_MAX_PER_HOUR);
-        Self::new(max)
-    }
-
-    /// Reserve one request slot. Returns immediately when a slot is
-    /// available; awaits otherwise until the oldest in-window entry
-    /// ages out. Caller is responsible for actually sending the
-    /// request after acquire returns — there's no "release" because
-    /// the entry is committed at reservation time (matches GitHub's
-    /// view: even cancelled requests count).
-    pub async fn acquire(&self) {
-        loop {
-            let wait = {
-                let now = Instant::now();
-                let mut window = self.window.lock().expect("budget mutex poisoned");
-                window.retain(|t| now.duration_since(*t) < Duration::from_secs(3600));
-                let factor = self.backoff_factor.load(Ordering::Relaxed).max(1);
-                let effective_max = self.max_per_hour / factor;
-                if (window.len() as u32) < effective_max {
-                    window.push(now);
-                    return;
-                }
-                // Compute time until the oldest entry ages out.
-                let oldest = *window.iter().min().expect("window nonempty here");
-                let elapsed = now.duration_since(oldest);
-                Duration::from_secs(3600).saturating_sub(elapsed)
-                    + Duration::from_secs(1)
-            };
-            tokio::time::sleep(wait).await;
-        }
-    }
-
-    /// Update the backoff factor based on a freshly observed
-    /// `X-RateLimit-Remaining` / `X-RateLimit-Limit` pair from GitHub.
-    /// Backoff escalates as remaining drops; resets when the user has
-    /// breathing room.
-    pub fn observe_pressure(&self, remaining: u32, limit: u32) {
-        let limit = limit.max(1);
-        let pct = (remaining * 100) / limit;
-        let factor = match pct {
-            0..=9 => 8,
-            10..=24 => 4,
-            25..=49 => 2,
-            _ => 1,
-        };
-        self.backoff_factor.store(factor, Ordering::Relaxed);
-    }
-
-    /// Current effective requests-per-hour cap, reflecting any active
-    /// backoff. Useful for plan generation — if the cap is 25/hr we
-    /// only schedule 25 checks for this cycle.
-    #[must_use]
-    pub fn effective_max_per_hour(&self) -> u32 {
-        let factor = self.backoff_factor.load(Ordering::Relaxed).max(1);
-        self.max_per_hour / factor
-    }
-
-    /// Snapshot of how many slots are still free in the current
-    /// 1h sliding window. Useful for telemetry + plan budgeting.
-    #[must_use]
-    pub fn slots_remaining(&self) -> u32 {
-        let now = Instant::now();
-        let window = self.window.lock().expect("budget mutex poisoned");
-        let active = window
-            .iter()
-            .filter(|t| now.duration_since(**t) < Duration::from_secs(3600))
-            .count() as u32;
-        self.effective_max_per_hour().saturating_sub(active)
-    }
+/// Read `TEND_BUDGET_MAX_PER_HOUR` env var; fall back to the 100 req/hr
+/// default. Invalid/empty values silently use default so misconfiguration
+/// never wedges the operator. Chart-tunable via
+/// `underTheRadar.budgetMaxPerHour`.
+#[must_use]
+pub fn pacer_from_env() -> samba::LeakyBucket {
+    let max = std::env::var("TEND_BUDGET_MAX_PER_HOUR")
+        .ok()
+        .and_then(|s| s.parse::<u32>().ok())
+        .filter(|n| *n > 0)
+        .unwrap_or(DEFAULT_MAX_PER_HOUR);
+    pacer(max)
 }
 
 /// Multiply a base requeue duration by a random factor in
@@ -163,43 +100,66 @@ pub fn jittered_from_env(base: Duration) -> Duration {
 mod tests {
     use super::*;
 
+    /// Proves the main path is genuinely paced through samba's
+    /// `LeakyBucket`, not just "it compiles the same as before": a
+    /// 5-request/hour pacer admits the first 5 acquires immediately
+    /// (burst ceiling) and measurably delays the 6th.
     #[tokio::test(flavor = "multi_thread")]
-    async fn acquire_returns_immediately_under_budget() {
-        let b = RequestBudget::new(5);
+    async fn pacer_admits_burst_then_paces_via_samba_leaky_bucket() {
+        let bucket = pacer(5);
         for _ in 0..5 {
-            // All five should resolve without blocking.
-            tokio::time::timeout(Duration::from_millis(50), b.acquire())
+            tokio::time::timeout(Duration::from_millis(200), bucket.acquire())
                 .await
-                .expect("acquire should not block under budget");
+                .expect("first 5 acquires should not block (burst ceiling)");
         }
-        assert_eq!(b.slots_remaining(), 0, "budget should be saturated");
+        // 5/hr → one token every 720s; the 6th acquire must wait, proving
+        // requests genuinely flow through the LeakyBucket's pacing math
+        // and not some no-op stand-in.
+        let wait = tokio::time::timeout(Duration::from_millis(200), bucket.acquire()).await;
+        assert!(
+            wait.is_err(),
+            "6th acquire on a 5/hr bucket should still be waiting after 200ms"
+        );
     }
 
-    #[test]
-    fn observe_pressure_escalates_backoff() {
-        let b = RequestBudget::new(100);
-        assert_eq!(b.effective_max_per_hour(), 100);
+    #[tokio::test]
+    async fn pacer_pressure_escalates_on_low_headroom() {
+        let bucket = pacer(100);
+        assert_eq!(bucket.pressure().await, samba::PressureLevel::Healthy);
 
-        b.observe_pressure(60, 100); // 60% remaining → 1×
-        assert_eq!(b.effective_max_per_hour(), 100);
+        bucket.record_headroom(60, 100).await; // 60% remaining → Healthy
+        assert_eq!(bucket.pressure().await, samba::PressureLevel::Healthy);
 
-        b.observe_pressure(40, 100); // 40% remaining → 2×
-        assert_eq!(b.effective_max_per_hour(), 50);
+        bucket.record_headroom(40, 100).await; // 40% remaining → Warn (0.5×)
+        assert_eq!(bucket.pressure().await, samba::PressureLevel::Warn);
 
-        b.observe_pressure(20, 100); // 20% remaining → 4×
-        assert_eq!(b.effective_max_per_hour(), 25);
+        bucket.record_headroom(20, 100).await; // 20% remaining → Critical (0.25×)
+        assert_eq!(bucket.pressure().await, samba::PressureLevel::Critical);
 
-        b.observe_pressure(5, 100); // 5% remaining → 8×
-        assert_eq!(b.effective_max_per_hour(), 12);
+        bucket.record_headroom(5, 100).await; // 5% remaining → Emergency (0.125×)
+        assert_eq!(bucket.pressure().await, samba::PressureLevel::Emergency);
     }
 
-    #[test]
-    fn observe_pressure_recovers_to_full_budget() {
-        let b = RequestBudget::new(100);
-        b.observe_pressure(5, 100);
-        assert_eq!(b.effective_max_per_hour(), 12);
-        b.observe_pressure(80, 100); // back to comfortable
-        assert_eq!(b.effective_max_per_hour(), 100);
+    #[tokio::test]
+    async fn pacer_recovers_to_healthy_pressure() {
+        let bucket = pacer(100);
+        bucket.record_headroom(5, 100).await;
+        assert_eq!(bucket.pressure().await, samba::PressureLevel::Emergency);
+        bucket.record_headroom(80, 100).await; // back to comfortable
+        assert_eq!(bucket.pressure().await, samba::PressureLevel::Healthy);
+    }
+
+    #[tokio::test]
+    async fn pacer_tracks_dynamically_observed_limit() {
+        // Starts at the constructed cap...
+        let bucket = pacer(100);
+        assert!((bucket.target_rpm().await - 100.0 / 60.0).abs() < 0.01);
+        // ...and re-rates when GitHub reports a different ceiling (e.g.
+        // a GitHub App token's 15000/hr instead of a PAT's 5000/hr) —
+        // a capability `RequestBudget` never had (its max_per_hour was
+        // fixed at construction).
+        bucket.record_observed_limit(15_000).await;
+        assert!((bucket.target_rpm().await - 15_000.0 / 60.0).abs() < 0.01);
     }
 
     #[test]
