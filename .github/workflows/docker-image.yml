@@ -23,11 +23,13 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: pleme-io/actions/registry-login@main
         with:
           registry: ghcr.io
+          client: docker
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache cargo registry
         uses: actions/cache@v4
