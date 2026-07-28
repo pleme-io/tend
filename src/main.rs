@@ -192,7 +192,7 @@ enum Commands {
         max_inflight: u32,
     },
 
-    /// Show repo status (clean/dirty/missing/unknown)
+    /// Show repo status (clean/dirty/stuck/no-remote/missing/unknown)
     Status {
         /// Path to config file
         #[arg(long)]
@@ -752,6 +752,7 @@ async fn main() -> Result<()> {
                         }
                         drift::DriftEvent::PullFailedTransient { .. } => "pull-failed-transient",
                         drift::DriftEvent::SyncFailed { .. } => "sync-failed",
+                        drift::DriftEvent::RepoHasNoRemote { .. } => "repo-has-no-remote",
                         drift::DriftEvent::JobUnhealed { .. } => "job-unhealed",
                         drift::DriftEvent::LocalRepoNotInDiscovery { .. } => {
                             "local-not-in-discovery"
@@ -805,6 +806,11 @@ async fn main() -> Result<()> {
                         )),
                         drift::DriftEvent::SyncFailed { repo_name, .. } => Some(format!(
                             "  sync failed [{repo_name}]: check GitHub creds + network; retry with `tend reconcile`"
+                        )),
+                        drift::DriftEvent::RepoHasNoRemote { repo_name, .. } => Some(format!(
+                            "  NO REMOTE [{repo_name}]: this history exists on this machine ONLY — no git, GitHub, or tend backup covers it. \
+                             Decide where it belongs, then `git -C <path> remote add origin <url>` + `git -C <path> push -u origin <branch>`. \
+                             tend will NOT do this for you: the obvious guessed URL may already hold unrelated content, and force-pushing to it would destroy a history"
                         )),
                         drift::DriftEvent::LocalRepoNotInDiscovery {
                             workspace,

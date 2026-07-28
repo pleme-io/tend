@@ -129,6 +129,27 @@ pub(crate) enum DriftEvent {
         job_id: JobId,
         phase: JobPhase,
     },
+    /// A repo has **no git remote configured at all**. Its entire
+    /// history exists on one machine and has never been pushed
+    /// anywhere; every backup path the fleet has is bypassed.
+    ///
+    /// Reported, never auto-remediated. Where a remote *should* point
+    /// is an operator decision with real destructive potential — the
+    /// obvious guess (`git@github.com:<org>/<repo>.git`) can already
+    /// hold unrelated content, and a force-push to it would destroy a
+    /// history. Detection and reporting are the whole deliverable;
+    /// `jobs::reactions` deliberately returns no handler for this.
+    ///
+    /// Distinct from `PullFailedNoUpstream`, which it used to be
+    /// swallowed by: git emits the byte-identical
+    /// `There is no tracking information for the current branch.` for
+    /// both, so the stderr classifier could not tell them apart. This
+    /// variant is derived from an *observation* of the remote set
+    /// (`PullOutcome::NoRemoteSkipped`), not from a message.
+    RepoHasNoRemote {
+        workspace: String,
+        repo_name: String,
+    },
     /// A repo exists locally but doesn't appear in the latest org
     /// discovery output. Possible causes: archived on GitHub (excluded
     /// from active discovery), deleted upstream, renamed upstream, or
@@ -156,6 +177,7 @@ impl DriftEvent {
             | Self::PullFailedRepoMissing { workspace, .. }
             | Self::PullFailedTransient { workspace, .. }
             | Self::SyncFailed { workspace, .. }
+            | Self::RepoHasNoRemote { workspace, .. }
             | Self::LocalRepoNotInDiscovery { workspace, .. } => Some(workspace.as_str()),
             Self::JobUnhealed { job_id, .. } => match &job_id.scope {
                 shigoto_types::JobScope::Workspace(w) => Some(w.as_str()),
@@ -207,6 +229,16 @@ pub(crate) fn classify_pull_failure(
             repo_name: repo_name.to_string(),
         };
     }
+    // NOTE (2026-07-28): this arm is reachable ONLY for a repo that has
+    // a remote. Git emits this exact message for both "has origin, this
+    // branch has no tracking" and "has no remote at all" — verified
+    // byte-identical — so stderr alone cannot distinguish them and this
+    // classifier must not try. `pull_one_repo` observes the remote set
+    // first and returns `PullOutcome::NoRemoteSkipped`, so the
+    // remote-less case never reaches classification. Without that
+    // upstream observation, this arm silently absorbed every remote-less
+    // repo and pointed the operator at a `--set-upstream-to=origin/…`
+    // remedy that cannot work when there is no origin.
     if stderr.contains("There is no tracking information for the current branch") {
         return DriftEvent::PullFailedNoUpstream {
             workspace: workspace.to_string(),
@@ -331,6 +363,10 @@ pub(crate) fn derive_from_receipt(receipt: &ReconcileReceipt) -> Vec<DriftEvent>
         };
         match outcome {
             PullOutcome::DirtySkipped => events.push(DriftEvent::DirtyTreeBlocksPull {
+                workspace: receipt.workspace.clone(),
+                repo_name,
+            }),
+            PullOutcome::NoRemoteSkipped => events.push(DriftEvent::RepoHasNoRemote {
                 workspace: receipt.workspace.clone(),
                 repo_name,
             }),
@@ -644,6 +680,45 @@ mod tests {
             parse_expected_ref("merge with the ref without quotes"),
             None
         );
+    }
+
+    /// A remote-less repo surfaces as its own typed finding, NOT as
+    /// `PullFailedNoUpstream` (whose remedy assumes an `origin` that
+    /// does not exist) and NOT silently.
+    #[test]
+    fn no_remote_outcome_becomes_repo_has_no_remote_drift() {
+        let mut r = empty_receipt();
+        r.outcomes
+            .insert(pull_id("ferrite-zig"), PullOutcome::NoRemoteSkipped);
+
+        let events = derive_from_receipt(&r);
+        assert_eq!(events.len(), 1, "expected exactly one finding; got {events:?}");
+        match &events[0] {
+            DriftEvent::RepoHasNoRemote {
+                workspace,
+                repo_name,
+            } => {
+                assert_eq!(workspace, "ws");
+                assert_eq!(repo_name, "ferrite-zig");
+            }
+            other => panic!("expected RepoHasNoRemote, got {other:?}"),
+        }
+    }
+
+    /// The stderr classifier must NOT be taught to sniff for the
+    /// remote-less case: git's message is byte-identical to the
+    /// has-remote-but-no-tracking case, so any string test here would be
+    /// guessing. This test pins that the no-tracking message keeps
+    /// meaning "has a remote, lacks tracking" — the remote-less case is
+    /// caught upstream by observation in `pull_one_repo`.
+    #[test]
+    fn no_tracking_stderr_still_means_no_upstream_not_no_remote() {
+        let stderr = "There is no tracking information for the current branch.\n\
+            Please specify which branch you want to merge with.";
+        match classify_pull_failure("ws", "r", stderr) {
+            DriftEvent::PullFailedNoUpstream { .. } => {}
+            other => panic!("expected PullFailedNoUpstream, got {other:?}"),
+        }
     }
 
     #[test]

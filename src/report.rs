@@ -321,6 +321,12 @@ fn format_drift_event(event: &DriftEvent) -> String {
         DriftEvent::JobUnhealed { job_id, phase } => {
             format!("{}: {}", format_job_id(job_id), format_phase(phase))
         }
+        DriftEvent::RepoHasNoRemote {
+            workspace,
+            repo_name,
+        } => format!(
+            "[{workspace}] {repo_name}: NO REMOTE — history exists on this machine only, never pushed"
+        ),
         DriftEvent::LocalRepoNotInDiscovery {
             workspace,
             repo_name,

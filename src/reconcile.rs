@@ -117,6 +117,7 @@ impl ReconcileReceipt {
             up_to_date: counts.up_to_date,
             dirty_skipped: counts.dirty_skipped,
             missing_skipped: counts.missing_skipped,
+            no_remote_skipped: counts.no_remote_skipped,
             failed: counts.failed_pull + self.failed_jobs.len(),
         }
     }
@@ -132,6 +133,7 @@ impl ReconcileReceipt {
                 PullOutcome::UpToDate => c.up_to_date += 1,
                 PullOutcome::DirtySkipped => c.dirty_skipped += 1,
                 PullOutcome::MissingSkipped => c.missing_skipped += 1,
+                PullOutcome::NoRemoteSkipped => c.no_remote_skipped += 1,
                 PullOutcome::Failed { .. } => c.failed_pull += 1,
             }
         }
@@ -157,6 +159,7 @@ pub(crate) struct OutcomeCounts {
     pub up_to_date: usize,
     pub dirty_skipped: usize,
     pub missing_skipped: usize,
+    pub no_remote_skipped: usize,
     pub failed_pull: usize,
 }
 
@@ -623,11 +626,12 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
 pub(crate) fn print_receipt(receipt: &ReconcileReceipt) {
     let counts = receipt.outcome_counts();
     println!(
-        "[{}] reconcile: {} updated, {} up-to-date, {} dirty (skipped), {} missing, {} failed{}",
+        "[{}] reconcile: {} updated, {} up-to-date, {} dirty (skipped), {} no-remote, {} missing, {} failed{}",
         receipt.workspace,
         counts.updated,
         counts.up_to_date,
         counts.dirty_skipped,
+        counts.no_remote_skipped,
         counts.missing_skipped,
         counts.failed_pull,
         if receipt.failed_jobs.is_empty() {

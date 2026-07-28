@@ -12,6 +12,13 @@ pub(crate) struct StatusJsonRow {
     pub name: String,
     pub path: String,
     pub state: String,
+    /// The remote a `clean` verdict was derived against — the machine-
+    /// readable projection of `RepoStatus::Clean`'s `RemoteWitness`.
+    /// `None` for every other state, so a consumer can never read
+    /// `state: "clean"` without also being able to see *what it was
+    /// clean relative to*. `state: "no-remote"` is the case this exists
+    /// to make visible.
+    pub clean_against_remote: Option<String>,
 }
 
 impl StatusJsonRow {
@@ -21,10 +28,15 @@ impl StatusJsonRow {
         } else {
             base_dir.join(&entry.name).to_string_lossy().into_owned()
         };
+        let clean_against_remote = match &entry.status {
+            RepoStatus::Clean(witness) => Some(witness.remote().to_string()),
+            _ => None,
+        };
         Self {
             name: entry.name.clone(),
             path,
             state: entry.status.to_string(),
+            clean_against_remote,
         }
     }
 }
@@ -33,7 +45,7 @@ impl StatusJsonRow {
 pub(crate) fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
     let clean = entries
         .iter()
-        .filter(|e| matches!(e.status, RepoStatus::Clean))
+        .filter(|e| matches!(e.status, RepoStatus::Clean(_)))
         .count();
     let dirty = entries
         .iter()
@@ -42,6 +54,10 @@ pub(crate) fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
     let stuck = entries
         .iter()
         .filter(|e| matches!(e.status, RepoStatus::Stuck))
+        .count();
+    let no_remote = entries
+        .iter()
+        .filter(|e| matches!(e.status, RepoStatus::NoRemote))
         .count();
     let missing = entries
         .iter()
@@ -57,21 +73,33 @@ pub(crate) fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
 
     for entry in entries {
         let icon = match &entry.status {
-            RepoStatus::Clean => "ok".green().to_string(),
+            RepoStatus::Clean(_) => "ok".green().to_string(),
             RepoStatus::Dirty => "!!".yellow().to_string(),
             RepoStatus::Stuck => "RB".red().bold().to_string(),
+            // Loudest marker in the table: an unbacked repo is the one
+            // state no local action can fix and the one tend used to
+            // call "ok".
+            RepoStatus::NoRemote => "!R".red().bold().to_string(),
             RepoStatus::Missing => "--".red().to_string(),
             RepoStatus::Unknown => "??".cyan().to_string(),
         };
-        println!("  [{icon}] {:<40} {}", entry.name, entry.status);
+        let note = match &entry.status {
+            RepoStatus::NoRemote => "  <- history exists on this machine only"
+                .red()
+                .bold()
+                .to_string(),
+            _ => String::new(),
+        };
+        println!("  [{icon}] {:<40} {}{note}", entry.name, entry.status);
     }
 
     println!();
     println!(
-        "  {} clean, {} dirty, {} stuck, {} missing, {} unknown",
+        "  {} clean, {} dirty, {} stuck, {} no-remote, {} missing, {} unknown",
         clean.to_string().green(),
         dirty.to_string().yellow(),
         stuck.to_string().red().bold(),
+        no_remote.to_string().red().bold(),
         missing.to_string().red(),
         unknown.to_string().cyan(),
     );
@@ -141,11 +169,12 @@ pub(crate) fn print_daemon_cycle_done(cycle: u64, workspaces: usize) {
 /// Print pull summary (updated, up-to-date, dirty-skipped, etc.).
 pub(crate) fn print_pull_summary(workspace_name: &str, summary: &PullSummary) {
     println!(
-        "{}: {} updated, {} up-to-date, {} dirty skipped, {} missing, {} failed",
+        "{}: {} updated, {} up-to-date, {} dirty skipped, {} no-remote, {} missing, {} failed",
         workspace_name.bold(),
         summary.updated.to_string().green(),
         summary.up_to_date.to_string().cyan(),
         summary.dirty_skipped.to_string().yellow(),
+        summary.no_remote_skipped.to_string().red().bold(),
         summary.missing_skipped.to_string().red(),
         summary.failed.to_string().red(),
     );

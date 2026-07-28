@@ -104,7 +104,12 @@ mod tests {
     use std::process::Command;
     use tempfile::TempDir;
 
-    fn init_repo(path: &std::path::Path) {
+    /// A repo with NO remote. This is deliberately the bare shape —
+    /// `git init` + one commit — because it is exactly the `ferrite-zig`
+    /// case: a history that exists on one machine and has never been
+    /// pushed. Before 2026-07-28 this fixture reported `Clean`, which is
+    /// how the whole detection gap survived in a green test suite.
+    fn init_repo_without_remote(path: &std::path::Path) {
         Command::new("git").args(["init", "-q", "-b", "main"]).current_dir(path).status().unwrap();
         Command::new("git").args(["config", "user.email", "t@t"]).current_dir(path).status().unwrap();
         Command::new("git").args(["config", "user.name", "t"]).current_dir(path).status().unwrap();
@@ -112,6 +117,21 @@ mod tests {
         std::fs::write(path.join("file"), "x\n").unwrap();
         Command::new("git").args(["add", "."]).current_dir(path).status().unwrap();
         Command::new("git").args(["commit", "-q", "-m", "init"]).current_dir(path).status().unwrap();
+    }
+
+    /// The realistic fixture: a repo that is actually backed by a
+    /// remote. Anything asserting `Clean`/`Dirty` must use this — those
+    /// verdicts are only reachable once a remote has been observed.
+    fn init_repo(path: &std::path::Path) {
+        init_repo_without_remote(path);
+        let upstream = path.join("..").join("upstream.git");
+        std::fs::create_dir_all(&upstream).unwrap();
+        Command::new("git").args(["init", "-q", "--bare", "-b", "main"]).current_dir(&upstream).status().unwrap();
+        Command::new("git")
+            .args(["remote", "add", "origin", &upstream.to_string_lossy()])
+            .current_dir(path)
+            .status()
+            .unwrap();
     }
 
     #[tokio::test]
@@ -137,7 +157,31 @@ mod tests {
         init_repo(&repo);
         let job = StatusRepoJob::new("ws", "repo", repo);
         let status = job.execute().await.unwrap();
-        assert_eq!(status, RepoStatus::Clean);
+        // NOTE: `matches!`, not `assert_eq!(.., RepoStatus::Clean)` —
+        // this module *cannot* construct a `Clean`. Its `RemoteWitness`
+        // field is private to `sync.rs`, so nothing outside that module
+        // can fabricate a clean verdict; it can only recognise one the
+        // observation produced. That is the seal, demonstrated.
+        assert!(
+            matches!(status, RepoStatus::Clean(_)),
+            "remote-backed clean repo should be Clean, got {status:?}"
+        );
+    }
+
+    /// THE regression guard for the 2026-07-28 detection gap: a repo
+    /// with no remote must report `NoRemote`, not `Clean`. Its whole
+    /// history is on one disk; `git status --porcelain` says nothing and
+    /// `git log --branches --not --remotes` says "0 unpushed" forever,
+    /// because there is nothing to be ahead OF.
+    #[tokio::test]
+    async fn remote_less_repo_returns_no_remote_not_clean() {
+        let tmp = TempDir::new().unwrap();
+        let repo = tmp.path().join("orphan");
+        std::fs::create_dir(&repo).unwrap();
+        init_repo_without_remote(&repo);
+        let job = StatusRepoJob::new("ws", "orphan", repo);
+        let status = job.execute().await.unwrap();
+        assert_eq!(status, RepoStatus::NoRemote);
     }
 
     #[tokio::test]

@@ -5,12 +5,78 @@ use std::process::Command;
 use crate::config::Workspace;
 use crate::provider;
 
+/// Proof that a repo's remote set was **observed** and found non-empty.
+///
+/// This is the witness half of the derived-verdict law
+/// (theory/UNREPRESENTABILITY.md §II.4): a verdict is derived from the
+/// subject set it claims about, and carries the witness of that
+/// derivation. `RepoStatus::Clean` is a claim *relative to a remote* —
+/// without one, "clean" is a verdict over an empty subject set (Tier ⊥
+/// subclass A: a check that can never fail because it examines nothing).
+///
+/// The only constructor is [`RemoteWitness::observe`], which shells to
+/// `git remote` against a real path, and the `remote` field is private
+/// to this module. So **no code outside `sync.rs` can name
+/// `RepoStatus::Clean` without a remote observation having actually
+/// happened** — the vacuous-clean verdict has no expressible form at
+/// every call site in the crate.
+///
+/// Tier-honest: truly-unrepresentable *outside* this module; only-
+/// mitigated *within* it (a determined author in `sync.rs` can still
+/// hand-build the struct). Same grade UNREPRESENTABILITY.md gives
+/// `CidrBlock`. Do not round up.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RemoteWitness {
+    /// The first configured remote observed — conventionally `origin`.
+    remote: String,
+}
+
+impl RemoteWitness {
+    /// Observe `repo_path`'s configured remotes.
+    ///
+    /// `Ok(None)` is a **determined** verdict — the observation ran and
+    /// found nothing — not an inconclusive one. That distinction is why
+    /// remote-less repos become [`RepoStatus::NoRemote`] and never
+    /// [`RepoStatus::Unknown`].
+    fn observe(repo_path: &Path) -> Result<Option<Self>> {
+        let output = Command::new("git")
+            .args(["remote"])
+            .current_dir(repo_path)
+            .output()
+            .with_context(|| format!("listing git remotes in {}", repo_path.display()))?;
+
+        if !output.status.success() {
+            // `git remote` failing (not a repo, permissions) is genuinely
+            // inconclusive — surface it rather than claiming "no remote".
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            anyhow::bail!("git remote failed in {}: {stderr}", repo_path.display());
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        Ok(stdout
+            .lines()
+            .map(str::trim)
+            .find(|l| !l.is_empty())
+            .map(|remote| Self {
+                remote: remote.to_string(),
+            }))
+    }
+
+    /// Which remote this verdict was derived against.
+    pub(crate) fn remote(&self) -> &str {
+        &self.remote
+    }
+}
+
 /// Status of a single repo in the workspace.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub(crate) enum RepoStatus {
-    /// Repo exists and has no uncommitted changes.
-    Clean,
+    /// Repo exists, has no uncommitted changes, **and** was observed to
+    /// have a remote to be clean *relative to*. The [`RemoteWitness`]
+    /// is the proof of that observation — this variant cannot be
+    /// constructed without one.
+    Clean(RemoteWitness),
     /// Repo exists but has uncommitted changes.
     Dirty,
     /// Repo is mid rebase, merge, or cherry-pick — a conflict or an
@@ -21,6 +87,28 @@ pub(crate) enum RepoStatus {
     /// strand real work for weeks with no fleet-wide signal. Checked
     /// before `Dirty` so it always wins.
     Stuck,
+    /// Repo is a valid worktree but has **no git remote configured at
+    /// all**. Every backup story the fleet has — git, GitHub, tend's own
+    /// sync loop — is bypassed: the history exists on exactly one
+    /// machine and has never been pushed anywhere.
+    ///
+    /// This is the status that was invisible before 2026-07-28. A
+    /// remote-less repo reports nothing to `git status --porcelain` and
+    /// "0 unpushed" to `git log --branches --not --remotes` **forever**,
+    /// because there is nothing to be ahead OF — so it read as `Clean`,
+    /// the most confidently-wrong verdict in the enum. Found live on
+    /// `ferrite-zig` (a whole Zig implementation on one disk) and
+    /// `pleme-app-core`.
+    ///
+    /// Determined, not inconclusive — hence its own variant rather than
+    /// `Unknown`. Checked *before* `Stuck`/`Dirty` because it is the
+    /// most severe and the least recoverable by any local action: a
+    /// stuck or dirty repo still has its committed history backed
+    /// somewhere; this one does not. The trade is that a repo that is
+    /// both dirty and remote-less reports only `NoRemote` — the
+    /// destination is orthogonal axes (`{local: …, backing: …}`), noted
+    /// as `pending-unrep` in CLAUDE.md.
+    NoRemote,
     /// Repo is expected but not cloned.
     Missing,
     /// Repo exists on disk but not in config.
@@ -30,9 +118,10 @@ pub(crate) enum RepoStatus {
 impl std::fmt::Display for RepoStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Clean => f.write_str("clean"),
+            Self::Clean(_) => f.write_str("clean"),
             Self::Dirty => f.write_str("dirty"),
             Self::Stuck => f.write_str("stuck"),
+            Self::NoRemote => f.write_str("no-remote"),
             Self::Missing => f.write_str("missing"),
             Self::Unknown => f.write_str("unknown"),
         }
@@ -290,6 +379,7 @@ pub(crate) struct PullSummary {
     pub up_to_date: usize,
     pub dirty_skipped: usize,
     pub missing_skipped: usize,
+    pub no_remote_skipped: usize,
     pub failed: usize,
 }
 
@@ -306,6 +396,23 @@ pub(crate) enum PullOutcome {
     DirtySkipped,
     /// Path doesn't contain a `.git` entry — pull was skipped.
     MissingSkipped,
+    /// Repo has **no configured remote** — there is nothing to pull
+    /// FROM, so the pull was skipped without running git.
+    ///
+    /// This variant exists because git's stderr genuinely cannot carry
+    /// the distinction. Verified empirically 2026-07-28: a repo with an
+    /// `origin` but no branch tracking, and a repo with no remote at
+    /// all, both emit the byte-identical message
+    /// `There is no tracking information for the current branch.` So
+    /// `drift::classify_pull_failure` — a pure function of stderr —
+    /// classified the remote-less case as `PullFailedNoUpstream`, whose
+    /// documented remedy (`git branch --set-upstream-to=origin/<branch>`)
+    /// is *impossible* when there is no `origin`.
+    ///
+    /// The load-bearing fix is to **observe the subject** at the one
+    /// place that has the path (here) rather than to infer it from a
+    /// message that does not contain it.
+    NoRemoteSkipped,
     /// `git pull` exited non-zero. Carries the trimmed stderr for surfacing.
     Failed { stderr: String },
 }
@@ -318,6 +425,7 @@ impl PullOutcome {
             PullOutcome::UpToDate => summary.up_to_date += 1,
             PullOutcome::DirtySkipped => summary.dirty_skipped += 1,
             PullOutcome::MissingSkipped => summary.missing_skipped += 1,
+            PullOutcome::NoRemoteSkipped => summary.no_remote_skipped += 1,
             PullOutcome::Failed { .. } => summary.failed += 1,
         }
     }
@@ -350,6 +458,16 @@ fn head_sha(repo_path: &Path) -> Option<String> {
 pub(crate) fn pull_one_repo(repo_path: &Path, quiet: bool, repo_label: &str) -> Result<PullOutcome> {
     if !is_git_worktree(repo_path) {
         return Ok(PullOutcome::MissingSkipped);
+    }
+
+    // Observe the remote set before running git. Pulling a remote-less
+    // repo is guaranteed-useless work whose error message is actively
+    // misleading (see `PullOutcome::NoRemoteSkipped`).
+    if RemoteWitness::observe(repo_path)?.is_none() {
+        if !quiet {
+            println!("  no remote (skipped): {repo_label}");
+        }
+        return Ok(PullOutcome::NoRemoteSkipped);
     }
 
     if is_dirty(repo_path)? {
@@ -443,15 +561,29 @@ pub(crate) async fn pull_repos(
 /// and surface a parent repo's state (e.g. a workspace-level flake),
 /// which would mis-report this stub as dirty when it's just an empty
 /// hole that `tend sync` should fill.
+///
+/// The remote set is observed **before** any working-tree question is
+/// asked. Two reasons, both load-bearing:
+/// 1. `NoRemote` outranks `Stuck`/`Dirty` in severity (see the variant
+///    docs) — a repo whose entire history exists on one machine is a
+///    worse fact than one with a conflicted merge on top of a backed-up
+///    history.
+/// 2. The `RemoteWitness` this produces is what makes the `Clean` arm
+///    constructible at all. There is no code path that reaches `Clean`
+///    without it.
 pub(crate) fn check_one_repo_status(repo_path: &Path) -> Result<RepoStatus> {
     if !is_git_worktree(repo_path) {
-        Ok(RepoStatus::Missing)
-    } else if is_stuck(repo_path)? {
+        return Ok(RepoStatus::Missing);
+    }
+    let Some(witness) = RemoteWitness::observe(repo_path)? else {
+        return Ok(RepoStatus::NoRemote);
+    };
+    if is_stuck(repo_path)? {
         Ok(RepoStatus::Stuck)
     } else if is_dirty(repo_path)? {
         Ok(RepoStatus::Dirty)
     } else {
-        Ok(RepoStatus::Clean)
+        Ok(RepoStatus::Clean(witness))
     }
 }
 
@@ -518,9 +650,13 @@ mod tests {
 
     #[test]
     fn test_repo_status_display() {
-        assert_eq!(RepoStatus::Clean.to_string(), "clean");
+        let witness = RemoteWitness {
+            remote: "origin".into(),
+        };
+        assert_eq!(RepoStatus::Clean(witness).to_string(), "clean");
         assert_eq!(RepoStatus::Dirty.to_string(), "dirty");
         assert_eq!(RepoStatus::Stuck.to_string(), "stuck");
+        assert_eq!(RepoStatus::NoRemote.to_string(), "no-remote");
         assert_eq!(RepoStatus::Missing.to_string(), "missing");
         assert_eq!(RepoStatus::Unknown.to_string(), "unknown");
     }
@@ -532,6 +668,7 @@ mod tests {
         assert_eq!(s.up_to_date, 0);
         assert_eq!(s.dirty_skipped, 0);
         assert_eq!(s.missing_skipped, 0);
+        assert_eq!(s.no_remote_skipped, 0);
         assert_eq!(s.failed, 0);
     }
 
@@ -567,12 +704,25 @@ mod tests {
         assert!(status.success(), "git {args:?} failed in {}", repo.display());
     }
 
+    /// A repo with NO remote — the `ferrite-zig` shape. Tests asserting
+    /// `Clean`/`Dirty`/`Stuck` must call [`add_remote`] afterwards,
+    /// because `NoRemote` outranks all three.
     fn init_repo(repo: &Path) {
         std::fs::create_dir_all(repo).unwrap();
         git(repo, &["init", "-q", "-b", "main"]);
         git(repo, &["config", "user.email", "t@t"]);
         git(repo, &["config", "user.name", "t"]);
         git(repo, &["config", "commit.gpgsign", "false"]);
+    }
+
+    /// Point the repo at a real (bare, local) upstream so it is
+    /// genuinely backed — the precondition every working-tree verdict
+    /// now carries.
+    fn add_remote(repo: &Path) {
+        let upstream = repo.with_extension("upstream.git");
+        std::fs::create_dir_all(&upstream).unwrap();
+        git(&upstream, &["init", "-q", "--bare", "-b", "main"]);
+        git(repo, &["remote", "add", "origin", &upstream.to_string_lossy()]);
     }
 
     fn write_commit(repo: &Path, file: &str, content: &str, msg: &str) {
@@ -592,6 +742,9 @@ mod tests {
         std::fs::remove_dir_all(&tmp).ok();
         let repo = tmp.join("repo");
         init_repo(&repo);
+        // Backed by a real remote: `Stuck` is only reachable once the
+        // remote observation has succeeded, since `NoRemote` outranks it.
+        add_remote(&repo);
         write_commit(&repo, "f.txt", "base\n", "base");
         git(&repo, &["checkout", "-q", "-b", "feature"]);
         write_commit(&repo, "f.txt", "feature change\n", "feature commit");
@@ -607,6 +760,111 @@ mod tests {
         // Abort cleanly and confirm the signal clears.
         git(&repo, &["rebase", "--abort"]);
         assert!(!is_stuck(&repo).unwrap(), "aborted rebase must clear the stuck signal");
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    // ── remote-less detection ───────────────────────────────────────
+    //
+    // The gap these guard: a repo with no remote reports nothing to
+    // `git status --porcelain` and "0 unpushed" to
+    // `git log --branches --not --remotes` forever — there is nothing
+    // to be ahead OF — so every ahead/behind check called it healthy
+    // while its entire history sat on one disk. Found live on
+    // `ferrite-zig` + `pleme-app-core` (2026-07-28).
+    //
+    // Each test below is written so it FAILS against the pre-fix code:
+    // the first asserts the remote-less repo is not `Clean`, the second
+    // asserts a repo WITH a remote still is (a detector that flags
+    // everything is as useless as one that flags nothing).
+
+    /// A `git init`-only repo — no remote, nothing committed anywhere
+    /// else — must report `NoRemote`, never `Clean`.
+    #[test]
+    fn remote_less_repo_reports_no_remote_never_clean() {
+        let tmp = std::env::temp_dir().join(format!("tend-noremote-{}", std::process::id()));
+        std::fs::remove_dir_all(&tmp).ok();
+        let repo = tmp.join("orphan");
+        init_repo(&repo);
+        write_commit(&repo, "main.zig", "the only copy\n", "init");
+
+        assert_eq!(
+            RemoteWitness::observe(&repo).unwrap(),
+            None,
+            "fixture must genuinely have zero remotes"
+        );
+        assert_eq!(
+            check_one_repo_status(&repo).unwrap(),
+            RepoStatus::NoRemote,
+            "a repo with no remote must NOT report clean — that is the \
+             verdict that hid ferrite-zig"
+        );
+        assert_eq!(
+            pull_one_repo(&repo, true, "orphan").unwrap(),
+            PullOutcome::NoRemoteSkipped,
+            "pull must skip on the observation, not fail with git's \
+             misleading no-tracking-information message"
+        );
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// The normal case must still work: a repo WITH a remote and a clean
+    /// tree still reports `Clean`, and the verdict names the remote it
+    /// was derived against.
+    #[test]
+    fn repo_with_remote_still_reports_clean() {
+        let tmp = std::env::temp_dir().join(format!("tend-hasremote-{}", std::process::id()));
+        std::fs::remove_dir_all(&tmp).ok();
+        let repo = tmp.join("backed");
+        init_repo(&repo);
+        add_remote(&repo);
+        write_commit(&repo, "f.txt", "hello\n", "init");
+        git(&repo, &["push", "-q", "origin", "main"]);
+
+        match check_one_repo_status(&repo).unwrap() {
+            RepoStatus::Clean(witness) => assert_eq!(witness.remote(), "origin"),
+            other => panic!("expected Clean(origin), got {other:?}"),
+        }
+
+        // …and a dirty tree in a remote-backed repo is still Dirty.
+        std::fs::write(repo.join("dirt"), "x\n").unwrap();
+        assert_eq!(check_one_repo_status(&repo).unwrap(), RepoStatus::Dirty);
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// A remote-less repo that is ALSO dirty reports `NoRemote`: the
+    /// unbacked-history fact outranks the working-tree fact, because no
+    /// local action fixes it. Pinned so a future reordering of
+    /// `check_one_repo_status` is a deliberate decision, not a drift.
+    #[test]
+    fn remote_less_outranks_dirty() {
+        let tmp = std::env::temp_dir().join(format!("tend-noremote-dirty-{}", std::process::id()));
+        std::fs::remove_dir_all(&tmp).ok();
+        let repo = tmp.join("orphan");
+        init_repo(&repo);
+        write_commit(&repo, "f.txt", "a\n", "init");
+        std::fs::write(repo.join("uncommitted"), "b\n").unwrap();
+
+        assert!(is_dirty(&repo).unwrap(), "fixture must be dirty");
+        assert_eq!(check_one_repo_status(&repo).unwrap(), RepoStatus::NoRemote);
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// `git remote` on a valid repo with remotes returns the name, and
+    /// the witness is the only thing that can produce a `Clean`.
+    #[test]
+    fn remote_witness_observes_first_remote_name() {
+        let tmp = std::env::temp_dir().join(format!("tend-witness-{}", std::process::id()));
+        std::fs::remove_dir_all(&tmp).ok();
+        let repo = tmp.join("repo");
+        init_repo(&repo);
+        git(&repo, &["remote", "add", "origin", "https://example.invalid/x.git"]);
+
+        let witness = RemoteWitness::observe(&repo).unwrap().expect("remote present");
+        assert_eq!(witness.remote(), "origin");
 
         std::fs::remove_dir_all(&tmp).ok();
     }

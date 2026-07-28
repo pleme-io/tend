@@ -1,5 +1,24 @@
 # tend
 
+pending-unrep: RepoStatus::Clean carries a `RemoteWitness` proving a remote was
+OBSERVED, not proving an ahead/behind COMPARISON was performed. That closes the
+Tier ⊥ subclass A hole this repo actually shipped — a `clean` verdict over an
+empty subject set, which reported `ferrite-zig` / `openclaw-publisher-pki` /
+`pleme-app-core` healthy while their entire histories sat on one disk — but it
+is not the full derived-verdict law. Two rows remain:
+(1) the witness should carry the compared refs (`local_sha` vs
+`remote_sha` + a fetch recency bound), so `Clean` means "compared, and equal"
+rather than "there was something to compare against";
+(2) `RepoStatus` is one-dimensional, so a repo that is BOTH dirty and
+remote-less reports only `NoRemote` — the destination is orthogonal axes
+(`{ local: Clean|Dirty|Stuck, backing: Backed(w)|None }`), which makes the
+masking question disappear instead of being resolved by an ordering decision.
+Tier landed: truly-unrepresentable OUTSIDE `sync.rs` (the witness field is
+private to that module, so no other module can name `Clean` — proven by the
+compile error this change produced in `jobs/status_repo.rs`); only-mitigated
+WITHIN it, and the remote-set detection itself is a runtime `git remote` check,
+i.e. only-mitigated. Do not round up.
+
 > **★★★ CSE / Knowable Construction.** This repo operates under
 > **Constructive Substrate Engineering** — canonical specification at
 > [`pleme-io/theory/CONSTRUCTIVE-SUBSTRATE-ENGINEERING.md`](https://github.com/pleme-io/theory/blob/main/CONSTRUCTIVE-SUBSTRATE-ENGINEERING.md).
@@ -17,7 +36,7 @@ and automates version certification pipelines.
 | Command | Purpose |
 |---------|---------|
 | `sync` | Clone missing repos |
-| `status` | Show repo status (clean/dirty/missing/unknown) |
+| `status` | Show repo status (clean/dirty/stuck/no-remote/missing/unknown) |
 | `list` | List configured repos |
 | `discover` | Discover repos from a GitHub org |
 | `watch` | Run watch cycle once (detect new versions) |

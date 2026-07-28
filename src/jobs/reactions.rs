@@ -73,6 +73,16 @@ pub(crate) fn react_to_drift(
             Some(Arc::new(job))
         }
 
+        // RepoHasNoRemote: report only, permanently. This is NOT a
+        // "not implemented yet" gap — auto-creating or auto-pushing a
+        // remote is forbidden by design. Where the remote should point
+        // is an operator decision with destructive potential: the
+        // obvious guess (`git@github.com:<org>/<repo>.git`) can already
+        // hold unrelated content, and pushing to it would either fail
+        // confusingly or, force-pushed, destroy a history. `tend doctor`
+        // names the decision; the operator makes it.
+        DriftEvent::RepoHasNoRemote { .. } => None,
+
         // Other drift variants currently have no automatic reaction.
         // They surface in `tend report` for operator action. The
         // SAFE-CONVERGENCE M2 milestone will add:
@@ -165,6 +175,23 @@ mod tests {
         // Future M8 doctor commands will handle this; for now,
         // operator-action only.
         assert!(react_to_drift(&event, &ws).is_none());
+    }
+
+    /// Detection is the deliverable; remediation is not. tend must
+    /// never invent a remote for a repo that has none — see the match
+    /// arm for why this is a permanent policy, not a stub.
+    #[test]
+    fn repo_has_no_remote_never_auto_remediates() {
+        let event = DriftEvent::RepoHasNoRemote {
+            workspace: "ws".into(),
+            repo_name: "ferrite-zig".into(),
+        };
+        let ws = workspace_at("ws", "/tmp");
+        assert!(
+            react_to_drift(&event, &ws).is_none(),
+            "tend must not auto-create or auto-push a remote — where it \
+             points is an operator decision"
+        );
     }
 
     #[test]
