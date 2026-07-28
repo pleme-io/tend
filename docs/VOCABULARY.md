@@ -6,6 +6,44 @@
 > (`Err` at a boundary + sealed construction), or *only-mitigated* (a runtime
 > check). A mitigation labelled a proof is a leak.
 
+## The property: deterministic stability
+
+**tend is deterministically stable when a cycle's verdict is a function of
+`(declared config, repo state)` and NOTHING else.** Every defect below is a
+place where the verdict instead depends on *ambient* state that other processes
+mutate — a credential file any failing fetch erases, one multiplexed ssh
+connection every git consumer on the host competes for, a shared API budget.
+
+That is why the failures were self-sustaining rather than transient: the cycle's
+own outcome changed the state the next cycle read.
+
+### CORRECTION — my first measurement of this was wrong, three times over
+
+Recorded because the mistake IS the argument for the types, and because a doc
+that hides its own retraction teaches the wrong lesson.
+
+| pass | method | conclusion |
+|---|---|---|
+| 1 | `grep -c` over the cumulative 112 MB `.err` | "193,402 credential / 17,768 mux → 91%/8%" |
+| 2 | same corpus, normalized by failure SHAPE | top line is **157,285 × `Cloning into 'X'...`** — git progress on stderr, **not an error**; then ~134k DNS failures; mux drops to **9** |
+| 3 | last 4,000 lines only | **2 failures**, both credential |
+
+Three answers from one file. The corpus is **cumulative over weeks** and
+dominated by a laptop sleeping and changing networks, so `Could not resolve
+host` in bulk says nothing about whether tend works. Pass 1's percentages are
+withdrawn.
+
+What survives: the recent window's only failure mode is `CredentialAbsent`, so
+M0.1 (https → ssh) targets the live cause. What does **not** survive: M0.2's
+justification. `maxInflight 16 → 8` was argued from 17,768 mux lines "= 8% of
+failures"; those lines exist, but only 9 appear as an actual tend failure — ssh
+emits the rest on its own stderr. The change is harmless and still bounded below
+`MaxSessions 10`; the reasoning was over-counted and is corrected here.
+
+**The lesson, and the design point:** a `String` reason in a cumulative,
+unwindowed, untyped stream cannot be counted correctly. That is not a
+documentation problem, it is a *type* problem — see `FailureCause` below.
+
 ## Gate 0 — the illegal states, measured
 
 Every row was observed live on cid, 2026-07-28. Nothing here is hypothesised.
@@ -68,7 +106,7 @@ Transport =
   ambient helper, G3 is merely *only-mitigated*. The sealed form requires
   `GIT_ASKPASS`/`-c credential.helper=` injection per invocation.
 
-### Axis 2 — `FailureCause` (replaces `Failed { stderr: String }`)
+### Axis 2 — `FailureCause` — **SHIPPED, 12 tests** (`src/failure.rs`)
 
 `FetchOutcome::Failed { stderr: String }` and `SyncOutcome::Failed { stderr }`
 are **stringly-typed discriminants** — the exact anti-pattern dojo's `Evidence`
@@ -84,7 +122,23 @@ FailureCause =
   | Network { kind: NetworkKind }                 // tls / dns / proxy
 ```
 
-The split that matters: **`CredentialAbsent` vs `CredentialRejected`.** Absent is
+**The split the corpus forced, and the one that makes zero-residue reachable at
+all: `Disposition`.**
+
+```
+Environmental     the host is offline, DNS is down, a proxy is unhealthy.
+                  No config or code change clears it. MUST NOT count as residue.
+SelfInflicted     this machine's own state caused it. Counts.
+RequiresOperator  real, but the fix is an authorization only a human can grant.
+                  Counts, and escalates to a person rather than to a retry.
+```
+
+Without this, "0 failed" is unreachable the moment a lid closes, and a
+predicate that cannot be satisfied gets abandoned as unrealistic. `Unclassified`
+deliberately counts as residue — an unrecognised failure must never be filed as
+ambient, or a new failure mode becomes invisible the exact way these ones were.
+
+The other split that matters: **`CredentialAbsent` vs `CredentialRejected`.** Absent is
 self-inflicted (G3's cascade) and auto-recoverable; Rejected is an SSO/scope fact
 only a human can grant. Today both are the same `String` and are therefore
 indistinguishable — which is precisely why "why do 88 of 125 fail?" was
@@ -136,13 +190,13 @@ pattern, which tend is a textbook consumer of and does not use. G7.
 | # | Technique | Honest tier |
 |---|---|---|
 | G1 | `WorkspaceRoot` newtype, `.git`-rejecting ctor | parse-time-rejected |
-| G2 | `Residue::Dirty{NonEmpty}` + exhaustive route | parse-time-rejected |
+| G2 | `FailureCause` + `Disposition` — **SHIPPED**; `Residue::Dirty{NonEmpty}` still design | classification shipped; the residue type is parse-time-rejected once landed |
 | G3 | `SecretRef` — remove the file (no cell to erase) | truly-unrepresentable **iff** no ambient helper; else only-mitigated |
 | G4 | `MuxDiscipline` declared + bounded worker pool | only-mitigated (a runtime cap; ssh's limit is external) |
 | G5 | TTL-vs-cadence checked in the ctor | parse-time-rejected |
 | G6 | shikumi `TieredConfig` + typed `Provenance` | eval/parse-caught (an inert knob reports its tier) |
 | G7 | samba `LeakyBucket` | only-mitigated (C5 ceiling: external I/O) |
-| G8 | Exhaustive `match` on `FailureCause` | truly-unrepresentable (unrouted cause = compile error) |
+| G8 | Exhaustive `match` on `FailureCause` — **type SHIPPED**, callers not yet migrated | truly-unrepresentable once `Failed{stderr}` is replaced; today the type exists beside it |
 
 Three of eight reach parse-time-rejected, one truly-unrepresentable, one
 conditionally so, three only-mitigated with named ceilings. **That is the honest
@@ -154,7 +208,7 @@ score. Do not round it up.**
   two akeyless workspaces (removes 91% of failures by removing the cell from the
   path); bound fetch concurrency below the ssh `MaxSessions` cap; raise
   `head_cache` TTL above the daemon interval. Config only.
-- **M1 — `FailureCause` + `Residue`.** The two `Failed{stderr}` variants become
+- **M1 — `FailureCause` DONE (12 tests, 507/507 suite green), `Residue` next.** The two `Failed{stderr}` variants become
   typed sums; the aggregate log line carries causes. Mock-green against the
   existing `Environment` seam. **This is the milestone that answers "why".**
 - **M2 — `Transport` + `SecretRef`.** Credential per-invocation; the shared file

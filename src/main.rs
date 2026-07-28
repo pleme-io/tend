@@ -11,6 +11,11 @@ mod config;
 mod daemon;
 mod display;
 mod kanshou_state;
+// Typed failure classification for a reconcile cycle. See src/failure.rs --
+// it exists because a String reason produced three contradictory readings of
+// one log on 2026-07-28, and because "the host was asleep" must not count as
+// residue the way "the credential is gone" does.
+mod failure;
 mod flake;
 mod flake_lock;
 mod git;
