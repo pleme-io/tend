@@ -359,10 +359,39 @@ pub(crate) async fn check_status(workspace: &Workspace, repos: &[String]) -> Res
 
         on_disk.sort();
         for name in on_disk {
-            entries.push(RepoEntry {
-                name,
-                status: RepoStatus::Unknown,
-            });
+            // Observe the remote before falling back to Unknown.
+            //
+            // These are the directories discovery did not resolve, and
+            // they are exactly the ones most likely to be unbacked: a
+            // repo with no GitHub counterpart cannot appear in an org
+            // listing, so it lands here by construction. Stamping the
+            // whole bucket `Unknown` therefore hid the single worst
+            // state — history that exists on one disk — behind the
+            // blandest verdict.
+            //
+            // Measured on 2026-07-29: `akeylesslabs` reported 11
+            // Unknown / 0 NoRemote while containing a repo with 11
+            // commits and no remote at all.
+            //
+            // Only a *determined* observation downgrades the verdict.
+            // `RemoteWitness::observe` returning `Ok(None)` means the
+            // remote set was read and found empty; an `Err` means the
+            // read itself failed and the repo stays Unknown, because
+            // an inconclusive check must never masquerade as a finding.
+            let path = base_dir.join(&name);
+            let status = if !is_git_worktree(&path) {
+                RepoStatus::Unknown
+            } else {
+                match RemoteWitness::observe(&path) {
+                    Ok(None) => RepoStatus::NoRemote,
+                    // Has a remote, just isn't in discovery — archived,
+                    // renamed, a fork, or local-only-but-pushed. Still
+                    // Unknown: that is a real and different signal, and
+                    // `LocalRepoNotInDiscovery` already covers it.
+                    Ok(Some(_)) | Err(_) => RepoStatus::Unknown,
+                }
+            };
+            entries.push(RepoEntry { name, status });
         }
     }
 
@@ -702,6 +731,79 @@ fn is_stuck(repo_path: &Path) -> Result<bool> {
 
 #[cfg(test)]
 mod tests {
+    /// An on-disk repo that discovery did not resolve, with no remote,
+    /// must report NoRemote — not Unknown.
+    ///
+    /// Regression pin for the 2026-07-29 finding: `akeylesslabs`
+    /// reported 11 Unknown / 0 NoRemote while containing a repo with
+    /// 11 commits and no remote at all. Unknown is the bucket a repo
+    /// with no GitHub counterpart lands in by construction, so it was
+    /// hiding exactly the state it most needed to surface.
+    #[tokio::test]
+    async fn unresolved_dir_without_remote_reports_no_remote() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = tmp.path().join("orphan");
+        std::fs::create_dir(&repo).unwrap();
+        std::process::Command::new("git")
+            .args(["init", "-q", "-b", "main"])
+            .current_dir(&repo)
+            .status()
+            .unwrap();
+
+        let mut ws = Workspace::test_default("ws");
+        ws.base_dir = tmp.path().to_string_lossy().to_string();
+
+        // `repos` is empty, so `orphan` is unresolved by discovery.
+        let entries = check_status(&ws, &[]).await.unwrap();
+        let orphan = entries.iter().find(|e| e.name == "orphan").unwrap();
+        assert_eq!(orphan.status, RepoStatus::NoRemote);
+    }
+
+    /// The complement: an unresolved dir that *does* have a remote is
+    /// still Unknown. It is a real repo simply absent from discovery
+    /// (archived, renamed, a fork) — a different signal, already
+    /// carried by LocalRepoNotInDiscovery. Pinning both directions
+    /// keeps the fix from drifting into "everything unresolved is
+    /// NoRemote".
+    #[tokio::test]
+    async fn unresolved_dir_with_remote_stays_unknown() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = tmp.path().join("has-remote");
+        std::fs::create_dir(&repo).unwrap();
+        std::process::Command::new("git")
+            .args(["init", "-q", "-b", "main"])
+            .current_dir(&repo)
+            .status()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["remote", "add", "origin", "git@github.com:pleme-io/has-remote.git"])
+            .current_dir(&repo)
+            .status()
+            .unwrap();
+
+        let mut ws = Workspace::test_default("ws");
+        ws.base_dir = tmp.path().to_string_lossy().to_string();
+
+        let entries = check_status(&ws, &[]).await.unwrap();
+        let e = entries.iter().find(|e| e.name == "has-remote").unwrap();
+        assert_eq!(e.status, RepoStatus::Unknown);
+    }
+
+    /// A directory with no `.git` at all stays Unknown — it is a stub,
+    /// not a repo, and `StubDirectoryFound` covers it.
+    #[tokio::test]
+    async fn unresolved_non_repo_dir_stays_unknown() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir(tmp.path().join("just-a-dir")).unwrap();
+
+        let mut ws = Workspace::test_default("ws");
+        ws.base_dir = tmp.path().to_string_lossy().to_string();
+
+        let entries = check_status(&ws, &[]).await.unwrap();
+        let e = entries.iter().find(|e| e.name == "just-a-dir").unwrap();
+        assert_eq!(e.status, RepoStatus::Unknown);
+    }
+
     use super::*;
 
     #[test]
