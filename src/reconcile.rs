@@ -32,14 +32,39 @@ use shigoto_scheduler::{InProcessScheduler, Scheduler};
 use shigoto_types::{JobId, JobKindId, JobPhase, OutputSink};
 
 use crate::config::Workspace;
-use crate::drift::{derive_from_receipt, AuditFileDriftSink, DriftSink};
+use crate::drift::{derive_from_receipt, derive_remote_url_drift, AuditFileDriftSink, DriftSink};
 use crate::jobs::discover_org::{DiscoverOrgJob, DISCOVER_ORG_KIND};
 use crate::jobs::fetch_repo::FETCH_REPO_KIND;
 use crate::jobs::gates::{CacheFreshGate, NotPlaceholderGate};
 use crate::jobs::pull_repo::{PullRepoJob, PULL_REPO_KIND};
 use crate::jobs::reactions::react_to_drift;
+use crate::jobs::remediate_remote::REMEDIATE_REMOTE_KIND;
 use crate::jobs::sync_repo::{SyncRepoJob, SYNC_REPO_KIND};
 use crate::sync::{PullOutcome, SyncOutcome};
+
+/// Every repo name the receipt mentions, across pull and sync
+/// outcomes, deduplicated.
+///
+/// The remote-URL pass needs the set of repos this cycle actually
+/// touched — not the workspace's configured repo list — so it observes
+/// exactly what reconcile just handled and stays silent about repos
+/// that were never in scope.
+fn repo_names_in_receipt(receipt: &ReconcileReceipt) -> Vec<String> {
+    use shigoto_types::JobSubject;
+
+    let mut names: Vec<String> = receipt
+        .outcomes
+        .keys()
+        .chain(receipt.sync_outcomes.keys())
+        .filter_map(|id| match &id.subject {
+            JobSubject::Repo(r) => Some(r.clone()),
+            _ => None,
+        })
+        .collect();
+    names.sort();
+    names.dedup();
+    names
+}
 
 /// Default max parallel `tend.pull-repo` jobs per workspace. Chosen
 /// well below typical OS limits (file handles, network sockets) so a
@@ -242,7 +267,8 @@ pub(crate) async fn reconcile_workspace_pull(
     // exhausting file handles + network sockets.
     //
     // Includes FETCH_REPO_KIND so the M6 react_to_drift path can
-    // spawn FetchRepoJobs as reactions without re-tuning the budget.
+    // spawn FetchRepoJobs as reactions without re-tuning the budget,
+    // and REMEDIATE_REMOTE_KIND for the remote-URL healing reaction.
     let mut budget = BudgetTree::new();
     budget
         .by_kind
@@ -250,6 +276,10 @@ pub(crate) async fn reconcile_workspace_pull(
     budget
         .by_kind
         .insert(JobKindId::new(FETCH_REPO_KIND), BudgetSpec::max_concurrent(max_inflight));
+    budget.by_kind.insert(
+        JobKindId::new(REMEDIATE_REMOTE_KIND),
+        BudgetSpec::max_concurrent(max_inflight),
+    );
     scheduler.install_budget(budget).await;
 
     // Retry transient Invocation failures (tokio task panics, helper
@@ -316,7 +346,16 @@ pub(crate) async fn reconcile_workspace_pull(
         failed_jobs,
     };
 
-    let events = derive_from_receipt(&receipt);
+    // Same two-source drift derivation as the full path: receipt
+    // projection plus the direct remote-URL observation, which no
+    // receipt outcome can reveal (a fossilized credential pulls fine).
+    // Both entry points must run it — this is the one the plain
+    // `tend reconcile` CLI path uses.
+    let mut events = derive_from_receipt(&receipt);
+    events.extend(derive_remote_url_drift(
+        workspace,
+        &repo_names_in_receipt(&receipt),
+    ));
 
     if let Some(tlog) = transition_log {
         if let Some(parent) = tlog.parent() {
@@ -443,10 +482,17 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
     budget
         .by_kind
         .insert(JobKindId::new(DISCOVER_ORG_KIND), BudgetSpec::max_concurrent(1));
-    // M6: FETCH_REPO_KIND for reactions that spawn fetches.
+    // M6: FETCH_REPO_KIND for reactions that spawn fetches, and
+    // REMEDIATE_REMOTE_KIND for the remote-URL healing reaction.
+    // A kind with no budget entry never gets admitted, so a missing
+    // line here silently disables the reaction rather than failing.
     budget
         .by_kind
         .insert(JobKindId::new(FETCH_REPO_KIND), BudgetSpec::max_concurrent(max_inflight));
+    budget.by_kind.insert(
+        JobKindId::new(REMEDIATE_REMOTE_KIND),
+        BudgetSpec::max_concurrent(max_inflight),
+    );
     scheduler.install_budget(budget).await;
 
     scheduler
@@ -561,8 +607,19 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
         failed_jobs,
     };
 
-    // Drift events: pure projection of the receipt's typed outcomes.
-    let events = derive_from_receipt(&receipt);
+    // Drift events: pure projection of the receipt's typed outcomes,
+    // plus the remote-URL observation pass.
+    //
+    // The latter is not derivable from the receipt: a repo whose
+    // origin embeds a fossilized credential pulls perfectly, so no
+    // outcome in the receipt is anything but Succeeded. Detecting it
+    // requires reading `.git/config` directly, which is why the
+    // 25-repo leak found on 2026-07-29 survived months of reconciles.
+    let mut events = derive_from_receipt(&receipt);
+    events.extend(derive_remote_url_drift(
+        workspace,
+        &repo_names_in_receipt(&receipt),
+    ));
 
     // Record drift events to the on-disk log when wired.
     if let Some(tlog) = transition_log {

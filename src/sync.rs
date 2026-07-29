@@ -29,6 +29,18 @@ use crate::provider;
 pub(crate) struct RemoteWitness {
     /// The first configured remote observed — conventionally `origin`.
     remote: String,
+    /// That remote's configured URL, as it appears in `.git/config`.
+    ///
+    /// Carried on the witness rather than re-read at each use site so
+    /// remote-URL policy (`remote_url::classify`) decides against the
+    /// same observation that established the repo had a remote at all.
+    /// Re-reading would let the two verdicts disagree across a
+    /// concurrent `git remote set-url`.
+    ///
+    /// **May contain a credential** when a clone fossilized one (see
+    /// `remote_url`). Never print or log it directly — classify it and
+    /// report the redacted verdict.
+    url: String,
 }
 
 impl RemoteWitness {
@@ -38,7 +50,7 @@ impl RemoteWitness {
     /// found nothing — not an inconclusive one. That distinction is why
     /// remote-less repos become [`RepoStatus::NoRemote`] and never
     /// [`RepoStatus::Unknown`].
-    fn observe(repo_path: &Path) -> Result<Option<Self>> {
+    pub(crate) fn observe(repo_path: &Path) -> Result<Option<Self>> {
         let output = Command::new("git")
             .args(["remote"])
             .current_dir(repo_path)
@@ -53,18 +65,45 @@ impl RemoteWitness {
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        Ok(stdout
-            .lines()
-            .map(str::trim)
-            .find(|l| !l.is_empty())
-            .map(|remote| Self {
-                remote: remote.to_string(),
-            }))
+        let Some(remote) = stdout.lines().map(str::trim).find(|l| !l.is_empty()) else {
+            return Ok(None);
+        };
+
+        // A remote with no resolvable URL is not a remote to be clean
+        // relative to, so it collapses to the same `None` verdict as
+        // having no remote at all rather than yielding a witness whose
+        // URL is a lie.
+        let url_out = Command::new("git")
+            .args(["remote", "get-url", remote])
+            .current_dir(repo_path)
+            .output()
+            .with_context(|| format!("reading {remote} url in {}", repo_path.display()))?;
+        if !url_out.status.success() {
+            return Ok(None);
+        }
+        let url = String::from_utf8_lossy(&url_out.stdout).trim().to_string();
+        if url.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(Self {
+            remote: remote.to_string(),
+            url,
+        }))
     }
 
     /// Which remote this verdict was derived against.
     pub(crate) fn remote(&self) -> &str {
         &self.remote
+    }
+
+    /// The observed remote URL.
+    ///
+    /// May carry an embedded credential — pass it to
+    /// `remote_url::classify` and report the redacted verdict rather
+    /// than surfacing this string.
+    pub(crate) fn url(&self) -> &str {
+        &self.url
     }
 }
 
@@ -652,6 +691,7 @@ mod tests {
     fn test_repo_status_display() {
         let witness = RemoteWitness {
             remote: "origin".into(),
+            url: "git@github.com:pleme-io/tend.git".into(),
         };
         assert_eq!(RepoStatus::Clean(witness).to_string(), "clean");
         assert_eq!(RepoStatus::Dirty.to_string(), "dirty");

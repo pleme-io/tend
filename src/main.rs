@@ -31,6 +31,7 @@ mod planner;
 mod prebuild;
 mod prebuild_cache;
 mod reconcile;
+mod remote_url;
 mod report;
 mod provider;
 mod release_swarm;
@@ -757,6 +758,12 @@ async fn main() -> Result<()> {
                         drift::DriftEvent::LocalRepoNotInDiscovery { .. } => {
                             "local-not-in-discovery"
                         }
+                        drift::DriftEvent::RemoteUrlEmbeddedCredential { .. } => {
+                            "remote-url-embedded-credential"
+                        }
+                        drift::DriftEvent::RemoteProtocolMismatch { .. } => {
+                            "remote-protocol-mismatch"
+                        }
                     };
                     *by_kind.entry(kind).or_default() += 1;
                     events.push(e);
@@ -817,6 +824,14 @@ async fn main() -> Result<()> {
                             repo_name,
                         } => Some(format!(
                             "  local-only [{repo_name}]: archived/deleted upstream or local-only repo; `tend adopt {workspace} {repo_name}` to keep it, or remove the local dir"
+                        )),
+                        drift::DriftEvent::RemoteUrlEmbeddedCredential { repo_name, credential, .. } => Some(format!(
+                            "  CREDENTIAL IN REMOTE [{repo_name}]: origin embeds {credential} — a token is stored in plaintext in .git/config and was live when the repo was cloned. \
+                             `tend reconcile` rewrites the remote to the canonical URL automatically (the target repo does not change; only the credential is dropped). \
+                             Rewriting does NOT undo the exposure: rotate the token if it is still valid"
+                        )),
+                        drift::DriftEvent::RemoteProtocolMismatch { repo_name, declared, actual, .. } => Some(format!(
+                            "  remote protocol [{repo_name}]: origin uses {actual} but the workspace declares {declared} — `tend reconcile` converges it to the declared method"
                         )),
                         drift::DriftEvent::JobUnhealed { .. } => None,
                     };

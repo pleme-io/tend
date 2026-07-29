@@ -331,6 +331,23 @@ fn format_drift_event(event: &DriftEvent) -> String {
             workspace,
             repo_name,
         } => format!("[{workspace}] {repo_name}: local-only (not in current discovery)"),
+        DriftEvent::RemoteUrlEmbeddedCredential {
+            workspace,
+            repo_name,
+            slug,
+            credential,
+        } => format!(
+            "[{workspace}] {repo_name}: CREDENTIAL IN REMOTE URL — origin embeds {credential} ({slug}); token is sitting in .git/config"
+        ),
+        DriftEvent::RemoteProtocolMismatch {
+            workspace,
+            repo_name,
+            slug,
+            declared,
+            actual,
+        } => format!(
+            "[{workspace}] {repo_name}: remote is {actual}, workspace declares {declared} ({slug})"
+        ),
     }
 }
 

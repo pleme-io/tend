@@ -160,6 +160,51 @@ pub(crate) enum DriftEvent {
         workspace: String,
         repo_name: String,
     },
+
+    /// A repo's `origin` URL embeds a credential in its userinfo —
+    /// `https://x-access-token:<token>@github.com/org/repo.git`.
+    ///
+    /// Produced by `sync::inject_github_token`, which rewrites the
+    /// clone URL so container clones can authenticate without a
+    /// prompt. Git persists the clone URL verbatim into `.git/config`,
+    /// so the token that was live at clone time is fossilized there
+    /// indefinitely. The 2026-07-29 sweep found 25 such repos across
+    /// two orgs carrying three distinct tokens, one still valid.
+    ///
+    /// `credential` is the **redacted shape** (`x-access-token:***`),
+    /// never the secret — this event is serialized into
+    /// `drift-events.jsonl`, and carrying the raw URL would copy the
+    /// token out of `.git/config` and into the audit log. See
+    /// `remote_url::Credential`.
+    ///
+    /// Auto-remediated, unlike [`Self::RepoHasNoRemote`]. The
+    /// distinction is that healing here does not choose *where* the
+    /// remote points: the canonical URL is rebuilt from the coordinate
+    /// parsed out of the offending URL, so the remote keeps its target
+    /// and loses only the credential. There is no destructive reading.
+    RemoteUrlEmbeddedCredential {
+        workspace: String,
+        repo_name: String,
+        slug: String,
+        credential: String,
+    },
+
+    /// A repo's `origin` URL is a clean GitHub URL whose protocol
+    /// disagrees with the workspace's declared `clone_method` — e.g.
+    /// HTTPS under a workspace declaring `ssh`.
+    ///
+    /// Convergence drift rather than a leak: nothing secret is on
+    /// disk, but the repo will keep prompting for credentials (or
+    /// keep depending on a credential helper) instead of using the
+    /// declared transport. Healed the same way, by rewriting to the
+    /// canonical URL for the declared method.
+    RemoteProtocolMismatch {
+        workspace: String,
+        repo_name: String,
+        slug: String,
+        declared: String,
+        actual: String,
+    },
 }
 
 impl DriftEvent {
@@ -178,7 +223,9 @@ impl DriftEvent {
             | Self::PullFailedTransient { workspace, .. }
             | Self::SyncFailed { workspace, .. }
             | Self::RepoHasNoRemote { workspace, .. }
-            | Self::LocalRepoNotInDiscovery { workspace, .. } => Some(workspace.as_str()),
+            | Self::LocalRepoNotInDiscovery { workspace, .. }
+            | Self::RemoteUrlEmbeddedCredential { workspace, .. }
+            | Self::RemoteProtocolMismatch { workspace, .. } => Some(workspace.as_str()),
             Self::JobUnhealed { job_id, .. } => match &job_id.scope {
                 shigoto_types::JobScope::Workspace(w) => Some(w.as_str()),
                 shigoto_types::JobScope::Repo { workspace, .. } => Some(workspace.as_str()),
@@ -442,6 +489,68 @@ pub(crate) fn derive_from_receipt(receipt: &ReconcileReceipt) -> Vec<DriftEvent>
         }
     }
 
+    events
+}
+
+/// Observe every present repo's `origin` URL and project the
+/// non-conforming ones into `DriftEvent`s.
+///
+/// Separate from [`derive_from_receipt`] because this drift is not a
+/// projection of a Job outcome — it is a direct observation of
+/// `.git/config`, in the same spirit as `RepoHasNoRemote` (derived
+/// from observing the remote set, not from parsing a message). A
+/// fossilized credential produces no pull failure at all: the clone
+/// works fine, which is precisely why the 25-repo leak went unnoticed
+/// for months. Nothing in the receipt could have revealed it.
+///
+/// Missing repos and repos with no remote are skipped silently — both
+/// already have their own typed drift (`MissingSkipped`,
+/// `RepoHasNoRemote`), and re-reporting them here would double-count.
+/// An unreadable repo is skipped rather than escalated: a failed
+/// observation is inconclusive, and this pass must never turn a
+/// transient read error into a rewrite recommendation.
+pub(crate) fn derive_remote_url_drift(
+    workspace: &crate::config::Workspace,
+    repo_names: &[String],
+) -> Vec<DriftEvent> {
+    use crate::remote_url::{classify, RemoteUrlVerdict};
+    use crate::sync::RemoteWitness;
+
+    let Ok(base) = workspace.resolved_base_dir() else {
+        return Vec::new();
+    };
+
+    let mut events = Vec::new();
+    for repo_name in repo_names {
+        let path = base.join(repo_name);
+        if !path.join(".git").exists() {
+            continue;
+        }
+        let Ok(Some(witness)) = RemoteWitness::observe(&path) else {
+            continue;
+        };
+
+        match classify(witness.url(), &workspace.clone_method) {
+            RemoteUrlVerdict::EmbeddedCredential { slug, credential } => {
+                events.push(DriftEvent::RemoteUrlEmbeddedCredential {
+                    workspace: workspace.name.clone(),
+                    repo_name: repo_name.clone(),
+                    slug: slug.slug(),
+                    credential: credential.shape().to_string(),
+                });
+            }
+            RemoteUrlVerdict::ProtocolMismatch { slug, actual } => {
+                events.push(DriftEvent::RemoteProtocolMismatch {
+                    workspace: workspace.name.clone(),
+                    repo_name: repo_name.clone(),
+                    slug: slug.slug(),
+                    declared: workspace.clone_method.to_string(),
+                    actual: actual.to_string(),
+                });
+            }
+            RemoteUrlVerdict::Conforming | RemoteUrlVerdict::OutOfScope => {}
+        }
+    }
     events
 }
 

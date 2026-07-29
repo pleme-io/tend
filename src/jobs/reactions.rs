@@ -28,6 +28,7 @@ use shigoto_types::ErasedJob;
 use crate::config::Workspace;
 use crate::drift::DriftEvent;
 use crate::jobs::fetch_repo::FetchRepoJob;
+use crate::jobs::remediate_remote::RemediateRemoteUrlJob;
 
 /// Map a single `DriftEvent` to an optional handler `Job`.
 ///
@@ -83,6 +84,43 @@ pub(crate) fn react_to_drift(
         // names the decision; the operator makes it.
         DriftEvent::RepoHasNoRemote { .. } => None,
 
+        // Remote-URL drift: rewrite to the canonical URL for the
+        // workspace's declared clone_method.
+        //
+        // This is auto-remediated where `RepoHasNoRemote` above is
+        // deliberately not, and the difference is worth stating
+        // because the two look superficially alike. `RepoHasNoRemote`
+        // must *choose a target* — there is no remote to derive one
+        // from, so any action is a guess with destructive potential.
+        // Here the target already exists: the replacement is built
+        // from the `org/repo` coordinate parsed out of the URL being
+        // replaced, so the remote cannot move. Only the transport and
+        // the embedded credential change, and `git remote set-url`
+        // touches no refs, objects, or working tree.
+        //
+        // Credential leaks are the whole reason this class exists: a
+        // fossilized token in `.git/config` produces no pull failure,
+        // so nothing in the receipt path could ever surface it.
+        DriftEvent::RemoteUrlEmbeddedCredential {
+            workspace: ws,
+            repo_name,
+            ..
+        }
+        | DriftEvent::RemoteProtocolMismatch {
+            workspace: ws,
+            repo_name,
+            ..
+        } => {
+            let repo_path = workspace_repo_path(workspace, ws, repo_name)?;
+            let job = RemediateRemoteUrlJob::new(
+                ws,
+                repo_name,
+                repo_path,
+                workspace.clone_method.clone(),
+            );
+            Some(Arc::new(job))
+        }
+
         // Other drift variants currently have no automatic reaction.
         // They surface in `tend report` for operator action. The
         // SAFE-CONVERGENCE M2 milestone will add:
@@ -115,7 +153,8 @@ fn workspace_repo_path(workspace: &Workspace, ws_name: &str, repo: &str) -> Opti
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shigoto_types::Job;
+    use crate::jobs::remediate_remote::REMEDIATE_REMOTE_KIND;
+    use shigoto_types::{Job, JobKindId};
 
     fn workspace_at(name: &str, base: &str) -> Workspace {
         let mut ws = Workspace::test_default(name);
@@ -192,6 +231,55 @@ mod tests {
             "tend must not auto-create or auto-push a remote — where it \
              points is an operator decision"
         );
+    }
+
+    /// The counterpart to `repo_has_no_remote_never_auto_remediates`:
+    /// this drift class DOES auto-remediate, because the replacement
+    /// URL is derived from the coordinate already in the remote rather
+    /// than chosen. Pinning both directions keeps the distinction from
+    /// eroding into "tend never touches remotes" or, worse, "tend
+    /// rewrites any remote it dislikes".
+    #[test]
+    fn embedded_credential_schedules_remediation() {
+        let event = DriftEvent::RemoteUrlEmbeddedCredential {
+            workspace: "ws".into(),
+            repo_name: "k8s".into(),
+            slug: "akeylesslabs/k8s".into(),
+            credential: "x-access-token:***".into(),
+        };
+        let ws = workspace_at("ws", "/tmp");
+        let job = react_to_drift(&event, &ws).expect("credential leak must schedule a healer");
+        assert_eq!(job.id().kind, JobKindId::new(REMEDIATE_REMOTE_KIND));
+        assert_eq!(job.id().subject, shigoto_types::JobSubject::Repo("k8s".into()));
+    }
+
+    #[test]
+    fn protocol_mismatch_schedules_remediation() {
+        let event = DriftEvent::RemoteProtocolMismatch {
+            workspace: "ws".into(),
+            repo_name: "tend".into(),
+            slug: "pleme-io/tend".into(),
+            declared: "ssh".into(),
+            actual: "https".into(),
+        };
+        let ws = workspace_at("ws", "/tmp");
+        let job = react_to_drift(&event, &ws).expect("protocol drift must schedule a healer");
+        assert_eq!(job.id().kind, JobKindId::new(REMEDIATE_REMOTE_KIND));
+    }
+
+    /// A remote-URL event scoped to another workspace must not be
+    /// healed here — the repo path would resolve against the wrong
+    /// base_dir and rewrite an unrelated repo's remote.
+    #[test]
+    fn cross_workspace_remote_drift_yields_none() {
+        let event = DriftEvent::RemoteUrlEmbeddedCredential {
+            workspace: "other".into(),
+            repo_name: "k8s".into(),
+            slug: "akeylesslabs/k8s".into(),
+            credential: "***".into(),
+        };
+        let ws = workspace_at("ws", "/tmp");
+        assert!(react_to_drift(&event, &ws).is_none());
     }
 
     #[test]

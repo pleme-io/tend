@@ -54,5 +54,6 @@ pub(crate) mod gates;
 pub(crate) mod prebuild_repo;
 pub(crate) mod pull_repo;
 pub(crate) mod reactions;
+pub(crate) mod remediate_remote;
 pub(crate) mod status_repo;
 pub(crate) mod sync_repo;
