@@ -50,6 +50,10 @@ impl AuditLog {
             data,
         };
         if let Ok(line) = serde_json::to_string(&entry) {
+            // Bound the file before appending. This path already
+            // re-opens on every event, so the added stat is noise
+            // against the open+write it accompanies.
+            crate::logrotate::rotate(&self.path);
             if let Ok(mut file) = OpenOptions::new()
                 .create(true)
                 .append(true)

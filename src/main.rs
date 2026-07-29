@@ -24,6 +24,7 @@ mod drift;
 mod head_cache;
 mod host_health;
 mod jobs;
+mod logrotate;
 mod nixpkgs_align;
 mod placeholder;
 mod anomaly;

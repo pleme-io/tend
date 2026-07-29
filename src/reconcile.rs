@@ -252,10 +252,16 @@ pub(crate) async fn reconcile_workspace_pull(
     // grepping the transitions log shows which Jobs went through
     // Retrying / Deadlettered and on what attempt.
     let emitter: Arc<dyn TransitionEmitter> = match transition_log {
-        Some(path) => Arc::new(
-            AuditFileEmitter::new(path)
-                .with_context(|| format!("opening transition log {}", path.display()))?,
-        ),
+        Some(path) => {
+            // Bound the log before opening it. Checked here — once per
+            // reconcile cycle — rather than per line: cheap enough to
+            // ignore, frequent enough that the file cannot run away.
+            crate::logrotate::rotate(path);
+            Arc::new(
+                AuditFileEmitter::new(path)
+                    .with_context(|| format!("opening transition log {}", path.display()))?,
+            )
+        }
         None => Arc::new(NullEmitter::new()),
     };
 
@@ -360,6 +366,7 @@ pub(crate) async fn reconcile_workspace_pull(
     if let Some(tlog) = transition_log {
         if let Some(parent) = tlog.parent() {
             let drift_path = parent.join("drift-events.jsonl");
+            crate::logrotate::rotate(&drift_path);
             if let Ok(dsink) = AuditFileDriftSink::new(&drift_path) {
                 for event in &events {
                     dsink.record(event);
@@ -458,10 +465,16 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
         discovery_sink.clone();
 
     let emitter: Arc<dyn TransitionEmitter> = match transition_log {
-        Some(path) => Arc::new(
-            AuditFileEmitter::new(path)
-                .with_context(|| format!("opening transition log {}", path.display()))?,
-        ),
+        Some(path) => {
+            // Bound the log before opening it. Checked here — once per
+            // reconcile cycle — rather than per line: cheap enough to
+            // ignore, frequent enough that the file cannot run away.
+            crate::logrotate::rotate(path);
+            Arc::new(
+                AuditFileEmitter::new(path)
+                    .with_context(|| format!("opening transition log {}", path.display()))?,
+            )
+        }
         None => Arc::new(NullEmitter::new()),
     };
 
@@ -625,6 +638,7 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
     if let Some(tlog) = transition_log {
         if let Some(parent) = tlog.parent() {
             let drift_path = parent.join("drift-events.jsonl");
+            crate::logrotate::rotate(&drift_path);
             if let Ok(sink) = AuditFileDriftSink::new(&drift_path) {
                 for event in &events {
                     sink.record(event);

@@ -92,8 +92,15 @@ pub(crate) fn build_report(
     let window = window_hours.unwrap_or(DEFAULT_WINDOW_HOURS);
     let cutoff = Utc::now() - chrono::Duration::hours(window);
 
-    let content = std::fs::read_to_string(path)
+    // Streamed, not slurped. This was `read_to_string`, which pulled
+    // the entire log into memory to compute a 7-day window: against a
+    // 4.8 GB / 22M-line transition log, `tend report` peaked at
+    // 4.95 GB RSS — survivable on a workstation, an OOM kill in the
+    // operator pod. Nothing about the computation needs the whole file
+    // resident; it is a single forward pass.
+    let file = std::fs::File::open(path)
         .with_context(|| format!("reading transition log {}", path.display()))?;
+    let reader = std::io::BufReader::new(file);
 
     let mut report = Report {
         window_hours: window,
@@ -105,7 +112,12 @@ pub(crate) fn build_report(
     // Job is what matters, not the historical churn.
     let mut latest: HashMap<JobId, (JobPhase, DateTime<Utc>)> = HashMap::new();
 
-    for line in content.lines() {
+    use std::io::BufRead as _;
+    for line in reader.lines() {
+        // An IO error mid-file (truncated write, bad sector) ends the
+        // pass rather than failing the report — the same tolerance
+        // already applied to malformed lines below.
+        let Ok(line) = line else { break };
         let line = line.trim();
         if line.is_empty() {
             continue;
