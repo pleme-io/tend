@@ -164,7 +164,8 @@ pub(crate) enum DriftEvent {
     /// A repo's `origin` URL embeds a credential in its userinfo —
     /// `https://x-access-token:<token>@github.com/org/repo.git`.
     ///
-    /// Produced by `sync::inject_github_token`, which rewrites the
+    /// Produced by the former `sync::inject_github_token` (removed in
+    /// favor of `secret::GitConfigEnv`), which rewrote the
     /// clone URL so container clones can authenticate without a
     /// prompt. Git persists the clone URL verbatim into `.git/config`,
     /// so the token that was live at clone time is fossilized there

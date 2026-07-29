@@ -62,7 +62,7 @@ pub struct Context {
     pub client: Client,
     pub tend_config: Arc<Config>,
     pub http: reqwest::Client,
-    pub github_token: Option<String>,
+    pub github_token: Option<crate::secret::Secret>,
     /// Per-repo working-tree mutex registry. The policy reconciler's
     /// discovery-side fetch+reset and the proposal reconciler's
     /// apply-side fetch+reset can both fire on the same `repo_dir`
@@ -162,7 +162,7 @@ pub async fn reconcile_policy(
     if let Err(e) = super::git_ops::fetch_and_reset_to_origin(
         &repo_dir,
         "main",
-        ctx.github_token.as_deref(),
+        ctx.github_token.as_ref(),
     )
     .await
     {
@@ -267,7 +267,7 @@ pub async fn reconcile_policy(
     use super::upstream::RegistryClient;
     let reqwest_resolver = ReqwestHeadResolver::new(
         ctx.http.clone(),
-        ctx.github_token.clone(),
+        ctx.github_token.as_ref().map(|s| s.expose().to_string()),
         ctx.budget.clone(),
     );
     let nats_resolver = if NatsThrottleClient::enabled() {
@@ -744,7 +744,7 @@ pub async fn reconcile_proposal(
                 &repo_dir,
                 &proposal.spec.input,
                 &proposal.spec.to,
-                ctx.github_token.as_deref(),
+                ctx.github_token.as_ref(),
             )
             .await
             {

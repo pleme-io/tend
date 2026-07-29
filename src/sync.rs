@@ -4,6 +4,7 @@ use std::process::Command;
 
 use crate::config::Workspace;
 use crate::provider;
+use crate::secret::{GitConfigEnv, Secret};
 
 /// Proof that a repo's remote set was **observed** and found non-empty.
 ///
@@ -222,22 +223,32 @@ pub(crate) enum SyncOutcome {
     Failed { stderr: String },
 }
 
-/// Inject `GITHUB_TOKEN` into an HTTPS GitHub URL for basic-auth clone.
-/// Containers can't prompt for creds; the rewritten URL is what git
-/// actually sees on the wire. Public repos work too — the token is
-/// just unused.
-fn inject_github_token(url: String) -> String {
-    let Ok(token) = std::env::var("GITHUB_TOKEN") else {
-        return url;
-    };
-    if url.starts_with("https://github.com/") {
-        url.replacen(
-            "https://github.com/",
-            &format!("https://x-access-token:{token}@github.com/"),
-            1,
-        )
-    } else {
-        url
+/// Ephemeral git auth for cloning an HTTPS GitHub URL. Containers
+/// can't prompt for credentials, so the token has to reach git
+/// somehow; this returns it as process-scoped config rather than
+/// putting it in the URL.
+///
+/// This replaces `inject_github_token`, which rewrote the URL to
+/// `https://x-access-token:<token>@github.com/...`. That worked, but
+/// git persists the clone URL verbatim into `.git/config` — so every
+/// clone permanently recorded whatever token was live at the time. The
+/// 2026-07-29 sweep found 25 repos in that state across two orgs,
+/// carrying three distinct tokens, one still valid.
+///
+/// Environment-scoped config has no such afterlife: it exists for the
+/// duration of the `git clone` process and is written to no file. See
+/// [`crate::secret`] for why it is also not passed via `-c` on argv.
+///
+/// Empty for non-GitHub URLs and when no token is configured — a
+/// public clone needs no credential, and an absent one must not
+/// become an empty `Authorization` header.
+fn github_clone_auth(url: &str) -> GitConfigEnv {
+    if !url.starts_with("https://github.com/") {
+        return GitConfigEnv::new();
+    }
+    match Secret::from_env(&["TEND_GITHUB_TOKEN", "GITHUB_TOKEN"]) {
+        Some(secret) => secret.github_git_auth(),
+        None => GitConfigEnv::new(),
     }
 }
 
@@ -262,15 +273,21 @@ pub(crate) fn sync_one_repo(
         return Ok(SyncOutcome::AlreadyPresent);
     }
 
-    let url = inject_github_token(clone_url);
+    // The URL handed to git is the clean one — it is what git writes
+    // into `.git/config`, so it must never carry a credential.
+    // Authentication rides alongside in the environment instead.
+    let auth = github_clone_auth(&clone_url);
 
     if !quiet {
         println!("  cloning {repo_label}...");
     }
 
-    let output = Command::new("git")
-        .args(["clone", &url, &repo_path.to_string_lossy()])
-        .env("GIT_TERMINAL_PROMPT", "0")
+    let mut cmd = Command::new("git");
+    cmd.args(["clone", &clone_url, &repo_path.to_string_lossy()])
+        .env("GIT_TERMINAL_PROMPT", "0");
+    auth.apply(&mut cmd);
+
+    let output = cmd
         .output()
         .with_context(|| format!("running git clone for {repo_label}"))?;
 

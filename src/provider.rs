@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::cache;
+use crate::secret::Secret;
 
 /// Cached wrapper around `discover_github_repos`.
 /// Returns cached results if fresh (within TTL); otherwise hits the API and writes cache.
@@ -78,8 +79,8 @@ pub async fn discover_github_repo_states(org: &str) -> Result<Vec<RepoState>> {
     use todoku::{GitHubApi, OwnerType};
 
     let token = github_token();
-    let client =
-        todoku::GitHubClient::new(token.as_deref()).context("building GitHub client")?;
+    let client = todoku::GitHubClient::new(token.as_ref().map(Secret::expose))
+        .context("building GitHub client")?;
 
     let raw = match client.list_repos(org, OwnerType::Org).await {
         Ok(r) => r,
@@ -112,7 +113,7 @@ pub async fn discover_github_repos(org: &str) -> Result<Vec<String>> {
     use todoku::{GitHubApi, OwnerType};
 
     let token = github_token();
-    let client = todoku::GitHubClient::new(token.as_deref())
+    let client = todoku::GitHubClient::new(token.as_ref().map(Secret::expose))
         .context("building GitHub client")?;
 
     // Try org endpoint first, then user endpoint on 404
@@ -145,12 +146,27 @@ pub async fn discover_github_repos(org: &str) -> Result<Vec<String>> {
     Ok(names)
 }
 
-/// Get the auth token from environment (TEND_GITHUB_TOKEN or GITHUB_TOKEN).
+/// The GitHub credential, from the environment or the on-disk
+/// fallback. **The single source of truth** — every path that
+/// authenticates to GitHub resolves it here.
+///
+/// It was previously three functions: this one (env only),
+/// `operator::load_github_token` (env plus `~/.config/github/token`),
+/// and `operator::throttle::load_github_token` (env only, but
+/// trimming where the others did not). They disagreed on precedence,
+/// on whether an empty value counted, and on trimming — so the same
+/// deployment could authenticate through one code path and 401 through
+/// another. Consolidated here; the file fallback is preserved.
+///
+/// Precedence: `TEND_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then
+/// `~/.config/github/token`. The tend-specific variable wins so an
+/// operator can override an ambient CI token without unsetting it.
 #[must_use]
-pub fn github_token() -> Option<String> {
-    std::env::var("TEND_GITHUB_TOKEN")
-        .or_else(|_| std::env::var("GITHUB_TOKEN"))
-        .ok()
+pub fn github_token() -> Option<Secret> {
+    if let Some(secret) = Secret::from_env(&["TEND_GITHUB_TOKEN", "GITHUB_TOKEN"]) {
+        return Some(secret);
+    }
+    dirs::home_dir().and_then(|home| Secret::from_file(home.join(".config/github/token")))
 }
 
 #[cfg(test)]
@@ -196,7 +212,7 @@ mod tests {
 
         std::env::set_var("TEND_GITHUB_TOKEN", "tend-token-123");
         std::env::set_var("GITHUB_TOKEN", "gh-token-456");
-        assert_eq!(github_token(), Some("tend-token-123".to_string()));
+        assert_eq!(github_token().unwrap().expose(), "tend-token-123");
 
         // Restore
         match orig_tend {
@@ -217,7 +233,7 @@ mod tests {
 
         std::env::remove_var("TEND_GITHUB_TOKEN");
         std::env::set_var("GITHUB_TOKEN", "gh-token-789");
-        assert_eq!(github_token(), Some("gh-token-789".to_string()));
+        assert_eq!(github_token().unwrap().expose(), "gh-token-789");
 
         // Restore
         match orig_tend {

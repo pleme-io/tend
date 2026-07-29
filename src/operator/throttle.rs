@@ -142,7 +142,7 @@ impl TendGithubApi {
             .context("building reqwest client")?;
         let resolver = ReqwestHeadResolver::new(
             http,
-            Some(token),
+            Some(token.expose().to_string()),
             Arc::new(super::budget::pacer_from_env()),
         );
         Ok(Self {
@@ -245,11 +245,10 @@ pub async fn run(config_path: Option<&Path>) -> Result<()> {
     Ok(())
 }
 
-fn load_github_token() -> Option<String> {
-    if let Ok(s) = std::env::var("GITHUB_TOKEN") {
-        if !s.trim().is_empty() {
-            return Some(s.trim().to_string());
-        }
-    }
-    None
+/// Delegates to `provider::github_token`. This used to be its own
+/// env-only lookup, so a deployment relying on the
+/// `~/.config/github/token` fallback authenticated everywhere except
+/// here.
+fn load_github_token() -> Option<crate::secret::Secret> {
+    crate::provider::github_token()
 }

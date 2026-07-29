@@ -193,6 +193,17 @@ pub(crate) fn classify(url: &str, declared: &CloneMethod) -> RemoteUrlVerdict {
     }
 }
 
+/// Whether `url` embeds credentials in its userinfo.
+///
+/// Callers that only need the yes/no — e.g. deciding whether layering
+/// an `Authorization` header on top would conflict with URL basic-auth
+/// — use this rather than re-sniffing for `@`. A naive
+/// `url.contains('@')` misreads both `git@github.com:org/repo` (an SSH
+/// URL with no credential at all) and an `@` appearing in a path.
+pub(crate) fn has_embedded_credential(url: &str) -> bool {
+    embedded_userinfo(url).is_some()
+}
+
 /// Extract the `userinfo` span of an HTTPS URL — the text between
 /// `https://` and the `@` preceding the host — when one is present and
 /// is not the benign bare `git@` of an SSH URL.

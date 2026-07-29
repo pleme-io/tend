@@ -33,6 +33,7 @@ dirs = "6.0"
 shellexpand = "3.1"
 chrono = { version = "0.4", features = ["serde"] }
 serde_json = "1"
+base64 = "0.22"
 todoku = { git = "https://github.com/pleme-io/todoku" }
 shigoto-dag = { git = "https://github.com/pleme-io/shigoto" }
 shigoto-types = { git = "https://github.com/pleme-io/shigoto" }

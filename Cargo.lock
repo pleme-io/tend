@@ -2276,6 +2276,7 @@ dependencies = [
  "anyhow",
  "async-nats",
  "async-trait",
+ "base64",
  "chrono",
  "clap",
  "colored",

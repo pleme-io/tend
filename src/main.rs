@@ -31,6 +31,7 @@ mod planner;
 mod prebuild;
 mod prebuild_cache;
 mod reconcile;
+mod secret;
 mod remote_url;
 mod report;
 mod provider;
@@ -1620,7 +1621,8 @@ async fn main() -> Result<()> {
                              with repo write scope"
                         )
                     })?;
-                    let api = release_swarm_http::HttpReleaseSwarmApi::new(token)?;
+                    let api =
+                        release_swarm_http::HttpReleaseSwarmApi::new(token.expose().to_string())?;
                     release_swarm::apply_swarm(&api, swarm_cfg, dry_run, render).await?
                 };
                 for r in &reports {

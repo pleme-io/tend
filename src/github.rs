@@ -34,7 +34,7 @@ pub struct HttpGitHubClient {
 impl HttpGitHubClient {
     pub fn new() -> Result<Self> {
         let token = crate::provider::github_token();
-        let inner = todoku::GitHubClient::new(token.as_deref())?;
+        let inner = todoku::GitHubClient::new(token.as_ref().map(crate::secret::Secret::expose))?;
         Ok(Self { inner })
     }
 }

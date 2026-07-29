@@ -171,19 +171,9 @@ pub async fn run() -> Result<()> {
     Ok(())
 }
 
-fn load_github_token() -> Option<String> {
-    if let Ok(s) = std::env::var("GITHUB_TOKEN") {
-        if !s.is_empty() {
-            return Some(s);
-        }
-    }
-    if let Some(home) = dirs::home_dir() {
-        if let Ok(s) = std::fs::read_to_string(home.join(".config/github/token")) {
-            let trimmed = s.trim();
-            if !trimmed.is_empty() {
-                return Some(trimmed.to_string());
-            }
-        }
-    }
-    None
+/// Delegates to `provider::github_token`, which absorbed this
+/// function's env-plus-file resolution. Kept as a named local so the
+/// operator's construction site reads the same as before.
+fn load_github_token() -> Option<crate::secret::Secret> {
+    crate::provider::github_token()
 }

@@ -22,6 +22,7 @@
 //! ingestion strategy: Mode A steady-trickle).
 
 use anyhow::{Context as _, Result};
+use crate::secret::Secret;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -474,7 +475,7 @@ impl FleetWatchTask {
         let mut tick = tokio::time::interval(self.cfg.discovery_pace);
         for name in &names {
             tick.tick().await;
-            match has_flake_nix(&client, &self.cfg.org, name, token.as_deref()).await {
+            match has_flake_nix(&client, &self.cfg.org, name, token.as_ref()).await {
                 Ok(true) => {
                     let id = UpstreamId::new_github(&self.cfg.org, name, "HEAD");
                     flake_having.push(id);
@@ -515,7 +516,7 @@ async fn has_flake_nix(
     client: &reqwest::Client,
     owner: &str,
     repo: &str,
-    token: Option<&str>,
+    token: Option<&Secret>,
 ) -> Result<bool> {
     let url = format!("https://api.github.com/repos/{owner}/{repo}/contents/flake.nix");
     let mut req = client
@@ -523,7 +524,7 @@ async fn has_flake_nix(
         .header("Accept", "application/vnd.github+json")
         .header("User-Agent", "tend-fleet-watch");
     if let Some(t) = token {
-        req = req.bearer_auth(t);
+        req = req.bearer_auth(t.expose());
     }
     let resp = req.send().await.with_context(|| format!("HEAD {url}"))?;
     let status = resp.status().as_u16();

@@ -395,10 +395,13 @@ pub fn nix_env(cmd: &mut Command) {
         "experimental-features = nix-command flakes\n\
          accept-flake-config = true",
     );
-    if let Ok(token) = std::env::var("GITHUB_TOKEN") {
-        if !token.is_empty() {
-            nix_config.push_str(&format!("\naccess-tokens = github.com={token}"));
-        }
+    // NIX_CONFIG is process-scoped, so the token dies with the child.
+    // Routed through `Secret` anyway: this is the one place tend still
+    // interpolates a credential into a string, and typing it keeps it
+    // visible to the `expose()` audit rather than looking like an
+    // ordinary env var.
+    if let Some(token) = crate::provider::github_token() {
+        nix_config.push_str(&format!("\naccess-tokens = github.com={}", token.expose()));
     }
     cmd.env("HOME", &home)
         .env("XDG_CACHE_HOME", &cache)

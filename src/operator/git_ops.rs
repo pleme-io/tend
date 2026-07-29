@@ -6,10 +6,14 @@
 //! deterministic author, push to origin, optionally with an injected
 //! GitHub token because in-cluster pods don't have ambient credentials.
 //!
-//! Token injection uses `git -c http.<url>.extraheader=...` so the
-//! credential never lands in `~/.gitconfig` or the remote URL —
-//! cleaner than rewriting `origin` to embed the secret, idempotent
-//! across pod restarts, and survives `git remote set-url`.
+//! Token injection sets `http.<url>.extraheader` through the
+//! environment (`crate::secret::GitConfigEnv`), so the credential
+//! lands in neither `~/.gitconfig`, the remote URL, nor argv.
+//!
+//! It used to travel as `-c http.<url>.extraheader=...`, which kept it
+//! out of the config files but put it in the **process table**, where
+//! any account on the host could read it from `ps`. The env-scoped
+//! carrier closes that; see `crate::secret` for the full rationale.
 //!
 //! Commit author is also passed per-call rather than baked into the
 //! shell environment, so different controllers can sign their commits
@@ -23,6 +27,8 @@
 use anyhow::{anyhow, Context, Result};
 use std::path::Path;
 use tokio::process::Command;
+
+use crate::secret::{GitConfigEnv, Secret};
 
 #[derive(Debug, Clone)]
 pub struct GitCommitter {
@@ -63,18 +69,9 @@ impl GitCommitter {
 pub async fn fetch_and_reset_to_origin(
     repo_dir: &Path,
     branch: &str,
-    token: Option<&str>,
+    token: Option<&Secret>,
 ) -> Result<()> {
-    let url_has_creds = origin_has_embedded_credentials(repo_dir).await.unwrap_or(false);
-    let extra_header;
-    let auth_args: Vec<&str> = if let (Some(t), false) = (token, url_has_creds) {
-        extra_header = format!(
-            "http.https://github.com/.extraheader=AUTHORIZATION: bearer {t}"
-        );
-        vec!["-c", &extra_header]
-    } else {
-        Vec::new()
-    };
+    let auth = github_auth_config(repo_dir, token).await;
 
     // Defensive: clear any stuck rebase / cherry-pick / merge state
     // that earlier failed apply attempts may have left behind. Each
@@ -85,15 +82,37 @@ pub async fn fetch_and_reset_to_origin(
     // `git commit` refuses with "interactive rebase in progress".
     let _ = clean_repo_state(repo_dir).await;
 
-    let mut fetch = auth_args.clone();
-    fetch.extend_from_slice(&["fetch", "origin", branch]);
-    git(repo_dir, &fetch, None).await.context("git fetch origin")?;
+    git(repo_dir, &["fetch", "origin", branch], &auth)
+        .await
+        .context("git fetch origin")?;
 
     let target = format!("origin/{branch}");
-    git(repo_dir, &["reset", "--hard", &target], None)
+    git(repo_dir, &["reset", "--hard", &target], &GitConfigEnv::new())
         .await
         .context("git reset --hard origin/<branch>")?;
     Ok(())
+}
+
+/// Build the ephemeral git config that authenticates a GitHub request.
+///
+/// Empty when there is no token, and empty when origin's URL already
+/// carries basic-auth credentials — stacking a bearer header on top of
+/// URL basic-auth makes GitHub reject the request as "invalid
+/// credentials". Legacy clones can still be in that state until
+/// `tend reconcile` heals them (see `jobs::remediate_remote`).
+///
+/// The config travels in the environment, never in argv. `-c
+/// http...extraheader=AUTHORIZATION: bearer <token>` — what this code
+/// did previously — put the token in the process table, where any
+/// account on the host could read it out of `ps`.
+async fn github_auth_config(repo_dir: &Path, token: Option<&Secret>) -> GitConfigEnv {
+    let Some(secret) = token else {
+        return GitConfigEnv::new();
+    };
+    if origin_has_embedded_credentials(repo_dir).await.unwrap_or(false) {
+        return GitConfigEnv::new();
+    }
+    secret.github_git_auth()
 }
 
 /// Best-effort cleanup of in-progress rebase / cherry-pick / merge /
@@ -135,9 +154,7 @@ async fn origin_has_embedded_credentials(repo_dir: &Path) -> Result<bool> {
         return Ok(false);
     }
     let url = String::from_utf8_lossy(&out.stdout);
-    // Detection: `https://USER:TOKEN@host` has an `@` before the host.
-    // Any other shape (ssh, plain https) returns false.
-    Ok(url.starts_with("https://") && url.contains('@'))
+    Ok(crate::remote_url::has_embedded_credential(url.trim()))
 }
 
 /// Stage `paths` (relative to `repo_dir`), commit with `message` as
@@ -151,45 +168,35 @@ pub async fn commit_and_push(
     paths: &[&str],
     message: &str,
     committer: &GitCommitter,
-    token: Option<&str>,
+    token: Option<&Secret>,
 ) -> Result<String> {
     let mut add = vec!["add"];
     add.extend(paths.iter().copied());
-    git(repo_dir, &add, None).await.context("git add")?;
+    git(repo_dir, &add, &GitConfigEnv::new()).await.context("git add")?;
 
-    let commit_args: Vec<&str> = vec![
-        "-c",
-        // committer identity is per-call; doesn't persist to .gitconfig
-    ];
-    let _ = commit_args; // placeholder — using -c for both name+email below
+    // Committer identity is per-call and must not persist to
+    // .gitconfig. It rides the same environment carrier as auth —
+    // one mechanism for all ephemeral git config rather than a
+    // sensitive path and a separate ordinary one.
+    let identity = GitConfigEnv::new()
+        .with("user.name", &committer.name)
+        .with("user.email", &committer.email);
+    git(repo_dir, &["commit", "-m", message], &identity)
+        .await
+        .context("git commit")?;
 
-    let name_kv = format!("user.name={}", committer.name);
-    let email_kv = format!("user.email={}", committer.email);
-    let commit = vec![
-        "-c", name_kv.as_str(),
-        "-c", email_kv.as_str(),
-        "commit", "-m", message,
-    ];
-    git(repo_dir, &commit, None).await.context("git commit")?;
-
-    let url_has_creds = origin_has_embedded_credentials(repo_dir).await.unwrap_or(false);
     // Refspec must be fully qualified on both sides because the apply
     // path runs from a detached-HEAD state (we reset --hard to
     // origin/main earlier, then commit on top — `HEAD` alone has no
     // branch context to imply `refs/heads/main`).
-    let mut push = vec!["push", "origin", "HEAD:refs/heads/main"];
-    let extra_header;
-    if let (Some(t), false) = (token, url_has_creds) {
-        // Token-as-bearer-header path: origin URL has no credentials,
-        // so we inject auth via -c http.<host>.extraheader. When the
-        // URL already carries `x-access-token:...@`, stacking a
-        // bearer header on top makes GitHub reject the request.
-        extra_header = format!(
-            "http.https://github.com/.extraheader=AUTHORIZATION: bearer {t}"
-        );
-        push = vec!["-c", &extra_header, "push", "origin", "HEAD:refs/heads/main"];
-    }
-    git(repo_dir, &push, token).await.context("git push")?;
+    let auth = github_auth_config(repo_dir, token).await;
+    git(
+        repo_dir,
+        &["push", "origin", "HEAD:refs/heads/main"],
+        &auth,
+    )
+    .await
+    .context("git push")?;
 
     let head = git_capture(repo_dir, &["rev-parse", "HEAD"])
         .await
@@ -197,16 +204,26 @@ pub async fn commit_and_push(
     Ok(head.trim().to_string())
 }
 
-async fn git(repo_dir: &Path, args: &[&str], _token: Option<&str>) -> Result<()> {
+/// Run git with `config` delivered through the environment.
+///
+/// Taking `&GitConfigEnv` rather than the previous ignored
+/// `_token: Option<&str>` is deliberate: the old signature accepted a
+/// secret and silently dropped it, so every call site had to remember
+/// to *also* build `-c` args by hand. That is exactly how the token
+/// ended up in argv. Now the only way to pass credentials is the
+/// carrier that cannot reach the process table.
+async fn git(repo_dir: &Path, args: &[&str], config: &GitConfigEnv) -> Result<()> {
     // Capture stdout+stderr instead of inheriting — git's actual error
     // ("[rejected] main -> main", "Permission denied", "infinite recursion
     // in submodule") needs to land in the anyhow chain so the reconciler
     // can pattern-match on it (e.g. push-race retry) and operators see
     // it in `kubectl get fpr -o yaml`. Without this, a non-zero exit
     // surfaces only as "exit 128" with no diagnostic context.
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(repo_dir)
+    let mut cmd = Command::new("git");
+    cmd.args(args).current_dir(repo_dir);
+    config.apply_async(&mut cmd);
+
+    let output = cmd
         .output()
         .await
         .with_context(|| format!("spawning git {args:?}"))?;
