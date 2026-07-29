@@ -1,6 +1,9 @@
 {
-  "schema_version": 1,
-  "cargo_lock_sha256": "6befcc36c0f3d48adb21ca118629c1f110d163a7ff58180a88299ef81daba849",
+  "schema_version": 2,
+  "cargo_lock_sha256": "04c79e6af144976e7ad4b23658a5d52e8001ae25ab8a6fe9628dc047c474eb52",
+  "manifest_sha256": {
+    "Cargo.toml": "064239734a081e2d6bede215edc8ec03e634e60a9c258b580d9005b05e1038a6"
+  },
   "target_resolves": {
     "base": {
       "adler2-2.0.1": {
@@ -6792,6 +6795,16 @@
             "optional": false,
             "target": null,
             "tree": "host"
+          },
+          {
+            "name": "base64",
+            "package_key": "base64-0.22.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
           },
           {
             "name": "chrono",
