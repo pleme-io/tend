@@ -257,6 +257,12 @@ pub(crate) async fn reconcile_workspace_pull(
             // reconcile cycle — rather than per line: cheap enough to
             // ignore, frequent enough that the file cannot run away.
             crate::logrotate::rotate(path);
+            // Per-file rotation shapes each log; the budget is what
+            // actually bounds the directory. Swept here so a log added
+            // later cannot raise the ceiling by existing.
+            if let Some(parent) = path.parent() {
+                crate::logrotate::enforce_default_budget(parent);
+            }
             Arc::new(
                 AuditFileEmitter::new(path)
                     .with_context(|| format!("opening transition log {}", path.display()))?,
@@ -470,6 +476,12 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
             // reconcile cycle — rather than per line: cheap enough to
             // ignore, frequent enough that the file cannot run away.
             crate::logrotate::rotate(path);
+            // Per-file rotation shapes each log; the budget is what
+            // actually bounds the directory. Swept here so a log added
+            // later cannot raise the ceiling by existing.
+            if let Some(parent) = path.parent() {
+                crate::logrotate::enforce_default_budget(parent);
+            }
             Arc::new(
                 AuditFileEmitter::new(path)
                     .with_context(|| format!("opening transition log {}", path.display()))?,
