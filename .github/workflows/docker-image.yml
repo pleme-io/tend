@@ -1,8 +1,31 @@
 name: docker-image
 
+# PUSH TRIGGER RETIRED 2026-07-31 — still runnable on demand, never on merge.
+#
+# Three independent reasons, any one sufficient:
+#
+#   1. NOBODY CONSUMES IT. A zoekt sweep for `ghcr.io/pleme-io/tend` across the
+#      org finds exactly two hits — a skill doc and a test fixture. No chart, no
+#      CR, no manifest pulls this image. It has been building an artifact with
+#      no reader.
+#   2. IT VIOLATES PILLAR 8. This builds a Dockerfile through
+#      docker/build-push-action against a generated `docker-context`. The fleet
+#      rule is Nix `dockerTools` only, no Dockerfiles — and tend's flake exposes
+#      no `dockerImage` attr to feed the substrate shim, so porting it is real
+#      work, not a rename.
+#   3. IT IS METERED. `runs-on: ubuntu-24.04` is hardcoded, so on a PRIVATE repo
+#      it burns GitHub-hosted minutes. The fleet pattern is a 5-line shim over
+#      `pleme-io/substrate/.github/workflows/image-push.yml`, whose own
+#      `runs-on` ternary routes private repos to camelot's unmetered
+#      `camelot-builder-pleme-eks` pool. `auto-release.yml` in this same repo
+#      already does the right thing via `cargo-auto-release.yml`.
+#
+# MODULARIZE, DON'T DELETE: `workflow_dispatch` stays, so this is one manual run
+# away if it is ever needed. THE DESTINATION if a real consumer appears is the
+# substrate shim (add a `dockerImage` attr to the flake, call `image-push.yml`)
+# — not a revival of the Dockerfile path, which would re-import all three
+# problems above.
 on:
-  push:
-    branches: [main]
   workflow_dispatch: {}
 
 jobs:
