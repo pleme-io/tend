@@ -851,8 +851,17 @@ impl CacheFillEnv for RealEnv {
             }
 
             // 3. Rebuild-and-compare this one derivation.
+            // `-K`/`--keep-failed` is LOAD-BEARING, not a debugging aid:
+            // without it nix reports "output 'X' differs" and deletes the
+            // rebuild, so `<path>.check` never exists and
+            // `refine_object_drift` can never compare anything — the
+            // metadata gate would silently degrade to the whole-output
+            // gate it replaces. Verified empirically 2026-07-31 against a
+            // deliberately non-deterministic derivation: without `-K` no
+            // `.check` path is created; with it the message becomes
+            // "output 'X' differs from 'X.check'" and the file is there.
             match Command::new("nix-store")
-                .args(["--realise", "--check", &deriver])
+                .args(["--realise", "--check", "--keep-failed", &deriver])
                 .current_dir(repo)
                 .output()
             {
@@ -1465,6 +1474,32 @@ mod tests {
                 DeterminismOutcome::Inconclusive { stderr_tail: "boom".into() },
             ]),
             DeterminismOutcome::Inconclusive { stderr_tail: "boom".into() }
+        );
+    }
+
+    #[test]
+    fn differs_path_parses_the_keep_failed_message_form() {
+        // With `-K` (which the gate now requires) nix names BOTH paths:
+        //   output 'X' differs from 'X.check'
+        // The parser must return X, not X.check — comparing X.check with
+        // X.check.check would find nothing and withhold everything.
+        let stderr = "error: derivation '/nix/store/aaa.drv' may not be \
+                      deterministic: output '/nix/store/bbb-foo' differs \
+                      from '/nix/store/bbb-foo.check'";
+        assert_eq!(
+            classify_determinism(false, stderr),
+            DeterminismOutcome::NonReproducible {
+                path: Some("/nix/store/bbb-foo".to_string())
+            }
+        );
+        // And the older, no-`-K` phrasing still parses.
+        let older = "error: derivation '/nix/store/aaa.drv' may not be \
+                     deterministic: output '/nix/store/bbb-foo' differs";
+        assert_eq!(
+            classify_determinism(false, older),
+            DeterminismOutcome::NonReproducible {
+                path: Some("/nix/store/bbb-foo".to_string())
+            }
         );
     }
 
