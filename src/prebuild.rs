@@ -142,6 +142,9 @@ impl PrebuildOptions {
                 .as_ref()
                 .map(|a| {
                     vec![CacheTarget {
+                        // The legacy single-cache `--attic-*` quartet can
+                        // only ever describe an attic destination.
+                        backend: prebuild_cache::CacheBackend::Attic,
                         cache_name: a.cache_name.clone(),
                         server_name: a.server_name.clone(),
                         server_url: a.server_url.clone(),
@@ -818,7 +821,7 @@ pub(crate) mod test_support {
             DeterminismOutcome::Reproducible
         }
 
-        fn attic_push(&self, _cache: &str, _path: &str) -> Result<()> {
+        fn push(&self, _target: &CacheTarget, _path: &str) -> Result<()> {
             Ok(())
         }
     }
@@ -940,14 +943,17 @@ mod tests {
             self.verify_default.clone()
         }
 
-        fn attic_push(&self, cache: &str, path: &str) -> Result<()> {
-            if self.fail_push_cache.as_deref() == Some(cache) {
-                anyhow::bail!("mock programmed push failure for cache {cache}");
+        fn push(&self, target: &CacheTarget, path: &str) -> Result<()> {
+            // Keyed on dedup_key, not cache_name, so this mock stays
+            // meaningful for a sui target (whose cache_name is empty).
+            let key = target.dedup_key();
+            if self.fail_push_cache.as_deref() == Some(key) {
+                anyhow::bail!("mock programmed push failure for cache {key}");
             }
             self.pushes
                 .lock()
                 .expect("pushes mutex poisoned")
-                .push((cache.to_string(), path.to_string()));
+                .push((key.to_string(), path.to_string()));
             Ok(())
         }
     }
@@ -955,10 +961,24 @@ mod tests {
     /// One usable cache target for the WS3 push tests.
     fn usable_cache(name: &str) -> CacheTarget {
         CacheTarget {
+            backend: prebuild_cache::CacheBackend::Attic,
             cache_name: name.to_string(),
             server_name: name.to_string(),
             server_url: "http://rio:8080/".to_string(),
             token_file: "/run/secrets/tend/jwt".to_string(),
+            enabled: true,
+        }
+    }
+
+    /// One usable SUI target — URL only, exactly as the retirement of
+    /// attic leaves it: no cache name, no alias, no token.
+    fn usable_sui(url: &str) -> CacheTarget {
+        CacheTarget {
+            backend: prebuild_cache::CacheBackend::Sui,
+            cache_name: String::new(),
+            server_name: String::new(),
+            server_url: url.to_string(),
+            token_file: String::new(),
             enabled: true,
         }
     }
@@ -1527,6 +1547,33 @@ mod tests {
         let n2 = prebuild_cache::push_path_to_caches(&env, &targets, "/nix/store/p", &dedup);
         assert_eq!(n2, 0, "dedup blocks the repeat");
         assert_eq!(env.pushes().len(), 2, "no extra pushes on repeat");
+    }
+
+    #[test]
+    fn fan_out_mixes_attic_and_sui_targets() {
+        // The post-attic-retirement shape: attic and sui side by side.
+        // Two sui targets both have cache_name == "", so this also
+        // guards the dedup-collision trap — key on the URL and they are
+        // distinct destinations; key on cache_name and the second is
+        // silently dropped.
+        let env = MockCacheFillEnv::new();
+        let targets = vec![
+            usable_cache("nexus"),
+            usable_sui("http://127.0.0.1:5000"),
+            usable_sui("http://sui.camelot-build.svc"),
+        ];
+        let dedup = Mutex::new(ClosureDedup::new());
+        let n = prebuild_cache::push_path_to_caches(&env, &targets, "/nix/store/p", &dedup);
+        assert_eq!(n, 3, "one attic + two distinct sui destinations");
+
+        let keys: Vec<String> = env.pushes().iter().map(|(k, _)| k.clone()).collect();
+        assert!(keys.contains(&"nexus".to_string()));
+        assert!(keys.contains(&"http://127.0.0.1:5000".to_string()));
+        assert!(keys.contains(&"http://sui.camelot-build.svc".to_string()));
+
+        // Same path again → dedup blocks every backend equally.
+        let n2 = prebuild_cache::push_path_to_caches(&env, &targets, "/nix/store/p", &dedup);
+        assert_eq!(n2, 0, "dedup applies across backends");
     }
 
     #[test]

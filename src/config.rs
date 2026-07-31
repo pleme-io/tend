@@ -175,7 +175,13 @@ pub struct PrebuildConfig {
 /// One push destination in the multi-cache `caches:` list.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CacheTargetConfig {
-    /// atticd cache name (e.g. `nexus`).
+    /// Which protocol this destination speaks (`attic` | `sui`).
+    /// Absent ⇒ `attic`, so every existing `caches:` block keeps working.
+    #[serde(default)]
+    pub backend: crate::prebuild_cache::CacheBackend,
+    /// atticd cache name (e.g. `nexus`). Attic-only — a `sui` target is
+    /// addressed by `url` alone.
+    #[serde(default)]
     pub cache: String,
     /// Server alias for `attic login`.
     pub server: String,
@@ -193,6 +199,7 @@ impl CacheTargetConfig {
     #[must_use]
     pub fn to_target(&self) -> crate::prebuild_cache::CacheTarget {
         crate::prebuild_cache::CacheTarget {
+            backend: self.backend,
             cache_name: self.cache.clone(),
             server_name: self.server.clone(),
             server_url: self.url.clone(),

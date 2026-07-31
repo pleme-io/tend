@@ -42,10 +42,48 @@
 use serde::Deserialize;
 use std::collections::HashSet;
 
+/// Which protocol a push destination speaks.
+///
+/// Attic was the fleet's only backend until it was retired on 2026-07-31
+/// after twice serving Rust artifacts whose crate metadata a consumer
+/// could not load. Its replacement, `sui cache serve`, is a plain HTTP
+/// binary cache (`PUT /{hash}.narinfo`, `PUT /nar/{*path}`) that `nix
+/// copy --to` speaks natively — no client binary, no login handshake.
+///
+/// Defaults to [`CacheBackend::Attic`] on the wire so every existing
+/// config keeps parsing unchanged (★★ MODULARIZE, DON'T DELETE — attic
+/// stays a fully working, selectable backend, it is simply not the
+/// fleet's choice today).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CacheBackend {
+    /// `attic push <cache> <path>`, preceded by `attic login`.
+    #[default]
+    Attic,
+    /// `nix copy --to <url> <path>`. No login step.
+    Sui,
+}
+
+impl CacheBackend {
+    /// Does this backend need an `attic login` before pushing?
+    ///
+    /// A match rather than a bool field so adding a third backend is a
+    /// compile error here instead of a silently-skipped handshake.
+    #[must_use]
+    pub fn needs_attic_login(self) -> bool {
+        match self {
+            Self::Attic => true,
+            Self::Sui => false,
+        }
+    }
+}
+
 /// One binary-cache push destination. A prebuild cycle fans every
 /// produced closure out to each enabled target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CacheTarget {
+    /// Which protocol this destination speaks.
+    pub backend: CacheBackend,
     /// Cache name as known by atticd (e.g. `nexus`).
     pub cache_name: String,
     /// Server alias passed to `attic login`.
@@ -65,13 +103,40 @@ impl CacheTarget {
     /// dropped rather than crashing `attic login` mid-cycle — same
     /// belt-and-suspenders posture as the legacy single-cache quartet
     /// check in [`crate::prebuild::effective_per_workspace`].
+    /// Usability is per-backend, because the identity fields are.
+    /// Attic needs its whole quartet (name/server/url/token) to log in
+    /// and push; sui needs only a URL — `nix copy --to` takes no cache
+    /// name, no alias and no token, so demanding them would make every
+    /// sui target silently unusable.
     #[must_use]
     pub fn is_usable(&self) -> bool {
-        self.enabled
-            && !self.cache_name.is_empty()
-            && !self.server_name.is_empty()
-            && !self.server_url.is_empty()
-            && !self.token_file.is_empty()
+        if !self.enabled {
+            return false;
+        }
+        match self.backend {
+            CacheBackend::Attic => {
+                !self.cache_name.is_empty()
+                    && !self.server_name.is_empty()
+                    && !self.server_url.is_empty()
+                    && !self.token_file.is_empty()
+            }
+            CacheBackend::Sui => !self.server_url.is_empty(),
+        }
+    }
+
+    /// Stable per-destination identity for the per-cycle push dedup and
+    /// for log lines.
+    ///
+    /// It is NOT `cache_name`: that is empty for a sui target, so every
+    /// sui destination would share the key `""` and the dedup would
+    /// silently drop all but the first one's pushes. Keyed on whatever
+    /// actually identifies the destination for its backend.
+    #[must_use]
+    pub fn dedup_key(&self) -> &str {
+        match self.backend {
+            CacheBackend::Attic => &self.cache_name,
+            CacheBackend::Sui => &self.server_url,
+        }
     }
 }
 
@@ -82,9 +147,19 @@ impl CacheTarget {
 /// Nix → JSON → Rust machine boundary the fleet standardises on.
 #[derive(Debug, Deserialize)]
 struct CacheTargetSpec {
+    /// Absent ⇒ `attic`, so every pre-existing rendered config parses
+    /// unchanged.
+    #[serde(default)]
+    backend: CacheBackend,
+    /// Attic-only; a sui target may omit it.
+    #[serde(default)]
     name: String,
+    /// Attic-only; a sui target may omit it.
+    #[serde(default)]
     server: String,
     url: String,
+    /// Attic-only; a sui target may omit it.
+    #[serde(default)]
     token_file: String,
     #[serde(default = "spec_enabled_default")]
     enabled: bool,
@@ -104,6 +179,7 @@ pub fn parse_caches_json(json: &str) -> Result<Vec<CacheTarget>, serde_json::Err
     Ok(specs
         .into_iter()
         .map(|s| CacheTarget {
+            backend: s.backend,
             cache_name: s.name,
             server_name: s.server,
             server_url: s.url,
@@ -562,7 +638,22 @@ use std::sync::Mutex;
 /// `attic login <server> <url> <token>` for one target. Run once per
 /// cycle per cache. Reads the JWT fresh each time (never held between
 /// cycles) so a rotated token is picked up on the next cycle.
+/// `attic login` for an attic target; a NO-OP for any backend that has
+/// no login handshake.
+///
+/// The guard is the point: this is called unconditionally for every
+/// configured target, so without it a sui destination would shell out to
+/// `attic login <empty-alias> <url> <empty-token>` on every cycle and be
+/// filtered out of the push list when that failed — a cache that looks
+/// configured and silently never receives anything.
 pub fn attic_login_target(target: &CacheTarget) -> Result<()> {
+    if !target.backend.needs_attic_login() {
+        return Ok(());
+    }
+    attic_login_target_inner(target)
+}
+
+fn attic_login_target_inner(target: &CacheTarget) -> Result<()> {
     let token = std::fs::read_to_string(&target.token_file)
         .with_context(|| format!("reading {}", target.token_file))?;
     let status = Command::new("attic")
@@ -646,10 +737,16 @@ pub(crate) trait CacheFillEnv: Send + Sync {
     /// Closure-deep reproducibility check of the union runtime closure of
     /// `out_paths` (see [`RealEnv::verify_closure`] for the algorithm).
     fn verify_closure(&self, repo: &std::path::Path, out_paths: &[String]) -> DeterminismOutcome;
-    /// `attic push <cache> <path>`. Result-returning so a per-cache
+    /// Push one store path to one destination, dispatching on the
+    /// target's [`CacheBackend`]. Result-returning so a per-cache
     /// failure is assertable and the fan-out in [`push_path_to_caches`]
     /// can `continue` past it without aborting the rest.
-    fn attic_push(&self, cache: &str, path: &str) -> Result<()>;
+    ///
+    /// Takes the whole `target` rather than a cache NAME (the shape
+    /// before attic's retirement): a name is an attic concept, and a
+    /// sui destination is addressed by URL alone, so a name-only
+    /// signature could not express one.
+    fn push(&self, target: &CacheTarget, path: &str) -> Result<()>;
 }
 
 /// Production [`CacheFillEnv`] — real subprocess calls.
@@ -779,16 +876,40 @@ impl CacheFillEnv for RealEnv {
         aggregate_closure_determinism(&per_drv)
     }
 
-    fn attic_push(&self, cache: &str, path: &str) -> Result<()> {
-        let status = Command::new("attic")
-            .args(["push", cache, path])
-            .status()
-            .with_context(|| format!("running attic push {cache} {path}"))?;
-        if !status.success() {
-            anyhow::bail!("attic push {cache} {path} exited {status}");
+    fn push(&self, target: &CacheTarget, path: &str) -> Result<()> {
+        match target.backend {
+            CacheBackend::Attic => {
+                let cache = &target.cache_name;
+                let status = Command::new("attic")
+                    .args(["push", cache, path])
+                    .status()
+                    .with_context(|| format!("running attic push {cache} {path}"))?;
+                if !status.success() {
+                    anyhow::bail!("attic push {cache} {path} exited {status}");
+                }
+                Ok(())
+            }
+            CacheBackend::Sui => nix_copy_to(&target.server_url, path),
         }
-        Ok(())
     }
+}
+
+/// `nix copy --to <url> <path>` — the sui-cache push.
+///
+/// sui-cache is a plain HTTP binary cache, so nix's own copier is the
+/// whole client: it PUTs the narinfo + NAR the server already serves on
+/// GET. No `attic`-style binary, no login handshake, no token — the
+/// server is deliberately fail-open, and what keeps poison out is the
+/// reproducibility gate upstream of this call, never the transport.
+fn nix_copy_to(url: &str, path: &str) -> Result<()> {
+    let status = Command::new("nix")
+        .args(["copy", "--to", url, path])
+        .status()
+        .with_context(|| format!("running nix copy --to {url} {path}"))?;
+    if !status.success() {
+        anyhow::bail!("nix copy --to {url} {path} exited {status}");
+    }
+    Ok(())
 }
 
 /// Relative paths of every compiled Rust artifact under `root`.
@@ -898,14 +1019,14 @@ pub(crate) fn push_path_to_caches(
         // (cache, path) this cycle.
         let fresh = {
             let mut d = dedup.lock().expect("closure dedup mutex poisoned");
-            d.claim(&t.cache_name, path)
+            d.claim(t.dedup_key(), path)
         };
         if !fresh {
             continue;
         }
-        match env.attic_push(&t.cache_name, path) {
+        match env.push(t, path) {
             Ok(()) => ok += 1,
-            Err(e) => eprintln!("[prebuild] attic push {}→{} {e:#}", t.cache_name, path),
+            Err(e) => eprintln!("[prebuild] push {}→{} {e:#}", t.dedup_key(), path),
         }
     }
     ok
@@ -918,6 +1039,7 @@ mod tests {
     #[test]
     fn cache_target_usable_requires_full_quartet_and_enabled() {
         let full = CacheTarget {
+            backend: CacheBackend::Attic,
             cache_name: "nexus".into(),
             server_name: "nexus".into(),
             server_url: "http://rio:8080/".into(),
@@ -1173,6 +1295,85 @@ mod tests {
             ]),
             Uncheckable { reason: "no resident derivations to check".into() }
         );
+    }
+
+    // ── Sui backend (the post-attic fill path) ───────────────────────
+
+    fn sui_target(url: &str) -> CacheTarget {
+        CacheTarget {
+            backend: CacheBackend::Sui,
+            cache_name: String::new(),
+            server_name: String::new(),
+            server_url: url.into(),
+            token_file: String::new(),
+            enabled: true,
+        }
+    }
+
+    #[test]
+    fn a_sui_target_is_usable_on_url_alone() {
+        // The trap the attic-shaped quartet check would spring: a sui
+        // destination has no cache name, no alias and no token, so the
+        // old is_usable() would drop it silently and the cache would
+        // look configured while receiving nothing.
+        let t = sui_target("http://127.0.0.1:5000");
+        assert!(t.is_usable(), "sui target needs only a URL");
+
+        let no_url = CacheTarget { server_url: String::new(), ..t.clone() };
+        assert!(!no_url.is_usable(), "a sui target without a URL is unusable");
+
+        let disabled = CacheTarget { enabled: false, ..t };
+        assert!(!disabled.is_usable(), "disabled beats backend");
+    }
+
+    #[test]
+    fn sui_targets_dedup_on_url_not_on_empty_cache_name() {
+        // Both sui targets have cache_name == "", so keying the per-cycle
+        // dedup on cache_name would collide them and silently drop every
+        // push after the first.
+        let a = sui_target("http://127.0.0.1:5000");
+        let b = sui_target("http://sui.camelot-build.svc");
+        assert_ne!(a.dedup_key(), b.dedup_key());
+        assert_eq!(a.dedup_key(), "http://127.0.0.1:5000");
+        // Attic still keys on its cache name.
+        let atticish = CacheTarget {
+            backend: CacheBackend::Attic,
+            cache_name: "nexus".into(),
+            server_name: "nexus".into(),
+            server_url: "http://rio:8080/".into(),
+            token_file: "/t".into(),
+            enabled: true,
+        };
+        assert_eq!(atticish.dedup_key(), "nexus");
+    }
+
+    #[test]
+    fn only_attic_needs_a_login_handshake() {
+        assert!(CacheBackend::Attic.needs_attic_login());
+        assert!(!CacheBackend::Sui.needs_attic_login());
+        // The guard must make the login call a no-op for sui — without
+        // it, `attic login` runs against a sui URL every cycle, fails,
+        // and the target is filtered out of the push list.
+        assert!(attic_login_target(&sui_target("http://127.0.0.1:5000")).is_ok());
+    }
+
+    #[test]
+    fn wire_format_defaults_to_attic_so_old_configs_still_parse() {
+        // A pre-existing rendered config carries no `backend` key.
+        let json = r#"[{"name":"nexus","server":"nexus","url":"http://rio:8080/","token_file":"/t"}]"#;
+        let parsed = parse_caches_json(json).expect("legacy config must still parse");
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].backend, CacheBackend::Attic);
+        assert!(parsed[0].is_usable());
+    }
+
+    #[test]
+    fn wire_format_accepts_a_url_only_sui_target() {
+        let json = r#"[{"backend":"sui","url":"http://sui.camelot-build.svc"}]"#;
+        let parsed = parse_caches_json(json).expect("sui target must parse");
+        assert_eq!(parsed[0].backend, CacheBackend::Sui);
+        assert_eq!(parsed[0].server_url, "http://sui.camelot-build.svc");
+        assert!(parsed[0].is_usable(), "no name/alias/token required");
     }
 
     // ── Metadata gate (the darwin reproducibility refinement) ────────
