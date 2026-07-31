@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "04c79e6af144976e7ad4b23658a5d52e8001ae25ab8a6fe9628dc047c474eb52",
+  "cargo_lock_sha256": "95a4638ae02516c4bf8d3da2610e4ff61f5d37565b08becab0efc5289016d7a7",
   "manifest_sha256": {
-    "Cargo.toml": "064239734a081e2d6bede215edc8ec03e634e60a9c258b580d9005b05e1038a6"
+    "Cargo.toml": "9be99720daf62ce19e64c19d6b7e3ad9a772655216be0f8451066480e7ba7e6c"
   },
   "target_resolves": {
     "base": {
@@ -6197,6 +6197,55 @@
           "std"
         ]
       },
+      "object-0.36.7": {
+        "runtime_dependencies": [
+          {
+            "name": "flate2",
+            "package_key": "flate2-1.1.9",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "memchr",
+            "package_key": "memchr-2.8.3",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "ruzstd",
+            "package_key": "ruzstd-0.7.3",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "archive",
+          "coff",
+          "compression",
+          "default",
+          "elf",
+          "macho",
+          "pe",
+          "read",
+          "read_core",
+          "std",
+          "unaligned",
+          "xcoff"
+        ]
+      },
       "once_cell-1.21.4": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -6944,6 +6993,16 @@
           {
             "name": "notify",
             "package_key": "notify-8.2.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "object",
+            "package_key": "object-0.36.7",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -9007,6 +9066,26 @@
         "build_dependencies": [],
         "features": []
       },
+      "ruzstd-0.7.3": {
+        "runtime_dependencies": [
+          {
+            "name": "twox_hash",
+            "package_key": "twox-hash-1.6.3",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "default",
+          "hash",
+          "std"
+        ]
+      },
       "ryu-1.0.23": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -10653,6 +10732,11 @@
         ]
       },
       "stable_deref_trait-1.2.1": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
+      "static_assertions-1.1.0": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
@@ -12675,6 +12759,32 @@
         "features": [
           "default"
         ]
+      },
+      "twox-hash-1.6.3": {
+        "runtime_dependencies": [
+          {
+            "name": "cfg_if",
+            "package_key": "cfg-if-1.0.4",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "static_assertions",
+            "package_key": "static_assertions-1.1.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
       },
       "typenum-1.20.1": {
         "runtime_dependencies": [],
@@ -20176,6 +20286,10 @@
       "edition": "2021",
       "build_script": "build.rs"
     },
+    "object-0.36.7": {
+      "edition": "2018",
+      "build_script": "build.rs"
+    },
     "once_cell-1.21.4": {
       "edition": "2021"
     },
@@ -20422,6 +20536,19 @@
       "proc_macro": true,
       "build_script": "build/build.rs"
     },
+    "ruzstd-0.7.3": {
+      "edition": "2018",
+      "binaries": [
+        {
+          "name": "zstd",
+          "path": "src/bin/zstd.rs"
+        },
+        {
+          "name": "zstd_stream",
+          "path": "src/bin/zstd_stream.rs"
+        }
+      ]
+    },
     "ryu-1.0.23": {
       "edition": "2021"
     },
@@ -20568,6 +20695,9 @@
     "stable_deref_trait-1.2.1": {
       "edition": "2015"
     },
+    "static_assertions-1.1.0": {
+      "edition": "2015"
+    },
     "strsim-0.11.1": {
       "edition": "2015"
     },
@@ -20710,6 +20840,15 @@
     },
     "tsunagu-0.1.2-ce3b90173a89022c5a33c7ab5b157532eb9cdc23": {
       "edition": "2024"
+    },
+    "twox-hash-1.6.3": {
+      "edition": "2018",
+      "binaries": [
+        {
+          "name": "hash_file",
+          "path": "src/bin/hash_file.rs"
+        }
+      ]
     },
     "typenum-1.20.1": {
       "edition": "2018"

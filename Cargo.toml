@@ -28,6 +28,11 @@ parking_lot = "0.12"
 serde_yaml_ng = "0.10"
 anyhow = "1.0"
 thiserror = "2.0"
+# Rust crate-metadata extraction for the darwin reproducibility gate
+# (prebuild_cache.rs). Default features already carry `archive` (ar member
+# parsing, for an .rlib's `lib.rmeta`) + `macho` (section lookup, for a
+# proc-macro .dylib's `.rustc`). Same crate rustc itself uses for this job.
+object = "0.36"
 colored = "2.1"
 dirs = "6.0"
 shellexpand = "3.1"

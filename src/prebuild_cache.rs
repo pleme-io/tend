@@ -313,6 +313,22 @@ pub enum DeterminismOutcome {
     /// nix reported the build "may not be deterministic" — the poison
     /// class. `path` is the differing output path when nix names it.
     NonReproducible { path: Option<String> },
+    /// nix reported the output "differs", but every Rust crate artifact
+    /// under it carries BYTE-IDENTICAL crate metadata — only object code
+    /// drifted. Safe to push, and recorded distinctly from
+    /// [`DeterminismOutcome::Reproducible`] so the audit trail never
+    /// claims byte-identity it doesn't have.
+    ///
+    /// This distinction is the whole point of the gate on darwin. A
+    /// consumer resolves a dependency by its metadata/SVH and NEVER by
+    /// its object code, so object drift cannot produce the
+    /// `error[E0463]: can't find crate` poison — while a whole-output
+    /// `--check` cannot tell the two apart and would withhold every
+    /// darwin Rust crate, leaving the cache silently empty. Canonical:
+    /// `pleme-io/nix/docs/darwin-rust-cache-reproducibility.md`
+    /// ("the safety property is METADATA determinism, NOT whole-output
+    /// byte-identity").
+    ObjectDriftOnly { path: String },
     /// The derivation isn't resident / was substituted, so `--check`
     /// can't run on it. Not a failure — someone else built+verified it;
     /// we simply have nothing to prove here. `reason` is the tail of
@@ -401,6 +417,17 @@ pub fn aggregate_closure_determinism(per_drv: &[DeterminismOutcome]) -> Determin
     {
         return inconc.clone();
     }
+    // 2b. An object-drift-only result is PUSHABLE (metadata proved
+    // identical) but is deliberately reported in preference to a plain
+    // `Reproducible` when both are present: the closure as a whole is
+    // then metadata-identical, NOT byte-identical, and the audit trail
+    // must say the weaker true thing rather than the stronger false one.
+    if let Some(drift) = per_drv
+        .iter()
+        .find(|o| matches!(o, DeterminismOutcome::ObjectDriftOnly { .. }))
+    {
+        return drift.clone();
+    }
     if per_drv
         .iter()
         .any(|o| matches!(o, DeterminismOutcome::Reproducible))
@@ -409,6 +436,115 @@ pub fn aggregate_closure_determinism(per_drv: &[DeterminismOutcome]) -> Determin
     }
     DeterminismOutcome::Uncheckable {
         reason: "no resident derivations to check".to_string(),
+    }
+}
+
+// ── Crate-metadata comparison (pure) ────────────────────────────────
+// The darwin reproducibility gate. `nix-store --realise --check` proves
+// WHOLE-OUTPUT byte identity, which darwin Rust builds essentially never
+// achieve: rustc's object code absorbs per-build entropy (Mach-O
+// `LC_UUID`, an ad-hoc code-signature recompute) that is HARMLESS,
+// because a consumer resolves a dependency by its crate metadata/SVH and
+// never by its object code. Gating on whole-output identity therefore
+// withholds every darwin Rust crate and leaves the cache silently empty;
+// gating on METADATA identity is the actual safety property.
+//
+// Where the metadata physically lives (both verified empirically on
+// aarch64-darwin against resident store paths):
+//   * `.rlib`  — ar-archive member `lib.rmeta`, itself a Mach-O object
+//                whose payload is section `.rmeta` (segment `__DWARF`).
+//                That member carries NO `LC_UUID`.
+//   * `.dylib` — proc-macro crates: Mach-O section `.rustc` (segment
+//                `__DATA`). These DO carry `LC_UUID` + a code signature,
+//                so whole-file comparison is unsafe here — section-scoped
+//                extraction is mandatory, not an optimization.
+
+/// Extract a Rust crate's metadata bytes from a compiled artifact.
+///
+/// Handles both shapes: an `.rlib` (ar archive → `lib.rmeta` member →
+/// its `.rmeta` section) and a proc-macro `.dylib` (`.rustc` section).
+/// Returns `None` when `bytes` is neither — the caller treats that
+/// conservatively (it never means "equal").
+#[must_use]
+pub fn extract_crate_metadata(bytes: &[u8]) -> Option<Vec<u8>> {
+    use object::{Object, ObjectSection};
+
+    // .rlib — an ar archive carrying a `lib.rmeta` member.
+    if let Ok(archive) = object::read::archive::ArchiveFile::parse(bytes) {
+        for member in archive.members().flatten() {
+            if member.name() != b"lib.rmeta" {
+                continue;
+            }
+            let data = member.data(bytes).ok()?;
+            // The member is itself a Mach-O object; the payload is its
+            // `.rmeta` section. Fall back to the whole member when it
+            // isn't (that member carries no LC_UUID, so it is stable).
+            if let Ok(obj) = object::File::parse(data) {
+                if let Some(sec) = obj.section_by_name(".rmeta") {
+                    if let Ok(d) = sec.data() {
+                        return Some(d.to_vec());
+                    }
+                }
+            }
+            return Some(data.to_vec());
+        }
+    }
+
+    // proc-macro .dylib — metadata is the `.rustc` section. NEVER compare
+    // the whole file: LC_UUID + the ad-hoc signature drift every build.
+    let obj = object::File::parse(bytes).ok()?;
+    let sec = obj.section_by_name(".rustc")?;
+    sec.data().ok().map(<[u8]>::to_vec)
+}
+
+/// Whether a path names a compiled Rust artifact this gate can compare.
+#[must_use]
+pub fn is_rust_artifact(name: &str) -> bool {
+    name.ends_with(".rlib") || name.ends_with(".dylib") || name.ends_with(".so")
+}
+
+/// Verdict of comparing the crate metadata of two builds of one output.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MetadataVerdict {
+    /// Every comparable artifact carried byte-identical metadata, and at
+    /// least one artifact was actually compared.
+    Identical,
+    /// At least one artifact's metadata differed — real poison.
+    Differs,
+    /// Nothing could be compared (no Rust artifacts, an unreadable or
+    /// unparseable file, or a file present on one side only). NEVER
+    /// treated as safe.
+    Unknown,
+}
+
+/// Pure fold over per-artifact `(original, rebuilt)` metadata pairs.
+///
+/// Conservative by construction: a single `Differs` loses to nothing, and
+/// an empty or any-`None` comparison yields [`MetadataVerdict::Unknown`]
+/// rather than `Identical`. "Unknown ⇒ withhold" is the same precedence
+/// [`classify_determinism`] already applies to nix's own signals.
+#[must_use]
+pub fn fold_metadata_comparison(pairs: &[(Option<Vec<u8>>, Option<Vec<u8>>)]) -> MetadataVerdict {
+    if pairs.is_empty() {
+        return MetadataVerdict::Unknown;
+    }
+    let mut compared = 0usize;
+    for (a, b) in pairs {
+        match (a, b) {
+            (Some(a), Some(b)) => {
+                if a != b {
+                    return MetadataVerdict::Differs;
+                }
+                compared += 1;
+            }
+            // One side missing/unparseable: we cannot prove equality.
+            _ => return MetadataVerdict::Unknown,
+        }
+    }
+    if compared == 0 {
+        MetadataVerdict::Unknown
+    } else {
+        MetadataVerdict::Identical
     }
 }
 
@@ -625,7 +761,13 @@ impl CacheFillEnv for RealEnv {
             {
                 Ok(o) => {
                     let stderr = String::from_utf8_lossy(&o.stderr);
-                    per_drv.push(classify_determinism(o.status.success(), &stderr));
+                    // Refine BEFORE the fold: a "differs" verdict that is
+                    // only object drift is safe to push, and the
+                    // aggregator's precedence must see the refined value.
+                    per_drv.push(refine_object_drift(classify_determinism(
+                        o.status.success(),
+                        &stderr,
+                    )));
                 }
                 Err(e) => per_drv.push(DeterminismOutcome::Inconclusive {
                     stderr_tail: tail_trimmed(&e.to_string(), 200),
@@ -646,6 +788,90 @@ impl CacheFillEnv for RealEnv {
             anyhow::bail!("attic push {cache} {path} exited {status}");
         }
         Ok(())
+    }
+}
+
+/// Relative paths of every compiled Rust artifact under `root`.
+///
+/// Sorted so the comparison order is stable and a diff in the audit log
+/// is reproducible. Unreadable directories are skipped, which can only
+/// SHRINK the compared set — and a shrunk set yields
+/// [`MetadataVerdict::Unknown`], never a false `Identical`.
+fn rust_artifacts_under(root: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                stack.push(p);
+            } else if p
+                .file_name()
+                .and_then(|s| s.to_str())
+                .is_some_and(is_rust_artifact)
+            {
+                if let Ok(rel) = p.strip_prefix(root) {
+                    out.push(rel.to_path_buf());
+                }
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+/// Downgrade a whole-output `NonReproducible` to
+/// [`DeterminismOutcome::ObjectDriftOnly`] when — and ONLY when — every
+/// Rust artifact's crate metadata is byte-identical between the resident
+/// output and the rebuild `nix-store --realise --check` leaves beside it
+/// at `<path>.check`.
+///
+/// Every failure mode returns the ORIGINAL `NonReproducible` unchanged:
+/// nix named no path, `<path>.check` is absent, a file is unreadable or
+/// unparseable, the two sides disagree on which artifacts exist, or there
+/// was nothing comparable at all. Unknown ⇒ withhold — the same
+/// precedence [`classify_determinism`] applies to nix's own signals, and
+/// the reason this refinement can only ever make the gate MORE
+/// permissive about harmless object drift, never about real metadata
+/// divergence.
+fn refine_object_drift(outcome: DeterminismOutcome) -> DeterminismOutcome {
+    let DeterminismOutcome::NonReproducible { path: Some(orig) } = &outcome else {
+        return outcome;
+    };
+    let orig_root = std::path::Path::new(orig);
+    let check_root = std::path::PathBuf::from(format!("{orig}.check"));
+    if !check_root.exists() {
+        return outcome;
+    }
+
+    let artifacts = rust_artifacts_under(orig_root);
+    // A differing output with no Rust artifacts in it is outside this
+    // gate's competence — leave the conservative verdict alone.
+    if artifacts.is_empty() {
+        return outcome;
+    }
+
+    let pairs: Vec<(Option<Vec<u8>>, Option<Vec<u8>>)> = artifacts
+        .iter()
+        .map(|rel| {
+            let a = std::fs::read(orig_root.join(rel))
+                .ok()
+                .and_then(|b| extract_crate_metadata(&b));
+            let b = std::fs::read(check_root.join(rel))
+                .ok()
+                .and_then(|b| extract_crate_metadata(&b));
+            (a, b)
+        })
+        .collect();
+
+    match fold_metadata_comparison(&pairs) {
+        MetadataVerdict::Identical => DeterminismOutcome::ObjectDriftOnly {
+            path: orig.clone(),
+        },
+        MetadataVerdict::Differs | MetadataVerdict::Unknown => outcome,
     }
 }
 
@@ -947,5 +1173,187 @@ mod tests {
             ]),
             Uncheckable { reason: "no resident derivations to check".into() }
         );
+    }
+
+    // ── Metadata gate (the darwin reproducibility refinement) ────────
+    // Every one of these asserts the gate REJECTS something. A gate only
+    // ever observed passing may be checking nothing.
+
+    #[test]
+    fn metadata_fold_rejects_differing_metadata() {
+        // THE fail-once proof: one differing artifact ⇒ Differs, which
+        // keeps the conservative NonReproducible verdict and withholds.
+        let pairs = vec![
+            (Some(b"aaaa".to_vec()), Some(b"aaaa".to_vec())),
+            (Some(b"aaaa".to_vec()), Some(b"bbbb".to_vec())),
+        ];
+        assert_eq!(fold_metadata_comparison(&pairs), MetadataVerdict::Differs);
+    }
+
+    #[test]
+    fn metadata_fold_accepts_only_when_all_identical() {
+        let pairs = vec![
+            (Some(b"aaaa".to_vec()), Some(b"aaaa".to_vec())),
+            (Some(b"cccc".to_vec()), Some(b"cccc".to_vec())),
+        ];
+        assert_eq!(fold_metadata_comparison(&pairs), MetadataVerdict::Identical);
+    }
+
+    #[test]
+    fn metadata_fold_withholds_on_unknown_rather_than_passing() {
+        // Empty (nothing comparable) and one-side-missing (unreadable or
+        // unparseable) must BOTH be Unknown — never Identical. This is
+        // the "unknown ⇒ withhold" precedence.
+        assert_eq!(fold_metadata_comparison(&[]), MetadataVerdict::Unknown);
+        assert_eq!(
+            fold_metadata_comparison(&[(Some(b"aaaa".to_vec()), None)]),
+            MetadataVerdict::Unknown
+        );
+        assert_eq!(
+            fold_metadata_comparison(&[(None, Some(b"aaaa".to_vec()))]),
+            MetadataVerdict::Unknown
+        );
+        assert_eq!(
+            fold_metadata_comparison(&[(None, None)]),
+            MetadataVerdict::Unknown
+        );
+    }
+
+    #[test]
+    fn garbage_bytes_yield_no_metadata() {
+        assert!(extract_crate_metadata(b"not an object file at all").is_none());
+        assert!(extract_crate_metadata(&[]).is_none());
+    }
+
+    #[test]
+    fn only_compiled_rust_artifacts_are_compared() {
+        assert!(is_rust_artifact("libfoo-abc123.rlib"));
+        assert!(is_rust_artifact("libfoo-abc123.dylib"));
+        assert!(!is_rust_artifact("README.md"));
+        assert!(!is_rust_artifact("foo.rs"));
+    }
+
+    #[test]
+    fn object_drift_is_pushable_but_never_reported_as_byte_identical() {
+        // Present alongside a byte-identical result, the WEAKER true
+        // claim must win — the closure is metadata-identical, not
+        // byte-identical, and the audit trail has to say so.
+        assert_eq!(
+            aggregate_closure_determinism(&[
+                DeterminismOutcome::Reproducible,
+                DeterminismOutcome::ObjectDriftOnly { path: "/nix/store/x".into() },
+            ]),
+            DeterminismOutcome::ObjectDriftOnly { path: "/nix/store/x".into() }
+        );
+    }
+
+    #[test]
+    fn real_non_reproducibility_still_beats_object_drift() {
+        // The refinement must never be able to mask real poison.
+        assert_eq!(
+            aggregate_closure_determinism(&[
+                DeterminismOutcome::ObjectDriftOnly { path: "/nix/store/x".into() },
+                DeterminismOutcome::NonReproducible { path: Some("/nix/store/y".into()) },
+            ]),
+            DeterminismOutcome::NonReproducible { path: Some("/nix/store/y".into()) }
+        );
+        // ...and an unknown failure still withholds too.
+        assert_eq!(
+            aggregate_closure_determinism(&[
+                DeterminismOutcome::ObjectDriftOnly { path: "/nix/store/x".into() },
+                DeterminismOutcome::Inconclusive { stderr_tail: "boom".into() },
+            ]),
+            DeterminismOutcome::Inconclusive { stderr_tail: "boom".into() }
+        );
+    }
+
+    #[test]
+    fn refinement_leaves_non_differs_outcomes_untouched() {
+        // Only a NonReproducible-with-a-named-path is refinable; a
+        // path-less one has nothing to compare and must stay as-is.
+        assert_eq!(
+            refine_object_drift(DeterminismOutcome::NonReproducible { path: None }),
+            DeterminismOutcome::NonReproducible { path: None }
+        );
+        assert_eq!(
+            refine_object_drift(DeterminismOutcome::Reproducible),
+            DeterminismOutcome::Reproducible
+        );
+    }
+
+    /// Empirical proof against REAL compiled artifacts, not synthetic
+    /// bytes: the parser must actually read an aarch64-darwin `.rlib`
+    /// (ar → `lib.rmeta` → `.rmeta` section) and a proc-macro `.dylib`
+    /// (`.rustc` section), AND must detect a single flipped metadata
+    /// byte.
+    ///
+    /// `#[ignore]` because it needs a populated `/nix/store` — DELIBERATELY
+    /// opt-in rather than silently skipped, so it can never masquerade as
+    /// coverage it isn't providing. Re-verify with:
+    ///   `cargo test --bin tend -- --ignored metadata_gate_on_real`
+    #[test]
+    #[ignore = "needs a populated /nix/store; run explicitly with --ignored"]
+    fn metadata_gate_on_real_store_artifacts() {
+        let mut checked = 0usize;
+        let entries = std::fs::read_dir("/nix/store").expect("read /nix/store");
+        for dir in entries.flatten().take(4000) {
+            let lib = dir.path().join("lib");
+            let Ok(files) = std::fs::read_dir(&lib) else {
+                continue;
+            };
+            for f in files.flatten() {
+                let p = f.path();
+                let Some(name) = p.file_name().and_then(|s| s.to_str()) else {
+                    continue;
+                };
+                if !is_rust_artifact(name) {
+                    continue;
+                }
+                let Ok(bytes) = std::fs::read(&p) else { continue };
+                let Some(meta) = extract_crate_metadata(&bytes) else {
+                    continue;
+                };
+                assert!(
+                    !meta.is_empty(),
+                    "extracted empty metadata from real artifact {}",
+                    p.display()
+                );
+
+                // THE FAIL-ONCE PROOF, on real bytes: flip one byte of
+                // the extracted metadata and confirm the fold rejects it.
+                let mut poisoned = meta.clone();
+                poisoned[0] ^= 0xff;
+                assert_eq!(
+                    fold_metadata_comparison(&[(Some(meta.clone()), Some(poisoned))]),
+                    MetadataVerdict::Differs,
+                    "gate FAILED to detect flipped metadata in {}",
+                    p.display()
+                );
+                // Identical bytes must still pass, so the gate is not
+                // simply rejecting everything.
+                assert_eq!(
+                    fold_metadata_comparison(&[(Some(meta.clone()), Some(meta))]),
+                    MetadataVerdict::Identical
+                );
+                checked += 1;
+                if checked >= 5 {
+                    return;
+                }
+            }
+        }
+        assert!(
+            checked > 0,
+            "no real Rust artifacts found under /nix/store — this test proved NOTHING"
+        );
+    }
+
+    #[test]
+    fn refinement_withholds_when_check_path_is_absent() {
+        // nix names a path but left no `<path>.check` beside it ⇒ nothing
+        // to compare ⇒ the conservative verdict survives.
+        let outcome = DeterminismOutcome::NonReproducible {
+            path: Some("/nix/store/definitely-does-not-exist-zzz".into()),
+        };
+        assert_eq!(refine_object_drift(outcome.clone()), outcome);
     }
 }
