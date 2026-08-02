@@ -59,6 +59,13 @@ pub struct HostHealthConfig {
     /// CLI overrides this off for a single invocation.
     #[serde(default = "default_host_health_fix")]
     pub fix: bool,
+    /// How old (seconds) an orphaned `.git/index.lock` must be before
+    /// `tend status` will reap it. A real git operation holds its lock for
+    /// milliseconds, so the default 120 is ~3 orders of magnitude of slack
+    /// -- generous on purpose, since reaping a live lock corrupts an index
+    /// while waiting one more pass costs nothing.
+    #[serde(default = "default_stale_lock_min_age_secs")]
+    pub stale_lock_min_age_secs: u64,
 }
 
 impl Default for HostHealthConfig {
@@ -67,6 +74,7 @@ impl Default for HostHealthConfig {
             watched_commands: default_watched_commands(),
             fd_pressure_threshold: default_fd_pressure_threshold(),
             fix: true,
+            stale_lock_min_age_secs: default_stale_lock_min_age_secs(),
         }
     }
 }
@@ -81,6 +89,10 @@ fn default_fd_pressure_threshold() -> f64 {
 
 fn default_host_health_fix() -> bool {
     true
+}
+
+fn default_stale_lock_min_age_secs() -> u64 {
+    120
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

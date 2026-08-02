@@ -274,6 +274,31 @@ impl AuditLog {
         );
     }
 
+    /// Log an orphaned `.git/index.lock` that passed the full reap gate
+    /// (0 bytes, no holder, aged out, no live git host-wide).
+    pub fn stale_index_lock_detected(&self, repo: &str, age_secs: u64) {
+        self.log(
+            "stale_index_lock_detected",
+            serde_json::json!({
+                "repo": repo,
+                "age_secs": age_secs,
+            }),
+        );
+    }
+
+    /// Log the removal outcome for one orphaned `.git/index.lock`. Paired
+    /// with `stale_index_lock_detected` so a repo that keeps re-wedging is
+    /// visible as a pattern in history, not just as a one-off symptom.
+    pub fn stale_index_lock_reaped(&self, repo: &str, outcome: &str) {
+        self.log(
+            "stale_index_lock_reaped",
+            serde_json::json!({
+                "repo": repo,
+                "outcome": outcome,
+            }),
+        );
+    }
+
     /// Log a system-wide fd-pressure threshold crossing (host_health's
     /// `tend status` check). Detect-only -- there is no paired remediation.
     pub fn fd_pressure_detected(&self, used: u64, max: u64, ratio: f64) {

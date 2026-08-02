@@ -1008,11 +1008,22 @@ async fn main() -> Result<()> {
         } => {
             let cfg = load_config(config_path.as_deref())?;
             let mut rows: Vec<display::StatusJsonRow> = Vec::new();
+            // Every worktree this pass actually saw -- the input to the
+            // orphaned-index.lock reap below. Collected here rather than
+            // rediscovered, so the reap can only ever touch a repo tend
+            // already manages.
+            let mut seen_repos: Vec<std::path::PathBuf> = Vec::new();
             for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
                 let repos = sync::resolve_repos(ws, refresh).await?;
                 let entries = sync::check_status(ws, &repos).await?;
+                let base_dir = ws.resolved_base_dir()?;
+                seen_repos.extend(
+                    entries
+                        .iter()
+                        .filter(|e| e.status != sync::RepoStatus::Missing)
+                        .map(|e| base_dir.join(&e.name)),
+                );
                 if json {
-                    let base_dir = ws.resolved_base_dir()?;
                     rows.extend(entries.iter().map(|e| display::StatusJsonRow::new(e, &base_dir)));
                 } else {
                     display::print_status(&ws.name, &entries);
@@ -1026,11 +1037,39 @@ async fn main() -> Result<()> {
                     &host_health::SystemProcessLister,
                     &host_health::SystemProcessKiller,
                     &host_health::SystemSysctlReader,
+                    &host_health::SystemLockProbe,
                     &cfg.host_health.watched_commands,
                     cfg.host_health.fd_pressure_threshold,
                     cfg.host_health.fix && !no_fix,
+                    &seen_repos,
+                    cfg.host_health.stale_lock_min_age_secs,
                     &host_audit,
                 );
+                if !report.stale_locks.is_empty() {
+                    println!();
+                    println!(
+                        "Host health: {} repo(s) wedged by an orphaned .git/index.lock. Logged to {}:",
+                        report.stale_locks.len(),
+                        host_audit.path().display()
+                    );
+                    for l in &report.stale_locks {
+                        println!("  {} (lock {}s old)", l.repo.display(), l.age_secs);
+                    }
+                    if report.lock_reap_outcomes.is_empty() {
+                        println!("  (not reaped -- pass without --no-fix, or set host_health.fix: true)");
+                    } else {
+                        for (l, outcome) in &report.lock_reap_outcomes {
+                            let desc = match outcome {
+                                host_health::LockReapOutcome::Removed => "removed".to_string(),
+                                host_health::LockReapOutcome::AlreadyGone => {
+                                    "already gone".to_string()
+                                }
+                                host_health::LockReapOutcome::Failed(e) => format!("FAILED: {e}"),
+                            };
+                            println!("  {} reap: {}", l.repo.display(), desc);
+                        }
+                    }
+                }
                 if !report.orphans.is_empty() {
                     println!();
                     println!(
