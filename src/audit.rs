@@ -276,12 +276,15 @@ impl AuditLog {
 
     /// Log an orphaned `.git/index.lock` that passed the full reap gate
     /// (0 bytes, no holder, aged out, no live git host-wide).
-    pub fn stale_index_lock_detected(&self, repo: &str, age_secs: u64) {
+    pub fn stale_index_lock_detected(&self, repo: &str, age_secs: u64, size_bytes: u64) {
         self.log(
             "stale_index_lock_detected",
             serde_json::json!({
                 "repo": repo,
                 "age_secs": age_secs,
+                // Diagnostic only, never a gate: 0 and 655360 have both
+                // been seen for the same underlying failure.
+                "size_bytes": size_bytes,
             }),
         );
     }

@@ -264,20 +264,29 @@ pub fn check_fd_pressure(sysctl: &dyn SysctlReader) -> Result<FdPressure> {
 // unconstructible; it can only observe and settle it. The honest seal is
 // "no repo STAYS wedged", not "no repo is ever wedged".
 //
-// The gate is deliberately conservative -- all four must hold:
-//   1. the lock is 0 bytes      (a real op writes index content first)
-//   2. no process holds it open (lsof: a live op keeps its fd)
-//   3. it is older than min_age (a real op finishes in milliseconds)
-//   4. no `git` is running at all, host-wide
-// (4) is global rather than per-repo on purpose: `git` does not name its
+// The gate is deliberately conservative -- all three must hold:
+//   1. no process holds it open (lsof: a live op keeps its fd)
+//   2. it is older than min_age (a real op finishes in milliseconds)
+//   3. no `git` is running at all, host-wide
+// (3) is global rather than per-repo on purpose: `git` does not name its
 // target repo in a way this can cheaply and reliably match, so any live git
 // anywhere defers the whole pass. A deferred pass costs one cycle; a
 // wrongly-reaped live lock corrupts an index.
 //
-// Known gap, stated rather than papered over: a NON-zero orphaned lock is
-// left alone. Every case measured so far was 0 bytes, and requiring it
-// keeps a partially-written index out of reach of automation. Such a lock
-// still wedges its repo and still needs a human.
+// SIZE IS DELIBERATELY NOT A GATE CONDITION -- it was, and that was wrong.
+// The first cut required 0 bytes, reasoning that a real operation writes
+// index content first so a 0-byte lock is the safe subset. The three
+// orphans measured on cid were indeed 0 bytes, which made the rule look
+// right. But the root cause (nix@da42c8f8: seki forked `git status` under a
+// 1000ms ceiling and SIGKILLed the overrun, and SIGKILL runs no cleanup)
+// reproduces a stranded lock of 655360 BYTES. A size gate would therefore
+// have declined to reap precisely the common case, while looking green.
+//
+// The correct reading: `.git/index.lock` is a temp file git renames into
+// place on success. One that still exists, held by nobody, with no git
+// alive, is garbage at ANY size -- a large one means git got further before
+// dying, not that it is more valid. Size is now recorded for diagnostics
+// only, so the audit log can still distinguish the failure shapes.
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaleIndexLock {
@@ -286,6 +295,10 @@ pub struct StaleIndexLock {
     /// The orphaned lock itself (`<repo>/.git/index.lock`).
     pub lock: PathBuf,
     pub age_secs: u64,
+    /// Diagnostic only -- never a gate condition (see the module note).
+    /// 0 and 655360 have both been observed in the wild for the same
+    /// underlying failure; the difference is how far git got before dying.
+    pub size_bytes: u64,
 }
 
 /// Abstracts every filesystem/process observation the lock reap makes, so
@@ -358,16 +371,17 @@ pub fn find_stale_index_locks(
     let mut found = Vec::new();
     for repo in repos {
         let lock = repo.join(".git").join("index.lock");
-        let Some((size, age_secs)) = probe.stat(&lock)? else {
+        let Some((size_bytes, age_secs)) = probe.stat(&lock)? else {
             continue;
         };
-        if size != 0 || age_secs < min_age_secs || probe.has_holder(&lock)? {
+        if age_secs < min_age_secs || probe.has_holder(&lock)? {
             continue;
         }
         found.push(StaleIndexLock {
             repo: repo.clone(),
             lock,
             age_secs,
+            size_bytes,
         });
     }
     Ok(found)
@@ -461,7 +475,7 @@ pub fn run_host_health_check(
     let stale_locks =
         find_stale_index_locks(lock_probe, repos, stale_lock_min_age_secs).unwrap_or_default();
     for l in &stale_locks {
-        audit.stale_index_lock_detected(&l.repo.display().to_string(), l.age_secs);
+        audit.stale_index_lock_detected(&l.repo.display().to_string(), l.age_secs, l.size_bytes);
     }
     let lock_reap_outcomes = if fix && !stale_locks.is_empty() {
         reap_stale_index_locks(lock_probe, &stale_locks, audit).unwrap_or_default()
@@ -547,13 +561,20 @@ mod tests {
     // the otherwise-reapable baseline. Without these a gate could silently
     // stop being load-bearing and the suite would stay green.
 
+    /// Regression guard for the size gate this module used to have.
+    /// 655360 is not arbitrary: it is the exact stranded-lock size measured
+    /// when SIGKILLing `git status` at 1.8s (nix@da42c8f8, the seki root
+    /// cause). A size gate silently declined to reap the common case, so
+    /// this pins the corrected behaviour with the number that exposed it.
     #[test]
-    fn nonzero_lock_is_never_reaped() {
+    fn nonzero_lock_is_reaped_too() {
         let probe = FakeLockProbe {
-            size: 42,
+            size: 655_360,
             ..FakeLockProbe::reapable()
         };
-        assert!(find_stale_index_locks(&probe, &repos(), 120).unwrap().is_empty());
+        let found = find_stale_index_locks(&probe, &repos(), 120).unwrap();
+        assert_eq!(found.len(), 1, "a large stranded lock is still garbage");
+        assert_eq!(found[0].size_bytes, 655_360, "size is carried for diagnostics");
     }
 
     #[test]
@@ -655,6 +676,7 @@ mod tests {
             repo: PathBuf::from("/tmp/fake-repo"),
             lock: PathBuf::from("/tmp/fake-repo/.git/index.lock"),
             age_secs: 600,
+            size_bytes: 0,
         }];
         let probe = FakeLockProbe {
             exists: false,
