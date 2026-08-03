@@ -657,6 +657,20 @@ enum WorktreeAction {
         command: Vec<String>,
     },
 
+    /// Rebase this session's branch onto the remote default branch and push it.
+    ///
+    /// The exit from an isolated worktree: work goes back to the shared branch
+    /// deliberately, never by accident.
+    Land {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+        #[arg(long)]
+        session: Option<String>,
+        /// Branch to land onto (default: main).
+        #[arg(long, default_value = "main")]
+        base: String,
+    },
+
     /// Show every session worktree with its safety verdict.
     List {
         #[arg(long)]
@@ -688,7 +702,7 @@ async fn main() -> Result<()> {
                         .ok_or_else(|| anyhow::anyhow!(
                             "no session id: pass --session or set CLAUDE_CODE_SESSION_ID"
                         ))?;
-                    let path = worktree::enter(&repo, &session, &worktree::default_root())?;
+                    let path = worktree::enter(&repo, &session, &worktree::default_root(&repo))?;
                     println!("{}", path.display());
                 }
                 WorktreeAction::Session { repo, session, command } => {
@@ -698,7 +712,7 @@ async fn main() -> Result<()> {
                         .ok_or_else(|| anyhow::anyhow!(
                             "no session id: pass --session or set CLAUDE_CODE_SESSION_ID"
                         ))?;
-                    let path = worktree::enter(&repo, &session, &worktree::default_root())?;
+                    let path = worktree::enter(&repo, &session, &worktree::default_root(&repo))?;
                     let (cmd, args) = command.split_first().map_or_else(
                         || (String::from("claude"), Vec::new()),
                         |(c, rest)| (c.clone(), rest.to_vec()),
@@ -706,6 +720,18 @@ async fn main() -> Result<()> {
                     eprintln!("tend: isolated worktree {}", path.display());
                     worktree::exec_in(&path, &cmd, &args)?;
                     unreachable!("exec_in only returns on failure");
+                }
+
+                WorktreeAction::Land { repo, session, base } => {
+                    let repo = repo.unwrap_or(here);
+                    let session = session
+                        .or_else(worktree::session_from_env)
+                        .ok_or_else(|| anyhow::anyhow!(
+                            "no session id: pass --session or set CLAUDE_CODE_SESSION_ID"
+                        ))?;
+                    let path = worktree::enter(&repo, &session, &worktree::default_root(&repo))?;
+                    let sha = worktree::land(&path, &base)?;
+                    println!("landed {sha} onto {base}");
                 }
 
                 WorktreeAction::List { repo } => {

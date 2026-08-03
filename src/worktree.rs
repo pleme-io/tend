@@ -134,18 +134,49 @@ pub const fn removal_verdict(clean: bool, ahead: usize) -> Removal {
     Removal::Safe
 }
 
-/// Default root for worktrees: `$XDG_DATA_HOME/tend/worktrees`, else
-/// `~/.local/share/tend/worktrees`.
+/// Default root for a repo's session worktrees: a `.worktrees` sibling INSIDE
+/// the same org directory as the repo.
 ///
-/// Not under `~/code`: that tree is what tend's own discovery walks, and a
-/// worktree there would read as an unknown repo on every `tend status`.
+/// ★ THIS LOCATION IS DICTATED BY CLAUDE CODE, not by taste. An earlier version
+/// used `$XDG_DATA_HOME/tend/worktrees`, which is tidier and WRONG, because two
+/// things key off the working directory:
+///
+///   * CLAUDE.md DISCOVERY walks cwd upward. The fleet's context lives at
+///     `~/code/CLAUDE.md`, `~/code/github/CLAUDE.md` and
+///     `~/code/github/<org>/CLAUDE.md` — all ancestors of the REPO. A worktree
+///     under `~/.local/share` shares none of them, so an agent there silently
+///     loses the org map, the doctrine index and every naming law, keeping only
+///     the repo's own CLAUDE.md. Isolation is worthless if it costs the context
+///     that makes the agent competent.
+///   * PROJECT STATE is keyed by the cwd path with `/` → `-`
+///     (`~/.claude/projects/-Users-…-pleme-io-nix`, verified live). A worktree
+///     elsewhere gets a fresh directory — no memory, no history.
+///
+/// Placing worktrees as `<org>/.worktrees/<repo>/<slug>` keeps the whole
+/// ancestor chain (`.worktrees` → org → github → code), so the only thing that
+/// changes is the leaf. Dot-prefixed so repo discovery ignores it, and outside
+/// the repo itself so it can never appear in the parent's `git status` — which
+/// is the untracked-directory shape that would sweep into the very `git add -A`
+/// this module exists to prevent.
 #[must_use]
-pub fn default_root() -> PathBuf {
-    let base = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
-        .unwrap_or_else(std::env::temp_dir);
-    base.join("tend").join("worktrees")
+pub fn default_root(repo: &Path) -> PathBuf {
+    repo.parent()
+        .map(|org| org.join(".worktrees"))
+        .unwrap_or_else(|| PathBuf::from(".worktrees"))
+}
+
+/// Claude Code's project-state directory for a given working directory.
+///
+/// The slug is the absolute path with every `/` replaced by `-`, verified
+/// against the live `~/.claude/projects/` listing.
+#[must_use]
+pub fn claude_project_dir(home: &Path, cwd: &Path) -> PathBuf {
+    let slug: String = cwd
+        .to_string_lossy()
+        .chars()
+        .map(|c| if c == '/' { '-' } else { c })
+        .collect();
+    home.join(".claude").join("projects").join(slug)
 }
 
 /// Session id from the environment, if an agent runtime published one.
@@ -225,6 +256,43 @@ mod tests {
         let p = worktree_path(Path::new("/data/wt"), "nix", "abc123");
         assert!(!p.starts_with("/Users/x/code"), "must not nest under the source tree");
         assert!(p.ends_with("nix/abc123"));
+    }
+
+    #[test]
+    fn worktree_root_keeps_the_claude_md_ancestor_chain() {
+        // The org dir MUST remain an ancestor: CLAUDE.md discovery walks cwd
+        // upward, and ~/code + ~/code/github + ~/code/github/<org> all live
+        // above the repo. A root outside that chain silently strips the fleet's
+        // entire context from any agent working in the worktree.
+        let repo = Path::new("/Users/x/code/github/pleme-io/nix");
+        let root = default_root(repo);
+        assert_eq!(root, Path::new("/Users/x/code/github/pleme-io/.worktrees"));
+        let wt = worktree_path(&root, "nix", "abc123");
+        for ancestor in [
+            "/Users/x/code",
+            "/Users/x/code/github",
+            "/Users/x/code/github/pleme-io",
+        ] {
+            assert!(wt.starts_with(ancestor), "{ancestor} must stay an ancestor of {wt:?}");
+        }
+        // …but NOT inside the repo, or it shows up in the parent's git status
+        // and can be swept by the very `git add -A` this prevents.
+        assert!(!wt.starts_with(repo));
+    }
+
+    #[test]
+    fn project_dir_matches_claude_codes_cwd_slug() {
+        // Verified against the live ~/.claude/projects listing: the slug is the
+        // absolute path with every '/' replaced by '-'.
+        let d = claude_project_dir(Path::new("/Users/x"), Path::new("/Users/x/code/github/pleme-io/nix"));
+        assert_eq!(
+            d,
+            Path::new("/Users/x/.claude/projects/-Users-x-code-github-pleme-io-nix")
+        );
+        // A worktree therefore gets a DIFFERENT dir — which is why `enter`
+        // symlinks its memory back at the canonical one.
+        let w = claude_project_dir(Path::new("/Users/x"), Path::new("/Users/x/code/github/pleme-io/.worktrees/nix/abc"));
+        assert_ne!(d, w);
     }
 
     #[test]
@@ -321,7 +389,77 @@ pub fn enter(repo: &Path, session: &str, root: &Path) -> Result<PathBuf> {
     // removed without its branch), so a re-entered session does not fail on a
     // leftover ref.
     git(repo, &["worktree", "add", "-B", &branch, &p, &base])?;
+    link_project_memory(repo, &path);
     Ok(path)
+}
+
+/// Point the worktree's Claude-Code project memory at the canonical repo's.
+///
+/// Isolation must not cost memory. Project state is keyed by cwd, so a worktree
+/// gets its OWN `~/.claude/projects/<slug>/` — empty. Every reference file,
+/// every recorded incident and the MEMORY.md index would be invisible, and an
+/// agent that has forgotten why a pin is load-bearing will helpfully remove it.
+///
+/// So `memory` is symlinked to the repo's project memory: one shared, accumulating
+/// store, while transcripts stay per-worktree (those SHOULD be separate — they are
+/// the session, not the knowledge).
+///
+/// Best-effort and silent: this is a convenience, and a `tend worktree` that
+/// failed because `~/.claude` was missing would be worse than one that isolates
+/// without sharing memory.
+fn link_project_memory(repo: &Path, worktree: &Path) {
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
+        return;
+    };
+    let canonical = claude_project_dir(&home, repo).join("memory");
+    if !canonical.is_dir() {
+        return; // nothing to share yet
+    }
+    let mine = claude_project_dir(&home, worktree);
+    if std::fs::create_dir_all(&mine).is_err() {
+        return;
+    }
+    let link = mine.join("memory");
+    if link.exists() || link.symlink_metadata().is_ok() {
+        return; // already linked, or a real dir we must not clobber
+    }
+    let _ = std::os::unix::fs::symlink(&canonical, &link);
+}
+
+/// Rebase this worktree's branch onto the remote's default branch and push it.
+///
+/// The verb `prune` already advertised ("`tend worktree land` them first") and
+/// that promise was unkept until now — a refusal pointing at a command that does
+/// not exist is worse than no advice.
+///
+/// Refuses rather than improvises on anything ambiguous: a dirty tree (commit or
+/// discard first — landing would silently leave it behind) and a rebase conflict
+/// (left in place for a human to resolve IN the worktree, which is exactly what
+/// the worktree is for).
+pub fn land(worktree: &Path, base: &str) -> Result<String> {
+    if !git(worktree, &["status", "--porcelain"])?.is_empty() {
+        bail!("REFUSED: uncommitted changes — commit or discard them before landing");
+    }
+    git(worktree, &["fetch", "origin"])?;
+
+    let onto = {
+        let mut t = String::from("origin/");
+        t.push_str(base);
+        t
+    };
+    if git(worktree, &["rebase", &onto]).is_err() {
+        let _ = git(worktree, &["rebase", "--abort"]);
+        let mut m = String::from("REFUSED: rebase onto ");
+        m.push_str(&onto);
+        m.push_str(" conflicts. Resolve it in the worktree, then land again \
+                    (the worktree is exactly where that work belongs).");
+        bail!(m);
+    }
+
+    let mut refspec = String::from("HEAD:");
+    refspec.push_str(base);
+    git(worktree, &["push", "origin", &refspec])?;
+    git(worktree, &["rev-parse", "--short", "HEAD"])
 }
 
 /// One worktree's state.
