@@ -174,6 +174,215 @@ impl ConfigSurface {
     }
 }
 
+
+// ═══════════════════════════════════════════════════════════════════
+// Transport
+// ═══════════════════════════════════════════════════════════════════
+
+use rmcp::{
+    handler::server::router::tool::ToolRouter, model::ServerCapabilities, model::ServerInfo, tool,
+    tool_handler, tool_router, transport::stdio, ServerHandler, ServiceExt,
+};
+
+/// The stdio MCP server.
+///
+/// Holds [`Authority`] so every mutating tool can consult it. The gate lives in
+/// [`authorize`], not in each handler, so adding a tool cannot accidentally ship
+/// ungated — the catalog test asserts that for every entry.
+#[derive(Clone)]
+pub struct TendMcp {
+    authority: Authority,
+    repo: std::path::PathBuf,
+    tool_router: ToolRouter<Self>,
+}
+
+impl TendMcp {
+    #[must_use]
+    pub fn new(authority: Authority, repo: std::path::PathBuf) -> Self {
+        Self {
+            authority,
+            repo,
+            tool_router: Self::tool_router(),
+        }
+    }
+
+    /// Refuse-or-run, so every mutating handler is one line of gate.
+    fn gated(&self, tool: &str, run: impl FnOnce() -> Value) -> String {
+        if let Some(refusal) = authorize(tool, self.authority) {
+            return refusal.to_string();
+        }
+        run().to_string()
+    }
+}
+
+#[tool_router]
+impl TendMcp {
+    #[tool(
+        description = "Host pressure and the verdict tend's daemon acts on: proceed, throttle to a smaller concurrency, or run nothing. Returns disk_free_pct, fd_ratio, the verdict and its reason. Ask this FIRST when the daemon appears idle — a skipped cycle is usually a deliberate refusal, not a hang."
+    )]
+    async fn tend_pressure(&self) -> String {
+        let reader = crate::pressure::SystemPressureReader { path: self.repo.clone() };
+        match crate::pressure::PressureReader::read(&reader) {
+            Ok(reading) => {
+                let v = crate::pressure::assess(reading, crate::pressure::Thresholds::default(), 8);
+                json!({
+                    "ok": true,
+                    "disk_free_pct": reading.disk_free_pct,
+                    "fd_ratio": reading.fd_ratio,
+                    "verdict": match v.inflight(8) {
+                        None => "run_nothing",
+                        Some(n) if n == 8 => "proceed",
+                        Some(_) => "throttle",
+                    },
+                    "max_inflight": v.inflight(8),
+                    "reason": v.why(),
+                })
+                .to_string()
+            }
+            Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
+        }
+    }
+
+    #[tool(
+        description = "Session worktrees (those `claude --worktree` creates) with their safety verdict: whether each holds uncommitted or unpushed work. Use before pruning, or to find where another session's work lives."
+    )]
+    async fn tend_worktree_list(&self) -> String {
+        match crate::worktree::list(&self.repo) {
+            Ok(entries) => json!({
+                "ok": true,
+                "worktrees": entries.iter().map(|e| json!({
+                    "branch": e.branch,
+                    "path": e.path.display().to_string(),
+                    "clean": e.clean,
+                    "ahead": e.ahead,
+                    "removable": e.verdict().is_safe(),
+                    "reason": e.verdict().reason(),
+                })).collect::<Vec<_>>(),
+            })
+            .to_string(),
+            Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
+        }
+    }
+
+    #[tool(
+        description = "Read tend's RESOLVED configuration (shikumi TieredConfig: env > file > prescribed default) — what tend actually resolved, not what a file says. Omit `key` for everything; a dot-path returns that subtree, or null if absent."
+    )]
+    async fn tend_config_get(&self) -> String {
+        match crate::config::Config::load(std::path::Path::new(
+            &shellexpand_home("~/.config/tend/config.yaml"),
+        )) {
+            Ok(config) => {
+                let surface = ConfigSurface { config, authority: self.authority };
+                match surface.get(None) {
+                    Ok(v) => json!({"ok": true, "config": v}).to_string(),
+                    Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
+                }
+            }
+            Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
+        }
+    }
+
+    #[tool(
+        description = "Remove session worktrees that hold no work. REFUSES on uncommitted or unpushed changes — never removes on a guess. Requires mutate authority."
+    )]
+    async fn tend_worktree_prune(&self) -> String {
+        let repo = self.repo.clone();
+        self.gated("tend_worktree_prune", move || {
+            match crate::worktree::list(&repo) {
+                Ok(entries) => {
+                    let mut removed = Vec::new();
+                    let mut kept = Vec::new();
+                    for e in &entries {
+                        if e.verdict().is_safe() {
+                            match crate::worktree::remove(&repo, e) {
+                                Ok(()) => removed.push(e.path.display().to_string()),
+                                Err(err) => kept.push(json!({
+                                    "path": e.path.display().to_string(),
+                                    "reason": err.to_string(),
+                                })),
+                            }
+                        } else {
+                            kept.push(json!({
+                                "path": e.path.display().to_string(),
+                                "reason": e.verdict().reason(),
+                            }));
+                        }
+                    }
+                    json!({"ok": true, "removed": removed, "kept": kept})
+                }
+                Err(e) => json!({"ok": false, "error": e.to_string()}),
+            }
+        })
+    }
+
+    #[tool(
+        description = "Rebase a session worktree onto the base branch and push it. Refuses on a dirty tree or a rebase conflict, leaving both for a human to resolve in the worktree. Requires mutate authority."
+    )]
+    async fn tend_worktree_land(&self) -> String {
+        let repo = self.repo.clone();
+        self.gated("tend_worktree_land", move || {
+            let session = match crate::worktree::session_from_env() {
+                Some(s) => s,
+                None => {
+                    return json!({
+                        "ok": false,
+                        "error": "no session id: CLAUDE_CODE_SESSION_ID is unset, so there is no \
+                                  worktree to land"
+                    })
+                }
+            };
+            let root = crate::worktree::default_root(&repo);
+            match crate::worktree::enter(&repo, &session, &root)
+                .and_then(|path| crate::worktree::land(&path, "main"))
+            {
+                Ok(sha) => json!({"ok": true, "landed": sha, "base": "main"}),
+                Err(e) => json!({"ok": false, "error": e.to_string()}),
+            }
+        })
+    }
+}
+
+fn shellexpand_home(p: &str) -> String {
+    match std::env::var_os("HOME") {
+        Some(h) if p.starts_with("~/") => {
+            let mut s = h.to_string_lossy().to_string();
+            s.push_str(&p[1..]);
+            s
+        }
+        _ => p.to_string(),
+    }
+}
+
+#[tool_handler]
+impl ServerHandler for TendMcp {
+    fn get_info(&self) -> ServerInfo {
+        // rmcp 1.x marks ServerInfo #[non_exhaustive], so a struct expression is
+        // forbidden outside its crate — default-then-mutate is the sanctioned
+        // construction (same note tear's server carries).
+        let mut info = ServerInfo::default();
+        info.capabilities = ServerCapabilities::builder().enable_tools().build();
+        info.instructions = Some(
+            "tend — workspace reconciler. Read-only by default; mutating tools refuse \
+             unless the server was launched with --allow-mutate. Ask tend_pressure first \
+             when nothing seems to be converging: a skipped cycle is usually a deliberate \
+             refusal (low disk, fd pressure), not a hang."
+                .to_string(),
+        );
+        info
+    }
+}
+
+/// Serve MCP over stdio.
+///
+/// # Errors
+/// Propagates transport failures.
+pub async fn run(authority: Authority, repo: std::path::PathBuf) -> anyhow::Result<()> {
+    let server = TendMcp::new(authority, repo);
+    let service = server.serve(stdio()).await?;
+    service.waiting().await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

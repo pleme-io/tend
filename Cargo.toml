@@ -38,6 +38,9 @@ dirs = "6.0"
 shellexpand = "3.1"
 chrono = { version = "0.4", features = ["serde"] }
 serde_json = "1"
+# MCP transport. Same version + features as tear/mado, so the fleet's servers
+# stay on one rmcp rather than drifting per tool.
+rmcp = { version = "1.4", features = ["server", "transport-io"] }
 base64 = "0.22"
 todoku = { git = "https://github.com/pleme-io/todoku" }
 shigoto-dag = { git = "https://github.com/pleme-io/shigoto" }

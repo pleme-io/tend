@@ -731,15 +731,13 @@ async fn main() -> Result<()> {
             if list_tools {
                 println!("{}", serde_json::to_string_pretty(&mcp::catalog_json(authority))?);
             } else {
-                // The transport is not wired yet; say so plainly rather than
-                // starting a server that answers nothing. A surface that looks
-                // live but is not is worse than one that admits it.
+                // stdio transport: the server IS this process, so nothing may be
+                // written to stdout except MCP frames. Diagnostics go to stderr.
                 eprintln!(
-                    "tend mcp: transport not wired yet — the tool catalog and its \
-                     authority gate are implemented and tested; use --list-tools to \
-                     inspect them."
+                    "tend mcp: serving over stdio ({})",
+                    if allow_mutate { "mutate" } else { "observe" }
                 );
-                return Ok(());
+                mcp::run(authority, std::env::current_dir()?).await?;
             }
         }
 
