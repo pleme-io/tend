@@ -59,15 +59,21 @@ pub fn session_slug(raw: &str) -> String {
     trimmed.chars().take(SLUG_LEN).collect()
 }
 
-/// Branch a session's work lands on: `session/<slug>`.
+/// Branch a session's work lands on: `worktree-<slug>`.
+///
+/// Matches `claude --worktree`'s own naming so `list`/`land`/`prune` recognise
+/// worktrees whoever created them.
 #[must_use]
 pub fn branch_name(slug: &str) -> String {
-    let mut b = String::from("session/");
+    let mut b = String::from(BRANCH_PREFIX);
     b.push_str(slug);
     b
 }
 
-/// Where a session's worktree lives: `<root>/<repo>/<slug>`.
+/// Prefix identifying a session worktree branch — Claude Code's convention.
+pub const BRANCH_PREFIX: &str = "worktree-";
+
+/// Where a session's worktree lives: `<root>/<slug>`.
 ///
 /// Deliberately OUTSIDE the repo. A worktree nested inside its own parent shows
 /// up in that parent's `git status` as an untracked directory, which is exactly
@@ -75,8 +81,8 @@ pub fn branch_name(slug: &str) -> String {
 /// self-inflicted, and it would also sweep into a `git add -A` in the parent,
 /// which is the failure this module exists to prevent.
 #[must_use]
-pub fn worktree_path(root: &Path, repo_name: &str, slug: &str) -> PathBuf {
-    root.join(repo_name).join(slug)
+pub fn worktree_path(root: &Path, slug: &str) -> PathBuf {
+    root.join(slug)
 }
 
 /// Whether a worktree may be removed.
@@ -134,35 +140,27 @@ pub const fn removal_verdict(clean: bool, ahead: usize) -> Removal {
     Removal::Safe
 }
 
-/// Default root for a repo's session worktrees: a `.worktrees` sibling INSIDE
-/// the same org directory as the repo.
+/// Root for a repo's session worktrees: `<repo>/.claude/worktrees`.
 ///
-/// ★ THIS LOCATION IS DICTATED BY CLAUDE CODE, not by taste. An earlier version
-/// used `$XDG_DATA_HOME/tend/worktrees`, which is tidier and WRONG, because two
-/// things key off the working directory:
+/// ★ THIS IS CLAUDE CODE'S OWN LOCATION, not a tend convention. `claude
+/// --worktree <name>` creates `<repo>/.claude/worktrees/<name>` on branch
+/// `worktree-<name>`, locked (verified by running it, 2026-08-03). tend manages
+/// THOSE worktrees rather than a parallel set of its own — two mechanisms that
+/// cannot see each other would be worse than either alone.
 ///
-///   * CLAUDE.md DISCOVERY walks cwd upward. The fleet's context lives at
-///     `~/code/CLAUDE.md`, `~/code/github/CLAUDE.md` and
-///     `~/code/github/<org>/CLAUDE.md` — all ancestors of the REPO. A worktree
-///     under `~/.local/share` shares none of them, so an agent there silently
-///     loses the org map, the doctrine index and every naming law, keeping only
-///     the repo's own CLAUDE.md. Isolation is worthless if it costs the context
-///     that makes the agent competent.
-///   * PROJECT STATE is keyed by the cwd path with `/` → `-`
-///     (`~/.claude/projects/-Users-…-pleme-io-nix`, verified live). A worktree
-///     elsewhere gets a fresh directory — no memory, no history.
+/// Inside the repo is the right place and not an accident: CLAUDE.md discovery
+/// walks cwd upward, so a worktree here keeps the repo's own CLAUDE.md AND the
+/// `~/code/github/<org>` chain above it. An earlier tend-only design put these
+/// under `$XDG_DATA_HOME`, which was tidier and silently stripped the fleet's
+/// entire context from any agent working there.
 ///
-/// Placing worktrees as `<org>/.worktrees/<repo>/<slug>` keeps the whole
-/// ancestor chain (`.worktrees` → org → github → code), so the only thing that
-/// changes is the leaf. Dot-prefixed so repo discovery ignores it, and outside
-/// the repo itself so it can never appear in the parent's `git status` — which
-/// is the untracked-directory shape that would sweep into the very `git add -A`
-/// this module exists to prevent.
+/// The cost of being inside the repo is that `git add -A` in the MAIN checkout
+/// stages the worktree unless `.claude/worktrees` is ignored — handled globally
+/// by `blackmatter.components.gitconfig.globalIgnore`, because a per-repo
+/// `.gitignore` leaves every new or cloned repo unsafe again.
 #[must_use]
 pub fn default_root(repo: &Path) -> PathBuf {
-    repo.parent()
-        .map(|org| org.join(".worktrees"))
-        .unwrap_or_else(|| PathBuf::from(".worktrees"))
+    repo.join(".claude").join("worktrees")
 }
 
 /// Claude Code's project-state directory for a given working directory.
@@ -222,10 +220,10 @@ mod tests {
 
     #[test]
     fn empty_or_punctuation_only_session_never_yields_an_empty_ref() {
-        // `session/` alone would collide across every id-less session.
+        // `worktree-` alone would collide across every id-less session.
         for raw in ["", "   ", "---", "~^:"] {
             assert_eq!(session_slug(raw), "unknown", "raw={raw:?}");
-            assert_eq!(branch_name(&session_slug(raw)), "session/unknown");
+            assert_eq!(branch_name(&session_slug(raw)), "worktree-unknown");
         }
     }
 
@@ -235,7 +233,7 @@ mod tests {
         let a = session_slug("aaaaaaaa-1111-4444-8888-000000000000");
         let b = session_slug("bbbbbbbb-2222-4444-8888-000000000000");
         assert_ne!(a, b);
-        assert_ne!(worktree_path(root, "nix", &a), worktree_path(root, "nix", &b));
+        assert_ne!(worktree_path(root, &a), worktree_path(root, &b));
         assert_ne!(branch_name(&a), branch_name(&b));
     }
 
@@ -244,18 +242,20 @@ mod tests {
         // The whole point: every tool call in one session lands in ONE worktree.
         let id = "adc3b17e-85cb-4428-8d96-f8003ef9c601";
         assert_eq!(session_slug(id), session_slug(id));
-        let root = Path::new("/data/wt");
-        assert_eq!(
-            worktree_path(root, "nix", &session_slug(id)),
-            worktree_path(root, "nix", &session_slug(id))
-        );
+        let root = Path::new("/repo/.claude/worktrees");
+        assert_eq!(worktree_path(root, &session_slug(id)), worktree_path(root, &session_slug(id)));
     }
 
     #[test]
-    fn worktree_lives_outside_the_repo() {
-        let p = worktree_path(Path::new("/data/wt"), "nix", "abc123");
-        assert!(!p.starts_with("/Users/x/code"), "must not nest under the source tree");
-        assert!(p.ends_with("nix/abc123"));
+    fn worktree_uses_claude_codes_native_location() {
+        // tend must manage the SAME worktrees `claude --worktree` creates;
+        // a parallel set the two mechanisms cannot see would be worse than either.
+        let repo = Path::new("/Users/x/code/github/pleme-io/nix");
+        assert_eq!(default_root(repo), repo.join(".claude/worktrees"));
+        assert!(worktree_path(&default_root(repo), "abc123").ends_with(".claude/worktrees/abc123"));
+        // Branch naming matches too, or list/prune would not recognise them.
+        assert_eq!(branch_name("abc123"), "worktree-abc123");
+        assert!(branch_name("x").starts_with(BRANCH_PREFIX));
     }
 
     #[test]
@@ -266,8 +266,7 @@ mod tests {
         // entire context from any agent working in the worktree.
         let repo = Path::new("/Users/x/code/github/pleme-io/nix");
         let root = default_root(repo);
-        assert_eq!(root, Path::new("/Users/x/code/github/pleme-io/.worktrees"));
-        let wt = worktree_path(&root, "nix", "abc123");
+        let wt = worktree_path(&root, "abc123");
         for ancestor in [
             "/Users/x/code",
             "/Users/x/code/github",
@@ -275,9 +274,10 @@ mod tests {
         ] {
             assert!(wt.starts_with(ancestor), "{ancestor} must stay an ancestor of {wt:?}");
         }
-        // …but NOT inside the repo, or it shows up in the parent's git status
-        // and can be swept by the very `git add -A` this prevents.
-        assert!(!wt.starts_with(repo));
+        // INSIDE the repo, which also keeps the repo's own CLAUDE.md. The
+        // `git add -A` exposure that creates is closed globally by
+        // blackmatter.components.gitconfig.globalIgnore, not per-repo.
+        assert!(wt.starts_with(repo));
     }
 
     #[test]
@@ -375,7 +375,7 @@ fn repo_name(repo: &Path) -> String {
 /// land in the SAME place rather than accumulating worktrees.
 pub fn enter(repo: &Path, session: &str, root: &Path) -> Result<PathBuf> {
     let slug = session_slug(session);
-    let path = worktree_path(root, &repo_name(repo), &slug);
+    let path = worktree_path(root, &slug);
     if path.join(".git").exists() {
         return Ok(path);
     }
@@ -493,7 +493,7 @@ pub fn list(repo: &Path) -> Result<Vec<Entry>> {
             if let Some(p) = path.take() {
                 // Skip the main checkout — it is not session-owned and must
                 // never be offered to a removal path.
-                if p != repo && branch.starts_with("session/") {
+                if p != repo && branch.starts_with(BRANCH_PREFIX) {
                     let clean = git(&p, &["status", "--porcelain"])
                         .map(|s| s.is_empty())
                         .unwrap_or(false);
@@ -534,6 +534,11 @@ pub fn remove(repo: &Path, entry: &Entry) -> Result<()> {
         bail!(verdict.reason());
     }
     let p = entry.path.to_string_lossy().to_string();
+    // `claude --worktree` LOCKS the worktree it creates, so a plain remove
+    // fails with "is locked". Unlock first — but only after the safety verdict
+    // above has already cleared, so the lock is never the thing standing
+    // between a mistake and lost work.
+    git(repo, &["worktree", "unlock", &p]).ok();
     git(repo, &["worktree", "remove", &p])?;
     git(repo, &["branch", "-D", &entry.branch]).ok();
     Ok(())

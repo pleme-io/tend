@@ -706,12 +706,35 @@ async fn main() -> Result<()> {
                     println!("{}", path.display());
                 }
                 WorktreeAction::Session { repo, session, command } => {
+                    // DELEGATES to `claude --worktree` rather than competing with
+                    // it. Claude Code creates the worktree itself — same location
+                    // (<repo>/.claude/worktrees/<name>), same branch prefix, and
+                    // it locks the result. Two mechanisms creating worktrees in
+                    // one repo is friction with no upside, so tend supplies only
+                    // what it uniquely knows (a stable per-session name) and lets
+                    // claude do the creating. tend's job is the LIFECYCLE the
+                    // native flag has no answer for: list / land / prune.
+                    //
+                    // Non-claude commands still get a tend-made worktree, since
+                    // `--worktree` is claude's flag and nothing else has it.
                     let repo = repo.unwrap_or(here);
                     let session = session
                         .or_else(worktree::session_from_env)
                         .ok_or_else(|| anyhow::anyhow!(
                             "no session id: pass --session or set CLAUDE_CODE_SESSION_ID"
                         ))?;
+                    let slug = worktree::session_slug(&session);
+
+                    if command.is_empty() {
+                        eprintln!("tend: delegating to `claude --worktree {slug}`");
+                        worktree::exec_in(
+                            &repo,
+                            "claude",
+                            &[String::from("--worktree"), slug],
+                        )?;
+                        unreachable!("exec_in only returns on failure");
+                    }
+
                     let path = worktree::enter(&repo, &session, &worktree::default_root(&repo))?;
                     let (cmd, args) = command.split_first().map_or_else(
                         || (String::from("claude"), Vec::new()),
