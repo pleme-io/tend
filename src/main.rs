@@ -1,3 +1,4 @@
+mod pressure;
 mod worktree;
 mod ai_cron;
 mod ai_executor;
@@ -59,6 +60,20 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Report host pressure and the verdict the daemon would act on.
+    ///
+    /// The gate runs unattended inside the daemon loop, so without this there is
+    /// no way to see what it decided or why — and a guard nobody can observe is
+    /// one nobody can trust. Exercises the REAL reader, not a re-derivation.
+    Pressure {
+        /// Filesystem to measure (default: current directory).
+        #[arg(long)]
+        path: Option<PathBuf>,
+        /// Concurrency the daemon is configured for, to show the throttled value.
+        #[arg(long, default_value_t = 8)]
+        max_inflight: u32,
+    },
+
     /// Per-session git worktrees — real isolation for concurrent agents.
     ///
     /// Concurrent sessions sharing one checkout share one INDEX, so a
@@ -692,6 +707,21 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::Pressure { path, max_inflight } => {
+            let path = path.unwrap_or(std::env::current_dir()?);
+            let reader = pressure::SystemPressureReader { path: path.clone() };
+            let reading = pressure::PressureReader::read(&reader)?;
+            let verdict = pressure::assess(reading, pressure::Thresholds::default(), max_inflight);
+            println!("path          {}", path.display());
+            println!("disk free     {:.1}%", reading.disk_free_pct);
+            println!("fd ratio      {:.4}", reading.fd_ratio);
+            match verdict.inflight(max_inflight) {
+                Some(n) if n == max_inflight => println!("verdict       proceed at {n}"),
+                Some(n) => println!("verdict       throttle to {n} — {}", verdict.why()),
+                None => println!("verdict       run nothing — {}", verdict.why()),
+            }
+        }
+
         Commands::Worktree { action } => {
             let here = std::env::current_dir()?;
             match action {

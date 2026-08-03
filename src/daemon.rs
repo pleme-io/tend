@@ -172,13 +172,58 @@ pub(crate) async fn run_with_kanshou(
         }
 
         // Process all workspaces in parallel
+        // ── Host-pressure gate ──────────────────────────────────────
+        // Asked ONCE PER CYCLE, before anything is dispatched. `max_inflight`
+        // answers "how many at once" but never "should any of this run right
+        // now" — so an unattended daemon would keep cloning and evaluating nix
+        // on a host nearly out of disk, where every job makes it worse.
+        //
+        // Failure to READ pressure is not a reason to stop: an unreadable `df`
+        // must not silently stall the reconciler, or the guard becomes an
+        // outage of its own. Only a real, measured reading can stop a cycle.
+        let effective_inflight = {
+            let reader = crate::pressure::SystemPressureReader {
+                path: workspaces
+                    .first()
+                    .map_or_else(|| std::path::PathBuf::from("."), |w| std::path::PathBuf::from(&w.base_dir)),
+            };
+            match crate::pressure::PressureReader::read(&reader) {
+                Ok(reading) => {
+                    let verdict = crate::pressure::assess(
+                        reading,
+                        crate::pressure::Thresholds::default(),
+                        opts.max_inflight,
+                    );
+                    match verdict.inflight(opts.max_inflight) {
+                        Some(n) => {
+                            if n != opts.max_inflight {
+                                eprintln!("tend: throttling to {n} — {}", verdict.why());
+                            }
+                            n
+                        }
+                        None => {
+                            // Say why, every time. A daemon that goes quiet
+                            // without explanation is indistinguishable from one
+                            // that has crashed.
+                            eprintln!("tend: skipping cycle — {}", verdict.why());
+                            continue;
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("tend: pressure unreadable ({e}); proceeding at configured concurrency");
+                    opts.max_inflight
+                }
+            }
+        };
+
         let mut tasks = tokio::task::JoinSet::new();
         for ws in workspaces {
             let ws = ws.clone();
             let pull = opts.pull;
             let fetch = opts.fetch;
             let quiet = opts.quiet;
-            let max_inflight = opts.max_inflight;
+            let max_inflight = effective_inflight;
             tasks.spawn(async move {
                 let name = ws.name.clone();
                 match run_workspace_cycle(&ws, pull, fetch, quiet, max_inflight).await {
