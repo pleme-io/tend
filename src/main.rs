@@ -1,3 +1,4 @@
+mod mcp;
 mod pressure;
 mod worktree;
 mod ai_cron;
@@ -60,6 +61,20 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// MCP surface — what an agent can observe and do.
+    ///
+    /// `--list-tools` renders the catalog, including which tools this authority
+    /// may actually call. Read-only by default: tend reconciles a whole
+    /// workspace, so a mistaken write here is a fleet-wide action.
+    Mcp {
+        /// Print the tool catalog as JSON and exit.
+        #[arg(long)]
+        list_tools: bool,
+        /// Permit state-changing tools (prune, land). Off by default.
+        #[arg(long)]
+        allow_mutate: bool,
+    },
+
     /// Report host pressure and the verdict the daemon would act on.
     ///
     /// The gate runs unattended inside the daemon loop, so without this there is
@@ -707,6 +722,27 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::Mcp { list_tools, allow_mutate } => {
+            let authority = if allow_mutate {
+                mcp::Authority::Mutate
+            } else {
+                mcp::Authority::Observe
+            };
+            if list_tools {
+                println!("{}", serde_json::to_string_pretty(&mcp::catalog_json(authority))?);
+            } else {
+                // The transport is not wired yet; say so plainly rather than
+                // starting a server that answers nothing. A surface that looks
+                // live but is not is worse than one that admits it.
+                eprintln!(
+                    "tend mcp: transport not wired yet — the tool catalog and its \
+                     authority gate are implemented and tested; use --list-tools to \
+                     inspect them."
+                );
+                return Ok(());
+            }
+        }
+
         Commands::Pressure { path, max_inflight } => {
             let path = path.unwrap_or(std::env::current_dir()?);
             let reader = pressure::SystemPressureReader { path: path.clone() };
