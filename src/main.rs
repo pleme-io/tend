@@ -765,7 +765,12 @@ async fn main() -> Result<()> {
             let reading = pressure::PressureReader::read(&reader)?;
             let verdict = pressure::assess(reading, pressure::Thresholds::default(), max_inflight);
             println!("path          {}", path.display());
-            println!("disk free     {:.1}%", reading.disk_free_pct);
+            println!(
+                "disk free     {:.1} GiB of {:.1} GiB ({:.1}%)",
+                reading.disk_free_gib,
+                reading.disk_total_gib,
+                reading.disk_free_pct()
+            );
             // "unavailable" rather than a fabricated 0.0 — this line was
             // printing "no descriptor pressure" on every host whose sysctl
             // it could not read.

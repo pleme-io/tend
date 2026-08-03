@@ -228,7 +228,9 @@ impl TendMcp {
                 let v = crate::pressure::assess(reading, crate::pressure::Thresholds::default(), 8);
                 json!({
                     "ok": true,
-                    "disk_free_pct": reading.disk_free_pct,
+                    "disk_free_gib": reading.disk_free_gib,
+                    "disk_total_gib": reading.disk_total_gib,
+                    "disk_free_pct": reading.disk_free_pct(),
                     "fd_ratio": reading.fd_ratio,
                     "verdict": match v.inflight(8) {
                         None => "run_nothing",
