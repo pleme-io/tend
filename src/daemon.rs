@@ -307,20 +307,23 @@ async fn run_workspace_cycle(
         )
         .await?;
 
-        // Sync summary stays in the legacy two-number shape for
-        // display continuity; pulled from the typed sync_outcomes map.
+        // Third copy of this tally (sync.rs has one, and so does the
+        // legacy path below). All three dropped Failed on the floor; the
+        // comment here said "surfaced in failed_jobs", which is true and
+        // does not stop THIS line from printing "all N repos present".
         let mut cloned = 0usize;
         let mut present = 0usize;
+        let mut failed = 0usize;
         for outcome in receipt.sync_outcomes.values() {
             match outcome {
                 crate::sync::SyncOutcome::Cloned => cloned += 1,
                 crate::sync::SyncOutcome::AlreadyPresent
                 | crate::sync::SyncOutcome::StubExisted => present += 1,
-                crate::sync::SyncOutcome::Failed { .. } => {} // surfaced in failed_jobs
+                crate::sync::SyncOutcome::Failed { .. } => failed += 1,
             }
         }
-        if !quiet || cloned > 0 {
-            display::print_sync_summary(&ws.name, cloned, present);
+        if !quiet || cloned > 0 || failed > 0 {
+            display::print_sync_summary(&ws.name, cloned, present, failed);
         }
 
         let summary = receipt.as_pull_summary();
@@ -340,9 +343,9 @@ async fn run_workspace_cycle(
         // Pull disabled — fall back to legacy batch paths for sync +
         // (optionally) fetch. Migrating these to scheduler is future
         // scope; pull is the load-bearing reconciler step.
-        let (cloned, present) = sync::sync_repos(ws, &repos, quiet).await?;
+        let (cloned, present, failed) = sync::sync_repos(ws, &repos, quiet).await?;
         if !quiet || cloned > 0 {
-            display::print_sync_summary(&ws.name, cloned, present);
+            display::print_sync_summary(&ws.name, cloned, present, failed);
         }
         if fetch {
             let (fetched, skipped) = sync::fetch_repos(ws, &repos, quiet).await?;

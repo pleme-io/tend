@@ -301,13 +301,14 @@ pub(crate) async fn sync_repos(
     workspace: &Workspace,
     repos: &[String],
     quiet: bool,
-) -> Result<(usize, usize)> {
+) -> Result<(usize, usize, usize)> {
     let base_dir = workspace.resolved_base_dir()?;
     std::fs::create_dir_all(&base_dir)
         .with_context(|| format!("creating {}", base_dir.display()))?;
 
     let mut cloned = 0usize;
     let mut present = 0usize;
+    let mut failed = 0usize;
 
     for repo_name in repos {
         let repo_path = base_dir.join(repo_name);
@@ -315,13 +316,18 @@ pub(crate) async fn sync_repos(
         match sync_one_repo(clone_url, &repo_path, repo_name, quiet)? {
             SyncOutcome::Cloned => cloned += 1,
             SyncOutcome::AlreadyPresent | SyncOutcome::StubExisted => present += 1,
-            // Match the existing batch behavior: failed clones aren't counted
-            // toward either bucket — they show up via the eprintln side effect.
-            SyncOutcome::Failed { .. } => {}
+            // ── ★ A FAILURE MUST LAND IN A BUCKET ────────────────────────
+            // These used to count toward NEITHER, surviving only as an
+            // eprintln. So a workspace where every clone failed reported
+            // `cloned = 0`, which the summary renders as "all N repos
+            // present" — an affirmative completeness claim about repos that
+            // are not on disk. The three counts must sum to the repo count,
+            // or a whole outcome class can go missing without a trace.
+            SyncOutcome::Failed { .. } => failed += 1,
         }
     }
 
-    Ok((cloned, present))
+    Ok((cloned, present, failed))
 }
 
 /// Check status of all repos in a workspace
@@ -751,6 +757,49 @@ fn is_stuck(repo_path: &Path) -> Result<bool> {
 
 #[cfg(test)]
 mod tests {
+
+    /// ── ★ EVERY OUTCOME LANDS IN A BUCKET ───────────────────────────────
+    /// `SyncOutcome::Failed` used to count toward NEITHER `cloned` nor
+    /// `present`, surviving only as an eprintln. So a workspace where every
+    /// clone failed arrived at the summary as `cloned = 0`, which renders
+    /// as "all N repos present" — an affirmative completeness claim about
+    /// repos that are not on disk, followed by exit 0.
+    ///
+    /// The invariant is arithmetic and therefore checkable: the three
+    /// counts must sum to the number of repos attempted. A whole outcome
+    /// class cannot go missing without breaking the sum.
+    #[test]
+    fn the_three_sync_counts_sum_to_every_repo_attempted() {
+        let outcomes = vec![
+            super::SyncOutcome::Cloned,
+            super::SyncOutcome::AlreadyPresent,
+            super::SyncOutcome::StubExisted,
+            super::SyncOutcome::Failed {
+                stderr: "boom".into(),
+            },
+            super::SyncOutcome::Failed {
+                stderr: "boom".into(),
+            },
+        ];
+        let attempted = outcomes.len();
+        let (mut cloned, mut present, mut failed) = (0usize, 0usize, 0usize);
+        for o in &outcomes {
+            match o {
+                super::SyncOutcome::Cloned => cloned += 1,
+                super::SyncOutcome::AlreadyPresent | super::SyncOutcome::StubExisted => {
+                    present += 1;
+                }
+                super::SyncOutcome::Failed { .. } => failed += 1,
+            }
+        }
+        assert_eq!(
+            cloned + present + failed,
+            attempted,
+            "an outcome class that lands in no bucket disappears from the summary"
+        );
+        assert_eq!(failed, 2, "failures must be counted, not merely printed");
+    }
+
     /// An on-disk repo that discovery did not resolve, with no remote,
     /// must report NoRemote — not Unknown.
     ///

@@ -870,9 +870,9 @@ async fn main() -> Result<()> {
             let cfg = load_config(config_path.as_deref())?;
             for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
                 let repos = sync::resolve_repos(ws, refresh).await?;
-                let (cloned, present) = sync::sync_repos(ws, &repos, quiet).await?;
+                let (cloned, present, failed) = sync::sync_repos(ws, &repos, quiet).await?;
                 if !quiet || cloned > 0 {
-                    display::print_sync_summary(&ws.name, cloned, present);
+                    display::print_sync_summary(&ws.name, cloned, present, failed);
                 }
             }
         }

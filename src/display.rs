@@ -105,18 +105,36 @@ pub(crate) fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
     );
 }
 
-/// Print sync summary (cloned vs already-present counts).
-pub(crate) fn print_sync_summary(workspace_name: &str, cloned: usize, present: usize) {
-    if cloned == 0 {
+/// Print sync summary — cloned / already-present / FAILED.
+///
+/// ── ★ "all N repos present" WAS A CLAIM ABOUT REPOS NOT ON DISK ──────
+/// Failed clones counted toward neither bucket, so a workspace where every
+/// clone failed arrived here as `cloned = 0` and printed an affirmative
+/// completeness claim. The failure count is printed unconditionally when
+/// non-zero, and the all-present line now requires that nothing failed —
+/// "nothing needed cloning" and "nothing COULD be cloned" were the same
+/// sentence.
+pub(crate) fn print_sync_summary(
+    workspace_name: &str,
+    cloned: usize,
+    present: usize,
+    failed: usize,
+) {
+    if cloned == 0 && failed == 0 {
         println!("{}: all {} repos present", workspace_name.bold(), present);
-    } else {
-        println!(
-            "{}: cloned {} new, {} already present",
-            workspace_name.bold(),
-            cloned.to_string().green(),
-            present
-        );
+        return;
     }
+    let mut parts = Vec::new();
+    if cloned > 0 {
+        parts.push(format!("cloned {}", cloned.to_string().green()));
+    }
+    if present > 0 {
+        parts.push(format!("{present} already present"));
+    }
+    if failed > 0 {
+        parts.push(format!("{} FAILED", failed.to_string().red().bold()));
+    }
+    println!("{}: {}", workspace_name.bold(), parts.join(", "));
 }
 
 /// Print the full list of repos in a workspace.
