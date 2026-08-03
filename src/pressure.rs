@@ -137,7 +137,10 @@ pub fn assess(reading: Reading, t: Thresholds, configured_inflight: u32) -> Verd
         let mut why = String::from("disk free ");
         why.push_str(&pct(reading.disk_free_pct));
         why.push_str("% is under the throttle band — one job at a time");
-        return Verdict::Throttle { max_inflight: 1, why };
+        return Verdict::Throttle {
+            max_inflight: 1,
+            why,
+        };
     }
     if reading.fd_ratio > t.fd_throttle_ratio {
         let mut why = String::from("file descriptors at ");
@@ -146,7 +149,10 @@ pub fn assess(reading: Reading, t: Thresholds, configured_inflight: u32) -> Verd
         // A quarter of configured, never zero: zero would be a silent halt, and
         // a halt must always be an explicit, explained verdict.
         let reduced = std::cmp::max(1, configured_inflight / 4);
-        return Verdict::Throttle { max_inflight: reduced, why };
+        return Verdict::Throttle {
+            max_inflight: reduced,
+            why,
+        };
     }
     Verdict::Proceed
 }
@@ -209,18 +215,34 @@ mod tests {
     use super::*;
 
     fn healthy() -> Reading {
-        Reading { disk_free_pct: 60.0, fd_ratio: 0.10 }
+        Reading {
+            disk_free_pct: 60.0,
+            fd_ratio: 0.10,
+        }
     }
 
     #[test]
     fn a_healthy_host_runs_at_full_concurrency() {
-        assert_eq!(assess(healthy(), Thresholds::default(), 8), Verdict::Proceed);
-        assert_eq!(assess(healthy(), Thresholds::default(), 8).inflight(8), Some(8));
+        assert_eq!(
+            assess(healthy(), Thresholds::default(), 8),
+            Verdict::Proceed
+        );
+        assert_eq!(
+            assess(healthy(), Thresholds::default(), 8).inflight(8),
+            Some(8)
+        );
     }
 
     #[test]
     fn low_disk_halts_because_continuing_makes_it_worse() {
-        let v = assess(Reading { disk_free_pct: 2.0, ..healthy() }, Thresholds::default(), 8);
+        let v = assess(
+            Reading {
+                disk_free_pct: 2.0,
+                ..healthy()
+            },
+            Thresholds::default(),
+            8,
+        );
         assert!(matches!(v, Verdict::Halt { .. }), "got {v:?}");
         // Nothing runs — not "one job at a time".
         assert_eq!(v.inflight(8), None);
@@ -231,16 +253,37 @@ mod tests {
     fn squeezed_disk_throttles_to_one_rather_than_stopping() {
         // Breathability: keep converging, slowly. A reconciler that stops
         // entirely at the first sign of load never catches up.
-        let v = assess(Reading { disk_free_pct: 10.0, ..healthy() }, Thresholds::default(), 8);
+        let v = assess(
+            Reading {
+                disk_free_pct: 10.0,
+                ..healthy()
+            },
+            Thresholds::default(),
+            8,
+        );
         assert_eq!(v.inflight(8), Some(1), "got {v:?}");
     }
 
     #[test]
     fn fd_pressure_reduces_concurrency_and_then_halts() {
         let t = Thresholds::default();
-        let throttled = assess(Reading { fd_ratio: 0.85, ..healthy() }, t, 8);
+        let throttled = assess(
+            Reading {
+                fd_ratio: 0.85,
+                ..healthy()
+            },
+            t,
+            8,
+        );
         assert_eq!(throttled.inflight(8), Some(2), "quarter of configured");
-        let halted = assess(Reading { fd_ratio: 0.99, ..healthy() }, t, 8);
+        let halted = assess(
+            Reading {
+                fd_ratio: 0.99,
+                ..healthy()
+            },
+            t,
+            8,
+        );
         assert_eq!(halted.inflight(8), None);
     }
 
@@ -249,7 +292,14 @@ mod tests {
         // Zero inflight would be a SILENT halt. A halt must always be an
         // explicit, explained verdict, never an accident of integer division.
         for configured in [1, 2, 3, 4] {
-            let v = assess(Reading { fd_ratio: 0.85, ..healthy() }, Thresholds::default(), configured);
+            let v = assess(
+                Reading {
+                    fd_ratio: 0.85,
+                    ..healthy()
+                },
+                Thresholds::default(),
+                configured,
+            );
             assert_eq!(v.inflight(configured), Some(1), "configured={configured}");
         }
     }
@@ -259,7 +309,10 @@ mod tests {
         // A machine can recover from slow, not from full — so the verdict names
         // the problem that will not fix itself.
         let v = assess(
-            Reading { disk_free_pct: 1.0, fd_ratio: 0.99 },
+            Reading {
+                disk_free_pct: 1.0,
+                fd_ratio: 0.99,
+            },
             Thresholds::default(),
             8,
         );
@@ -271,10 +324,22 @@ mod tests {
         // An unattended daemon that goes quiet without saying why is
         // indistinguishable from one that has crashed.
         for r in [
-            Reading { disk_free_pct: 1.0, ..healthy() },
-            Reading { fd_ratio: 0.99, ..healthy() },
-            Reading { disk_free_pct: 10.0, ..healthy() },
-            Reading { fd_ratio: 0.85, ..healthy() },
+            Reading {
+                disk_free_pct: 1.0,
+                ..healthy()
+            },
+            Reading {
+                fd_ratio: 0.99,
+                ..healthy()
+            },
+            Reading {
+                disk_free_pct: 10.0,
+                ..healthy()
+            },
+            Reading {
+                fd_ratio: 0.85,
+                ..healthy()
+            },
         ] {
             let v = assess(r, Thresholds::default(), 8);
             assert!(!v.why().is_empty(), "silent verdict for {r:?}");
@@ -285,7 +350,13 @@ mod tests {
     #[test]
     fn thresholds_are_ordered_so_halt_is_always_stricter_than_throttle() {
         let t = Thresholds::default();
-        assert!(t.disk_halt_pct < t.disk_throttle_pct, "halt must be the tighter disk band");
-        assert!(t.fd_halt_ratio > t.fd_throttle_ratio, "halt must be the tighter fd band");
+        assert!(
+            t.disk_halt_pct < t.disk_throttle_pct,
+            "halt must be the tighter disk band"
+        );
+        assert!(
+            t.fd_halt_ratio > t.fd_throttle_ratio,
+            "halt must be the tighter fd band"
+        );
     }
 }

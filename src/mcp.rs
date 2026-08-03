@@ -174,7 +174,6 @@ impl ConfigSurface {
     }
 }
 
-
 // ═══════════════════════════════════════════════════════════════════
 // Transport
 // ═══════════════════════════════════════════════════════════════════
@@ -221,7 +220,9 @@ impl TendMcp {
         description = "Host pressure and the verdict tend's daemon acts on: proceed, throttle to a smaller concurrency, or run nothing. Returns disk_free_pct, fd_ratio, the verdict and its reason. Ask this FIRST when the daemon appears idle — a skipped cycle is usually a deliberate refusal, not a hang."
     )]
     async fn tend_pressure(&self) -> String {
-        let reader = crate::pressure::SystemPressureReader { path: self.repo.clone() };
+        let reader = crate::pressure::SystemPressureReader {
+            path: self.repo.clone(),
+        };
         match crate::pressure::PressureReader::read(&reader) {
             Ok(reading) => {
                 let v = crate::pressure::assess(reading, crate::pressure::Thresholds::default(), 8);
@@ -268,11 +269,14 @@ impl TendMcp {
         description = "Read tend's RESOLVED configuration (shikumi TieredConfig: env > file > prescribed default) — what tend actually resolved, not what a file says. Omit `key` for everything; a dot-path returns that subtree, or null if absent."
     )]
     async fn tend_config_get(&self) -> String {
-        match crate::config::Config::load(std::path::Path::new(
-            &shellexpand_home("~/.config/tend/config.yaml"),
-        )) {
+        match crate::config::Config::load(std::path::Path::new(&shellexpand_home(
+            "~/.config/tend/config.yaml",
+        ))) {
             Ok(config) => {
-                let surface = ConfigSurface { config, authority: self.authority };
+                let surface = ConfigSurface {
+                    config,
+                    authority: self.authority,
+                };
                 match surface.get(None) {
                     Ok(v) => json!({"ok": true, "config": v}).to_string(),
                     Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
@@ -460,7 +464,11 @@ mod tests {
             .count();
         assert!(unavailable > 0, "observe must hide the mutating tools");
         assert!(
-            mutate["tools"].as_array().unwrap().iter().all(|t| t["available"] == json!(true)),
+            mutate["tools"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|t| t["available"] == json!(true)),
             "mutate authority exposes everything"
         );
     }
@@ -471,7 +479,11 @@ mod tests {
         assert_eq!(c["tools"].as_array().unwrap().len(), TOOLS.len());
         for t in TOOLS {
             assert!(
-                c["tools"].as_array().unwrap().iter().any(|x| x["name"] == json!(t.name)),
+                c["tools"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|x| x["name"] == json!(t.name)),
                 "catalog omits `{}`",
                 t.name
             );
@@ -481,7 +493,10 @@ mod tests {
     #[test]
     fn config_get_returns_null_for_a_missing_key_rather_than_erroring() {
         let surface = ConfigSurface {
-            config: crate::config::Config { workspaces: vec![], host_health: Default::default() },
+            config: crate::config::Config {
+                workspaces: vec![],
+                host_health: Default::default(),
+            },
             authority: Authority::Observe,
         };
         assert_eq!(surface.get(Some("nope.not.here")).unwrap(), Value::Null);

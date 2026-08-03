@@ -36,12 +36,7 @@ pub trait CiTrimApi: Send + Sync {
 
     /// Cancel a specific workflow run by ID. Idempotent — cancelling
     /// an already-cancelled run is a no-op success.
-    async fn cancel_workflow_run(
-        &self,
-        org: &str,
-        repo: &str,
-        run_id: u64,
-    ) -> anyhow::Result<()>;
+    async fn cancel_workflow_run(&self, org: &str, repo: &str, run_id: u64) -> anyhow::Result<()>;
 }
 
 /// A single workflow run identity — the minimal shape the trim policy
@@ -99,9 +94,9 @@ pub fn identify_duplicates_to_cancel(runs: &[WorkflowRun]) -> Vec<u64> {
         for older in bucket.into_iter().skip(1) {
             // Safety check: don't cancel if an in_progress run on the
             // same head_sha exists (manual re-run from UI mid-flight).
-            let has_active_on_sha = runs.iter().any(|r| {
-                r.status == RunStatus::InProgress && r.head_sha == older.head_sha
-            });
+            let has_active_on_sha = runs
+                .iter()
+                .any(|r| r.status == RunStatus::InProgress && r.head_sha == older.head_sha);
             if !has_active_on_sha {
                 to_cancel.push(older.id);
             }
@@ -124,7 +119,11 @@ pub struct TrimReport {
 
 impl TrimReport {
     /// Build a report from a policy pass over a repo's runs.
-    pub fn from_runs(org: impl Into<String>, repo: impl Into<String>, runs: &[WorkflowRun]) -> Self {
+    pub fn from_runs(
+        org: impl Into<String>,
+        repo: impl Into<String>,
+        runs: &[WorkflowRun],
+    ) -> Self {
         let cancelled = identify_duplicates_to_cancel(runs);
         let total_queued: Vec<u64> = runs
             .iter()
@@ -174,7 +173,14 @@ pub async fn run_single_repo(
 mod tests {
     use super::*;
 
-    fn run(id: u64, workflow: u64, branch: &str, sha: &str, status: RunStatus, created: &str) -> WorkflowRun {
+    fn run(
+        id: u64,
+        workflow: u64,
+        branch: &str,
+        sha: &str,
+        status: RunStatus,
+        created: &str,
+    ) -> WorkflowRun {
         WorkflowRun {
             id,
             workflow_id: workflow,
@@ -188,8 +194,22 @@ mod tests {
     #[test]
     fn no_duplicates_returns_empty() {
         let runs = vec![
-            run(1, 10, "main", "sha1", RunStatus::Queued, "2026-04-20T10:00:00Z"),
-            run(2, 10, "feat", "sha2", RunStatus::Queued, "2026-04-20T10:00:00Z"),
+            run(
+                1,
+                10,
+                "main",
+                "sha1",
+                RunStatus::Queued,
+                "2026-04-20T10:00:00Z",
+            ),
+            run(
+                2,
+                10,
+                "feat",
+                "sha2",
+                RunStatus::Queued,
+                "2026-04-20T10:00:00Z",
+            ),
         ];
         assert!(identify_duplicates_to_cancel(&runs).is_empty());
     }
@@ -198,9 +218,30 @@ mod tests {
     fn three_queued_on_same_tag_keeps_newest_cancels_older_two() {
         // Modeled on the real pleme-io/dq v0.1.0 situation.
         let runs = vec![
-            run(24690390497, 42, "v0.1.0", "a6b5dd9", RunStatus::Queued, "2026-04-20T21:05:58Z"),
-            run(24690847968, 42, "v0.1.0", "2e3b6c3", RunStatus::Queued, "2026-04-20T21:17:02Z"),
-            run(24695026106, 42, "v0.1.0", "6161f03", RunStatus::Queued, "2026-04-20T23:09:23Z"),
+            run(
+                24690390497,
+                42,
+                "v0.1.0",
+                "a6b5dd9",
+                RunStatus::Queued,
+                "2026-04-20T21:05:58Z",
+            ),
+            run(
+                24690847968,
+                42,
+                "v0.1.0",
+                "2e3b6c3",
+                RunStatus::Queued,
+                "2026-04-20T21:17:02Z",
+            ),
+            run(
+                24695026106,
+                42,
+                "v0.1.0",
+                "6161f03",
+                RunStatus::Queued,
+                "2026-04-20T23:09:23Z",
+            ),
         ];
         let to_cancel = identify_duplicates_to_cancel(&runs);
         assert_eq!(to_cancel, vec![24690390497, 24690847968]);
@@ -209,9 +250,30 @@ mod tests {
     #[test]
     fn in_progress_on_same_sha_blocks_cancellation() {
         let runs = vec![
-            run(1, 42, "v0.1.0", "sha1", RunStatus::Queued, "2026-04-20T10:00:00Z"),
-            run(2, 42, "v0.1.0", "sha1", RunStatus::InProgress, "2026-04-20T10:30:00Z"),
-            run(3, 42, "v0.1.0", "sha2", RunStatus::Queued, "2026-04-20T11:00:00Z"),
+            run(
+                1,
+                42,
+                "v0.1.0",
+                "sha1",
+                RunStatus::Queued,
+                "2026-04-20T10:00:00Z",
+            ),
+            run(
+                2,
+                42,
+                "v0.1.0",
+                "sha1",
+                RunStatus::InProgress,
+                "2026-04-20T10:30:00Z",
+            ),
+            run(
+                3,
+                42,
+                "v0.1.0",
+                "sha2",
+                RunStatus::Queued,
+                "2026-04-20T11:00:00Z",
+            ),
         ];
         // Would normally cancel run 1 (older queued on v0.1.0), but
         // run 2 is InProgress on sha1 — so we DON'T cancel run 1.
@@ -221,10 +283,38 @@ mod tests {
     #[test]
     fn different_workflows_on_same_branch_independent() {
         let runs = vec![
-            run(1, 10, "main", "sha", RunStatus::Queued, "2026-04-20T10:00:00Z"),
-            run(2, 10, "main", "sha", RunStatus::Queued, "2026-04-20T10:05:00Z"),
-            run(3, 20, "main", "sha", RunStatus::Queued, "2026-04-20T10:00:00Z"),
-            run(4, 20, "main", "sha", RunStatus::Queued, "2026-04-20T10:05:00Z"),
+            run(
+                1,
+                10,
+                "main",
+                "sha",
+                RunStatus::Queued,
+                "2026-04-20T10:00:00Z",
+            ),
+            run(
+                2,
+                10,
+                "main",
+                "sha",
+                RunStatus::Queued,
+                "2026-04-20T10:05:00Z",
+            ),
+            run(
+                3,
+                20,
+                "main",
+                "sha",
+                RunStatus::Queued,
+                "2026-04-20T10:00:00Z",
+            ),
+            run(
+                4,
+                20,
+                "main",
+                "sha",
+                RunStatus::Queued,
+                "2026-04-20T10:05:00Z",
+            ),
         ];
         let to_cancel = identify_duplicates_to_cancel(&runs);
         // Cancels older run in each workflow's bucket independently.
@@ -234,9 +324,30 @@ mod tests {
     #[test]
     fn completed_and_cancelled_runs_ignored() {
         let runs = vec![
-            run(1, 42, "main", "sha1", RunStatus::Completed, "2026-04-20T10:00:00Z"),
-            run(2, 42, "main", "sha2", RunStatus::Cancelled, "2026-04-20T10:05:00Z"),
-            run(3, 42, "main", "sha3", RunStatus::Queued, "2026-04-20T10:10:00Z"),
+            run(
+                1,
+                42,
+                "main",
+                "sha1",
+                RunStatus::Completed,
+                "2026-04-20T10:00:00Z",
+            ),
+            run(
+                2,
+                42,
+                "main",
+                "sha2",
+                RunStatus::Cancelled,
+                "2026-04-20T10:05:00Z",
+            ),
+            run(
+                3,
+                42,
+                "main",
+                "sha3",
+                RunStatus::Queued,
+                "2026-04-20T10:10:00Z",
+            ),
         ];
         assert!(identify_duplicates_to_cancel(&runs).is_empty());
     }
@@ -252,7 +363,10 @@ mod tests {
         ];
         let mut b = a.clone();
         b.reverse();
-        assert_eq!(identify_duplicates_to_cancel(&a), identify_duplicates_to_cancel(&b));
+        assert_eq!(
+            identify_duplicates_to_cancel(&a),
+            identify_duplicates_to_cancel(&b)
+        );
     }
 
     #[test]
@@ -281,7 +395,10 @@ mod tests {
 
     impl MockApi {
         fn new(runs: Vec<WorkflowRun>) -> Self {
-            Self { runs, cancelled: Mutex::new(Vec::new()) }
+            Self {
+                runs,
+                cancelled: Mutex::new(Vec::new()),
+            }
         }
     }
 

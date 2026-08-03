@@ -205,12 +205,8 @@ mod tests {
 
     #[test]
     fn subset_check_passes_when_no_new_failures() {
-        let baseline = FailureSet::extract(
-            "error: NixOS eval tests failed: a: x; b: y; c: z",
-        );
-        let proposed = FailureSet::extract(
-            "error: NixOS eval tests failed: a: x; b: y",
-        );
+        let baseline = FailureSet::extract("error: NixOS eval tests failed: a: x; b: y; c: z");
+        let proposed = FailureSet::extract("error: NixOS eval tests failed: a: x; b: y");
         // proposed has fewer failures than baseline → strict subset → pass
         assert!(proposed.is_subset_of(&baseline));
         assert_eq!(proposed.new_vs(&baseline), Vec::<String>::new());
@@ -219,9 +215,7 @@ mod tests {
     #[test]
     fn subset_check_fails_when_new_failure_introduced() {
         let baseline = FailureSet::extract("error: NixOS eval tests failed: a: x; b: y");
-        let proposed = FailureSet::extract(
-            "error: NixOS eval tests failed: a: x; b: y; c: NEW",
-        );
+        let proposed = FailureSet::extract("error: NixOS eval tests failed: a: x; b: y; c: NEW");
         assert!(!proposed.is_subset_of(&baseline));
         let new = proposed.new_vs(&baseline);
         assert!(new.iter().any(|s| s.contains("c: NEW")), "got: {new:?}");
@@ -241,12 +235,10 @@ mod tests {
 
     #[test]
     fn store_path_hashes_normalize() {
-        let baseline = FailureSet::extract(
-            "error: cannot import /nix/store/abc123def456ghi789-foo-1.0/bin/x",
-        );
-        let proposed = FailureSet::extract(
-            "error: cannot import /nix/store/zzzyyyxxxwww111222-foo-1.0/bin/x",
-        );
+        let baseline =
+            FailureSet::extract("error: cannot import /nix/store/abc123def456ghi789-foo-1.0/bin/x");
+        let proposed =
+            FailureSet::extract("error: cannot import /nix/store/zzzyyyxxxwww111222-foo-1.0/bin/x");
         assert!(
             proposed.is_subset_of(&baseline),
             "store hashes should normalize: baseline={:?} proposed={:?}",

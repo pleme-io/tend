@@ -128,9 +128,21 @@ mod tests {
     #[test]
     fn test_simple_linear_flow() {
         let mut flow = AiFlowPlan::new("test");
-        flow.add_step("a", AiTaskRef::Inline { model: "test".into(), prompt: "a".into() });
-        flow.add_step("b", AiTaskRef::Inline { model: "test".into(), prompt: "b".into() });
-        
+        flow.add_step(
+            "a",
+            AiTaskRef::Inline {
+                model: "test".into(),
+                prompt: "a".into(),
+            },
+        );
+        flow.add_step(
+            "b",
+            AiTaskRef::Inline {
+                model: "test".into(),
+                prompt: "b".into(),
+            },
+        );
+
         let planned = plan(&flow).unwrap();
         assert_eq!(planned.execution_order, vec![0, 1]);
     }
@@ -138,13 +150,31 @@ mod tests {
     #[test]
     fn test_flow_with_dependencies() {
         let mut flow = AiFlowPlan::new("test");
-        flow.add_step("a", AiTaskRef::Inline { model: "test".into(), prompt: "a".into() });
-        flow.add_step("b", AiTaskRef::Inline { model: "test".into(), prompt: "b".into() });
-        flow.add_step("c", AiTaskRef::Inline { model: "test".into(), prompt: "c".into() });
-        
+        flow.add_step(
+            "a",
+            AiTaskRef::Inline {
+                model: "test".into(),
+                prompt: "a".into(),
+            },
+        );
+        flow.add_step(
+            "b",
+            AiTaskRef::Inline {
+                model: "test".into(),
+                prompt: "b".into(),
+            },
+        );
+        flow.add_step(
+            "c",
+            AiTaskRef::Inline {
+                model: "test".into(),
+                prompt: "c".into(),
+            },
+        );
+
         flow.with_deps("b", vec!["a".into()]);
         flow.with_deps("c", vec!["a".into(), "b".into()]);
-        
+
         let planned = plan(&flow).unwrap();
         assert_eq!(planned.execution_order[0], 0);
     }
@@ -152,14 +182,32 @@ mod tests {
     #[test]
     fn test_cycle_detection() {
         let mut flow = AiFlowPlan::new("test");
-        flow.add_step("a", AiTaskRef::Inline { model: "test".into(), prompt: "a".into() });
-        flow.add_step("b", AiTaskRef::Inline { model: "test".into(), prompt: "b".into() });
-        flow.add_step("c", AiTaskRef::Inline { model: "test".into(), prompt: "c".into() });
-        
+        flow.add_step(
+            "a",
+            AiTaskRef::Inline {
+                model: "test".into(),
+                prompt: "a".into(),
+            },
+        );
+        flow.add_step(
+            "b",
+            AiTaskRef::Inline {
+                model: "test".into(),
+                prompt: "b".into(),
+            },
+        );
+        flow.add_step(
+            "c",
+            AiTaskRef::Inline {
+                model: "test".into(),
+                prompt: "c".into(),
+            },
+        );
+
         flow.with_deps("b", vec!["a".into()]);
         flow.with_deps("c", vec!["b".into()]);
         flow.with_deps("a", vec!["c".into()]); // cycle!
-        
+
         let result = plan(&flow);
         assert!(result.is_err());
     }

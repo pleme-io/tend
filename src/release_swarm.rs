@@ -121,15 +121,15 @@ impl OrgReleaseSwarmConfig {
     pub const FORBIDDEN_PATTERNS: &'static [&'static str] = &["akeyless"];
 
     pub fn enabled(org: impl Into<String>) -> Self {
-        Self { org: org.into(), enable: true, ..Self::default() }
+        Self {
+            org: org.into(),
+            enable: true,
+            ..Self::default()
+        }
     }
 
     #[must_use]
-    pub fn with_enabled_repo(
-        mut self,
-        repo: impl Into<String>,
-        cfg: RepoReleaseConfig,
-    ) -> Self {
+    pub fn with_enabled_repo(mut self, repo: impl Into<String>, cfg: RepoReleaseConfig) -> Self {
         let mut c = cfg;
         c.enable = true;
         self.repos.insert(repo.into(), c);
@@ -290,7 +290,9 @@ where
     for (repo_name, repo_cfg) in cfg.repos.iter().filter(|(n, _)| cfg.is_eligible(n)) {
         let rendered = render_workflow_yaml_fn(repo_name, repo_cfg);
         let outcome = if dry_run {
-            ApplyOutcome::DryRun { rendered_bytes: rendered.len() }
+            ApplyOutcome::DryRun {
+                rendered_bytes: rendered.len(),
+            }
         } else {
             // Check for existing file
             let path = ".github/workflows/release.yml";
@@ -302,7 +304,10 @@ where
             // For now: if it exists, still open a PR — the PR diff
             // makes the change visible and reviewable.
             let _ = existing; // acknowledged but not used for comparison yet
-            let branch = format!("release-swarm/{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
+            let branch = format!(
+                "release-swarm/{}",
+                chrono::Utc::now().format("%Y%m%d%H%M%S")
+            );
             let pr_number = api
                 .open_workflow_pr(
                     &cfg.org,
@@ -343,10 +348,8 @@ mod tests {
 
     #[test]
     fn both_levels_required_for_eligibility() {
-        let c = OrgReleaseSwarmConfig::enabled("pleme-io").with_enabled_repo(
-            "dq",
-            RepoReleaseConfig::default(),
-        );
+        let c = OrgReleaseSwarmConfig::enabled("pleme-io")
+            .with_enabled_repo("dq", RepoReleaseConfig::default());
         assert!(c.is_eligible("dq"));
         assert_eq!(c.eligible_repos(), vec!["dq".to_string()]);
     }
@@ -378,10 +381,7 @@ mod tests {
         // Guard: this list must stay in lockstep with the
         // arch-synthesizer source of truth at
         // `rust_tool_release::swarm::OrgReleaseSwarmConfig::FORBIDDEN_PATTERNS`.
-        assert_eq!(
-            OrgReleaseSwarmConfig::FORBIDDEN_PATTERNS,
-            &["akeyless"]
-        );
+        assert_eq!(OrgReleaseSwarmConfig::FORBIDDEN_PATTERNS, &["akeyless"]);
     }
 
     #[test]
@@ -417,7 +417,10 @@ mod tests {
             .with_enabled_repo("tend", RepoReleaseConfig::default());
         let plan = plan_swarm(&c);
         assert_eq!(plan.eligible_count, 2);
-        assert_eq!(plan.eligible_repos, vec!["dq".to_string(), "tend".to_string()]);
+        assert_eq!(
+            plan.eligible_repos,
+            vec!["dq".to_string(), "tend".to_string()]
+        );
     }
 
     // ── Mock API + apply tests ────────────────────────────────
@@ -431,7 +434,10 @@ mod tests {
 
     impl MockApi {
         fn new() -> Self {
-            Self { next_pr: Mutex::new(100), prs: Mutex::new(Vec::new()) }
+            Self {
+                next_pr: Mutex::new(100),
+                prs: Mutex::new(Vec::new()),
+            }
         }
     }
 
@@ -470,8 +476,9 @@ mod tests {
         let c = OrgReleaseSwarmConfig::enabled("pleme-io")
             .with_enabled_repo("dq", RepoReleaseConfig::default());
         let api = MockApi::new();
-        let reports =
-            apply_swarm(&api, &c, true, |_, _| "fake yaml content".to_string()).await.unwrap();
+        let reports = apply_swarm(&api, &c, true, |_, _| "fake yaml content".to_string())
+            .await
+            .unwrap();
         assert_eq!(reports.len(), 1);
         match &reports[0].outcome {
             ApplyOutcome::DryRun { rendered_bytes } => {
@@ -488,8 +495,9 @@ mod tests {
             .with_enabled_repo("dq", RepoReleaseConfig::default())
             .with_enabled_repo("tend", RepoReleaseConfig::default());
         let api = MockApi::new();
-        let reports =
-            apply_swarm(&api, &c, false, |name, _| format!("yaml for {name}")).await.unwrap();
+        let reports = apply_swarm(&api, &c, false, |name, _| format!("yaml for {name}"))
+            .await
+            .unwrap();
         assert_eq!(reports.len(), 2);
         for r in &reports {
             assert!(matches!(r.outcome, ApplyOutcome::PrOpened { .. }));
@@ -504,8 +512,9 @@ mod tests {
             .with_enabled_repo("dq", RepoReleaseConfig::default());
         c.enable = false; // org-level DENY
         let api = MockApi::new();
-        let reports =
-            apply_swarm(&api, &c, false, |_, _| "x".into()).await.unwrap();
+        let reports = apply_swarm(&api, &c, false, |_, _| "x".into())
+            .await
+            .unwrap();
         assert!(reports.is_empty());
         assert!(api.prs.lock().unwrap().is_empty());
     }
@@ -534,12 +543,18 @@ mod tiered_tests {
     #[test]
     fn prescribed_matches_default() {
         let p = <OrgReleaseSwarmConfig as TieredConfig>::prescribed_default();
-        assert!(!p.enable, "prescribed_default must remain DENY at org level");
+        assert!(
+            !p.enable,
+            "prescribed_default must remain DENY at org level"
+        );
         assert_eq!(p.default_target_matrix, "three_target");
         assert_eq!(p.default_retention_days, 90);
 
         let pr = <RepoReleaseConfig as TieredConfig>::prescribed_default();
-        assert!(!pr.enable, "prescribed_default must remain DENY at repo level");
+        assert!(
+            !pr.enable,
+            "prescribed_default must remain DENY at repo level"
+        );
     }
 
     #[test]
@@ -571,11 +586,7 @@ mod tiered_tests {
             90
         );
         // DENY invariant — both tiers stay false.
-        assert!(
-            !<OrgReleaseSwarmConfig as TieredConfig>::resolve_tier(ConfigTier::Default).enable
-        );
-        assert!(
-            !<RepoReleaseConfig as TieredConfig>::resolve_tier(ConfigTier::Default).enable
-        );
+        assert!(!<OrgReleaseSwarmConfig as TieredConfig>::resolve_tier(ConfigTier::Default).enable);
+        assert!(!<RepoReleaseConfig as TieredConfig>::resolve_tier(ConfigTier::Default).enable);
     }
 }

@@ -27,8 +27,8 @@ use std::path::Path;
 /// Both the nested form (`inputs = { fenix = { url = "..."; }; };`)
 /// and the dotted form (`inputs.fenix.url = "...";`) are recognized.
 pub fn read_flake_inputs(path: &Path) -> Result<BTreeSet<String>> {
-    let src = std::fs::read_to_string(path)
-        .with_context(|| format!("reading {}", path.display()))?;
+    let src =
+        std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
     parse_flake_inputs(&src)
 }
 
@@ -38,7 +38,8 @@ pub fn parse_flake_inputs(src: &str) -> Result<BTreeSet<String>> {
     if !parse.errors().is_empty() {
         return Err(anyhow!(
             "flake.nix parse errors: {}",
-            parse.errors()
+            parse
+                .errors()
                 .iter()
                 .map(|e| e.to_string())
                 .collect::<Vec<_>>()
@@ -61,8 +62,12 @@ pub fn parse_flake_inputs(src: &str) -> Result<BTreeSet<String>> {
 
     let mut out = BTreeSet::new();
     for entry in top.entries() {
-        let Entry::AttrpathValue(av) = entry else { continue };
-        let Some(attrpath) = av.attrpath() else { continue };
+        let Entry::AttrpathValue(av) = entry else {
+            continue;
+        };
+        let Some(attrpath) = av.attrpath() else {
+            continue;
+        };
         let path: Vec<String> = attrpath_segments(&attrpath);
         if path.first().map(String::as_str) != Some("inputs") {
             continue;
@@ -72,7 +77,9 @@ pub fn parse_flake_inputs(src: &str) -> Result<BTreeSet<String>> {
                 // inputs = { fenix = { url = ...; }; ... };
                 if let Some(Expr::AttrSet(inputs)) = av.value() {
                     for e in inputs.entries() {
-                        let Entry::AttrpathValue(iav) = e else { continue };
+                        let Entry::AttrpathValue(iav) = e else {
+                            continue;
+                        };
                         let Some(p) = iav.attrpath() else { continue };
                         if let Some(name) = attrpath_segments(&p).into_iter().next() {
                             out.insert(name);
@@ -192,7 +199,9 @@ mod tests {
     fn malformed_flake_errors_explicitly() {
         let src = "{ inputs = ";
         let err = parse_flake_inputs(src).unwrap_err();
-        assert!(err.to_string().contains("parse error") || err.to_string().contains("parse errors"));
+        assert!(
+            err.to_string().contains("parse error") || err.to_string().contains("parse errors")
+        );
     }
 
     /// Smoke test against the real pleme-io/nix flake.nix when present

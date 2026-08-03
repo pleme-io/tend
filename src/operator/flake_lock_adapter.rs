@@ -26,10 +26,7 @@ impl FlakeLockAdapter {
             },
             "git" | "tarball" | "file" => locked.url.clone().unwrap_or_default(),
             "path" => locked.url.clone().unwrap_or_default(),
-            other => locked
-                .url
-                .clone()
-                .unwrap_or_else(|| format!("{other}:?")),
+            other => locked.url.clone().unwrap_or_else(|| format!("{other}:?")),
         }
     }
 }
@@ -49,7 +46,9 @@ impl LockFormat for FlakeLockAdapter {
                 continue;
             }
             let Some(locked) = &node.locked else { continue };
-            let Some(rev) = locked.rev.clone() else { continue };
+            let Some(rev) = locked.rev.clone() else {
+                continue;
+            };
             out.insert(
                 name.clone(),
                 FlakeRev {
@@ -90,14 +89,21 @@ impl LockFormat for FlakeLockAdapter {
 
         let locked = node
             .get_mut("locked")
-            .ok_or_else(|| anyhow!("flake.lock: node `{target}` has no `locked` block — \
-                                    refusing to write a pin to a non-locked input"))?
+            .ok_or_else(|| {
+                anyhow!(
+                    "flake.lock: node `{target}` has no `locked` block — \
+                                    refusing to write a pin to a non-locked input"
+                )
+            })?
             .as_object_mut()
             .ok_or_else(|| anyhow!("flake.lock: `locked` for `{target}` is not an object"))?;
 
         locked.insert("rev".into(), serde_json::Value::String(new.rev.clone()));
         if !new.nar_hash.is_empty() {
-            locked.insert("narHash".into(), serde_json::Value::String(new.nar_hash.clone()));
+            locked.insert(
+                "narHash".into(),
+                serde_json::Value::String(new.nar_hash.clone()),
+            );
         }
         if new.last_modified > 0 {
             locked.insert(
@@ -199,7 +205,9 @@ mod tests {
             nar_hash: "sha256-new=".into(),
             last_modified: 1700001000,
         };
-        let updated = FlakeLockAdapter.write_pin(SAMPLE, "substrate", &new).unwrap();
+        let updated = FlakeLockAdapter
+            .write_pin(SAMPLE, "substrate", &new)
+            .unwrap();
         assert!(updated.contains(r#""rev": "fedcba""#));
         assert!(updated.contains(r#""narHash": "sha256-new=""#));
         assert!(updated.contains(r#""lastModified": 1700001000"#));
@@ -210,10 +218,14 @@ mod tests {
     #[test]
     fn write_pin_unknown_target_errors() {
         let new = FlakeRev {
-            url: "x".into(), rev: "y".into(),
-            nar_hash: "z".into(), last_modified: 1,
+            url: "x".into(),
+            rev: "y".into(),
+            nar_hash: "z".into(),
+            last_modified: 1,
         };
-        let err = FlakeLockAdapter.write_pin(SAMPLE, "nonexistent", &new).unwrap_err();
+        let err = FlakeLockAdapter
+            .write_pin(SAMPLE, "nonexistent", &new)
+            .unwrap_err();
         assert!(err.to_string().contains("no node named"));
     }
 
@@ -229,7 +241,9 @@ mod tests {
         }
         let contents = std::fs::read_to_string(&path).unwrap();
 
-        let pins = FlakeLockAdapter.parse(&contents).expect("parse real flake.lock");
+        let pins = FlakeLockAdapter
+            .parse(&contents)
+            .expect("parse real flake.lock");
         assert!(
             pins.len() >= 10,
             "expected ≥10 GitHub pins, got {}",
@@ -248,8 +262,7 @@ mod tests {
 
         // Spot-check at least one substrate-rooted edge if substrate is pinned.
         if pins.contains_key("substrate") {
-            let has_substrate_edge =
-                edges.iter().any(|(p, _)| p == "substrate" || p == "root");
+            let has_substrate_edge = edges.iter().any(|(p, _)| p == "substrate" || p == "root");
             assert!(has_substrate_edge);
         }
     }

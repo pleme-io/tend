@@ -111,9 +111,9 @@ impl Removal {
     pub fn reason(self) -> String {
         match self {
             Removal::Safe => String::from("clean and fully pushed"),
-            Removal::HasUncommitted => {
-                String::from("REFUSED: uncommitted changes in the worktree — commit or discard them first")
-            }
+            Removal::HasUncommitted => String::from(
+                "REFUSED: uncommitted changes in the worktree — commit or discard them first",
+            ),
             Removal::HasUnpushed(n) => {
                 let mut s = String::from("REFUSED: ");
                 s.push_str(&n.to_string());
@@ -211,7 +211,8 @@ mod tests {
         for raw in ["a~b^c:d?e*f[g\\h", "with spaces", "UPPER", "..dots.."] {
             let out = session_slug(raw);
             assert!(
-                out.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'),
+                out.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'),
                 "slug {out:?} from {raw:?} kept an unsafe character"
             );
             assert!(!out.is_empty(), "slug from {raw:?} was empty");
@@ -243,7 +244,10 @@ mod tests {
         let id = "adc3b17e-85cb-4428-8d96-f8003ef9c601";
         assert_eq!(session_slug(id), session_slug(id));
         let root = Path::new("/repo/.claude/worktrees");
-        assert_eq!(worktree_path(root, &session_slug(id)), worktree_path(root, &session_slug(id)));
+        assert_eq!(
+            worktree_path(root, &session_slug(id)),
+            worktree_path(root, &session_slug(id))
+        );
     }
 
     #[test]
@@ -272,7 +276,10 @@ mod tests {
             "/Users/x/code/github",
             "/Users/x/code/github/pleme-io",
         ] {
-            assert!(wt.starts_with(ancestor), "{ancestor} must stay an ancestor of {wt:?}");
+            assert!(
+                wt.starts_with(ancestor),
+                "{ancestor} must stay an ancestor of {wt:?}"
+            );
         }
         // INSIDE the repo, which also keeps the repo's own CLAUDE.md. The
         // `git add -A` exposure that creates is closed globally by
@@ -284,14 +291,20 @@ mod tests {
     fn project_dir_matches_claude_codes_cwd_slug() {
         // Verified against the live ~/.claude/projects listing: the slug is the
         // absolute path with every '/' replaced by '-'.
-        let d = claude_project_dir(Path::new("/Users/x"), Path::new("/Users/x/code/github/pleme-io/nix"));
+        let d = claude_project_dir(
+            Path::new("/Users/x"),
+            Path::new("/Users/x/code/github/pleme-io/nix"),
+        );
         assert_eq!(
             d,
             Path::new("/Users/x/.claude/projects/-Users-x-code-github-pleme-io-nix")
         );
         // A worktree therefore gets a DIFFERENT dir — which is why `enter`
         // symlinks its memory back at the canonical one.
-        let w = claude_project_dir(Path::new("/Users/x"), Path::new("/Users/x/code/github/pleme-io/.worktrees/nix/abc"));
+        let w = claude_project_dir(
+            Path::new("/Users/x"),
+            Path::new("/Users/x/code/github/pleme-io/.worktrees/nix/abc"),
+        );
         assert_ne!(d, w);
     }
 
@@ -323,13 +336,18 @@ mod tests {
         // not run and WHERE, not just "No such file or directory".
         let err = exec_in(Path::new("/"), "definitely-not-a-real-binary-xyz", &[]).unwrap_err();
         let msg = err.to_string();
-        assert!(msg.contains("definitely-not-a-real-binary-xyz"), "got {msg:?}");
+        assert!(
+            msg.contains("definitely-not-a-real-binary-xyz"),
+            "got {msg:?}"
+        );
         assert!(msg.contains('/'), "got {msg:?}");
     }
 
     #[test]
     fn refusal_reasons_say_what_to_do_next() {
-        assert!(removal_verdict(false, 0).reason().contains("commit or discard"));
+        assert!(removal_verdict(false, 0)
+            .reason()
+            .contains("commit or discard"));
         let r = removal_verdict(true, 2).reason();
         assert!(r.contains('2') && r.contains("land"), "got {r:?}");
         assert!(removal_verdict(true, 0).reason().contains("clean"));
@@ -451,8 +469,10 @@ pub fn land(worktree: &Path, base: &str) -> Result<String> {
         let _ = git(worktree, &["rebase", "--abort"]);
         let mut m = String::from("REFUSED: rebase onto ");
         m.push_str(&onto);
-        m.push_str(" conflicts. Resolve it in the worktree, then land again \
-                    (the worktree is exactly where that work belongs).");
+        m.push_str(
+            " conflicts. Resolve it in the worktree, then land again \
+                    (the worktree is exactly where that work belongs).",
+        );
         bail!(m);
     }
 
@@ -519,7 +539,12 @@ pub fn list(repo: &Path) -> Result<Vec<Entry>> {
                                 .and_then(|s| s.parse().ok())
                                 .unwrap_or(1)
                         });
-                    out.push(Entry { path: p, branch: branch.clone(), clean, ahead });
+                    out.push(Entry {
+                        path: p,
+                        branch: branch.clone(),
+                        clean,
+                        ahead,
+                    });
                 }
             }
         }

@@ -46,7 +46,9 @@ pub const fn current_system() -> &'static str {
 /// like `nix-flake-check` or `cargo-test` that work anywhere.
 #[must_use]
 pub fn target_system(gate_name: &str) -> Option<&'static str> {
-    let attr = gate_name.strip_prefix("nix-build:").or_else(|| gate_name.strip_prefix("nix-eval:"))?;
+    let attr = gate_name
+        .strip_prefix("nix-build:")
+        .or_else(|| gate_name.strip_prefix("nix-eval:"))?;
     if attr.starts_with("darwinConfigurations.") {
         // nix-darwin systems pin a darwin platform; we can't infer
         // x86_64 vs aarch64 from the attr name alone, so report
@@ -104,11 +106,9 @@ impl GateContext {
     fn nix_override_args(&self) -> Vec<String> {
         match self {
             GateContext::Baseline => Vec::new(),
-            GateContext::FlakeOverride { input, flake_ref } => vec![
-                "--override-input".into(),
-                input.clone(),
-                flake_ref.clone(),
-            ],
+            GateContext::FlakeOverride { input, flake_ref } => {
+                vec!["--override-input".into(), input.clone(), flake_ref.clone()]
+            }
         }
     }
 }
@@ -124,11 +124,7 @@ pub fn override_flake_ref(rev: &FlakeRev) -> String {
 /// Run a single named gate against the given repo working tree.
 /// Returns a `GateResult` even on failure — only catastrophic errors
 /// (e.g. cwd doesn't exist) bubble as `Err`.
-pub async fn run_gate(
-    gate_name: &str,
-    repo_dir: &Path,
-    ctx: &GateContext,
-) -> Result<GateResult> {
+pub async fn run_gate(gate_name: &str, repo_dir: &Path, ctx: &GateContext) -> Result<GateResult> {
     if !repo_dir.is_dir() {
         return Ok(GateResult {
             name: gate_name.to_string(),
@@ -299,11 +295,7 @@ struct GateOutcome {
 
 // ─── Dispatchers ────────────────────────────────────────────────────
 
-async fn dispatch_nix_build(
-    attr: &str,
-    repo_dir: &Path,
-    ctx: &GateContext,
-) -> Result<GateOutcome> {
+async fn dispatch_nix_build(attr: &str, repo_dir: &Path, ctx: &GateContext) -> Result<GateOutcome> {
     if attr.is_empty() {
         return Ok(GateOutcome {
             passed: false,
@@ -320,14 +312,11 @@ async fn dispatch_nix_build(
             .arg("--print-build-logs")
             .args(ctx.nix_override_args())
             .current_dir(repo_dir),
-    ).await
+    )
+    .await
 }
 
-async fn dispatch_nix_eval(
-    attr: &str,
-    repo_dir: &Path,
-    ctx: &GateContext,
-) -> Result<GateOutcome> {
+async fn dispatch_nix_eval(attr: &str, repo_dir: &Path, ctx: &GateContext) -> Result<GateOutcome> {
     if attr.is_empty() {
         return Ok(GateOutcome {
             passed: false,
@@ -344,13 +333,11 @@ async fn dispatch_nix_eval(
             .arg("_: null")
             .args(ctx.nix_override_args())
             .current_dir(repo_dir),
-    ).await
+    )
+    .await
 }
 
-async fn dispatch_nix_flake_check(
-    repo_dir: &Path,
-    ctx: &GateContext,
-) -> Result<GateOutcome> {
+async fn dispatch_nix_flake_check(repo_dir: &Path, ctx: &GateContext) -> Result<GateOutcome> {
     let mut cmd = Command::new("nix");
     nix_env(&mut cmd);
     capture(
@@ -359,7 +346,8 @@ async fn dispatch_nix_flake_check(
             .arg("--no-build")
             .args(ctx.nix_override_args())
             .current_dir(repo_dir),
-    ).await
+    )
+    .await
 }
 
 /// Apply the env vars nix needs to operate from a distroless pod.
@@ -415,11 +403,23 @@ async fn dispatch_forge_ci(repo_dir: &Path) -> Result<GateOutcome> {
 }
 
 async fn dispatch_cargo_test(repo_dir: &Path) -> Result<GateOutcome> {
-    capture(Command::new("cargo").arg("test").arg("--release").current_dir(repo_dir)).await
+    capture(
+        Command::new("cargo")
+            .arg("test")
+            .arg("--release")
+            .current_dir(repo_dir),
+    )
+    .await
 }
 
 async fn dispatch_cargo_build(repo_dir: &Path) -> Result<GateOutcome> {
-    capture(Command::new("cargo").arg("build").arg("--release").current_dir(repo_dir)).await
+    capture(
+        Command::new("cargo")
+            .arg("build")
+            .arg("--release")
+            .current_dir(repo_dir),
+    )
+    .await
 }
 
 async fn capture(cmd: &mut Command) -> Result<GateOutcome> {
@@ -450,21 +450,32 @@ mod tests {
     #[tokio::test]
     async fn unknown_gate_returns_failed_result() {
         let dir = std::env::temp_dir();
-        let r = run_gate("totally-fake-gate", &dir, &GateContext::Baseline).await.unwrap();
+        let r = run_gate("totally-fake-gate", &dir, &GateContext::Baseline)
+            .await
+            .unwrap();
         assert!(!r.passed);
         assert!(r.log_excerpt.unwrap().contains("unknown gate"));
     }
 
     #[tokio::test]
     async fn missing_repo_dir_returns_failed_result() {
-        let r = run_gate("nix-flake-check", Path::new("/this/does/not/exist"), &GateContext::Baseline).await.unwrap();
+        let r = run_gate(
+            "nix-flake-check",
+            Path::new("/this/does/not/exist"),
+            &GateContext::Baseline,
+        )
+        .await
+        .unwrap();
         assert!(!r.passed);
         assert!(r.log_excerpt.unwrap().contains("does not exist"));
     }
 
     #[test]
     fn target_system_classifies_darwin_configurations() {
-        assert_eq!(target_system("nix-build:darwinConfigurations.cid.system"), Some("darwin"));
+        assert_eq!(
+            target_system("nix-build:darwinConfigurations.cid.system"),
+            Some("darwin")
+        );
     }
 
     #[test]
@@ -504,7 +515,9 @@ mod tests {
         } else {
             "nix-build:nixosConfigurations.foo.config.system.build.toplevel"
         };
-        let r = run_gate(other_family_gate, &dir, &GateContext::Baseline).await.unwrap();
+        let r = run_gate(other_family_gate, &dir, &GateContext::Baseline)
+            .await
+            .unwrap();
         assert!(r.skipped, "expected skipped, got {r:?}");
         assert!(!r.passed, "skipped gate must not also be passed: {r:?}");
         assert!(

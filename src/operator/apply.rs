@@ -18,8 +18,8 @@ use tokio::process::Command;
 use super::crds::FlakeRev;
 use super::flake_lock_adapter::FlakeLockAdapter;
 use super::git_ops::{commit_and_push, fetch_and_reset_to_origin, GitCommitter};
-use crate::secret::Secret;
 use super::lock_format::LockFormat;
+use crate::secret::Secret;
 
 pub struct ApplyOutcome {
     /// SHA of the commit that landed the new pin.
@@ -153,7 +153,10 @@ async fn atomic_write(path: &Path, contents: &str) -> Result<()> {
 }
 
 fn tempfile_in(dir: &Path, target: &Path) -> PathBuf {
-    let stem = target.file_name().and_then(|s| s.to_str()).unwrap_or("file");
+    let stem = target
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("file");
     let pid = std::process::id();
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -211,12 +214,16 @@ mod tests {
         // git's three canonical "you lost the race" messages — all
         // need to trigger retry. Composed errors via anyhow::Error
         // since the real failure path wraps several context layers.
-        let e = anyhow::anyhow!("commit + push: git push failed (exit 128): \
-            ! [rejected] main -> main (fetch first)");
+        let e = anyhow::anyhow!(
+            "commit + push: git push failed (exit 128): \
+            ! [rejected] main -> main (fetch first)"
+        );
         assert!(is_push_race(&e), "rejected/fetch-first should retry: {e:#}");
 
-        let e = anyhow::anyhow!("git push: error: failed to push some refs \
-            because the remote contains work that you do not have locally");
+        let e = anyhow::anyhow!(
+            "git push: error: failed to push some refs \
+            because the remote contains work that you do not have locally"
+        );
         assert!(is_push_race(&e), "remote ahead should retry: {e:#}");
 
         let e = anyhow::anyhow!("non-fast-forward update");

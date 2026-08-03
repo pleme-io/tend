@@ -87,9 +87,13 @@ pub async fn fetch_and_reset_to_origin(
         .context("git fetch origin")?;
 
     let target = format!("origin/{branch}");
-    git(repo_dir, &["reset", "--hard", &target], &GitConfigEnv::new())
-        .await
-        .context("git reset --hard origin/<branch>")?;
+    git(
+        repo_dir,
+        &["reset", "--hard", &target],
+        &GitConfigEnv::new(),
+    )
+    .await
+    .context("git reset --hard origin/<branch>")?;
     Ok(())
 }
 
@@ -109,7 +113,10 @@ async fn github_auth_config(repo_dir: &Path, token: Option<&Secret>) -> GitConfi
     let Some(secret) = token else {
         return GitConfigEnv::new();
     };
-    if origin_has_embedded_credentials(repo_dir).await.unwrap_or(false) {
+    if origin_has_embedded_credentials(repo_dir)
+        .await
+        .unwrap_or(false)
+    {
         return GitConfigEnv::new();
     }
     secret.github_git_auth()
@@ -172,7 +179,9 @@ pub async fn commit_and_push(
 ) -> Result<String> {
     let mut add = vec!["add"];
     add.extend(paths.iter().copied());
-    git(repo_dir, &add, &GitConfigEnv::new()).await.context("git add")?;
+    git(repo_dir, &add, &GitConfigEnv::new())
+        .await
+        .context("git add")?;
 
     // Committer identity is per-call and must not persist to
     // .gitconfig. It rides the same environment carrier as auth —
@@ -190,13 +199,9 @@ pub async fn commit_and_push(
     // origin/main earlier, then commit on top — `HEAD` alone has no
     // branch context to imply `refs/heads/main`).
     let auth = github_auth_config(repo_dir, token).await;
-    git(
-        repo_dir,
-        &["push", "origin", "HEAD:refs/heads/main"],
-        &auth,
-    )
-    .await
-    .context("git push")?;
+    git(repo_dir, &["push", "origin", "HEAD:refs/heads/main"], &auth)
+        .await
+        .context("git push")?;
 
     let head = git_capture(repo_dir, &["rev-parse", "HEAD"])
         .await
@@ -232,7 +237,10 @@ async fn git(repo_dir: &Path, args: &[&str], config: &GitConfigEnv) -> Result<()
         let stdout = String::from_utf8_lossy(&output.stdout);
         return Err(anyhow!(
             "git {} failed in {} (exit {}): {}",
-            args.iter().map(|a| sanitize_for_log(a)).collect::<Vec<_>>().join(" "),
+            args.iter()
+                .map(|a| sanitize_for_log(a))
+                .collect::<Vec<_>>()
+                .join(" "),
             repo_dir.display(),
             output.status.code().unwrap_or(-1),
             // Combined stderr+stdout, trimmed; both can carry diagnostic
@@ -344,16 +352,21 @@ mod tests {
             &committer,
             None,
         )
-            .await
-            .unwrap();
+        .await
+        .unwrap();
         assert_eq!(sha.len(), 40, "expected 40-char sha, got `{sha}`");
 
         // Push another change to verify idempotent re-use.
         std::fs::write(work.path().join("a.txt"), "world").unwrap();
-        let sha2 =
-            commit_and_push(work.path(), &["a.txt"], "test: fixture second commit on the push path", &committer, None)
-                .await
-                .unwrap();
+        let sha2 = commit_and_push(
+            work.path(),
+            &["a.txt"],
+            "test: fixture second commit on the push path",
+            &committer,
+            None,
+        )
+        .await
+        .unwrap();
         assert_ne!(sha, sha2);
     }
 }

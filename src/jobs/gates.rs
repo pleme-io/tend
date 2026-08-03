@@ -218,11 +218,7 @@ mod tests {
         }
     }
 
-    fn empty_ctx<'a>(
-        id: &'a JobId,
-        snap: &'a Snapshot,
-        dag: &'a Dag,
-    ) -> GateContext<'a> {
+    fn empty_ctx<'a>(id: &'a JobId, snap: &'a Snapshot, dag: &'a Dag) -> GateContext<'a> {
         GateContext {
             job_id: id,
             snapshot: snap,
@@ -240,7 +236,10 @@ mod tests {
         let id = pull_id("repo1");
         let snap = snapshot_empty();
         let dag = Dag::new();
-        assert_eq!(gate.evaluate(&empty_ctx(&id, &snap, &dag)), GateOutcome::Pass);
+        assert_eq!(
+            gate.evaluate(&empty_ctx(&id, &snap, &dag)),
+            GateOutcome::Pass
+        );
     }
 
     #[test]
@@ -272,6 +271,9 @@ mod tests {
         };
         let snap = snapshot_empty();
         let dag = Dag::new();
-        assert_eq!(gate.evaluate(&empty_ctx(&id, &snap, &dag)), GateOutcome::Pass);
+        assert_eq!(
+            gate.evaluate(&empty_ctx(&id, &snap, &dag)),
+            GateOutcome::Pass
+        );
     }
 }

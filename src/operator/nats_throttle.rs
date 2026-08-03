@@ -80,10 +80,10 @@ impl NatsThrottleClient {
             .unwrap_or_else(|_| "tend.github.jobs.refresh".to_string());
         let result = std::env::var("TEND_THROTTLE_RESULT_SUBJECT")
             .unwrap_or_else(|_| "tend.github.jobs.results".to_string());
-        let timeout_str = std::env::var("TEND_THROTTLE_RESULT_TIMEOUT")
-            .unwrap_or_else(|_| "30m".to_string());
-        let result_timeout = parse_duration_str(&timeout_str)
-            .unwrap_or_else(|| Duration::from_secs(1800));
+        let timeout_str =
+            std::env::var("TEND_THROTTLE_RESULT_TIMEOUT").unwrap_or_else(|_| "30m".to_string());
+        let result_timeout =
+            parse_duration_str(&timeout_str).unwrap_or_else(|| Duration::from_secs(1800));
 
         let client = async_nats::connect(&url)
             .await
@@ -131,7 +131,9 @@ fn parse_duration_str(s: &str) -> Option<Duration> {
     } else if let Some(rest) = s.strip_suffix('s') {
         rest.parse::<u64>().ok().map(Duration::from_secs)
     } else if let Some(rest) = s.strip_suffix('m') {
-        rest.parse::<u64>().ok().map(|n| Duration::from_secs(n * 60))
+        rest.parse::<u64>()
+            .ok()
+            .map(|n| Duration::from_secs(n * 60))
     } else if let Some(rest) = s.strip_suffix('h') {
         rest.parse::<u64>()
             .ok()
@@ -204,9 +206,8 @@ impl RegistryClient for NatsThrottleClient {
         match timeout(self.result_timeout, recv).await {
             Ok(Some(msg)) => {
                 let result: crate::operator::throttle::RefreshJobResult =
-                    serde_json::from_slice(&msg.payload).map_err(|e| {
-                        RegistryError::Transient(format!("decode result: {e}"))
-                    })?;
+                    serde_json::from_slice(&msg.payload)
+                        .map_err(|e| RegistryError::Transient(format!("decode result: {e}")))?;
 
                 // ★ Adaptive feedback loop: capture observed
                 // rate-limit-remaining for downstream consumers
@@ -264,7 +265,10 @@ mod tests {
         assert_eq!(parse_duration_str("30m"), Some(Duration::from_secs(1800)));
         assert_eq!(parse_duration_str("5s"), Some(Duration::from_secs(5)));
         assert_eq!(parse_duration_str("1h"), Some(Duration::from_secs(3600)));
-        assert_eq!(parse_duration_str("250ms"), Some(Duration::from_millis(250)));
+        assert_eq!(
+            parse_duration_str("250ms"),
+            Some(Duration::from_millis(250))
+        );
         assert_eq!(parse_duration_str("60"), Some(Duration::from_secs(60)));
         assert_eq!(parse_duration_str("garbage"), None);
     }

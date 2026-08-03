@@ -12,8 +12,8 @@
 //! per-workspace stats. Each leaf is one match-arm; extending the
 //! query surface is mechanical.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use kanshou::{Introspect, Query, QueryError, QueryResult};
 

@@ -63,10 +63,7 @@ impl DiscoverOrgJob {
         self
     }
 
-    pub(crate) fn with_output_sink(
-        mut self,
-        sink: Arc<dyn OutputSink<Vec<RepoState>>>,
-    ) -> Self {
+    pub(crate) fn with_output_sink(mut self, sink: Arc<dyn OutputSink<Vec<RepoState>>>) -> Self {
         self.output_sink = Some(sink);
         self
     }

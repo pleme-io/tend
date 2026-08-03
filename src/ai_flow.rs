@@ -30,7 +30,11 @@ pub struct RetryPolicy {
 
 impl RetryPolicy {
     pub fn new(count: u32) -> Self {
-        Self { count, backoff_secs: 5, verify: None }
+        Self {
+            count,
+            backoff_secs: 5,
+            verify: None,
+        }
     }
 }
 
@@ -43,10 +47,7 @@ pub struct VerifyPolicy {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum AiTaskRef {
-    Inline {
-        model: String,
-        prompt: String,
-    },
+    Inline { model: String, prompt: String },
     Reference(String),
 }
 

@@ -351,7 +351,10 @@ mod tests {
             classify("fatal: unable to access 'https://github.com/x/': SSL certificate problem: unable to get local issuer certificate"),
             FailureCause::TlsUntrusted
         );
-        assert_eq!(classify("ERROR: no healthy upstream"), FailureCause::ProxyUnhealthy);
+        assert_eq!(
+            classify("ERROR: no healthy upstream"),
+            FailureCause::ProxyUnhealthy
+        );
         assert_eq!(
             classify("ERROR: upstream connect error or disconnect/reset before headers. retried and the latest reset reason: remote connection failure"),
             FailureCause::ProxyUnhealthy
@@ -370,7 +373,9 @@ mod tests {
             FailureCause::CredentialRejected
         );
         assert_ne!(
-            classify("fatal: could not read Username for 'https://github.com': Device not configured"),
+            classify(
+                "fatal: could not read Username for 'https://github.com': Device not configured"
+            ),
             FailureCause::CredentialRejected,
             "absent and rejected must never collapse: one auto-recovers, one needs a human"
         );

@@ -97,7 +97,10 @@ impl MatrixAppender for TomlMatrixAppender {
             if repo_field != repo_name {
                 return None;
             }
-            let track = table.get("track").and_then(|v| v.as_str()).unwrap_or("tags");
+            let track = table
+                .get("track")
+                .and_then(|v| v.as_str())
+                .unwrap_or("tags");
             Some(match track {
                 "commits" => {
                     let base = table
@@ -105,7 +108,9 @@ impl MatrixAppender for TomlMatrixAppender {
                         .and_then(|v| v.as_str())
                         .unwrap_or("0.1.0")
                         .to_string();
-                    TrackMode::Commits { unstable_base: base }
+                    TrackMode::Commits {
+                        unstable_base: base,
+                    }
                 }
                 _ => TrackMode::Tags,
             })
@@ -138,7 +143,9 @@ pub async fn run_watch_cycle(
     git_ops: &dyn GitOps,
     audit: &AuditLog,
 ) -> Result<WatchSummary> {
-    let watch_cfg = ws.watch.as_ref()
+    let watch_cfg = ws
+        .watch
+        .as_ref()
         .ok_or_else(|| anyhow::anyhow!("watch not configured for workspace {}", ws.name))?;
 
     let matrix_file = match watch_cfg.matrix_file.as_deref() {
@@ -150,12 +157,13 @@ pub async fn run_watch_cycle(
     };
 
     // Check if flake_refresh is enabled
-    let has_flake_refresh = watch_cfg
-        .flake_refresh
-        .as_ref()
-        .is_some_and(|fr| fr.enable);
+    let has_flake_refresh = watch_cfg.flake_refresh.as_ref().is_some_and(|fr| fr.enable);
 
-    if matrix_file.is_none() && watch_cfg.file_watches.is_empty() && watch_cfg.flake_input_watches.is_empty() && !has_flake_refresh {
+    if matrix_file.is_none()
+        && watch_cfg.file_watches.is_empty()
+        && watch_cfg.flake_input_watches.is_empty()
+        && !has_flake_refresh
+    {
         return Ok(WatchSummary::default());
     }
 
@@ -202,7 +210,10 @@ pub async fn run_watch_cycle(
             // Compare with cached state
             let cached = state.repos.get(repo_name);
             let head_changed = cached.is_none_or(|c| c.head != head);
-            let tag_changed = match (cached.and_then(|c| c.latest_tag.as_deref()), latest_tag.as_deref()) {
+            let tag_changed = match (
+                cached.and_then(|c| c.latest_tag.as_deref()),
+                latest_tag.as_deref(),
+            ) {
                 (Some(old), Some(new)) => old != new,
                 (None, Some(_)) => true,
                 _ => false,
@@ -222,14 +233,19 @@ pub async fn run_watch_cycle(
 
             if should_act {
                 // Detect language (use cached if available and HEAD hasn't changed)
-                let language = if let Some(c) = cached.filter(|_| !head_changed).filter(|c| c.language.is_some()) {
+                let language = if let Some(c) = cached
+                    .filter(|_| !head_changed)
+                    .filter(|c| c.language.is_some())
+                {
                     c.language.clone()
                 } else {
                     match github.detect_repo_language(org, repo_name).await {
                         Ok(lang) => lang,
                         Err(e) => {
                             if !quiet {
-                                eprintln!("  warning: failed to detect language for {repo_name}: {e}");
+                                eprintln!(
+                                    "  warning: failed to detect language for {repo_name}: {e}"
+                                );
                             }
                             None
                         }
@@ -261,7 +277,13 @@ pub async fn run_watch_cycle(
                 audit.version_detected(org, repo_name, &version, &head, &tracking_label);
 
                 // Append entry to matrix.toml (pass HEAD SHA as rev)
-                match matrix_appender.append_entry(matrix_file, repo_name, &version, &head, language.as_deref()) {
+                match matrix_appender.append_entry(
+                    matrix_file,
+                    repo_name,
+                    &version,
+                    &head,
+                    language.as_deref(),
+                ) {
                     Ok(true) => {
                         if !quiet {
                             display::print_watch_new_version(repo_name, &version, &display_tag);
@@ -277,26 +299,34 @@ pub async fn run_watch_cycle(
                     }
                     Err(e) => {
                         if !quiet {
-                            eprintln!("  warning: failed to append matrix entry for {repo_name}: {e}");
+                            eprintln!(
+                                "  warning: failed to append matrix entry for {repo_name}: {e}"
+                            );
                         }
                         errors += 1;
                     }
                 }
 
                 // Update cache state
-                state.repos.insert(repo_name.clone(), RepoState {
-                    head: head.clone(),
-                    latest_tag: latest_tag.clone(),
-                    language,
-                });
+                state.repos.insert(
+                    repo_name.clone(),
+                    RepoState {
+                        head: head.clone(),
+                        latest_tag: latest_tag.clone(),
+                        language,
+                    },
+                );
             } else {
                 // No actionable change; update cache with current state
                 let language = cached.and_then(|c| c.language.clone());
-                state.repos.insert(repo_name.clone(), RepoState {
-                    head,
-                    latest_tag,
-                    language,
-                });
+                state.repos.insert(
+                    repo_name.clone(),
+                    RepoState {
+                        head,
+                        latest_tag,
+                        language,
+                    },
+                );
             }
         }
 
@@ -327,10 +357,16 @@ pub async fn run_watch_cycle(
 
             // Run after_certify post-hooks
             if let Err(e) = run_post_hooks(
-                &watch_cfg.post_hooks, "after_certify",
-                &last_repo, &last_version, &last_rev, &matrix_file_str,
+                &watch_cfg.post_hooks,
+                "after_certify",
+                &last_repo,
+                &last_version,
+                &last_rev,
+                &matrix_file_str,
                 audit,
-            ).await {
+            )
+            .await
+            {
                 if !quiet {
                     eprintln!("  warning: after_certify hook failed: {e}");
                 }
@@ -341,8 +377,14 @@ pub async fn run_watch_cycle(
             if watch_cfg.auto_commit {
                 match auto_commit_matrix(matrix_file, git_ops) {
                     Ok(()) => {
-                        let repo_dir = matrix_file.parent()
-                            .map(|p| p.file_name().unwrap_or_default().to_string_lossy().to_string())
+                        let repo_dir = matrix_file
+                            .parent()
+                            .map(|p| {
+                                p.file_name()
+                                    .unwrap_or_default()
+                                    .to_string_lossy()
+                                    .to_string()
+                            })
                             .unwrap_or_default();
                         let msg = "chore(matrix): certify new upstream versions";
                         audit.commit_pushed(&repo_dir, "(auto)", msg);
@@ -358,10 +400,16 @@ pub async fn run_watch_cycle(
 
             // Run after_commit post-hooks
             if let Err(e) = run_post_hooks(
-                &watch_cfg.post_hooks, "after_commit",
-                &last_repo, &last_version, &last_rev, &matrix_file_str,
+                &watch_cfg.post_hooks,
+                "after_commit",
+                &last_repo,
+                &last_version,
+                &last_rev,
+                &matrix_file_str,
                 audit,
-            ).await {
+            )
+            .await
+            {
                 if !quiet {
                     eprintln!("  warning: after_commit hook failed: {e}");
                 }
@@ -383,10 +431,16 @@ pub async fn run_watch_cycle(
 
             // Run after_propagate post-hooks
             if let Err(e) = run_post_hooks(
-                &watch_cfg.post_hooks, "after_propagate",
-                &last_repo, &last_version, &last_rev, &matrix_file_str,
+                &watch_cfg.post_hooks,
+                "after_propagate",
+                &last_repo,
+                &last_version,
+                &last_rev,
+                &matrix_file_str,
                 audit,
-            ).await {
+            )
+            .await
+            {
                 if !quiet {
                     eprintln!("  warning: after_propagate hook failed: {e}");
                 }
@@ -395,10 +449,16 @@ pub async fn run_watch_cycle(
 
             // Run after_all post-hooks
             if let Err(e) = run_post_hooks(
-                &watch_cfg.post_hooks, "after_all",
-                &last_repo, &last_version, &last_rev, &matrix_file_str,
+                &watch_cfg.post_hooks,
+                "after_all",
+                &last_repo,
+                &last_version,
+                &last_rev,
+                &matrix_file_str,
                 audit,
-            ).await {
+            )
+            .await
+            {
                 if !quiet {
                     eprintln!("  warning: after_all hook failed: {e}");
                 }
@@ -412,22 +472,17 @@ pub async fn run_watch_cycle(
     for fw in &watch_cfg.file_watches {
         let cache_key = format!("{}/{}/{}", fw.org, fw.repo, fw.path);
 
-        let (new_sha, _size, download_url) = match github
-            .get_file_sha(&fw.org, &fw.repo, &fw.path)
-            .await
-        {
-            Ok(result) => result,
-            Err(e) => {
-                if !quiet {
-                    eprintln!(
-                        "  warning: failed to get file SHA for {}: {e}",
-                        cache_key
-                    );
+        let (new_sha, _size, download_url) =
+            match github.get_file_sha(&fw.org, &fw.repo, &fw.path).await {
+                Ok(result) => result,
+                Err(e) => {
+                    if !quiet {
+                        eprintln!("  warning: failed to get file SHA for {}: {e}", cache_key);
+                    }
+                    errors += 1;
+                    continue;
                 }
-                errors += 1;
-                continue;
-            }
-        };
+            };
 
         let cached_sha = state.file_shas.get(&cache_key).cloned();
 
@@ -449,15 +504,8 @@ pub async fn run_watch_cycle(
         );
 
         if !quiet {
-            println!(
-                "  {} file changed: {}",
-                "!".yellow().bold(),
-                cache_key
-            );
-            println!(
-                "    old SHA: {}",
-                cached_sha.as_deref().unwrap_or("(none)")
-            );
+            println!("  {} file changed: {}", "!".yellow().bold(), cache_key);
+            println!("    old SHA: {}", cached_sha.as_deref().unwrap_or("(none)"));
             println!("    new SHA: {}", new_sha);
         }
 
@@ -574,10 +622,7 @@ pub async fn run_watch_cycle(
                     let duration_ms = hook_start.elapsed().as_millis() as u64;
                     audit.hook_executed("on_change", &hook.command, -1, duration_ms);
                     if !quiet {
-                        eprintln!(
-                            "  warning: file-watch hook error: {}: {e}",
-                            hook.command
-                        );
+                        eprintln!("  warning: file-watch hook error: {}: {e}", hook.command);
                     }
                     errors += 1;
                 }
@@ -596,16 +641,20 @@ pub async fn run_watch_cycle(
         let flake_lock_path = base_dir.join(&fiw.repo).join("flake.lock");
 
         // Parse the locked rev and upstream owner/repo from flake.lock
-        let (locked_rev, lock_owner, lock_repo) = match parse_flake_lock_input(&flake_lock_path, &fiw.input) {
-            Ok(result) => result,
-            Err(e) => {
-                if !quiet {
-                    eprintln!("  warning: failed to parse flake.lock for {}: {e}", fiw.name);
+        let (locked_rev, lock_owner, lock_repo) =
+            match parse_flake_lock_input(&flake_lock_path, &fiw.input) {
+                Ok(result) => result,
+                Err(e) => {
+                    if !quiet {
+                        eprintln!(
+                            "  warning: failed to parse flake.lock for {}: {e}",
+                            fiw.name
+                        );
+                    }
+                    errors += 1;
+                    continue;
                 }
-                errors += 1;
-                continue;
-            }
-        };
+            };
 
         // Derive upstream owner/repo: explicit config or from flake.lock
         let (upstream_owner, upstream_repo) = if let Some(ref upstream) = fiw.upstream {
@@ -613,7 +662,10 @@ pub async fn run_watch_cycle(
                 Some((o, r)) => (o.to_string(), r.to_string()),
                 None => {
                     if !quiet {
-                        eprintln!("  warning: invalid upstream format for {}: expected owner/repo", fiw.name);
+                        eprintln!(
+                            "  warning: invalid upstream format for {}: expected owner/repo",
+                            fiw.name
+                        );
                     }
                     errors += 1;
                     continue;
@@ -630,7 +682,10 @@ pub async fn run_watch_cycle(
                     Ok(sha) => (sha, None),
                     Err(e) => {
                         if !quiet {
-                            eprintln!("  warning: failed to get HEAD for {}/{}: {e}", upstream_owner, upstream_repo);
+                            eprintln!(
+                                "  warning: failed to get HEAD for {}/{}: {e}",
+                                upstream_owner, upstream_repo
+                            );
                         }
                         errors += 1;
                         continue;
@@ -642,7 +697,10 @@ pub async fn run_watch_cycle(
                     Ok(t) => t,
                     Err(e) => {
                         if !quiet {
-                            eprintln!("  warning: failed to get tags for {}/{}: {e}", upstream_owner, upstream_repo);
+                            eprintln!(
+                                "  warning: failed to get tags for {}/{}: {e}",
+                                upstream_owner, upstream_repo
+                            );
                         }
                         errors += 1;
                         continue;
@@ -659,7 +717,10 @@ pub async fn run_watch_cycle(
                     Ok(s) => s,
                     Err(e) => {
                         if !quiet {
-                            eprintln!("  warning: failed to get HEAD for {}/{}: {e}", upstream_owner, upstream_repo);
+                            eprintln!(
+                                "  warning: failed to get HEAD for {}/{}: {e}",
+                                upstream_owner, upstream_repo
+                            );
                         }
                         errors += 1;
                         continue;
@@ -672,10 +733,13 @@ pub async fn run_watch_cycle(
         // Skip if locked rev matches upstream (already up to date)
         if locked_rev == upstream_rev {
             // Update cache even if up-to-date (for tags mode tracking)
-            state.flake_inputs.insert(fiw.name.clone(), crate::watch_cache::FlakeInputCacheEntry {
-                upstream_rev: upstream_rev.clone(),
-                upstream_tag: upstream_tag.clone(),
-            });
+            state.flake_inputs.insert(
+                fiw.name.clone(),
+                crate::watch_cache::FlakeInputCacheEntry {
+                    upstream_rev: upstream_rev.clone(),
+                    upstream_tag: upstream_tag.clone(),
+                },
+            );
             continue;
         }
 
@@ -700,7 +764,10 @@ pub async fn run_watch_cycle(
                 fiw.input,
             );
             println!("    locked:   {}", &locked_rev[..locked_rev.len().min(12)]);
-            println!("    upstream: {}", &upstream_rev[..upstream_rev.len().min(12)]);
+            println!(
+                "    upstream: {}",
+                &upstream_rev[..upstream_rev.len().min(12)]
+            );
         }
 
         // Run on_stale post-hooks
@@ -772,7 +839,10 @@ pub async fn run_watch_cycle(
         if fiw.auto_update {
             let repo_dir = base_dir.join(&fiw.repo);
             if !quiet {
-                eprintln!("  [>>] running nix flake update {} in {}...", fiw.input, fiw.repo);
+                eprintln!(
+                    "  [>>] running nix flake update {} in {}...",
+                    fiw.input, fiw.repo
+                );
             }
             match run_nix_flake_update(&repo_dir, &fiw.input) {
                 Ok(()) => {
@@ -786,10 +856,13 @@ pub async fn run_watch_cycle(
                     }
                     errors += 1;
                     // Update cache even on failure to avoid re-triggering
-                    state.flake_inputs.insert(fiw.name.clone(), crate::watch_cache::FlakeInputCacheEntry {
-                        upstream_rev: upstream_rev.clone(),
-                        upstream_tag: upstream_tag.clone(),
-                    });
+                    state.flake_inputs.insert(
+                        fiw.name.clone(),
+                        crate::watch_cache::FlakeInputCacheEntry {
+                            upstream_rev: upstream_rev.clone(),
+                            upstream_tag: upstream_tag.clone(),
+                        },
+                    );
                     continue;
                 }
             }
@@ -827,10 +900,13 @@ pub async fn run_watch_cycle(
         }
 
         // Update cache
-        state.flake_inputs.insert(fiw.name.clone(), crate::watch_cache::FlakeInputCacheEntry {
-            upstream_rev: upstream_rev.clone(),
-            upstream_tag: upstream_tag.clone(),
-        });
+        state.flake_inputs.insert(
+            fiw.name.clone(),
+            crate::watch_cache::FlakeInputCacheEntry {
+                upstream_rev: upstream_rev.clone(),
+                upstream_tag: upstream_tag.clone(),
+            },
+        );
     }
 
     // ── Flake refresh (blanket nix flake update on all repos with flake.nix) ──
@@ -877,12 +953,13 @@ pub async fn run_watch_cycle(
                 }
 
                 // Adaptive cooldown: base interval grows with consecutive no-change misses
-                let misses = state.flake_refresh_misses.get(*repo_name).copied().unwrap_or(0);
-                let effective_interval = adaptive_interval(
-                    refresh_cfg.interval,
-                    refresh_cfg.max_interval,
-                    misses,
-                );
+                let misses = state
+                    .flake_refresh_misses
+                    .get(*repo_name)
+                    .copied()
+                    .unwrap_or(0);
+                let effective_interval =
+                    adaptive_interval(refresh_cfg.interval, refresh_cfg.max_interval, misses);
                 if let Some(&last_at) = state.flake_refresh_at.get(*repo_name) {
                     if now.saturating_sub(last_at) < effective_interval {
                         continue;
@@ -955,10 +1032,17 @@ pub async fn run_watch_cycle(
                 if refresh_cfg.staleness_check {
                     let flake_lock_path = repo_dir.join("flake.lock");
                     if flake_lock_path.exists() {
-                        match check_flake_staleness(&flake_lock_path, &base_dir, &refresh_cfg.branch) {
+                        match check_flake_staleness(
+                            &flake_lock_path,
+                            &base_dir,
+                            &refresh_cfg.branch,
+                        ) {
                             Ok(false) => {
                                 // All inputs are fresh — skip update, record timestamp, bump backoff
-                                let miss_count = state.flake_refresh_misses.entry(repo_name.to_string()).or_insert(0);
+                                let miss_count = state
+                                    .flake_refresh_misses
+                                    .entry(repo_name.to_string())
+                                    .or_insert(0);
                                 *miss_count = miss_count.saturating_add(1);
                                 state.flake_refresh_at.insert(repo_name.to_string(), now);
                                 if !quiet {
@@ -969,7 +1053,10 @@ pub async fn run_watch_cycle(
                                     );
                                     display::print_flake_refresh_skip(
                                         repo_name,
-                                        &format!("all inputs fresh (next check in {}s)", next_interval),
+                                        &format!(
+                                            "all inputs fresh (next check in {}s)",
+                                            next_interval
+                                        ),
                                     );
                                 }
                                 continue;
@@ -977,7 +1064,11 @@ pub async fn run_watch_cycle(
                             Ok(true) => {
                                 // At least one input is stale — proceed with update
                                 if !quiet {
-                                    eprintln!("  [{}] {} has stale inputs, updating...", ">>".yellow(), repo_name);
+                                    eprintln!(
+                                        "  [{}] {} has stale inputs, updating...",
+                                        ">>".yellow(),
+                                        repo_name
+                                    );
                                 }
                             }
                             Err(e) => {
@@ -1027,7 +1118,10 @@ pub async fn run_watch_cycle(
                         if !quiet {
                             display::print_flake_refresh_error(
                                 repo_name,
-                                &format!("update command timed out ({}s)", refresh_cfg.update_timeout),
+                                &format!(
+                                    "update command timed out ({}s)",
+                                    refresh_cfg.update_timeout
+                                ),
                             );
                         }
                         errors += 1;
@@ -1039,7 +1133,10 @@ pub async fn run_watch_cycle(
                 let flake_lock = repo_dir.join("flake.lock");
                 if let Err(e) = git_ops.add(&repo_dir, &flake_lock) {
                     if !quiet {
-                        display::print_flake_refresh_error(repo_name, &format!("git add failed: {e}"));
+                        display::print_flake_refresh_error(
+                            repo_name,
+                            &format!("git add failed: {e}"),
+                        );
                     }
                     errors += 1;
                     continue;
@@ -1065,14 +1162,20 @@ pub async fn run_watch_cycle(
                     let msg = refresh_cfg.commit_message.replace("$REPO", repo_name);
                     if let Err(e) = git_ops.commit(&repo_dir, &msg) {
                         if !quiet {
-                            display::print_flake_refresh_error(repo_name, &format!("commit failed: {e}"));
+                            display::print_flake_refresh_error(
+                                repo_name,
+                                &format!("commit failed: {e}"),
+                            );
                         }
                         errors += 1;
                         continue;
                     }
                     if let Err(e) = git_ops.push(&repo_dir) {
                         if !quiet {
-                            display::print_flake_refresh_error(repo_name, &format!("push failed: {e}"));
+                            display::print_flake_refresh_error(
+                                repo_name,
+                                &format!("push failed: {e}"),
+                            );
                         }
                         errors += 1;
                         continue;
@@ -1101,11 +1204,17 @@ pub async fn run_watch_cycle(
                     audit.flake_refreshed(&ws.name, repo_name, false, duration_ms);
 
                     // Increment backoff counter — no changes
-                    let miss_count = state.flake_refresh_misses.entry(repo_name.to_string()).or_insert(0);
+                    let miss_count = state
+                        .flake_refresh_misses
+                        .entry(repo_name.to_string())
+                        .or_insert(0);
                     *miss_count = miss_count.saturating_add(1);
 
                     if !quiet && has_changes {
-                        display::print_flake_refresh_skip(repo_name, "changes detected but auto_commit disabled");
+                        display::print_flake_refresh_skip(
+                            repo_name,
+                            "changes detected but auto_commit disabled",
+                        );
                     } else if !quiet {
                         display::print_flake_refresh_no_changes(repo_name);
                     }
@@ -1149,7 +1258,12 @@ pub async fn run_watch_cycle(
                         Ok(status) => {
                             let hook_dur = hook_start.elapsed().as_millis() as u64;
                             let exit_code = status.code().unwrap_or(-1);
-                            audit.hook_executed("after_refresh", &hook.command, exit_code, hook_dur);
+                            audit.hook_executed(
+                                "after_refresh",
+                                &hook.command,
+                                exit_code,
+                                hook_dur,
+                            );
                             if !status.success() && !hook.continue_on_error {
                                 if !quiet {
                                     eprintln!(
@@ -1233,11 +1347,7 @@ async fn run_post_hooks(
         audit.hook_executed(trigger, &hook.command, exit_code, duration_ms);
 
         if !status.success() && !hook.continue_on_error {
-            anyhow::bail!(
-                "post-hook failed: {} (exit {})",
-                hook.command,
-                status
-            );
+            anyhow::bail!("post-hook failed: {} (exit {})", hook.command, status);
         }
     }
     Ok(())
@@ -1412,7 +1522,10 @@ fn check_flake_staleness(
         let upstream_rev = if local_repo.join(".git").exists() {
             // Check local remote ref (already fresh from git fetch)
             let output = std::process::Command::new("git")
-                .args(["rev-parse", &format!("refs/remotes/origin/{default_branch}")])
+                .args([
+                    "rev-parse",
+                    &format!("refs/remotes/origin/{default_branch}"),
+                ])
                 .current_dir(&local_repo)
                 .output();
 
@@ -1496,7 +1609,13 @@ fn auto_commit_flake_input(
 /// Run `tend flake-update --changed <repo>` to propagate to dependent flakes.
 fn run_flake_propagate(changed_repo: &str, ws: &Workspace) -> Result<()> {
     let mut cmd = std::process::Command::new("tend");
-    cmd.args(["flake-update", "--changed", changed_repo, "--workspace", &ws.name]);
+    cmd.args([
+        "flake-update",
+        "--changed",
+        changed_repo,
+        "--workspace",
+        &ws.name,
+    ]);
 
     let output = cmd.output().context("running tend flake-update")?;
 
@@ -1529,7 +1648,8 @@ fn append_matrix_entry(
     let content = std::fs::read_to_string(matrix_file)
         .with_context(|| format!("reading {}", matrix_file.display()))?;
 
-    let mut doc = content.parse::<toml_edit::DocumentMut>()
+    let mut doc = content
+        .parse::<toml_edit::DocumentMut>()
         .with_context(|| format!("parsing {}", matrix_file.display()))?;
 
     // Find the package table that matches this repo
@@ -1552,11 +1672,13 @@ fn append_matrix_entry(
     };
 
     // Check if this version already exists under the package's versions
-    let packages_mut = doc.get_mut("packages")
+    let packages_mut = doc
+        .get_mut("packages")
         .and_then(|p| p.as_table_mut())
         .ok_or_else(|| anyhow::anyhow!("packages table disappeared"))?;
 
-    let pkg_table = packages_mut.get_mut(&pkg_name)
+    let pkg_table = packages_mut
+        .get_mut(&pkg_name)
         .and_then(|p| p.as_table_mut())
         .ok_or_else(|| anyhow::anyhow!("package {pkg_name} table disappeared"))?;
 
@@ -1565,7 +1687,8 @@ fn append_matrix_entry(
         pkg_table.insert("versions", toml_edit::Item::Table(toml_edit::Table::new()));
     }
 
-    let versions = pkg_table.get_mut("versions")
+    let versions = pkg_table
+        .get_mut("versions")
         .and_then(|v| v.as_table_mut())
         .ok_or_else(|| anyhow::anyhow!("versions is not a table for {pkg_name}"))?;
 
@@ -1589,8 +1712,13 @@ fn append_matrix_entry(
     let tmp_path = matrix_file.with_extension("toml.tmp");
     std::fs::write(&tmp_path, doc.to_string())
         .with_context(|| format!("writing temp file {}", tmp_path.display()))?;
-    std::fs::rename(&tmp_path, matrix_file)
-        .with_context(|| format!("renaming {} to {}", tmp_path.display(), matrix_file.display()))?;
+    std::fs::rename(&tmp_path, matrix_file).with_context(|| {
+        format!(
+            "renaming {} to {}",
+            tmp_path.display(),
+            matrix_file.display()
+        )
+    })?;
 
     Ok(true)
 }
@@ -1600,7 +1728,8 @@ fn append_matrix_entry(
 /// Stages matrix.toml, lib/, builds/, and certifications.toml — everything
 /// that `akeyless-matrix certify` may have modified.
 fn auto_commit_matrix(matrix_file: &Path, git_ops: &dyn GitOps) -> Result<()> {
-    let repo_dir = matrix_file.parent()
+    let repo_dir = matrix_file
+        .parent()
         .ok_or_else(|| anyhow::anyhow!("matrix file has no parent directory"))?;
 
     // Stage all relevant files
@@ -1631,7 +1760,7 @@ fn auto_commit_matrix(matrix_file: &Path, git_ops: &dyn GitOps) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{CloneMethod, Workspace, WatchConfig};
+    use crate::config::{CloneMethod, WatchConfig, Workspace};
     use crate::watch_cache::{RepoState, WatchState};
     use std::collections::{BTreeMap, HashMap};
     use std::sync::Mutex;
@@ -1640,7 +1769,10 @@ mod tests {
     fn test_track_mode_display() {
         assert_eq!(TrackMode::Tags.to_string(), "tags");
         assert_eq!(
-            TrackMode::Commits { unstable_base: "0.1.0".to_string() }.to_string(),
+            TrackMode::Commits {
+                unstable_base: "0.1.0".to_string()
+            }
+            .to_string(),
             "commits(base=0.1.0)"
         );
     }
@@ -1678,7 +1810,8 @@ mod tests {
     #[async_trait::async_trait]
     impl crate::github::GitHubClient for MockGitHub {
         async fn get_repo_head(&self, _org: &str, repo: &str) -> anyhow::Result<String> {
-            self.heads.get(repo)
+            self.heads
+                .get(repo)
                 .cloned()
                 .ok_or_else(|| anyhow::anyhow!("repo not found"))
         }
@@ -1687,7 +1820,11 @@ mod tests {
             Ok(self.tags.get(repo).cloned().flatten())
         }
 
-        async fn detect_repo_language(&self, _org: &str, repo: &str) -> anyhow::Result<Option<String>> {
+        async fn detect_repo_language(
+            &self,
+            _org: &str,
+            repo: &str,
+        ) -> anyhow::Result<Option<String>> {
             Ok(self.languages.get(repo).cloned().flatten())
         }
 
@@ -1768,14 +1905,38 @@ mod tests {
     struct MockGitOps;
 
     impl crate::git::GitOps for MockGitOps {
-        fn add(&self, _repo_dir: &std::path::Path, _file_path: &std::path::Path) -> anyhow::Result<()> { Ok(()) }
-        fn has_staged_changes(&self, _repo_dir: &std::path::Path) -> anyhow::Result<bool> { Ok(false) }
-        fn commit(&self, _repo_dir: &std::path::Path, _message: &str) -> anyhow::Result<()> { Ok(()) }
-        fn push(&self, _repo_dir: &std::path::Path) -> anyhow::Result<()> { Ok(()) }
-        fn current_branch(&self, _repo_dir: &std::path::Path) -> anyhow::Result<String> { Ok("main".to_string()) }
-        fn pull(&self, _repo_dir: &std::path::Path, _branch: &str) -> anyhow::Result<()> { Ok(()) }
-        fn is_clean(&self, _repo_dir: &std::path::Path) -> anyhow::Result<bool> { Ok(true) }
-        fn restore(&self, _repo_dir: &std::path::Path, _paths: &[&std::path::Path]) -> anyhow::Result<()> { Ok(()) }
+        fn add(
+            &self,
+            _repo_dir: &std::path::Path,
+            _file_path: &std::path::Path,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+        fn has_staged_changes(&self, _repo_dir: &std::path::Path) -> anyhow::Result<bool> {
+            Ok(false)
+        }
+        fn commit(&self, _repo_dir: &std::path::Path, _message: &str) -> anyhow::Result<()> {
+            Ok(())
+        }
+        fn push(&self, _repo_dir: &std::path::Path) -> anyhow::Result<()> {
+            Ok(())
+        }
+        fn current_branch(&self, _repo_dir: &std::path::Path) -> anyhow::Result<String> {
+            Ok("main".to_string())
+        }
+        fn pull(&self, _repo_dir: &std::path::Path, _branch: &str) -> anyhow::Result<()> {
+            Ok(())
+        }
+        fn is_clean(&self, _repo_dir: &std::path::Path) -> anyhow::Result<bool> {
+            Ok(true)
+        }
+        fn restore(
+            &self,
+            _repo_dir: &std::path::Path,
+            _paths: &[&std::path::Path],
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
     }
 
     fn make_test_workspace(name: &str, matrix_file: Option<&str>) -> Workspace {
@@ -1808,7 +1969,9 @@ mod tests {
     async fn test_watch_cycle_no_matrix_file() {
         let ws = make_test_workspace("test-ws", None);
         let github = MockGitHub::new();
-        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let cache = MockCache {
+            state: Mutex::new(WatchState::default()),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -1829,10 +1992,14 @@ mod tests {
         let _ = std::fs::create_dir_all(&tmp_dir);
         let matrix_path = tmp_dir.join("matrix.toml");
         // Write a minimal matrix.toml with repo-a
-        std::fs::write(&matrix_path, r#"
+        std::fs::write(
+            &matrix_path,
+            r#"
 [packages.repo-a]
 repo = "repo-a"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let ws = make_test_workspace("test-ws", Some(matrix_path.to_str().unwrap()));
 
@@ -1843,8 +2010,15 @@ repo = "repo-a"
         let mut languages = BTreeMap::new();
         languages.insert("repo-a".to_string(), Some("rust".to_string()));
 
-        let github = MockGitHub { heads, tags, languages, file_shas: BTreeMap::new() };
-        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let github = MockGitHub {
+            heads,
+            tags,
+            languages,
+            file_shas: BTreeMap::new(),
+        };
+        let cache = MockCache {
+            state: Mutex::new(WatchState::default()),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -1880,7 +2054,9 @@ repo = "repo-a"
 
         // GitHub returns error (heads map is empty → repo not found)
         let github = MockGitHub::new();
-        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let cache = MockCache {
+            state: Mutex::new(WatchState::default()),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -1909,15 +2085,25 @@ repo = "repo-a"
         let mut tags = BTreeMap::new();
         tags.insert("repo-a".to_string(), Some("v2.0.0".to_string()));
         // languages map is EMPTY — if detect_repo_language is called it returns None
-        let github = MockGitHub { heads, tags, languages: BTreeMap::new(), file_shas: BTreeMap::new() };
+        let github = MockGitHub {
+            heads,
+            tags,
+            languages: BTreeMap::new(),
+            file_shas: BTreeMap::new(),
+        };
 
         let mut initial_state = WatchState::default();
-        initial_state.repos.insert("repo-a".to_string(), RepoState {
-            head: "sameHEAD".to_string(),  // same HEAD
-            latest_tag: Some("v1.0.0".to_string()),  // OLD tag → triggers change
-            language: Some("rust".to_string()),  // cached language
-        });
-        let cache = MockCache { state: Mutex::new(initial_state) };
+        initial_state.repos.insert(
+            "repo-a".to_string(),
+            RepoState {
+                head: "sameHEAD".to_string(),           // same HEAD
+                latest_tag: Some("v1.0.0".to_string()), // OLD tag → triggers change
+                language: Some("rust".to_string()),     // cached language
+            },
+        );
+        let cache = MockCache {
+            state: Mutex::new(initial_state),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -1942,34 +2128,44 @@ repo = "repo-a"
 
     impl RecordingGitOps {
         fn new() -> Self {
-            Self { calls: Mutex::new(Vec::new()) }
+            Self {
+                calls: Mutex::new(Vec::new()),
+            }
         }
     }
 
     impl crate::git::GitOps for RecordingGitOps {
         fn add(&self, _: &std::path::Path, _: &std::path::Path) -> anyhow::Result<()> {
-            self.calls.lock().unwrap().push("add".into()); Ok(())
+            self.calls.lock().unwrap().push("add".into());
+            Ok(())
         }
         fn has_staged_changes(&self, _: &std::path::Path) -> anyhow::Result<bool> {
-            self.calls.lock().unwrap().push("has_staged_changes".into()); Ok(true)
+            self.calls.lock().unwrap().push("has_staged_changes".into());
+            Ok(true)
         }
         fn commit(&self, _: &std::path::Path, _: &str) -> anyhow::Result<()> {
-            self.calls.lock().unwrap().push("commit".into()); Ok(())
+            self.calls.lock().unwrap().push("commit".into());
+            Ok(())
         }
         fn push(&self, _: &std::path::Path) -> anyhow::Result<()> {
-            self.calls.lock().unwrap().push("push".into()); Ok(())
+            self.calls.lock().unwrap().push("push".into());
+            Ok(())
         }
         fn current_branch(&self, _: &std::path::Path) -> anyhow::Result<String> {
-            self.calls.lock().unwrap().push("current_branch".into()); Ok("main".to_string())
+            self.calls.lock().unwrap().push("current_branch".into());
+            Ok("main".to_string())
         }
         fn pull(&self, _: &std::path::Path, _: &str) -> anyhow::Result<()> {
-            self.calls.lock().unwrap().push("pull".into()); Ok(())
+            self.calls.lock().unwrap().push("pull".into());
+            Ok(())
         }
         fn is_clean(&self, _: &std::path::Path) -> anyhow::Result<bool> {
-            self.calls.lock().unwrap().push("is_clean".into()); Ok(true)
+            self.calls.lock().unwrap().push("is_clean".into());
+            Ok(true)
         }
         fn restore(&self, _: &std::path::Path, _: &[&std::path::Path]) -> anyhow::Result<()> {
-            self.calls.lock().unwrap().push("restore".into()); Ok(())
+            self.calls.lock().unwrap().push("restore".into());
+            Ok(())
         }
     }
 
@@ -1987,15 +2183,25 @@ repo = "repo-a"
         heads.insert("repo-a".to_string(), "newhead".to_string());
         let mut tags = BTreeMap::new();
         tags.insert("repo-a".to_string(), Some("v2.0.0".to_string()));
-        let github = MockGitHub { heads, tags, languages: BTreeMap::new(), file_shas: BTreeMap::new() };
+        let github = MockGitHub {
+            heads,
+            tags,
+            languages: BTreeMap::new(),
+            file_shas: BTreeMap::new(),
+        };
 
         let mut initial = WatchState::default();
-        initial.repos.insert("repo-a".to_string(), RepoState {
-            head: "old".to_string(),
-            latest_tag: Some("v1.0.0".to_string()),
-            language: None,
-        });
-        let cache = MockCache { state: Mutex::new(initial) };
+        initial.repos.insert(
+            "repo-a".to_string(),
+            RepoState {
+                head: "old".to_string(),
+                latest_tag: Some("v1.0.0".to_string()),
+                language: None,
+            },
+        );
+        let cache = MockCache {
+            state: Mutex::new(initial),
+        };
         let appender = MockAppender::new();
         let git_ops = RecordingGitOps::new();
 
@@ -2062,10 +2268,14 @@ repo = "repo-a"
         let tmp_dir = std::env::temp_dir().join("tend-test-watch-nochange");
         let _ = std::fs::create_dir_all(&tmp_dir);
         let matrix_path = tmp_dir.join("matrix.toml");
-        std::fs::write(&matrix_path, r#"
+        std::fs::write(
+            &matrix_path,
+            r#"
 [packages.repo-a]
 repo = "repo-a"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let ws = make_test_workspace("test-ws", Some(matrix_path.to_str().unwrap()));
 
@@ -2074,17 +2284,27 @@ repo = "repo-a"
         let mut tags = BTreeMap::new();
         tags.insert("repo-a".to_string(), Some("v1.0.0".to_string()));
 
-        let github = MockGitHub { heads, tags, languages: BTreeMap::new(), file_shas: BTreeMap::new() };
+        let github = MockGitHub {
+            heads,
+            tags,
+            languages: BTreeMap::new(),
+            file_shas: BTreeMap::new(),
+        };
 
         // Pre-populate cache with the same tag
         let mut initial_state = WatchState::default();
-        initial_state.repos.insert("repo-a".to_string(), RepoState {
-            head: "sha999".to_string(),
-            latest_tag: Some("v1.0.0".to_string()),
-            language: Some("rust".to_string()),
-        });
+        initial_state.repos.insert(
+            "repo-a".to_string(),
+            RepoState {
+                head: "sha999".to_string(),
+                latest_tag: Some("v1.0.0".to_string()),
+                language: Some("rust".to_string()),
+            },
+        );
 
-        let cache = MockCache { state: Mutex::new(initial_state) };
+        let cache = MockCache {
+            state: Mutex::new(initial_state),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -2118,22 +2338,34 @@ repo = "repo-a"
         heads.insert("repo-a".to_string(), "newHEAD456".to_string());
         let mut tags = BTreeMap::new();
         tags.insert("repo-a".to_string(), None::<String>); // no tags at all
-        let github = MockGitHub { heads, tags, languages: BTreeMap::new(), file_shas: BTreeMap::new() };
+        let github = MockGitHub {
+            heads,
+            tags,
+            languages: BTreeMap::new(),
+            file_shas: BTreeMap::new(),
+        };
 
         // Cache has old HEAD
         let mut initial = WatchState::default();
-        initial.repos.insert("repo-a".to_string(), RepoState {
-            head: "oldHEAD123".to_string(),
-            latest_tag: None,
-            language: Some("go".to_string()),
-        });
-        let cache = MockCache { state: Mutex::new(initial) };
+        initial.repos.insert(
+            "repo-a".to_string(),
+            RepoState {
+                head: "oldHEAD123".to_string(),
+                latest_tag: None,
+                language: Some("go".to_string()),
+            },
+        );
+        let cache = MockCache {
+            state: Mutex::new(initial),
+        };
 
         // Mark repo as commit-tracked
-        let appender = MockAppender::new()
-            .with_track("repo-a", TrackMode::Commits {
+        let appender = MockAppender::new().with_track(
+            "repo-a",
+            TrackMode::Commits {
                 unstable_base: "0.2.0".to_string(),
-            });
+            },
+        );
 
         let git_ops = MockGitOps;
 
@@ -2149,7 +2381,7 @@ repo = "repo-a"
         // Version should be unstable format with short SHA
         assert!(appended[0].1.starts_with("0.2.0-unstable."));
         assert!(appended[0].1.contains("newHEAD4")); // short SHA suffix
-        // Rev should be the HEAD SHA
+                                                     // Rev should be the HEAD SHA
         assert_eq!(appended[0].2, "newHEAD456");
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
@@ -2169,19 +2401,28 @@ repo = "repo-a"
         heads.insert("repo-a".to_string(), "newHEAD789".to_string());
         let mut tags = BTreeMap::new();
         tags.insert("repo-a".to_string(), Some("v1.0.0".to_string()));
-        let github = MockGitHub { heads, tags, languages: BTreeMap::new(), file_shas: BTreeMap::new() };
+        let github = MockGitHub {
+            heads,
+            tags,
+            languages: BTreeMap::new(),
+            file_shas: BTreeMap::new(),
+        };
 
         let mut initial = WatchState::default();
-        initial.repos.insert("repo-a".to_string(), RepoState {
-            head: "oldHEAD111".to_string(),
-            latest_tag: Some("v1.0.0".to_string()), // same tag
-            language: Some("go".to_string()),
-        });
-        let cache = MockCache { state: Mutex::new(initial) };
+        initial.repos.insert(
+            "repo-a".to_string(),
+            RepoState {
+                head: "oldHEAD111".to_string(),
+                latest_tag: Some("v1.0.0".to_string()), // same tag
+                language: Some("go".to_string()),
+            },
+        );
+        let cache = MockCache {
+            state: Mutex::new(initial),
+        };
 
         // Tag-tracked (default) — should NOT trigger on HEAD-only change
-        let appender = MockAppender::new()
-            .with_track("repo-a", TrackMode::Tags);
+        let appender = MockAppender::new().with_track("repo-a", TrackMode::Tags);
 
         let git_ops = MockGitOps;
 
@@ -2254,9 +2495,17 @@ post_hooks:
         }];
 
         let audit = test_audit();
-        run_post_hooks(&hooks, "after_certify", "my-repo", "1.2.3", "abc123", "/path/matrix.toml", &audit)
-            .await
-            .unwrap();
+        run_post_hooks(
+            &hooks,
+            "after_certify",
+            "my-repo",
+            "1.2.3",
+            "abc123",
+            "/path/matrix.toml",
+            &audit,
+        )
+        .await
+        .unwrap();
 
         let content = std::fs::read_to_string(&output_file).unwrap();
         assert_eq!(content.trim(), "1.2.3 my-repo abc123 /path/matrix.toml");
@@ -2290,7 +2539,16 @@ auto_commit: false
 
         // Run with a trigger that doesn't match — should be a no-op
         let audit = test_audit();
-        let result = run_post_hooks(&hooks, "unknown_trigger", "repo", "1.0", "abc", "/m.toml", &audit).await;
+        let result = run_post_hooks(
+            &hooks,
+            "unknown_trigger",
+            "repo",
+            "1.0",
+            "abc",
+            "/m.toml",
+            &audit,
+        )
+        .await;
         assert!(result.is_ok());
     }
 
@@ -2298,18 +2556,17 @@ auto_commit: false
     async fn test_continue_on_error_allows_pipeline_to_continue() {
         use crate::config::PostHook;
 
-        let hooks = vec![
-            PostHook {
-                trigger: "after_all".to_string(),
-                command: "false".to_string(), // exits with code 1
-                args: vec![],
-                working_dir: None,
-                continue_on_error: true, // should NOT bail
-            },
-        ];
+        let hooks = vec![PostHook {
+            trigger: "after_all".to_string(),
+            command: "false".to_string(), // exits with code 1
+            args: vec![],
+            working_dir: None,
+            continue_on_error: true, // should NOT bail
+        }];
 
         let audit = test_audit();
-        let result = run_post_hooks(&hooks, "after_all", "repo", "1.0", "abc", "/m.toml", &audit).await;
+        let result =
+            run_post_hooks(&hooks, "after_all", "repo", "1.0", "abc", "/m.toml", &audit).await;
         assert!(result.is_ok());
     }
 
@@ -2317,18 +2574,17 @@ auto_commit: false
     async fn test_continue_on_error_false_stops_pipeline() {
         use crate::config::PostHook;
 
-        let hooks = vec![
-            PostHook {
-                trigger: "after_all".to_string(),
-                command: "false".to_string(), // exits with code 1
-                args: vec![],
-                working_dir: None,
-                continue_on_error: false, // should bail
-            },
-        ];
+        let hooks = vec![PostHook {
+            trigger: "after_all".to_string(),
+            command: "false".to_string(), // exits with code 1
+            args: vec![],
+            working_dir: None,
+            continue_on_error: false, // should bail
+        }];
 
         let audit = test_audit();
-        let result = run_post_hooks(&hooks, "after_all", "repo", "1.0", "abc", "/m.toml", &audit).await;
+        let result =
+            run_post_hooks(&hooks, "after_all", "repo", "1.0", "abc", "/m.toml", &audit).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("post-hook failed"));
     }
@@ -2375,7 +2631,10 @@ file_watches:
         assert_eq!(fw.post_hooks[0].command, "iac-forge");
         assert_eq!(fw.post_hooks[0].args[2], "$PREVIOUS_FILE");
         assert_eq!(fw.post_hooks[0].args[4], "$CURRENT_FILE");
-        assert_eq!(fw.post_hooks[0].working_dir.as_deref(), Some("~/code/resources"));
+        assert_eq!(
+            fw.post_hooks[0].working_dir.as_deref(),
+            Some("~/code/resources")
+        );
         assert!(!fw.post_hooks[0].continue_on_error);
 
         let fw2 = &config.file_watches[1];
@@ -2423,7 +2682,11 @@ file_watches:
         let mut github = MockGitHub::new();
         github.file_shas.insert(
             "testorg/testrepo/api/spec.yaml".to_string(),
-            ("newsha123456789abc".to_string(), 1024, "https://example.com/spec.yaml".to_string()),
+            (
+                "newsha123456789abc".to_string(),
+                1024,
+                "https://example.com/spec.yaml".to_string(),
+            ),
         );
 
         // Pre-populate cache with OLD SHA
@@ -2432,7 +2695,9 @@ file_watches:
             "testorg/testrepo/api/spec.yaml".to_string(),
             "oldsha000000000000".to_string(),
         );
-        let cache = MockCache { state: Mutex::new(initial_state) };
+        let cache = MockCache {
+            state: Mutex::new(initial_state),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -2455,7 +2720,10 @@ file_watches:
         // Verify cache was updated
         let saved = cache.state.lock().unwrap();
         assert_eq!(
-            saved.file_shas.get("testorg/testrepo/api/spec.yaml").unwrap(),
+            saved
+                .file_shas
+                .get("testorg/testrepo/api/spec.yaml")
+                .unwrap(),
             "newsha123456789abc"
         );
 
@@ -2486,7 +2754,11 @@ file_watches:
         let mut github = MockGitHub::new();
         github.file_shas.insert(
             "org/repo/config.json".to_string(),
-            ("samesha1234567890ab".to_string(), 512, "https://example.com/config.json".to_string()),
+            (
+                "samesha1234567890ab".to_string(),
+                512,
+                "https://example.com/config.json".to_string(),
+            ),
         );
 
         // Cache has the SAME SHA
@@ -2495,7 +2767,9 @@ file_watches:
             "org/repo/config.json".to_string(),
             "samesha1234567890ab".to_string(),
         );
-        let cache = MockCache { state: Mutex::new(initial_state) };
+        let cache = MockCache {
+            state: Mutex::new(initial_state),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -2544,10 +2818,16 @@ file_watches:
         let mut github = MockGitHub::new();
         github.file_shas.insert(
             "myorg/myrepo/docs/api.yaml".to_string(),
-            ("abc123def456789012".to_string(), 100, "https://example.com/api.yaml".to_string()),
+            (
+                "abc123def456789012".to_string(),
+                100,
+                "https://example.com/api.yaml".to_string(),
+            ),
         );
 
-        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let cache = MockCache {
+            state: Mutex::new(WatchState::default()),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -2618,7 +2898,9 @@ auto_commit: false
             ),
         );
 
-        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let cache = MockCache {
+            state: Mutex::new(WatchState::default()),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -2627,7 +2909,10 @@ auto_commit: false
         let result = run_watch_cycle(&ws, true, &github, &cache, &appender, &git_ops, &audit).await;
 
         // Verify the directory was created before download was attempted
-        assert!(download_dir.exists(), "download directory should have been created");
+        assert!(
+            download_dir.exists(),
+            "download directory should have been created"
+        );
 
         // The cycle should return an error due to failed download, which is counted as errors
         // The function returns Ok with errors counted, not Err
@@ -2677,11 +2962,17 @@ auto_commit: false
         let mut github = MockGitHub::new();
         github.file_shas.insert(
             "org1/repo1/file.txt".to_string(),
-            ("firstsha12345678901".to_string(), 42, "https://example.com/file.txt".to_string()),
+            (
+                "firstsha12345678901".to_string(),
+                42,
+                "https://example.com/file.txt".to_string(),
+            ),
         );
 
         // Empty cache — first time seeing this file
-        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let cache = MockCache {
+            state: Mutex::new(WatchState::default()),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -2711,7 +3002,13 @@ auto_commit: false
     // ── Flake Input Watch Tests ──
 
     /// Helper: write a minimal flake.lock JSON for testing
-    fn write_test_flake_lock(dir: &std::path::Path, input_name: &str, rev: &str, owner: &str, repo: &str) {
+    fn write_test_flake_lock(
+        dir: &std::path::Path,
+        input_name: &str,
+        rev: &str,
+        owner: &str,
+        repo: &str,
+    ) {
         let lock = serde_json::json!({
             "nodes": {
                 "root": {
@@ -2763,9 +3060,16 @@ auto_commit: false
         let _ = std::fs::remove_dir_all(&tmp);
         std::fs::create_dir_all(&tmp).unwrap();
 
-        write_test_flake_lock(&tmp, "claude-code", "abc123def456", "sadjow", "claude-code-nix");
+        write_test_flake_lock(
+            &tmp,
+            "claude-code",
+            "abc123def456",
+            "sadjow",
+            "claude-code-nix",
+        );
 
-        let (rev, owner, repo) = parse_flake_lock_input(&tmp.join("flake.lock"), "claude-code").unwrap();
+        let (rev, owner, repo) =
+            parse_flake_lock_input(&tmp.join("flake.lock"), "claude-code").unwrap();
         assert_eq!(rev, "abc123def456");
         assert_eq!(owner, "sadjow");
         assert_eq!(repo, "claude-code-nix");
@@ -2898,7 +3202,13 @@ auto_commit: false
         std::fs::create_dir_all(&repo_dir).unwrap();
 
         // Write flake.lock with locked rev
-        write_test_flake_lock(&repo_dir, "my-input", "locked111222333", "someowner", "somerepo");
+        write_test_flake_lock(
+            &repo_dir,
+            "my-input",
+            "locked111222333",
+            "someowner",
+            "somerepo",
+        );
 
         let mut ws = make_test_workspace("fiw-test", None);
         ws.base_dir = tmp.to_string_lossy().to_string();
@@ -2917,9 +3227,13 @@ auto_commit: false
 
         let mut github = MockGitHub::new();
         // Upstream HEAD is different from locked rev
-        github.heads.insert("somerepo".to_string(), "upstream999888777".to_string());
+        github
+            .heads
+            .insert("somerepo".to_string(), "upstream999888777".to_string());
 
-        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let cache = MockCache {
+            state: Mutex::new(WatchState::default()),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -2968,9 +3282,13 @@ auto_commit: false
         }];
 
         let mut github = MockGitHub::new();
-        github.heads.insert("repo".to_string(), "samerev123456789".to_string());
+        github
+            .heads
+            .insert("repo".to_string(), "samerev123456789".to_string());
 
-        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let cache = MockCache {
+            state: Mutex::new(WatchState::default()),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -2994,7 +3312,13 @@ auto_commit: false
         let repo_dir = tmp.join("my-repo");
         std::fs::create_dir_all(&repo_dir).unwrap();
 
-        write_test_flake_lock(&repo_dir, "my-input", "locked000", "flakeowner", "flakerepo");
+        write_test_flake_lock(
+            &repo_dir,
+            "my-input",
+            "locked000",
+            "flakeowner",
+            "flakerepo",
+        );
 
         let mut ws = make_test_workspace("fiw-explicit", None);
         ws.base_dir = tmp.to_string_lossy().to_string();
@@ -3013,9 +3337,13 @@ auto_commit: false
 
         let mut github = MockGitHub::new();
         // Only the explicit upstream has a head entry
-        github.heads.insert("explicit-repo".to_string(), "upstreamHEAD".to_string());
+        github
+            .heads
+            .insert("explicit-repo".to_string(), "upstreamHEAD".to_string());
 
-        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let cache = MockCache {
+            state: Mutex::new(WatchState::default()),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -3057,7 +3385,9 @@ auto_commit: false
         }];
 
         let mut github = MockGitHub::new();
-        github.heads.insert("repo".to_string(), "upstream222".to_string());
+        github
+            .heads
+            .insert("repo".to_string(), "upstream222".to_string());
 
         // Pre-populate cache with the same upstream rev
         let mut initial = WatchState::default();
@@ -3068,7 +3398,9 @@ auto_commit: false
                 upstream_tag: None,
             },
         );
-        let cache = MockCache { state: Mutex::new(initial) };
+        let cache = MockCache {
+            state: Mutex::new(initial),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -3111,8 +3443,12 @@ auto_commit: false
         }];
 
         let mut github = MockGitHub::new();
-        github.tags.insert("repo".to_string(), Some("v2.0.0".to_string()));
-        github.heads.insert("repo".to_string(), "taggedHEAD456".to_string());
+        github
+            .tags
+            .insert("repo".to_string(), Some("v2.0.0".to_string()));
+        github
+            .heads
+            .insert("repo".to_string(), "taggedHEAD456".to_string());
 
         // Cache has old tag
         let mut initial = WatchState::default();
@@ -3123,7 +3459,9 @@ auto_commit: false
                 upstream_tag: Some("v1.0.0".to_string()),
             },
         );
-        let cache = MockCache { state: Mutex::new(initial) };
+        let cache = MockCache {
+            state: Mutex::new(initial),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -3171,7 +3509,9 @@ auto_commit: false
         }];
 
         let mut github = MockGitHub::new();
-        github.tags.insert("repo".to_string(), Some("v1.0.0".to_string()));
+        github
+            .tags
+            .insert("repo".to_string(), Some("v1.0.0".to_string()));
 
         // Cache has the SAME tag — should not trigger
         let mut initial = WatchState::default();
@@ -3182,7 +3522,9 @@ auto_commit: false
                 upstream_tag: Some("v1.0.0".to_string()),
             },
         );
-        let cache = MockCache { state: Mutex::new(initial) };
+        let cache = MockCache {
+            state: Mutex::new(initial),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -3238,9 +3580,13 @@ auto_commit: false
         }];
 
         let mut github = MockGitHub::new();
-        github.heads.insert("repo".to_string(), "upstream999".to_string());
+        github
+            .heads
+            .insert("repo".to_string(), "upstream999".to_string());
 
-        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let cache = MockCache {
+            state: Mutex::new(WatchState::default()),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -3290,7 +3636,9 @@ auto_commit: false
         }];
 
         let github = MockGitHub::new();
-        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let cache = MockCache {
+            state: Mutex::new(WatchState::default()),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -3333,7 +3681,9 @@ auto_commit: false
 
         // GitHub has no HEAD for this repo → error
         let github = MockGitHub::new();
-        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let cache = MockCache {
+            state: Mutex::new(WatchState::default()),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -3375,7 +3725,9 @@ auto_commit: false
         }];
 
         let github = MockGitHub::new();
-        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let cache = MockCache {
+            state: Mutex::new(WatchState::default()),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -3431,7 +3783,9 @@ language = "go"
         ws.extra_repos = vec![];
 
         let github = MockGitHub::new();
-        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let cache = MockCache {
+            state: Mutex::new(WatchState::default()),
+        };
         let appender = MockAppender::new();
         let git_ops = MockGitOps;
 
@@ -3477,9 +3831,13 @@ language = "go"
         }];
 
         let mut github = MockGitHub::new();
-        github.heads.insert("repo".to_string(), "upstream999".to_string());
+        github
+            .heads
+            .insert("repo".to_string(), "upstream999".to_string());
 
-        let cache = MockCache { state: Mutex::new(WatchState::default()) };
+        let cache = MockCache {
+            state: Mutex::new(WatchState::default()),
+        };
         let appender = MockAppender::new();
         let git_ops = RecordingGitOps::new();
 
@@ -3510,13 +3868,18 @@ language = "go"
         let tmp = std::env::temp_dir().join(format!("tend-toml-app-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&tmp);
 
-        let matrix = write_matrix_toml(&tmp, r#"
+        let matrix = write_matrix_toml(
+            &tmp,
+            r#"
 [packages.my-sdk]
 repo = "my-repo"
-"#);
+"#,
+        );
 
         let appender = TomlMatrixAppender;
-        let result = appender.append_entry(&matrix, "my-repo", "1.0.0", "abc123", Some("go")).unwrap();
+        let result = appender
+            .append_entry(&matrix, "my-repo", "1.0.0", "abc123", Some("go"))
+            .unwrap();
         assert!(result, "should append new entry");
 
         let content = std::fs::read_to_string(&matrix).unwrap();
@@ -3533,16 +3896,21 @@ repo = "my-repo"
         let tmp = std::env::temp_dir().join(format!("tend-toml-dup-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&tmp);
 
-        let matrix = write_matrix_toml(&tmp, r#"
+        let matrix = write_matrix_toml(
+            &tmp,
+            r#"
 [packages.my-sdk]
 repo = "my-repo"
 [packages.my-sdk.versions."1.0.0"]
 rev = "old-rev"
 status = "verified"
-"#);
+"#,
+        );
 
         let appender = TomlMatrixAppender;
-        let result = appender.append_entry(&matrix, "my-repo", "1.0.0", "new-rev", None).unwrap();
+        let result = appender
+            .append_entry(&matrix, "my-repo", "1.0.0", "new-rev", None)
+            .unwrap();
         assert!(!result, "should not overwrite existing version");
 
         let _ = std::fs::remove_dir_all(&tmp);
@@ -3553,13 +3921,18 @@ status = "verified"
         let tmp = std::env::temp_dir().join(format!("tend-toml-unk-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&tmp);
 
-        let matrix = write_matrix_toml(&tmp, r#"
+        let matrix = write_matrix_toml(
+            &tmp,
+            r#"
 [packages.my-sdk]
 repo = "my-repo"
-"#);
+"#,
+        );
 
         let appender = TomlMatrixAppender;
-        let result = appender.append_entry(&matrix, "other-repo", "1.0.0", "abc", None).unwrap();
+        let result = appender
+            .append_entry(&matrix, "other-repo", "1.0.0", "abc", None)
+            .unwrap();
         assert!(!result);
 
         let _ = std::fs::remove_dir_all(&tmp);
@@ -3568,10 +3941,15 @@ repo = "my-repo"
     #[test]
     fn test_toml_appender_returns_false_for_missing_file() {
         let appender = TomlMatrixAppender;
-        let result = appender.append_entry(
-            std::path::Path::new("/nonexistent/matrix.toml"),
-            "repo", "1.0.0", "abc", None,
-        ).unwrap();
+        let result = appender
+            .append_entry(
+                std::path::Path::new("/nonexistent/matrix.toml"),
+                "repo",
+                "1.0.0",
+                "abc",
+                None,
+            )
+            .unwrap();
         assert!(!result);
     }
 
@@ -3582,7 +3960,9 @@ repo = "my-repo"
 
         let matrix = write_matrix_toml(&tmp, "# empty matrix\n");
         let appender = TomlMatrixAppender;
-        let result = appender.append_entry(&matrix, "repo", "1.0.0", "abc", None).unwrap();
+        let result = appender
+            .append_entry(&matrix, "repo", "1.0.0", "abc", None)
+            .unwrap();
         assert!(!result);
 
         let _ = std::fs::remove_dir_all(&tmp);
@@ -3593,16 +3973,24 @@ repo = "my-repo"
         let tmp = std::env::temp_dir().join(format!("tend-toml-nolang-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&tmp);
 
-        let matrix = write_matrix_toml(&tmp, r#"
+        let matrix = write_matrix_toml(
+            &tmp,
+            r#"
 [packages.my-sdk]
 repo = "my-repo"
-"#);
+"#,
+        );
 
         let appender = TomlMatrixAppender;
-        appender.append_entry(&matrix, "my-repo", "2.0.0", "def456", None).unwrap();
+        appender
+            .append_entry(&matrix, "my-repo", "2.0.0", "def456", None)
+            .unwrap();
 
         let content = std::fs::read_to_string(&matrix).unwrap();
-        assert!(!content.contains("language"), "language field should not be present when None");
+        assert!(
+            !content.contains("language"),
+            "language field should not be present when None"
+        );
 
         let _ = std::fs::remove_dir_all(&tmp);
     }
@@ -3612,11 +4000,14 @@ repo = "my-repo"
         let tmp = std::env::temp_dir().join(format!("tend-toml-track-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&tmp);
 
-        let matrix = write_matrix_toml(&tmp, r#"
+        let matrix = write_matrix_toml(
+            &tmp,
+            r#"
 [packages.my-sdk]
 repo = "my-repo"
 track = "tags"
-"#);
+"#,
+        );
 
         let appender = TomlMatrixAppender;
         let mode = appender.get_track_mode(&matrix, "my-repo").unwrap();
@@ -3630,16 +4021,24 @@ track = "tags"
         let tmp = std::env::temp_dir().join(format!("tend-toml-commits-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&tmp);
 
-        let matrix = write_matrix_toml(&tmp, r#"
+        let matrix = write_matrix_toml(
+            &tmp,
+            r#"
 [packages.my-sdk]
 repo = "my-repo"
 track = "commits"
 unstable_base = "0.2.0"
-"#);
+"#,
+        );
 
         let appender = TomlMatrixAppender;
         let mode = appender.get_track_mode(&matrix, "my-repo").unwrap();
-        assert_eq!(mode, Some(TrackMode::Commits { unstable_base: "0.2.0".to_string() }));
+        assert_eq!(
+            mode,
+            Some(TrackMode::Commits {
+                unstable_base: "0.2.0".to_string()
+            })
+        );
 
         let _ = std::fs::remove_dir_all(&tmp);
     }
@@ -3649,10 +4048,13 @@ unstable_base = "0.2.0"
         let tmp = std::env::temp_dir().join(format!("tend-toml-def-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&tmp);
 
-        let matrix = write_matrix_toml(&tmp, r#"
+        let matrix = write_matrix_toml(
+            &tmp,
+            r#"
 [packages.my-sdk]
 repo = "my-repo"
-"#);
+"#,
+        );
 
         let appender = TomlMatrixAppender;
         let mode = appender.get_track_mode(&matrix, "my-repo").unwrap();
@@ -3666,15 +4068,23 @@ repo = "my-repo"
         let tmp = std::env::temp_dir().join(format!("tend-toml-defbase-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&tmp);
 
-        let matrix = write_matrix_toml(&tmp, r#"
+        let matrix = write_matrix_toml(
+            &tmp,
+            r#"
 [packages.my-sdk]
 repo = "my-repo"
 track = "commits"
-"#);
+"#,
+        );
 
         let appender = TomlMatrixAppender;
         let mode = appender.get_track_mode(&matrix, "my-repo").unwrap();
-        assert_eq!(mode, Some(TrackMode::Commits { unstable_base: "0.1.0".to_string() }));
+        assert_eq!(
+            mode,
+            Some(TrackMode::Commits {
+                unstable_base: "0.1.0".to_string()
+            })
+        );
 
         let _ = std::fs::remove_dir_all(&tmp);
     }
@@ -3684,10 +4094,13 @@ track = "commits"
         let tmp = std::env::temp_dir().join(format!("tend-toml-unk2-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&tmp);
 
-        let matrix = write_matrix_toml(&tmp, r#"
+        let matrix = write_matrix_toml(
+            &tmp,
+            r#"
 [packages.my-sdk]
 repo = "my-repo"
-"#);
+"#,
+        );
 
         let appender = TomlMatrixAppender;
         let mode = appender.get_track_mode(&matrix, "nonexistent").unwrap();
@@ -3699,10 +4112,9 @@ repo = "my-repo"
     #[test]
     fn test_toml_appender_get_track_mode_missing_file() {
         let appender = TomlMatrixAppender;
-        let mode = appender.get_track_mode(
-            std::path::Path::new("/nonexistent/matrix.toml"),
-            "repo",
-        ).unwrap();
+        let mode = appender
+            .get_track_mode(std::path::Path::new("/nonexistent/matrix.toml"), "repo")
+            .unwrap();
         assert_eq!(mode, None);
     }
 
@@ -3711,7 +4123,9 @@ repo = "my-repo"
         let tmp = std::env::temp_dir().join(format!("tend-toml-multi-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&tmp);
 
-        let matrix = write_matrix_toml(&tmp, r#"
+        let matrix = write_matrix_toml(
+            &tmp,
+            r#"
 [packages.sdk-a]
 repo = "repo-a"
 track = "tags"
@@ -3720,14 +4134,25 @@ track = "tags"
 repo = "repo-b"
 track = "commits"
 unstable_base = "0.3.0"
-"#);
+"#,
+        );
 
         let appender = TomlMatrixAppender;
 
         // Append to repo-a
-        assert!(appender.append_entry(&matrix, "repo-a", "1.0.0", "rev-a", None).unwrap());
+        assert!(appender
+            .append_entry(&matrix, "repo-a", "1.0.0", "rev-a", None)
+            .unwrap());
         // Append to repo-b
-        assert!(appender.append_entry(&matrix, "repo-b", "0.3.0-unstable.2026-01-01.abcd", "rev-b", Some("go")).unwrap());
+        assert!(appender
+            .append_entry(
+                &matrix,
+                "repo-b",
+                "0.3.0-unstable.2026-01-01.abcd",
+                "rev-b",
+                Some("go")
+            )
+            .unwrap());
 
         let content = std::fs::read_to_string(&matrix).unwrap();
         assert!(content.contains("rev-a"));

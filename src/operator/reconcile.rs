@@ -18,9 +18,8 @@ use tracing::{info, warn};
 
 use super::apply;
 use super::crds::{
-    Condition, FlakeUpdatePlan, FlakeUpdatePlanSpec, FlakeUpdatePolicy,
-    FlakeUpdatePolicyStatus, FlakeUpdateProposal, FlakeUpdateProposalSpec, ProposalPhase,
-    UpdateMode,
+    Condition, FlakeUpdatePlan, FlakeUpdatePlanSpec, FlakeUpdatePolicy, FlakeUpdatePolicyStatus,
+    FlakeUpdateProposal, FlakeUpdateProposalSpec, ProposalPhase, UpdateMode,
 };
 use super::discovery::{self, ReqwestHeadResolver};
 use super::gates;
@@ -69,9 +68,11 @@ pub struct Context {
     /// — without serialization they collide on `.git/index.lock`.
     /// Each git operation acquires the mutex keyed on the absolute
     /// repo path before touching the working tree.
-    pub repo_locks: Arc<tokio::sync::Mutex<
-        std::collections::HashMap<std::path::PathBuf, Arc<tokio::sync::Mutex<()>>>,
-    >>,
+    pub repo_locks: Arc<
+        tokio::sync::Mutex<
+            std::collections::HashMap<std::path::PathBuf, Arc<tokio::sync::Mutex<()>>>,
+        >,
+    >,
     /// File-backed HEAD-lookup cache. Survives pod restarts via
     /// `flush()` to a JSON file on the workspace PVC. Each entry
     /// carries an ETag so conditional requests return 304 (free)
@@ -90,10 +91,7 @@ impl Context {
     /// Get-or-insert the mutex for `repo_dir`. Returns a clone — the
     /// caller awaits `.lock()` to serialize against other operations
     /// on the same path.
-    pub async fn repo_lock(
-        &self,
-        repo_dir: &std::path::Path,
-    ) -> Arc<tokio::sync::Mutex<()>> {
+    pub async fn repo_lock(&self, repo_dir: &std::path::Path) -> Arc<tokio::sync::Mutex<()>> {
         let mut registry = self.repo_locks.lock().await;
         registry
             .entry(repo_dir.to_path_buf())
@@ -159,20 +157,13 @@ pub async fn reconcile_policy(
     let lock_arc = ctx.repo_lock(&repo_dir).await;
     let _wt_guard = lock_arc.lock().await;
 
-    if let Err(e) = super::git_ops::fetch_and_reset_to_origin(
-        &repo_dir,
-        "main",
-        ctx.github_token.as_ref(),
-    )
-    .await
+    if let Err(e) =
+        super::git_ops::fetch_and_reset_to_origin(&repo_dir, "main", ctx.github_token.as_ref())
+            .await
     {
-        return write_policy_failure(
-            &ctx,
-            &policy,
-            format!("fetch+reset to origin/main: {e:#}"),
-        )
-        .await
-        .map(|_| Action::requeue(REQUEUE_FAST));
+        return write_policy_failure(&ctx, &policy, format!("fetch+reset to origin/main: {e:#}"))
+            .await
+            .map(|_| Action::requeue(REQUEUE_FAST));
     }
 
     let lock_path = repo_dir.join("flake.lock");
@@ -345,10 +336,7 @@ pub async fn reconcile_policy(
     // create time so a future rollout controller can sequence wave
     // promotion. Today's proposal controller verifies + applies in
     // parallel; the wave field is informational until that lands.
-    let repo_key = format!(
-        "{}/{}",
-        policy.spec.repo.workspace, policy.spec.repo.repo
-    );
+    let repo_key = format!("{}/{}", policy.spec.repo.workspace, policy.spec.repo.repo);
     let mut dag = super::dag::FleetDag::new();
     // Seed every advancing input as a node first so leaves (inputs
     // with no `follows` siblings) still receive a wave assignment.
@@ -378,9 +366,7 @@ pub async fn reconcile_policy(
         .into_iter()
         .map(|(local, node)| (node, local))
         .collect();
-    if let Ok(edges) = super::flake_lock_adapter::FlakeLockAdapter
-        .edges_from_raw(&lock_contents)
-    {
+    if let Ok(edges) = super::flake_lock_adapter::FlakeLockAdapter.edges_from_raw(&lock_contents) {
         for (dependent_node, dependency_node) in edges {
             if dependent_node == lock.root || dependency_node == lock.root {
                 continue;
@@ -483,7 +469,10 @@ pub fn policy_error_policy(
     err: &ReconcileError,
     _ctx: Arc<Context>,
 ) -> Action {
-    metrics().reconcile_errors_total.with_label_values(&["FlakeUpdatePolicy"]).inc();
+    metrics()
+        .reconcile_errors_total
+        .with_label_values(&["FlakeUpdatePolicy"])
+        .inc();
     warn!(error = %err, "FlakeUpdatePolicy reconcile error; retrying");
     Action::requeue(super::budget::jittered_from_env(REQUEUE_FAST))
 }
@@ -526,11 +515,7 @@ async fn upsert_plan(
         // reflect more current state).
         let patch = serde_json::json!({ "spec": spec });
         plans
-            .patch(
-                &plan_name,
-                &PatchParams::default(),
-                &Patch::Merge(&patch),
-            )
+            .patch(&plan_name, &PatchParams::default(), &Patch::Merge(&patch))
             .await?;
         return Ok(());
     }
@@ -620,10 +605,20 @@ async fn upsert_proposal(
 }
 
 fn proposal_name(policy_name: &str, input: &str, to_rev: &str) -> String {
-    let short = if to_rev.len() > 12 { &to_rev[..12] } else { to_rev };
+    let short = if to_rev.len() > 12 {
+        &to_rev[..12]
+    } else {
+        to_rev
+    };
     let raw = format!("{policy_name}-{input}-{short}");
     raw.chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c.to_ascii_lowercase() } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
         .collect()
 }
 
@@ -662,11 +657,7 @@ pub async fn reconcile_proposal(
     use ProposalPhase::*;
     let ns = proposal.namespace().unwrap_or_else(|| "default".into());
     let name = proposal.name_any();
-    let phase = proposal
-        .status
-        .as_ref()
-        .map(|s| s.phase)
-        .unwrap_or(Pending);
+    let phase = proposal.status.as_ref().map(|s| s.phase).unwrap_or(Pending);
     info!(ns = %ns, proposal = %name, phase = ?phase, "reconciling FlakeUpdateProposal");
 
     let proposals: Api<FlakeUpdateProposal> = Api::namespaced(ctx.client.clone(), &ns);
@@ -681,8 +672,7 @@ pub async fn reconcile_proposal(
             }
         }
         Verifying => {
-            let policy_api: Api<FlakeUpdatePolicy> =
-                Api::namespaced(ctx.client.clone(), &ns);
+            let policy_api: Api<FlakeUpdatePolicy> = Api::namespaced(ctx.client.clone(), &ns);
             let policy = policy_api.get(&proposal.spec.policy_name).await?;
             let repo_dir = resolve_repo_dir(&ctx.tend_config, &proposal.spec.repo)?;
             // Differential gating: gates pass when the proposed pin
@@ -693,11 +683,7 @@ pub async fn reconcile_proposal(
                 input: proposal.spec.input.clone(),
                 flake_ref: gates::override_flake_ref(&proposal.spec.to),
             };
-            let results = gates::run_all_differential(
-                &policy.spec.gates,
-                &repo_dir,
-                &override_ctx,
-            )
+            let results = gates::run_all_differential(&policy.spec.gates, &repo_dir, &override_ctx)
                 .await
                 .map_err(|e| ReconcileError::Other(anyhow::anyhow!("gates: {e}")))?;
             for r in &results {
@@ -768,7 +754,10 @@ pub async fn reconcile_proposal(
                     proposals
                         .patch_status(&name, &PatchParams::default(), &Patch::Merge(&patch))
                         .await?;
-                    metrics().proposals_total.with_label_values(&["Failed"]).inc();
+                    metrics()
+                        .proposals_total
+                        .with_label_values(&["Failed"])
+                        .inc();
                     return Ok(Action::requeue(requeue_ok()));
                 }
             };
@@ -783,7 +772,10 @@ pub async fn reconcile_proposal(
             proposals
                 .patch_status(&name, &PatchParams::default(), &Patch::Merge(&patch))
                 .await?;
-            metrics().proposals_total.with_label_values(&["Applied"]).inc();
+            metrics()
+                .proposals_total
+                .with_label_values(&["Applied"])
+                .inc();
             Ok(Action::await_change())
         }
         Applied | Failed | Stale => Ok(Action::await_change()),
@@ -795,7 +787,10 @@ pub fn proposal_error_policy(
     err: &ReconcileError,
     _ctx: Arc<Context>,
 ) -> Action {
-    metrics().reconcile_errors_total.with_label_values(&["FlakeUpdateProposal"]).inc();
+    metrics()
+        .reconcile_errors_total
+        .with_label_values(&["FlakeUpdateProposal"])
+        .inc();
     warn!(error = %err, "FlakeUpdateProposal reconcile error; retrying");
     Action::requeue(REQUEUE_FAST)
 }
@@ -856,7 +851,9 @@ mod tests {
     fn proposal_name_is_deterministic_and_dns_safe() {
         let n = proposal_name("my-policy", "substrate", "abc123def456789");
         assert_eq!(n, "my-policy-substrate-abc123def456");
-        assert!(n.chars().all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit()));
+        assert!(n
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit()));
     }
 
     #[test]

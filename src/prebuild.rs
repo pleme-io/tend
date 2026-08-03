@@ -25,9 +25,7 @@
 
 use crate::audit::AuditLog;
 use crate::config::Config;
-use crate::prebuild_cache::{
-    self, CacheTarget, ClosureDedup, PackageSelector, ReproPolicy,
-};
+use crate::prebuild_cache::{self, CacheTarget, ClosureDedup, PackageSelector, ReproPolicy};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use shigoto_budget::{BudgetSpec, BudgetTree};
@@ -50,7 +48,10 @@ pub enum BuildOutcome {
     NoDefault,
     /// Build succeeded; out-paths are the closures that now live in
     /// `/nix/store` and (optionally) were pushed to attic.
-    Built { out_paths: Vec<String>, pushed: usize },
+    Built {
+        out_paths: Vec<String>,
+        pushed: usize,
+    },
 }
 
 /// Rollup across all repos in a cycle.
@@ -321,10 +322,8 @@ impl SeenCache {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("mkdir {}", parent.display()))?;
         }
-        let s = serde_json::to_string_pretty(self)
-            .context("serializing prebuild-seen.json")?;
-        std::fs::write(path, s)
-            .with_context(|| format!("writing {}", path.display()))
+        let s = serde_json::to_string_pretty(self).context("serializing prebuild-seen.json")?;
+        std::fs::write(path, s).with_context(|| format!("writing {}", path.display()))
     }
 }
 
@@ -575,7 +574,11 @@ pub(crate) fn prebuild_one(
     }
 
     if !opts.quiet {
-        println!("[prebuild] building {} @ {}", repo.display(), &rev[..rev.len().min(8)]);
+        println!(
+            "[prebuild] building {} @ {}",
+            repo.display(),
+            &rev[..rev.len().min(8)]
+        );
     }
 
     // Resolve the build units. `Default` keeps the legacy fast-path
@@ -601,7 +604,9 @@ pub(crate) fn prebuild_one(
             if pkgs.is_empty() {
                 return Ok(BuildOutcome::NoDefault);
             }
-            pkgs.iter().map(prebuild_cache::PackageRef::installable).collect()
+            pkgs.iter()
+                .map(prebuild_cache::PackageRef::installable)
+                .collect()
         }
     };
 
@@ -669,7 +674,10 @@ pub(crate) fn prebuild_one(
         }),
     );
 
-    Ok(BuildOutcome::Built { out_paths: all_out_paths, pushed })
+    Ok(BuildOutcome::Built {
+        out_paths: all_out_paths,
+        pushed,
+    })
 }
 
 /// Merge a workspace-level `prebuild:` declaration onto the
@@ -762,8 +770,7 @@ pub(crate) fn missing_default_attribute(stderr: &str) -> bool {
     stderr.contains("does not provide attribute")
         || stderr.contains("flake does not provide attribute")
         || stderr.contains("attribute 'default' missing")
-        || stderr.contains("error: flake 'git+file:")
-            && stderr.contains("does not provide")
+        || stderr.contains("error: flake 'git+file:") && stderr.contains("does not provide")
 }
 
 /// Shared test fixtures usable from sibling test modules (notably
@@ -793,7 +800,9 @@ pub(crate) mod test_support {
     impl MinimalEnv {
         /// A `MinimalEnv` whose `build` panics if reached.
         pub(crate) fn panic_on_build() -> Self {
-            Self { panic_on_build: true }
+            Self {
+                panic_on_build: true,
+            }
         }
     }
 
@@ -809,15 +818,14 @@ pub(crate) mod test_support {
         }
 
         fn build(&self, _repo: &Path, _installable: &str) -> Result<Vec<String>> {
-            assert!(!self.panic_on_build, "build reached but the test forbade it");
+            assert!(
+                !self.panic_on_build,
+                "build reached but the test forbade it"
+            );
             Ok(vec!["/nix/store/hash-default".to_string()])
         }
 
-        fn verify_closure(
-            &self,
-            _repo: &Path,
-            _out_paths: &[String],
-        ) -> DeterminismOutcome {
+        fn verify_closure(&self, _repo: &Path, _out_paths: &[String]) -> DeterminismOutcome {
             DeterminismOutcome::Reproducible
         }
 
@@ -925,7 +933,8 @@ mod tests {
 
         fn build(&self, _repo: &Path, installable: &str) -> Result<Vec<String>> {
             let r = self.builds.get(installable).unwrap_or(&self.default_build);
-            r.clone().map_err(|e| anyhow::anyhow!("mock build err: {e}"))
+            r.clone()
+                .map_err(|e| anyhow::anyhow!("mock build err: {e}"))
         }
 
         fn verify_closure(&self, _repo: &Path, _out_paths: &[String]) -> DeterminismOutcome {
@@ -1339,9 +1348,16 @@ mod tests {
         // NoChange without ever invoking nix build (so no flake.nix is
         // required for the test).
         let dedup = Mutex::new(ClosureDedup::new());
-        let outcome =
-            prebuild_one(&prebuild_cache::RealEnv, &dir, Some(&rev), &opts, &[], &dedup, &audit)
-                .unwrap();
+        let outcome = prebuild_one(
+            &prebuild_cache::RealEnv,
+            &dir,
+            Some(&rev),
+            &opts,
+            &[],
+            &dedup,
+            &audit,
+        )
+        .unwrap();
         assert_eq!(outcome, BuildOutcome::NoChange);
         let _ = fs::remove_dir_all(&dir);
     }
@@ -1366,8 +1382,15 @@ mod tests {
         let audit = AuditLog::default_path();
         // prev_rev is None → mismatch, build will be attempted, will fail.
         let dedup = Mutex::new(ClosureDedup::new());
-        let outcome =
-            prebuild_one(&prebuild_cache::RealEnv, &dir, None, &opts, &[], &dedup, &audit);
+        let outcome = prebuild_one(
+            &prebuild_cache::RealEnv,
+            &dir,
+            None,
+            &opts,
+            &[],
+            &dedup,
+            &audit,
+        );
         // Either NoDefault (preferred) or an Err containing the nix
         // failure — both are acceptable signals that the non-flake
         // repo wasn't silently treated as Built.
@@ -1402,8 +1425,8 @@ mod tests {
     #[test]
     fn prebuild_one_withholds_push_on_nonreproducible_but_keeps_artifact() {
         // (a) VerifyBeforePush + non-empty caches + verify→NonReproducible.
-        let env = MockCacheFillEnv::new()
-            .with_verify_default(DeterminismOutcome::NonReproducible {
+        let env =
+            MockCacheFillEnv::new().with_verify_default(DeterminismOutcome::NonReproducible {
                 path: Some("/nix/store/poison".into()),
             });
         let opts = verify_opts(vec![usable_cache("nexus")]);
@@ -1534,9 +1557,15 @@ mod tests {
             usable_cache("a"),
             usable_cache("b"),
             // disabled → never reaches attic_push.
-            CacheTarget { enabled: false, ..usable_cache("c") },
+            CacheTarget {
+                enabled: false,
+                ..usable_cache("c")
+            },
             // half-specified → unusable → never reaches attic_push.
-            CacheTarget { token_file: String::new(), ..usable_cache("d") },
+            CacheTarget {
+                token_file: String::new(),
+                ..usable_cache("d")
+            },
         ];
         let dedup = Mutex::new(ClosureDedup::new());
         // First call: one path → 2 usable caches, pushed once each.
@@ -1629,7 +1658,11 @@ mod tests {
         .unwrap();
         match outcome {
             BuildOutcome::Built { out_paths, pushed } => {
-                assert_eq!(out_paths, vec!["/nix/store/p".to_string()], "only the present path");
+                assert_eq!(
+                    out_paths,
+                    vec!["/nix/store/p".to_string()],
+                    "only the present path"
+                );
                 assert_eq!(pushed, 1);
             }
             other => panic!("expected Built, got {other:?}"),
@@ -1654,7 +1687,9 @@ mod tests {
             .with_verify("/nix/store/present", DeterminismOutcome::Reproducible)
             .with_verify(
                 "/nix/store/flaky",
-                DeterminismOutcome::NonReproducible { path: Some("/nix/store/flaky".into()) },
+                DeterminismOutcome::NonReproducible {
+                    path: Some("/nix/store/flaky".into()),
+                },
             );
         let opts = PrebuildOptions {
             quiet: true,
@@ -1737,7 +1772,10 @@ mod tests {
         let opts = PrebuildOptions {
             caches: vec![
                 usable_cache("good"),
-                CacheTarget { enabled: false, ..usable_cache("disabled") },
+                CacheTarget {
+                    enabled: false,
+                    ..usable_cache("disabled")
+                },
             ],
             ..Default::default()
         };
@@ -1748,12 +1786,20 @@ mod tests {
 
     #[test]
     fn effective_caches_empty_when_no_attic_and_no_caches() {
-        let opts = PrebuildOptions { attic: None, caches: vec![], ..Default::default() };
+        let opts = PrebuildOptions {
+            attic: None,
+            caches: vec![],
+            ..Default::default()
+        };
         assert!(opts.effective_caches().is_empty());
     }
 
     /// A Config whose Nth workspace carries the given PrebuildConfig.
-    fn config_with_prebuild_on(idx: usize, total: usize, pc: crate::config::PrebuildConfig) -> Config {
+    fn config_with_prebuild_on(
+        idx: usize,
+        total: usize,
+        pc: crate::config::PrebuildConfig,
+    ) -> Config {
         let workspaces = (0..total)
             .map(|i| {
                 let mut ws = Workspace::test_default(&format!("ws{i}"));
@@ -1817,7 +1863,10 @@ mod tests {
     #[test]
     fn with_fill_from_config_no_prebuild_block_is_identity() {
         let cfg = Config {
-            workspaces: vec![Workspace::test_default("ws0"), Workspace::test_default("ws1")],
+            workspaces: vec![
+                Workspace::test_default("ws0"),
+                Workspace::test_default("ws1"),
+            ],
             host_health: Default::default(),
         };
         let cli = PrebuildOptions {

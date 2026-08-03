@@ -161,7 +161,9 @@ impl ReqwestHeadResolver {
 #[async_trait::async_trait]
 impl RegistryClient for ReqwestHeadResolver {
     fn last_observed_remaining(&self) -> Option<u32> {
-        let r = self.last_remaining.load(std::sync::atomic::Ordering::Relaxed);
+        let r = self
+            .last_remaining
+            .load(std::sync::atomic::Ordering::Relaxed);
         if r == u32::MAX {
             None
         } else {
@@ -193,7 +195,10 @@ impl RegistryClient for ReqwestHeadResolver {
         // load-bearing constraint for staying under GitHub's radar.
         self.budget.acquire().await;
 
-        let url = format!("https://api.github.com/repos/{}/commits/{}", id.key, id.r#ref);
+        let url = format!(
+            "https://api.github.com/repos/{}/commits/{}",
+            id.key, id.r#ref
+        );
         let mut req = self
             .client
             .get(&url)
@@ -271,7 +276,10 @@ impl RegistryClient for ReqwestHeadResolver {
             let remaining_zero = remaining == Some(0);
             let body = resp.text().await.unwrap_or_default();
             if remaining_zero || body.contains("API rate limit exceeded") {
-                return Err(RegistryError::RateLimited { reset_at, message: body });
+                return Err(RegistryError::RateLimited {
+                    reset_at,
+                    message: body,
+                });
             }
             return Err(RegistryError::AuthFailed(body));
         }
@@ -284,7 +292,10 @@ impl RegistryClient for ReqwestHeadResolver {
         }
         if status.as_u16() == 429 {
             let body = resp.text().await.unwrap_or_default();
-            return Err(RegistryError::RateLimited { reset_at, message: body });
+            return Err(RegistryError::RateLimited {
+                reset_at,
+                message: body,
+            });
         }
         if !status.is_success() {
             return Err(RegistryError::Transient(format!("{id}: HTTP {status}")));
@@ -392,9 +403,13 @@ impl RegistryClient for ReqwestHeadResolver {
             }
         }
         out.into_iter()
-            .map(|opt| opt.unwrap_or_else(|| {
-                Err(RegistryError::Transient("internal: target index unfilled".into()))
-            }))
+            .map(|opt| {
+                opt.unwrap_or_else(|| {
+                    Err(RegistryError::Transient(
+                        "internal: target index unfilled".into(),
+                    ))
+                })
+            })
             .collect()
     }
 }
@@ -550,8 +565,7 @@ pub async fn discover_advances_filtered<R: RegistryClient + ?Sized>(
     // twice. The `targets` vector preserves the (id, prev_cached)
     // shape that `head_conditional_batch` consumes directly.
     let mut targets: Vec<(UpstreamId, Option<CachedHead>)> = Vec::new();
-    let mut seen_ids: std::collections::BTreeSet<UpstreamId> =
-        std::collections::BTreeSet::new();
+    let mut seen_ids: std::collections::BTreeSet<UpstreamId> = std::collections::BTreeSet::new();
     for (local_name, node_name) in lock.root_input_nodes() {
         if let Some(declared) = declared_inputs {
             if !declared.contains(&local_name) {
@@ -562,7 +576,9 @@ pub async fn discover_advances_filtered<R: RegistryClient + ?Sized>(
                 continue;
             }
         }
-        let Some(node) = lock.nodes.get(&node_name) else { continue };
+        let Some(node) = lock.nodes.get(&node_name) else {
+            continue;
+        };
         let Some(locked) = &node.locked else { continue };
         if locked.kind != "github" {
             continue;
@@ -609,7 +625,10 @@ pub async fn discover_advances_filtered<R: RegistryClient + ?Sized>(
                     error = %e,
                     "discovery aborting cycle on fatal error",
                 );
-                return Ok(DiscoveryOutcome::Halted { partial: out, reason: e });
+                return Ok(DiscoveryOutcome::Halted {
+                    partial: out,
+                    reason: e,
+                });
             }
             Err(e) => {
                 tracing::warn!(
@@ -633,7 +652,9 @@ pub async fn discover_advances_filtered<R: RegistryClient + ?Sized>(
                 continue;
             }
         }
-        let Some(node) = lock.nodes.get(&node_name) else { continue };
+        let Some(node) = lock.nodes.get(&node_name) else {
+            continue;
+        };
         let Some(locked) = &node.locked else { continue };
         if locked.kind != "github" {
             continue;
@@ -646,7 +667,9 @@ pub async fn discover_advances_filtered<R: RegistryClient + ?Sized>(
             continue;
         };
         let id = UpstreamId::new_github(owner, repo, node.tracking_ref());
-        let Some(Some(head)) = cycle_seen.get(&id) else { continue };
+        let Some(Some(head)) = cycle_seen.get(&id) else {
+            continue;
+        };
         if head.upstream_rev == rev {
             continue;
         }
@@ -719,9 +742,13 @@ mod tests {
                                 message: message.clone(),
                             })
                         }
-                        Err(RegistryError::AuthFailed(m)) => Err(RegistryError::AuthFailed(m.clone())),
+                        Err(RegistryError::AuthFailed(m)) => {
+                            Err(RegistryError::AuthFailed(m.clone()))
+                        }
                         Err(RegistryError::NotFound(m)) => Err(RegistryError::NotFound(m.clone())),
-                        Err(RegistryError::Transient(m)) => Err(RegistryError::Transient(m.clone())),
+                        Err(RegistryError::Transient(m)) => {
+                            Err(RegistryError::Transient(m.clone()))
+                        }
                     }
                 }
                 None => Err(RegistryError::NotFound(format!("no mock for {id}"))),
@@ -808,11 +835,17 @@ mod tests {
         let mock = CountingMock::new(vec![
             (
                 UpstreamId::new_github("pleme-io", "substrate", "HEAD"),
-                Ok(HeadInfo { upstream_rev: "xyz".into(), upstream_modified: 200 }),
+                Ok(HeadInfo {
+                    upstream_rev: "xyz".into(),
+                    upstream_modified: 200,
+                }),
             ),
             (
                 UpstreamId::new_github("nixos", "nixpkgs", "HEAD"),
-                Ok(HeadInfo { upstream_rev: "new-nixpkgs-sha".into(), upstream_modified: 300 }),
+                Ok(HeadInfo {
+                    upstream_rev: "new-nixpkgs-sha".into(),
+                    upstream_modified: 300,
+                }),
             ),
         ]);
         let outcome = discover_advances(&lock, &mock).await.unwrap();
@@ -820,8 +853,12 @@ mod tests {
             DiscoveryOutcome::Advances(a) => a,
             other => panic!("expected Advances, got {other:?}"),
         };
-        assert_eq!(mock.call_count(), 2,
-            "expected 2 unique upstreams (substrate + nixpkgs), got {}", mock.call_count());
+        assert_eq!(
+            mock.call_count(),
+            2,
+            "expected 2 unique upstreams (substrate + nixpkgs), got {}",
+            mock.call_count()
+        );
         // 3 root inputs all advance: substrate, nixpkgs, nixpkgs-aliased.
         // The two nixpkgs aliases share an UpstreamId but each gets its
         // own proposal because they live at distinct local input names.
@@ -838,15 +875,24 @@ mod tests {
         let mock = CountingMock::new(vec![
             (
                 UpstreamId::new_github("pleme-io", "substrate", "HEAD"),
-                Ok(HeadInfo { upstream_rev: "xyz".into(), upstream_modified: 200 }),
+                Ok(HeadInfo {
+                    upstream_rev: "xyz".into(),
+                    upstream_modified: 200,
+                }),
             ),
             (
                 UpstreamId::new_github("nixos", "nixpkgs", "HEAD"),
-                Ok(HeadInfo { upstream_rev: "new-nixpkgs-sha".into(), upstream_modified: 300 }),
+                Ok(HeadInfo {
+                    upstream_rev: "new-nixpkgs-sha".into(),
+                    upstream_modified: 300,
+                }),
             ),
             (
                 UpstreamId::new_github("transient", "deep-dep", "HEAD"),
-                Ok(HeadInfo { upstream_rev: "should-not-be-fetched".into(), upstream_modified: 400 }),
+                Ok(HeadInfo {
+                    upstream_rev: "should-not-be-fetched".into(),
+                    upstream_modified: 400,
+                }),
             ),
         ]);
         let outcome = discover_advances(&lock, &mock).await.unwrap();
@@ -880,11 +926,17 @@ mod tests {
         let mock = CountingMock::new(vec![
             (
                 UpstreamId::new_github("pleme-io", "substrate", "HEAD"),
-                Ok(HeadInfo { upstream_rev: "xyz".into(), upstream_modified: 200 }),
+                Ok(HeadInfo {
+                    upstream_rev: "xyz".into(),
+                    upstream_modified: 200,
+                }),
             ),
             (
                 UpstreamId::new_github("nixos", "nixpkgs", "HEAD"),
-                Err(RegistryError::RateLimited { reset_at: Some(9999), message: "rl".into() }),
+                Err(RegistryError::RateLimited {
+                    reset_at: Some(9999),
+                    message: "rl".into(),
+                }),
             ),
         ]);
         let outcome = discover_advances(&lock, &mock).await.unwrap();
@@ -901,8 +953,10 @@ mod tests {
         // Critical: the mock should only see a few calls before halt,
         // never iterate every input. Without halt-on-fatal, we'd see
         // `lock.nodes.len()` calls.
-        assert!(mock.call_count() <= 2,
+        assert!(
+            mock.call_count() <= 2,
             "expected ≤2 calls before halt (cycle should abort), got {}",
-            mock.call_count());
+            mock.call_count()
+        );
     }
 }

@@ -113,7 +113,7 @@ pub struct Workspace {
     pub extra_repos: Vec<String>,
     #[serde(default)]
     pub flake_deps: HashMap<String, Vec<String>>,
-#[serde(default)]
+    #[serde(default)]
     pub watch: Option<WatchConfig>,
     #[serde(default)]
     pub ai_tasks: Vec<AiTaskConfig>,
@@ -756,8 +756,8 @@ impl Config {
     pub fn load(path: &Path) -> Result<Self> {
         let contents =
             std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
-        let config: Config =
-            serde_yaml_ng::from_str(&contents).with_context(|| format!("parsing {}", path.display()))?;
+        let config: Config = serde_yaml_ng::from_str(&contents)
+            .with_context(|| format!("parsing {}", path.display()))?;
         Ok(config)
     }
 
@@ -985,10 +985,7 @@ workspaces:
     #[test]
     fn test_clone_url_falls_back_to_name_when_org_is_none() {
         let ws = Workspace::test_default("fallback-org");
-        assert_eq!(
-            ws.clone_url("repo"),
-            "git@github.com:fallback-org/repo.git"
-        );
+        assert_eq!(ws.clone_url("repo"), "git@github.com:fallback-org/repo.git");
     }
 
     #[test]
@@ -1100,7 +1097,13 @@ workspaces:
         enable: true
 "#;
         let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
-        let nix_audit = cfg.workspaces[0].watch.as_ref().unwrap().nix_audit.as_ref().unwrap();
+        let nix_audit = cfg.workspaces[0]
+            .watch
+            .as_ref()
+            .unwrap()
+            .nix_audit
+            .as_ref()
+            .unwrap();
         assert!(nix_audit.enable);
         assert!(!nix_audit.auto_fix);
         assert!(!nix_audit.auto_propagate);
@@ -1146,7 +1149,13 @@ workspaces:
         enable: true
 "#;
         let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
-        let fr = cfg.workspaces[0].watch.as_ref().unwrap().flake_refresh.as_ref().unwrap();
+        let fr = cfg.workspaces[0]
+            .watch
+            .as_ref()
+            .unwrap()
+            .flake_refresh
+            .as_ref()
+            .unwrap();
         assert!(fr.enable);
         assert_eq!(fr.interval, 3600);
         assert_eq!(fr.max_interval, 86400);
@@ -1335,7 +1344,11 @@ workspaces:
           auto_propagate: nix-repo
 "#;
         let cfg: Config = serde_yaml_ng::from_str(yaml).unwrap();
-        let fiw = &cfg.workspaces[0].watch.as_ref().unwrap().flake_input_watches[0];
+        let fiw = &cfg.workspaces[0]
+            .watch
+            .as_ref()
+            .unwrap()
+            .flake_input_watches[0];
         assert_eq!(fiw.name, "claude");
         assert_eq!(fiw.repo, "my-repo");
         assert_eq!(fiw.input, "claude-code");
@@ -1354,7 +1367,10 @@ workspaces:
         std::fs::write(&path, "{{{{ not valid yaml").unwrap();
         let result = Config::load(&path);
         let err = result.unwrap_err().to_string();
-        assert!(err.contains("parsing"), "error should mention parsing context: {err}");
+        assert!(
+            err.contains("parsing"),
+            "error should mention parsing context: {err}"
+        );
         let _ = std::fs::remove_file(&path);
     }
 }
@@ -1496,10 +1512,8 @@ mod tiered_tests {
             <FlakeRefreshConfig as TieredConfig>::resolve_tier(ConfigTier::Default).interval,
             3600
         );
-        assert!(
-            <Config as TieredConfig>::resolve_tier(ConfigTier::Bare)
-                .workspaces
-                .is_empty()
-        );
+        assert!(<Config as TieredConfig>::resolve_tier(ConfigTier::Bare)
+            .workspaces
+            .is_empty());
     }
 }

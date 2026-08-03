@@ -186,7 +186,9 @@ mod tests {
         let event = DriftEvent::PullFailed {
             workspace: "ws".into(),
             repo_name: "repo1".into(),
-            stderr: "fatal: could not read Username for 'https://github.com': terminal prompts disabled".into(),
+            stderr:
+                "fatal: could not read Username for 'https://github.com': terminal prompts disabled"
+                    .into(),
         };
         let ws = workspace_at("ws", "/tmp");
         assert!(react_to_drift(&event, &ws).is_none());
@@ -250,7 +252,10 @@ mod tests {
         let ws = workspace_at("ws", "/tmp");
         let job = react_to_drift(&event, &ws).expect("credential leak must schedule a healer");
         assert_eq!(job.id().kind, JobKindId::new(REMEDIATE_REMOTE_KIND));
-        assert_eq!(job.id().subject, shigoto_types::JobSubject::Repo("k8s".into()));
+        assert_eq!(
+            job.id().subject,
+            shigoto_types::JobSubject::Repo("k8s".into())
+        );
     }
 
     #[test]

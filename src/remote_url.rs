@@ -332,7 +332,10 @@ mod tests {
         match verdict {
             RemoteUrlVerdict::EmbeddedCredential { credential, .. } => {
                 let json = serde_json::to_string(&credential).unwrap();
-                assert!(!json.contains(secret), "serialized credential leaked: {json}");
+                assert!(
+                    !json.contains(secret),
+                    "serialized credential leaked: {json}"
+                );
             }
             other => panic!("expected EmbeddedCredential, got {other:?}"),
         }
@@ -445,7 +448,8 @@ mod tests {
     /// remediated repo is indistinguishable from a newly synced one.
     #[test]
     fn canonical_url_matches_clone_url_shape() {
-        let slug = GitHubSlug::parse("https://x-access-token:ghp_A@github.com/org/repo.git").unwrap();
+        let slug =
+            GitHubSlug::parse("https://x-access-token:ghp_A@github.com/org/repo.git").unwrap();
         assert_eq!(
             slug.canonical_url(&CloneMethod::Ssh),
             "git@github.com:org/repo.git"

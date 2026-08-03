@@ -193,7 +193,9 @@ pub(crate) fn build_report(
             });
         }
     }
-    report.currently_stuck.sort_by(|a, b| b.last_seen_at.cmp(&a.last_seen_at));
+    report
+        .currently_stuck
+        .sort_by(|a, b| b.last_seen_at.cmp(&a.last_seen_at));
 
     // Pull in drift events when the operator wired a drift log.
     // We don't time-window drift events — the drift log is already
@@ -447,13 +449,7 @@ mod tests {
     fn malformed_lines_are_skipped() {
         let tmp = TempDir::new().unwrap();
         let path = tmp.path().join("bad.jsonl");
-        let good = mk_event(
-            Utc::now(),
-            "k",
-            "r",
-            JobPhase::Pending,
-            JobPhase::Succeeded,
-        );
+        let good = mk_event(Utc::now(), "k", "r", JobPhase::Pending, JobPhase::Succeeded);
         let mut content = serde_json::to_string(&good).unwrap();
         content.push('\n');
         content.push_str("not-json-at-all\n");

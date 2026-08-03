@@ -57,23 +57,22 @@ pub struct FlakeLock {
 impl FlakeLock {
     /// Parse a flake.lock file from disk.
     pub fn read(path: &Path) -> Result<Self> {
-        let content = std::fs::read_to_string(path)
-            .with_context(|| format!("reading {}", path.display()))?;
+        let content =
+            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
         Self::parse(&content)
     }
 
     /// Parse a flake.lock from a JSON string.
     pub fn parse(content: &str) -> Result<Self> {
-        let raw: LockFileRaw = serde_json::from_str(content)
-            .context("parsing flake.lock as JSON")?;
+        let raw: LockFileRaw =
+            serde_json::from_str(content).context("parsing flake.lock as JSON")?;
         let mut nodes = HashMap::new();
         for (name, node) in raw.nodes {
             let Some(locked) = node.locked else { continue };
             if locked.kind.as_deref() != Some("github") {
                 continue;
             }
-            let (Some(owner), Some(repo), Some(rev)) =
-                (locked.owner, locked.repo, locked.rev)
+            let (Some(owner), Some(repo), Some(rev)) = (locked.owner, locked.repo, locked.rev)
             else {
                 continue;
             };
@@ -193,7 +192,11 @@ pub struct ExtendedLocked {
     #[serde(rename = "narHash", default, skip_serializing_if = "Option::is_none")]
     pub nar_hash: Option<String>,
 
-    #[serde(rename = "lastModified", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "lastModified",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub last_modified: Option<i64>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -233,8 +236,8 @@ impl ExtendedLockFile {
     }
 
     pub fn read(path: &Path) -> Result<Self> {
-        let content = std::fs::read_to_string(path)
-            .with_context(|| format!("reading {}", path.display()))?;
+        let content =
+            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
         Self::parse(&content)
     }
 

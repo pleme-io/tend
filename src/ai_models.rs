@@ -102,13 +102,13 @@ mod tests {
     #[test]
     fn test_fallback_chain() {
         let registry = ModelRegistry::new();
-        
+
         let first = registry.primary();
         assert_eq!(first.id, "big-pickle");
-        
+
         let second = registry.fallback_for("big-pickle").unwrap();
         assert_eq!(second.id, "nemotron-3-super-free");
-        
+
         let third = registry.fallback_for("nemotron-3-super-free").unwrap();
         assert_eq!(third.id, "glm-4.7-free");
     }

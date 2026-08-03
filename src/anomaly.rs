@@ -102,7 +102,9 @@ pub fn classify(stderr: &str) -> FailureClass {
     }
     if (stderr.contains("Cargo.nix")
         && (stderr.contains("does not exist") || stderr.contains("No such file")))
-        || stderr.contains("path '") && stderr.contains("Cargo.nix") && stderr.contains("does not exist")
+        || stderr.contains("path '")
+            && stderr.contains("Cargo.nix")
+            && stderr.contains("does not exist")
     {
         return FailureClass::MissingCargoNix;
     }
@@ -121,8 +123,7 @@ pub fn classify(stderr: &str) -> FailureClass {
         return FailureClass::SubstituteFetchFailed;
     }
     if stderr.contains("builder for ")
-        && (stderr.contains("failed with exit code")
-            || stderr.contains("failed with exit status"))
+        && (stderr.contains("failed with exit code") || stderr.contains("failed with exit status"))
     {
         return FailureClass::BuilderFailed;
     }
@@ -166,10 +167,7 @@ mod tests {
     fn prebuild_failure_classifier_trait_delegates_to_free_fn() {
         use shigoto_types::classify::Classifier;
         let stderr = "[ERROR] 'version' must be a constant version but is '${revision}'. @ line 8, column 14";
-        assert_eq!(
-            PrebuildFailureClassifier.classify(stderr),
-            classify(stderr),
-        );
+        assert_eq!(PrebuildFailureClassifier.classify(stderr), classify(stderr),);
         assert_eq!(
             PrebuildFailureClassifier.classify(stderr),
             FailureClass::MavenCiFriendlyVersion,
@@ -198,7 +196,8 @@ mod tests {
 
     #[test]
     fn classifies_substitute_fetch_failed() {
-        let stderr = "warning: unable to download 'https://cache.example.com/x.narinfo': Couldn't connect";
+        let stderr =
+            "warning: unable to download 'https://cache.example.com/x.narinfo': Couldn't connect";
         assert_eq!(classify(stderr), FailureClass::SubstituteFetchFailed);
     }
 
@@ -218,8 +217,10 @@ mod tests {
     fn class_as_str_round_trips() {
         // Stable identifier — flips would break dashboards that
         // bucket on this string.
-        assert_eq!(FailureClass::MavenCiFriendlyVersion.as_str(),
-                   "maven-ci-friendly-version");
+        assert_eq!(
+            FailureClass::MavenCiFriendlyVersion.as_str(),
+            "maven-ci-friendly-version"
+        );
         assert_eq!(FailureClass::Unknown.as_str(), "unknown");
     }
 

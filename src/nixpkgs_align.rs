@@ -77,7 +77,11 @@ pub(crate) fn convert_flake(text: &str) -> Option<String> {
             .unwrap();
     let new = standalone.replace_all(&new, "").into_owned();
 
-    if new == text { None } else { Some(new) }
+    if new == text {
+        None
+    } else {
+        Some(new)
+    }
 }
 
 /// Pull the pinned substrate (so nixpkgs == substrate's rev). `nix` has no

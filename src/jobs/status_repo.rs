@@ -110,13 +110,37 @@ mod tests {
     /// pushed. Before 2026-07-28 this fixture reported `Clean`, which is
     /// how the whole detection gap survived in a green test suite.
     fn init_repo_without_remote(path: &std::path::Path) {
-        Command::new("git").args(["init", "-q", "-b", "main"]).current_dir(path).status().unwrap();
-        Command::new("git").args(["config", "user.email", "t@t"]).current_dir(path).status().unwrap();
-        Command::new("git").args(["config", "user.name", "t"]).current_dir(path).status().unwrap();
-        Command::new("git").args(["config", "commit.gpgsign", "false"]).current_dir(path).status().unwrap();
+        Command::new("git")
+            .args(["init", "-q", "-b", "main"])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "t@t"])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "t"])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "commit.gpgsign", "false"])
+            .current_dir(path)
+            .status()
+            .unwrap();
         std::fs::write(path.join("file"), "x\n").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(path).status().unwrap();
-        Command::new("git").args(["commit", "-q", "--no-verify", "-m", "init"]).current_dir(path).status().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-q", "--no-verify", "-m", "init"])
+            .current_dir(path)
+            .status()
+            .unwrap();
     }
 
     /// The realistic fixture: a repo that is actually backed by a
@@ -126,7 +150,11 @@ mod tests {
         init_repo_without_remote(path);
         let upstream = path.join("..").join("upstream.git");
         std::fs::create_dir_all(&upstream).unwrap();
-        Command::new("git").args(["init", "-q", "--bare", "-b", "main"]).current_dir(&upstream).status().unwrap();
+        Command::new("git")
+            .args(["init", "-q", "--bare", "-b", "main"])
+            .current_dir(&upstream)
+            .status()
+            .unwrap();
         Command::new("git")
             .args(["remote", "add", "origin", &upstream.to_string_lossy()])
             .current_dir(path)

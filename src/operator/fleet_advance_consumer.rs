@@ -76,10 +76,7 @@ pub async fn run(nats: async_nats::Client, kube: Client) {
     info!("fleet advance consumer: subscription closed");
 }
 
-async fn handle_advance(
-    kube: &Client,
-    msg: async_nats::Message,
-) -> Result<()> {
+async fn handle_advance(kube: &Client, msg: async_nats::Message) -> Result<()> {
     let key = msg
         .subject
         .as_str()
@@ -127,13 +124,8 @@ async fn handle_advance(
 
     for policy in list.items {
         let name = policy.metadata.name.as_deref().unwrap_or("unnamed");
-        let ns = policy
-            .metadata
-            .namespace
-            .as_deref()
-            .unwrap_or("default");
-        let scoped: Api<FlakeUpdatePolicy> =
-            Api::namespaced(kube.clone(), ns);
+        let ns = policy.metadata.namespace.as_deref().unwrap_or("default");
+        let scoped: Api<FlakeUpdatePolicy> = Api::namespaced(kube.clone(), ns);
         match scoped.patch(name, &pp, &patch).await {
             Ok(_) => {
                 info!(
@@ -165,6 +157,9 @@ mod tests {
     fn annotation_key_stable() {
         // Catches accidental rename — downstream operators may grep
         // for this annotation to find which advance triggered them.
-        assert_eq!(ADVANCE_TRIGGER_ANNOTATION, "tend.pleme.io/last-fleet-advance");
+        assert_eq!(
+            ADVANCE_TRIGGER_ANNOTATION,
+            "tend.pleme.io/last-fleet-advance"
+        );
     }
 }

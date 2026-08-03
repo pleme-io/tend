@@ -108,11 +108,7 @@ pub(crate) fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
 /// Print sync summary (cloned vs already-present counts).
 pub(crate) fn print_sync_summary(workspace_name: &str, cloned: usize, present: usize) {
     if cloned == 0 {
-        println!(
-            "{}: all {} repos present",
-            workspace_name.bold(),
-            present
-        );
+        println!("{}: all {} repos present", workspace_name.bold(), present);
     } else {
         println!(
             "{}: cloned {} new, {} already present",
@@ -208,16 +204,15 @@ pub(crate) fn print_daemon_error(workspace_name: &str, err: &anyhow::Error) {
 /// Print daemon sleep interval.
 pub(crate) fn print_daemon_sleeping(interval: u64) {
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
-    println!(
-        "[{}] {} sleeping {}s",
-        now,
-        "daemon:".bold(),
-        interval
-    );
+    println!("[{}] {} sleeping {}s", now, "daemon:".bold(), interval);
 }
 
 /// Print the header for a flake update chain.
-pub(crate) fn print_flake_chain_header(workspace_name: &str, changed: &str, steps: &[crate::flake::UpdateStep]) {
+pub(crate) fn print_flake_chain_header(
+    workspace_name: &str,
+    changed: &str,
+    steps: &[crate::flake::UpdateStep],
+) {
     println!("{}", format!("workspace: {workspace_name}").bold());
     println!("  changed: {}", changed.cyan());
     println!("  chain ({} steps):", steps.len().to_string().green());
@@ -269,21 +264,43 @@ pub(crate) fn print_flake_step_no_changes(repo: &str) {
 }
 
 /// Print chain completion summary.
-pub(crate) fn print_flake_chain_complete(updated: usize) {
-    if updated == 0 {
+///
+/// ── ★ PRINT WHAT WAS MEASURED, NOT WHAT WAS ATTEMPTED ────────────────
+/// The caller used to pass `chain.len()` — the number of steps TRIED — into
+/// a parameter named `updated`, so blocked, unchanged and skipped steps all
+/// rendered as updates. A run in which every repo was blocked printed
+/// "done: 12 updated".
+///
+/// `blocked` is printed even when zero updates happened, because "no repos
+/// needed updating" and "no repo could be updated" are opposite facts that
+/// looked identical on this line.
+pub(crate) fn print_flake_chain_complete(updated: usize, blocked: usize) {
+    if updated == 0 && blocked == 0 {
         println!("\n  {}", "no repos needed updating".cyan());
     } else {
-        println!(
-            "\n  {} {} updated",
-            "done:".green().bold(),
-            updated.to_string().green()
-        );
+        let mut line = String::new();
+        if updated > 0 {
+            line.push_str(&updated.to_string().green().to_string());
+            line.push_str(" updated");
+        }
+        if blocked > 0 {
+            if !line.is_empty() {
+                line.push_str(", ");
+            }
+            line.push_str(&blocked.to_string().yellow().to_string());
+            line.push_str(" BLOCKED");
+        }
+        println!("\n  {} {}", "done:".green().bold(), line);
     }
 }
 
 /// Print watch cycle summary.
 pub(crate) fn print_watch_summary(workspace_name: &str, summary: &watch::WatchSummary) {
-    if summary.new_versions == 0 && summary.file_changes == 0 && summary.flake_input_updates == 0 && summary.flake_refreshed == 0 {
+    if summary.new_versions == 0
+        && summary.file_changes == 0
+        && summary.flake_input_updates == 0
+        && summary.flake_refreshed == 0
+    {
         println!(
             "{}: watched {} repos, no new versions",
             workspace_name.bold(),
@@ -292,16 +309,28 @@ pub(crate) fn print_watch_summary(workspace_name: &str, summary: &watch::WatchSu
     } else {
         let mut parts = Vec::new();
         if summary.new_versions > 0 {
-            parts.push(format!("{} new versions", summary.new_versions.to_string().green()));
+            parts.push(format!(
+                "{} new versions",
+                summary.new_versions.to_string().green()
+            ));
         }
         if summary.file_changes > 0 {
-            parts.push(format!("{} file changes", summary.file_changes.to_string().green()));
+            parts.push(format!(
+                "{} file changes",
+                summary.file_changes.to_string().green()
+            ));
         }
         if summary.flake_input_updates > 0 {
-            parts.push(format!("{} flake input updates", summary.flake_input_updates.to_string().green()));
+            parts.push(format!(
+                "{} flake input updates",
+                summary.flake_input_updates.to_string().green()
+            ));
         }
         if summary.flake_refreshed > 0 {
-            parts.push(format!("{} flake refreshed", summary.flake_refreshed.to_string().green()));
+            parts.push(format!(
+                "{} flake refreshed",
+                summary.flake_refreshed.to_string().green()
+            ));
         }
         println!(
             "{}: watched {} repos, {} detected",
@@ -311,21 +340,13 @@ pub(crate) fn print_watch_summary(workspace_name: &str, summary: &watch::WatchSu
         );
     }
     if summary.errors > 0 {
-        println!(
-            "  {} repos had errors",
-            summary.errors.to_string().yellow(),
-        );
+        println!("  {} repos had errors", summary.errors.to_string().yellow(),);
     }
 }
 
 /// Print a flake refresh skip with reason.
 pub(crate) fn print_flake_refresh_skip(repo: &str, reason: &str) {
-    println!(
-        "  [{}] {} ({})",
-        "--".cyan(),
-        repo,
-        reason,
-    );
+    println!("  [{}] {} ({})", "--".cyan(), repo, reason,);
 }
 
 /// Print a successful flake refresh.
@@ -340,12 +361,7 @@ pub(crate) fn print_flake_refresh_no_changes(repo: &str) {
 
 /// Print a flake refresh error.
 pub(crate) fn print_flake_refresh_error(repo: &str, err: &str) {
-    eprintln!(
-        "  [{}] {} {}",
-        "!!".red(),
-        repo,
-        err,
-    );
+    eprintln!("  [{}] {} {}", "!!".red(), repo, err,);
 }
 
 /// Print a newly detected version.

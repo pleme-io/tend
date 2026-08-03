@@ -36,10 +36,7 @@ impl HttpReleaseSwarmApi {
             .base_url("https://api.github.com")
             .auth(todoku::BearerToken::new(token))
             .user_agent("pleme-io-tend-release-swarm/0.1")
-            .header(
-                reqwest::header::ACCEPT,
-                "application/vnd.github+json",
-            )
+            .header(reqwest::header::ACCEPT, "application/vnd.github+json")
             .header(
                 reqwest::header::HeaderName::from_static("x-github-api-version"),
                 "2022-11-28",
@@ -74,8 +71,7 @@ impl ReleaseSwarmApi for HttpReleaseSwarmApi {
                 if msg.contains("404") {
                     Ok(None)
                 } else {
-                    Err(anyhow::Error::from(e))
-                        .with_context(|| format!("GET {url}"))
+                    Err(anyhow::Error::from(e)).with_context(|| format!("GET {url}"))
                 }
             }
         }
@@ -212,8 +208,7 @@ struct CreatePrResponse {
 /// todoku as `pub fn base64_encode` once we need it in a second
 /// place.
 fn base64_encode(input: &[u8]) -> String {
-    const CHARS: &[u8] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut result = String::with_capacity(input.len().div_ceil(3) * 4);
     for chunk in input.chunks(3) {
         let b0 = u32::from(chunk[0]);

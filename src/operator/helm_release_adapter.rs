@@ -43,8 +43,8 @@ impl LockFormat for HelmReleaseAdapter {
     fn parse(&self, contents: &str) -> Result<BTreeMap<String, HelmRev>> {
         let mut out = BTreeMap::new();
         for doc in serde_yaml_ng::Deserializer::from_str(contents) {
-            let value = Yaml::deserialize(doc)
-                .context("parsing YAML document in HelmRelease file")?;
+            let value =
+                Yaml::deserialize(doc).context("parsing YAML document in HelmRelease file")?;
             let Some(release) = parse_helmrelease(&value)? else {
                 continue;
             };
@@ -204,13 +204,17 @@ fn collect_image_tags(value: &Yaml, path: &str, out: &mut BTreeMap<String, Strin
 }
 
 fn matches_helmrelease(value: &Yaml, target: &str) -> bool {
-    let Yaml::Mapping(map) = value else { return false };
+    let Yaml::Mapping(map) = value else {
+        return false;
+    };
     let kind_ok = map.get("kind").and_then(|v| v.as_str()) == Some("HelmRelease");
     if !kind_ok {
         return false;
     }
     let metadata = map.get("metadata").and_then(|v| v.as_mapping());
-    let name = metadata.and_then(|m| m.get("name").and_then(|v| v.as_str())).unwrap_or("");
+    let name = metadata
+        .and_then(|m| m.get("name").and_then(|v| v.as_str()))
+        .unwrap_or("");
     let namespace = metadata
         .and_then(|m| m.get("namespace").and_then(|v| v.as_str()))
         .unwrap_or("default");
@@ -310,7 +314,10 @@ spec:
     fn collects_image_tags_from_values() {
         let pins = HelmReleaseAdapter.parse(SAMPLE).unwrap();
         let pin = &pins["monitoring/lareira-vm-stack"];
-        assert_eq!(pin.image_tags.get("values.grafana.image.tag").unwrap(), "11.2.0");
+        assert_eq!(
+            pin.image_tags.get("values.grafana.image.tag").unwrap(),
+            "11.2.0"
+        );
     }
 
     #[test]
@@ -392,8 +399,13 @@ spec:
             return;
         }
         let contents = std::fs::read_to_string(&path).unwrap();
-        let pins = HelmReleaseAdapter.parse(&contents).expect("parse real release.yaml");
-        assert!(!pins.is_empty(), "expected ≥1 HelmRelease in vm-stack release.yaml");
+        let pins = HelmReleaseAdapter
+            .parse(&contents)
+            .expect("parse real release.yaml");
+        assert!(
+            !pins.is_empty(),
+            "expected ≥1 HelmRelease in vm-stack release.yaml"
+        );
         let (key, pin) = pins.iter().next().unwrap();
         assert!(key.contains("/"), "key should be ns/name, got `{key}`");
         assert!(!pin.chart.is_empty());

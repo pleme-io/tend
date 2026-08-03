@@ -88,7 +88,10 @@ impl PersistentHeadCache {
     pub async fn flush(&self) -> Result<()> {
         let snapshot: HashMap<String, CachedHead> = {
             let guard = self.inner.lock().await;
-            guard.iter().map(|(k, v)| (k.to_string(), v.clone())).collect()
+            guard
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect()
         };
         if let Some(parent) = self.path.parent() {
             tokio::fs::create_dir_all(parent)

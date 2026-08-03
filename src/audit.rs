@@ -190,13 +190,7 @@ impl AuditLog {
     }
 
     /// Log a flake refresh event.
-    pub fn flake_refreshed(
-        &self,
-        workspace: &str,
-        repo: &str,
-        updated: bool,
-        duration_ms: u64,
-    ) {
+    pub fn flake_refreshed(&self, workspace: &str, repo: &str, updated: bool, duration_ms: u64) {
         self.log(
             "flake_refreshed",
             serde_json::json!({
@@ -352,10 +346,7 @@ mod tests {
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         let dir = std::env::temp_dir().join("tend-audit-test");
         let _ = std::fs::create_dir_all(&dir);
-        dir.join(format!(
-            "audit-{}-{n}.jsonl",
-            std::process::id()
-        ))
+        dir.join(format!("audit-{}-{n}.jsonl", std::process::id()))
     }
 
     #[test]
@@ -435,9 +426,27 @@ mod tests {
 
         audit.matrix_entry_appended("akeyless-go-sdk", "5.0.23", "pending");
         audit.hook_executed("on_change", "iac-forge", 0, 10000);
-        audit.file_change_detected("akeylesslabs", "akeyless-go", "api/openapi.yaml", Some("abc"), "def", 4247417);
-        audit.spec_downloaded("akeylesslabs", "akeyless-go", "api/openapi.yaml", "def", "/tmp/spec.yaml", 4247417);
-        audit.commit_pushed("blackmatter-akeyless", "abc123", "chore: certify akeyless-go-sdk 5.0.23");
+        audit.file_change_detected(
+            "akeylesslabs",
+            "akeyless-go",
+            "api/openapi.yaml",
+            Some("abc"),
+            "def",
+            4247417,
+        );
+        audit.spec_downloaded(
+            "akeylesslabs",
+            "akeyless-go",
+            "api/openapi.yaml",
+            "def",
+            "/tmp/spec.yaml",
+            4247417,
+        );
+        audit.commit_pushed(
+            "blackmatter-akeyless",
+            "abc123",
+            "chore: certify akeyless-go-sdk 5.0.23",
+        );
         audit.certify_complete("akeyless-go-sdk", "5.0.23", "verified", 25000);
 
         let file = std::fs::File::open(&path).unwrap();
@@ -527,7 +536,10 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
         assert_eq!(parsed["event"], "nix_audit_completed");
         let ratio = parsed["compliance_ratio"].as_f64().unwrap();
-        assert!((ratio - 1.0).abs() < f64::EPSILON, "zero repos should yield ratio=1.0");
+        assert!(
+            (ratio - 1.0).abs() < f64::EPSILON,
+            "zero repos should yield ratio=1.0"
+        );
         let _ = std::fs::remove_file(&path);
     }
 
@@ -572,7 +584,10 @@ mod tests {
         let content = std::fs::read_to_string(&path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
         assert_eq!(parsed["tracking"], "commits");
-        assert!(parsed["timestamp"].as_str().unwrap().len() > 10, "timestamp should be RFC3339");
+        assert!(
+            parsed["timestamp"].as_str().unwrap().len() > 10,
+            "timestamp should be RFC3339"
+        );
         let _ = std::fs::remove_file(&path);
     }
 
@@ -585,7 +600,10 @@ mod tests {
         let content = std::fs::read_to_string(&path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
         assert_eq!(parsed["event"], "file_change_detected");
-        assert!(parsed["old_sha"].is_null(), "old_sha should be null when None");
+        assert!(
+            parsed["old_sha"].is_null(),
+            "old_sha should be null when None"
+        );
         assert_eq!(parsed["new_sha"], "new-sha");
         let _ = std::fs::remove_file(&path);
     }
@@ -634,7 +652,14 @@ mod tests {
     fn test_audit_log_spec_downloaded_all_fields() {
         let path = temp_audit_path();
         let audit = AuditLog::new(path.clone());
-        audit.spec_downloaded("myorg", "myrepo", "api/spec.yaml", "sha256", "/tmp/spec.yaml", 1_048_576);
+        audit.spec_downloaded(
+            "myorg",
+            "myrepo",
+            "api/spec.yaml",
+            "sha256",
+            "/tmp/spec.yaml",
+            1_048_576,
+        );
 
         let content = std::fs::read_to_string(&path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();

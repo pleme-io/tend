@@ -232,7 +232,10 @@ impl GitConfigEnv {
     /// consume it, and so tests can assert on the exact pairs.
     pub(crate) fn env_pairs(&self) -> Vec<(String, String)> {
         let mut pairs = Vec::with_capacity(self.entries.len() * 2 + 1);
-        pairs.push(("GIT_CONFIG_COUNT".to_string(), self.entries.len().to_string()));
+        pairs.push((
+            "GIT_CONFIG_COUNT".to_string(),
+            self.entries.len().to_string(),
+        ));
         for (i, (key, value)) in self.entries.iter().enumerate() {
             pairs.push((format!("GIT_CONFIG_KEY_{i}"), key.clone()));
             pairs.push((format!("GIT_CONFIG_VALUE_{i}"), value.clone()));
@@ -345,7 +348,10 @@ mod tests {
         assert_eq!(Secret::from_env(&[a, b]).unwrap().expose(), "primary-value");
 
         std::env::remove_var(a);
-        assert_eq!(Secret::from_env(&[a, b]).unwrap().expose(), "fallback-value");
+        assert_eq!(
+            Secret::from_env(&[a, b]).unwrap().expose(),
+            "fallback-value"
+        );
 
         std::env::remove_var(b);
         assert!(Secret::from_env(&[a, b]).is_none());
@@ -382,8 +388,8 @@ mod tests {
             )
         );
 
-        let expected = base64::engine::general_purpose::STANDARD
-            .encode(format!("x-access-token:{TOKEN}"));
+        let expected =
+            base64::engine::general_purpose::STANDARD.encode(format!("x-access-token:{TOKEN}"));
         assert_eq!(
             pairs[2],
             (
@@ -420,15 +426,18 @@ mod tests {
         secret().github_git_auth().apply(&mut cmd);
 
         use base64::Engine as _;
-        let encoded = base64::engine::general_purpose::STANDARD
-            .encode(format!("x-access-token:{TOKEN}"));
+        let encoded =
+            base64::engine::general_purpose::STANDARD.encode(format!("x-access-token:{TOKEN}"));
 
         // Neither the raw token nor its base64 form may appear in argv
         // — base64 is encoding, not concealment, and anything in argv
         // is readable from the process table.
         let argv = format!("{:?}", cmd.get_args().collect::<Vec<_>>());
         assert!(!argv.contains(TOKEN), "raw secret reached argv: {argv}");
-        assert!(!argv.contains(&encoded), "encoded secret reached argv: {argv}");
+        assert!(
+            !argv.contains(&encoded),
+            "encoded secret reached argv: {argv}"
+        );
 
         let in_env = cmd
             .get_envs()

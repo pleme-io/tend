@@ -26,9 +26,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use chrono::{Duration, Utc};
 
-use super::crds::{
-    FlakeUpdatePlanSpec, FlakeUpdatePolicy, PlanAction, PlannedCheck, UpdateMode,
-};
+use super::crds::{FlakeUpdatePlanSpec, FlakeUpdatePolicy, PlanAction, PlannedCheck, UpdateMode};
 use super::upstream::{CachedHead, UpstreamId};
 use crate::flake_lock::ExtendedLockFile;
 
@@ -207,7 +205,10 @@ pub fn plan(
         budget_slots_remaining: slots_remaining,
         checks,
     };
-    PlanOutput { spec, refresh_targets }
+    PlanOutput {
+        spec,
+        refresh_targets,
+    }
 }
 
 const fn action_order(a: PlanAction) -> u8 {
@@ -235,7 +236,10 @@ mod tests {
                 ..Default::default()
             },
             spec: FlakeUpdatePolicySpec {
-                repo: RepoRef { workspace: "ws".into(), repo: "r".into() },
+                repo: RepoRef {
+                    workspace: "ws".into(),
+                    repo: "r".into(),
+                },
                 inputs: modes,
                 default_mode: UpdateMode::Gated,
                 gates: vec![],
@@ -304,9 +308,24 @@ mod tests {
         let cache = HashMap::new();
         let out = plan(&policy, &lock, None, &cache, 100);
 
-        let l = out.spec.checks.iter().find(|c| c.input == "locked-input").unwrap();
-        let f = out.spec.checks.iter().find(|c| c.input == "forbidden-input").unwrap();
-        let a = out.spec.checks.iter().find(|c| c.input == "auto-input").unwrap();
+        let l = out
+            .spec
+            .checks
+            .iter()
+            .find(|c| c.input == "locked-input")
+            .unwrap();
+        let f = out
+            .spec
+            .checks
+            .iter()
+            .find(|c| c.input == "forbidden-input")
+            .unwrap();
+        let a = out
+            .spec
+            .checks
+            .iter()
+            .find(|c| c.input == "auto-input")
+            .unwrap();
         assert_eq!(l.action, PlanAction::Skip);
         assert_eq!(f.action, PlanAction::Skip);
         assert_eq!(a.action, PlanAction::Refresh);
@@ -345,7 +364,10 @@ mod tests {
         cache.insert(
             id,
             CachedHead {
-                info: HeadInfo { upstream_rev: "abc".into(), upstream_modified: 0 },
+                info: HeadInfo {
+                    upstream_rev: "abc".into(),
+                    upstream_modified: 0,
+                },
                 etag: Some("\"x\"".into()),
                 fetched_at: Utc::now() - Duration::hours(1),
             },

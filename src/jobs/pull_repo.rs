@@ -142,25 +142,66 @@ mod tests {
     /// of every test repo; we clone from it so the local repo has a
     /// real `origin` and `git pull --ff-only` is well-defined.
     fn init_upstream(path: &std::path::Path) {
-        Command::new("git").args(["init", "-q", "-b", "main"]).current_dir(path).status().unwrap();
-        Command::new("git").args(["config", "user.email", "t@t"]).current_dir(path).status().unwrap();
-        Command::new("git").args(["config", "user.name", "t"]).current_dir(path).status().unwrap();
-        Command::new("git").args(["config", "commit.gpgsign", "false"]).current_dir(path).status().unwrap();
+        Command::new("git")
+            .args(["init", "-q", "-b", "main"])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "t@t"])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "t"])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "commit.gpgsign", "false"])
+            .current_dir(path)
+            .status()
+            .unwrap();
         std::fs::write(path.join("file"), "one\n").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(path).status().unwrap();
-        Command::new("git").args(["commit", "-q", "-m", "one"]).current_dir(path).status().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-q", "-m", "one"])
+            .current_dir(path)
+            .status()
+            .unwrap();
     }
 
     /// Clone `upstream` into `dest`. Same identity config so commits
     /// made downstream of this would be valid.
     fn clone_from(upstream: &std::path::Path, dest: &std::path::Path) {
         Command::new("git")
-            .args(["clone", "-q", upstream.to_str().unwrap(), dest.to_str().unwrap()])
+            .args([
+                "clone",
+                "-q",
+                upstream.to_str().unwrap(),
+                dest.to_str().unwrap(),
+            ])
             .status()
             .unwrap();
-        Command::new("git").args(["config", "user.email", "t@t"]).current_dir(dest).status().unwrap();
-        Command::new("git").args(["config", "user.name", "t"]).current_dir(dest).status().unwrap();
-        Command::new("git").args(["config", "commit.gpgsign", "false"]).current_dir(dest).status().unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "t@t"])
+            .current_dir(dest)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "t"])
+            .current_dir(dest)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "commit.gpgsign", "false"])
+            .current_dir(dest)
+            .status()
+            .unwrap();
     }
 
     #[tokio::test]
@@ -181,7 +222,11 @@ mod tests {
     #[tokio::test]
     async fn missing_repo_reports_missing_skipped() {
         let tmp = TempDir::new().unwrap();
-        let job = PullRepoJob::new("test-ws", "does-not-exist", tmp.path().join("does-not-exist"));
+        let job = PullRepoJob::new(
+            "test-ws",
+            "does-not-exist",
+            tmp.path().join("does-not-exist"),
+        );
         let out = job.execute().await.unwrap();
         assert_eq!(out, PullOutcome::MissingSkipped);
     }
@@ -211,8 +256,16 @@ mod tests {
 
         // Advance upstream by one commit.
         std::fs::write(upstream.join("file"), "two\n").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(&upstream).status().unwrap();
-        Command::new("git").args(["commit", "-q", "-m", "two"]).current_dir(&upstream).status().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&upstream)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-q", "-m", "two"])
+            .current_dir(&upstream)
+            .status()
+            .unwrap();
 
         let job = PullRepoJob::new("test-ws", "local", local.clone());
         let out = job.execute().await.unwrap();
@@ -240,16 +293,23 @@ mod tests {
 
         // Advance upstream so the local pull yields PullOutcome::Updated.
         std::fs::write(upstream.join("file"), "two\n").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(&upstream).status().unwrap();
-        Command::new("git").args(["commit", "-q", "-m", "two"]).current_dir(&upstream).status().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&upstream)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-q", "-m", "two"])
+            .current_dir(&upstream)
+            .status()
+            .unwrap();
 
         // Build a sink the consumer holds + the Job records into.
         let sink: Arc<InMemorySink<PullOutcome>> = Arc::new(InMemorySink::new());
         let sink_for_job: Arc<dyn OutputSink<PullOutcome>> = sink.clone();
 
-        let job = Arc::new(
-            PullRepoJob::new("test-ws", "local", local).with_output_sink(sink_for_job),
-        );
+        let job =
+            Arc::new(PullRepoJob::new("test-ws", "local", local).with_output_sink(sink_for_job));
         let id = <PullRepoJob as Job>::id(&job);
 
         let scheduler =
@@ -311,7 +371,11 @@ mod tests {
         // For "ahead", advance upstream one commit AFTER the clone so the
         // local repo lags by one.
         std::fs::write(upstream.join("file"), "two\n").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(&upstream).status().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&upstream)
+            .status()
+            .unwrap();
         Command::new("git")
             .args(["commit", "-q", "-m", "two"])
             .current_dir(&upstream)

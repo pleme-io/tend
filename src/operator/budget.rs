@@ -48,12 +48,12 @@ const PRESSURE_CRITICAL_PCT: u8 = 25;
 pub fn pacer(max_per_hour: u32) -> samba::LeakyBucket {
     let capped = max_per_hour.max(1);
     samba::LeakyBucket::new(
-        1.0,                    // quota_pct: capped is already the absolute req/hr cap
-        f64::from(capped),      // initial_rph
+        1.0,               // quota_pct: capped is already the absolute req/hr cap
+        f64::from(capped), // initial_rph
         PRESSURE_WARN_PCT,
         PRESSURE_CRITICAL_PCT,
-        0.0,                    // jitter_pct
-        capped,                 // burst — allow an immediate burst up to the cap
+        0.0,    // jitter_pct
+        capped, // burst — allow an immediate burst up to the cap
     )
     .expect("pacer: literal LeakyBucket params are always valid")
 }

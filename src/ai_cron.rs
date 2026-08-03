@@ -59,15 +59,18 @@ impl FlowState {
     }
 
     pub fn mark_running(&mut self, step_id: &str) {
-        self.step_states.insert(step_id.to_string(), StepState::Running);
+        self.step_states
+            .insert(step_id.to_string(), StepState::Running);
     }
 
     pub fn mark_success(&mut self, step_id: &str) {
-        self.step_states.insert(step_id.to_string(), StepState::Success);
+        self.step_states
+            .insert(step_id.to_string(), StepState::Success);
     }
 
     pub fn mark_failed(&mut self, step_id: &str) {
-        self.step_states.insert(step_id.to_string(), StepState::Failed);
+        self.step_states
+            .insert(step_id.to_string(), StepState::Failed);
     }
 }
 
@@ -107,7 +110,10 @@ impl AiFlowDaemon {
 
     pub async fn is_converged(&self, flow_name: &str) -> bool {
         let states = self.states.read().await;
-        states.get(flow_name).map(|f| f.is_converged()).unwrap_or(false)
+        states
+            .get(flow_name)
+            .map(|f| f.is_converged())
+            .unwrap_or(false)
     }
 
     pub async fn get_pending_steps(&self, flow_name: &str) -> Vec<String> {

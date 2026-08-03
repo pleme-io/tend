@@ -350,7 +350,6 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&log).unwrap(), "{\"fresh\":true}\n");
     }
 
-
     // ── the total budget ──────────────────────────────────────────────
 
     /// A directory inside the budget is left completely alone.
@@ -435,8 +434,11 @@ mod tests {
         write(&live, 50);
         write(&gen(&live, 1), 300);
 
-        let Budget::Pruned { after_bytes, before_bytes, removed } =
-            enforce_budget(tmp.path(), 100)
+        let Budget::Pruned {
+            after_bytes,
+            before_bytes,
+            removed,
+        } = enforce_budget(tmp.path(), 100)
         else {
             panic!("expected Pruned");
         };

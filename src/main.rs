@@ -1,6 +1,3 @@
-mod mcp;
-mod pressure;
-mod worktree;
 mod ai_cron;
 mod ai_executor;
 mod ai_flow;
@@ -14,33 +11,36 @@ mod config;
 mod daemon;
 mod display;
 mod kanshou_state;
+mod mcp;
+mod pressure;
+mod worktree;
 // Typed failure classification for a reconcile cycle. See src/failure.rs --
 // it exists because a String reason produced three contradictory readings of
 // one log on 2026-07-28, and because "the host was asleep" must not count as
 // residue the way "the credential is gone" does.
+mod anomaly;
+mod drift;
 mod failure;
 mod flake;
 mod flake_lock;
 mod git;
 mod github;
-mod drift;
 mod head_cache;
 mod host_health;
 mod jobs;
 mod logrotate;
 mod nixpkgs_align;
 mod placeholder;
-mod anomaly;
 mod planner;
 mod prebuild;
 mod prebuild_cache;
-mod reconcile;
-mod secret;
-mod remote_url;
-mod report;
 mod provider;
+mod reconcile;
 mod release_swarm;
 mod release_swarm_http;
+mod remote_url;
+mod report;
+mod secret;
 mod sync;
 mod watch;
 mod watch_cache;
@@ -722,14 +722,20 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Mcp { list_tools, allow_mutate } => {
+        Commands::Mcp {
+            list_tools,
+            allow_mutate,
+        } => {
             let authority = if allow_mutate {
                 mcp::Authority::Mutate
             } else {
                 mcp::Authority::Observe
             };
             if list_tools {
-                println!("{}", serde_json::to_string_pretty(&mcp::catalog_json(authority))?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&mcp::catalog_json(authority))?
+                );
             } else {
                 // stdio transport: the server IS this process, so nothing may be
                 // written to stdout except MCP frames. Diagnostics go to stderr.
@@ -761,15 +767,19 @@ async fn main() -> Result<()> {
             match action {
                 WorktreeAction::Enter { repo, session } => {
                     let repo = repo.unwrap_or(here);
-                    let session = session
-                        .or_else(worktree::session_from_env)
-                        .ok_or_else(|| anyhow::anyhow!(
+                    let session = session.or_else(worktree::session_from_env).ok_or_else(|| {
+                        anyhow::anyhow!(
                             "no session id: pass --session or set CLAUDE_CODE_SESSION_ID"
-                        ))?;
+                        )
+                    })?;
                     let path = worktree::enter(&repo, &session, &worktree::default_root(&repo))?;
                     println!("{}", path.display());
                 }
-                WorktreeAction::Session { repo, session, command } => {
+                WorktreeAction::Session {
+                    repo,
+                    session,
+                    command,
+                } => {
                     // DELEGATES to `claude --worktree` rather than competing with
                     // it. Claude Code creates the worktree itself — same location
                     // (<repo>/.claude/worktrees/<name>), same branch prefix, and
@@ -782,20 +792,16 @@ async fn main() -> Result<()> {
                     // Non-claude commands still get a tend-made worktree, since
                     // `--worktree` is claude's flag and nothing else has it.
                     let repo = repo.unwrap_or(here);
-                    let session = session
-                        .or_else(worktree::session_from_env)
-                        .ok_or_else(|| anyhow::anyhow!(
+                    let session = session.or_else(worktree::session_from_env).ok_or_else(|| {
+                        anyhow::anyhow!(
                             "no session id: pass --session or set CLAUDE_CODE_SESSION_ID"
-                        ))?;
+                        )
+                    })?;
                     let slug = worktree::session_slug(&session);
 
                     if command.is_empty() {
                         eprintln!("tend: delegating to `claude --worktree {slug}`");
-                        worktree::exec_in(
-                            &repo,
-                            "claude",
-                            &[String::from("--worktree"), slug],
-                        )?;
+                        worktree::exec_in(&repo, "claude", &[String::from("--worktree"), slug])?;
                         unreachable!("exec_in only returns on failure");
                     }
 
@@ -809,13 +815,17 @@ async fn main() -> Result<()> {
                     unreachable!("exec_in only returns on failure");
                 }
 
-                WorktreeAction::Land { repo, session, base } => {
+                WorktreeAction::Land {
+                    repo,
+                    session,
+                    base,
+                } => {
                     let repo = repo.unwrap_or(here);
-                    let session = session
-                        .or_else(worktree::session_from_env)
-                        .ok_or_else(|| anyhow::anyhow!(
+                    let session = session.or_else(worktree::session_from_env).ok_or_else(|| {
+                        anyhow::anyhow!(
                             "no session id: pass --session or set CLAUDE_CODE_SESSION_ID"
-                        ))?;
+                        )
+                    })?;
                     let path = worktree::enter(&repo, &session, &worktree::default_root(&repo))?;
                     let sha = worktree::land(&path, &base)?;
                     println!("landed {sha} onto {base}");
@@ -824,7 +834,12 @@ async fn main() -> Result<()> {
                 WorktreeAction::List { repo } => {
                     let repo = repo.unwrap_or(here);
                     for e in worktree::list(&repo)? {
-                        println!("{}  {}  {}", e.branch, e.path.display(), e.verdict().reason());
+                        println!(
+                            "{}  {}  {}",
+                            e.branch,
+                            e.path.display(),
+                            e.verdict().reason()
+                        );
                     }
                 }
                 WorktreeAction::Prune { repo, dry_run } => {
@@ -1108,18 +1123,15 @@ async fn main() -> Result<()> {
                     Some(p) => p.to_path_buf(),
                     None => config::Config::default_path(),
                 };
-                let content = std::fs::read_to_string(&cfg_path).with_context(|| {
-                    format!("reading {}", cfg_path.display())
-                })?;
+                let content = std::fs::read_to_string(&cfg_path)
+                    .with_context(|| format!("reading {}", cfg_path.display()))?;
                 let mut doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)
                     .with_context(|| format!("parsing {}", cfg_path.display()))?;
 
                 let workspaces = doc
                     .get_mut("workspaces")
                     .and_then(|v| v.as_sequence_mut())
-                    .ok_or_else(|| anyhow::anyhow!(
-                        "config has no `workspaces:` sequence"
-                    ))?;
+                    .ok_or_else(|| anyhow::anyhow!("config has no `workspaces:` sequence"))?;
 
                 let mut found = false;
                 for ws_val in workspaces.iter_mut() {
@@ -1131,9 +1143,9 @@ async fn main() -> Result<()> {
                         continue;
                     }
                     found = true;
-                    let map = ws_val.as_mapping_mut().ok_or_else(|| {
-                        anyhow::anyhow!("workspace entry is not a mapping")
-                    })?;
+                    let map = ws_val
+                        .as_mapping_mut()
+                        .ok_or_else(|| anyhow::anyhow!("workspace entry is not a mapping"))?;
                     let key = serde_yaml_ng::Value::String("extra_repos".into());
                     let entry = map
                         .entry(key)
@@ -1150,11 +1162,10 @@ async fn main() -> Result<()> {
                     );
                 }
 
-                let serialized = serde_yaml_ng::to_string(&doc)
-                    .with_context(|| "re-serializing config YAML")?;
-                std::fs::write(&cfg_path, &serialized).with_context(|| {
-                    format!("writing {}", cfg_path.display())
-                })?;
+                let serialized =
+                    serde_yaml_ng::to_string(&doc).with_context(|| "re-serializing config YAML")?;
+                std::fs::write(&cfg_path, &serialized)
+                    .with_context(|| format!("writing {}", cfg_path.display()))?;
                 println!(
                     "adopted {}/{} into config at {} (extra_repos updated)",
                     workspace,
@@ -1164,10 +1175,7 @@ async fn main() -> Result<()> {
             }
         }
 
-        Commands::Report {
-            log,
-            window_hours,
-        } => {
+        Commands::Report { log, window_hours } => {
             let path = log
                 .or_else(|| {
                     audit::AuditLog::default_path()
@@ -1250,7 +1258,11 @@ async fn main() -> Result<()> {
                         .map(|e| base_dir.join(&e.name)),
                 );
                 if json {
-                    rows.extend(entries.iter().map(|e| display::StatusJsonRow::new(e, &base_dir)));
+                    rows.extend(
+                        entries
+                            .iter()
+                            .map(|e| display::StatusJsonRow::new(e, &base_dir)),
+                    );
                 } else {
                     display::print_status(&ws.name, &entries);
                 }
@@ -1282,7 +1294,9 @@ async fn main() -> Result<()> {
                         println!("  {} (lock {}s old)", l.repo.display(), l.age_secs);
                     }
                     if report.lock_reap_outcomes.is_empty() {
-                        println!("  (not reaped -- pass without --no-fix, or set host_health.fix: true)");
+                        println!(
+                            "  (not reaped -- pass without --no-fix, or set host_health.fix: true)"
+                        );
                     } else {
                         for (l, outcome) in &report.lock_reap_outcomes {
                             let desc = match outcome {
@@ -1304,10 +1318,15 @@ async fn main() -> Result<()> {
                         host_audit.path().display()
                     );
                     for o in &report.orphans {
-                        println!("  pid {} etime {} tty {} -- {}", o.pid, o.etime, o.tty, o.command);
+                        println!(
+                            "  pid {} etime {} tty {} -- {}",
+                            o.pid, o.etime, o.tty, o.command
+                        );
                     }
                     if report.reap_outcomes.is_empty() {
-                        println!("  (not reaped -- pass without --no-fix, or set host_health.fix: true)");
+                        println!(
+                            "  (not reaped -- pass without --no-fix, or set host_health.fix: true)"
+                        );
                     } else {
                         for (o, outcome) in &report.reap_outcomes {
                             let desc = match outcome {
@@ -1369,9 +1388,9 @@ async fn main() -> Result<()> {
 
             let cfg = load_config(config_path.as_deref())?;
             let opts = flake::ExecOptions {
-        // Verification ON by default — an unverified lock is how a
-        // withdrawn upstream reached main and stopped the fleet.
-        skip_verify: false,
+                // Verification ON by default — an unverified lock is how a
+                // withdrawn upstream reached main and stopped the fleet.
+                skip_verify: false,
                 dry_run,
                 quiet,
                 auto_clone: !no_clone,
@@ -1393,7 +1412,10 @@ async fn main() -> Result<()> {
                 }
 
                 let (label, chain) = if all {
-                    ("(all)".to_string(), flake::compute_update_chain_all(&ws.flake_deps)?)
+                    (
+                        "(all)".to_string(),
+                        flake::compute_update_chain_all(&ws.flake_deps)?,
+                    )
                 } else {
                     let trigger = changed.as_deref().expect("validated above");
                     (
@@ -1453,6 +1475,13 @@ async fn main() -> Result<()> {
                 summary.updated += ws_summary.updated;
                 summary.no_change += ws_summary.no_change;
                 summary.skipped += ws_summary.skipped;
+                // ── ★ THE FOURTH FIELD. Dropping it made an all-blocked run
+                // report success: `blocked` was counted in the chain and
+                // discarded here, so the CLI printed "done", exited 0, and
+                // the daemon doubled its backoff as if the fleet had
+                // converged. Counting a thing and then not reading it is
+                // the same defect as never counting it.
+                summary.blocked += ws_summary.blocked;
 
                 // Also run cargo updates for Rust repos that are dirty (have uncommitted changes)
                 // This catches repos that aren't in flake_deps but have Cargo.lock changes
@@ -1469,7 +1498,11 @@ async fn main() -> Result<()> {
                     .collect();
                 if !dirty_cargo_repos.is_empty() && !opts.dry_run {
                     if !quiet {
-                        println!("{}: running cargo updates for {} dirty Rust repos", ws.name, dirty_cargo_repos.len());
+                        println!(
+                            "{}: running cargo updates for {} dirty Rust repos",
+                            ws.name,
+                            dirty_cargo_repos.len()
+                        );
                     }
                     // Pull first for each dirty cargo repo
                     let base_dir = ws.resolved_base_dir()?;
@@ -1491,7 +1524,10 @@ async fn main() -> Result<()> {
                     summary.no_change += cargo_summary.no_change;
                     summary.skipped += cargo_summary.skipped;
                     if !quiet && cargo_summary.updated > 0 {
-                        println!("{}: {} cargo updates committed and pushed", ws.name, cargo_summary.updated);
+                        println!(
+                            "{}: {} cargo updates committed and pushed",
+                            ws.name, cargo_summary.updated
+                        );
                     }
                 }
 
@@ -1505,15 +1541,27 @@ async fn main() -> Result<()> {
                     }),
                 );
                 if !quiet {
-                    display::print_flake_chain_complete(chain.len());
+                    display::print_flake_chain_complete(ws_summary.updated, ws_summary.blocked);
                 }
             }
 
             if all && !quiet {
                 println!(
-                    "\nsummary: {} updated, {} no-change, {} skipped",
-                    summary.updated, summary.no_change, summary.skipped
+                    "\nsummary: {} updated, {} no-change, {} skipped, {} blocked",
+                    summary.updated, summary.no_change, summary.skipped, summary.blocked
                 );
+                // ── ★ A BLOCKED RUN MUST NOT EXIT 0 ──────────────────────
+                // `had_blocked`'s own doc promised "the caller reports a
+                // non-zero exit so an automated run cannot look successful
+                // while silently having skipped half the fleet" — and no
+                // caller read it. CI, a cron wrapper, or `&&` in a shell
+                // all treated a fully-blocked fleet as a clean run.
+                if summary.had_blocked() {
+                    anyhow::bail!(
+                        "{} repo(s) blocked — see the BLOCKED lines above; nothing behind them was skipped",
+                        summary.blocked
+                    );
+                }
             }
         }
 
@@ -1531,14 +1579,8 @@ async fn main() -> Result<()> {
                 std::env::set_var("GITHUB_TOKEN", token.trim());
             }
 
-            run_flake_update_daemon(
-                config_path,
-                ws_filter,
-                min_interval,
-                max_interval,
-                quiet,
-            )
-            .await?;
+            run_flake_update_daemon(config_path, ws_filter, min_interval, max_interval, quiet)
+                .await?;
         }
 
         Commands::Prebuild {
@@ -1575,8 +1617,7 @@ async fn main() -> Result<()> {
             let audit = audit::AuditLog::default_path();
             // run_cycle overlays the config's prebuild block
             // (packages/caches/repro/systems) onto these CLI options.
-            let summary =
-                prebuild::run_cycle(&cfg, ws_filter.as_deref(), &opts, &audit).await?;
+            let summary = prebuild::run_cycle(&cfg, ws_filter.as_deref(), &opts, &audit).await?;
             println!(
                 "prebuild: {} built, {} no-change, {} no-default, {} failed, {} pushed",
                 summary.built,
@@ -1650,9 +1691,15 @@ async fn main() -> Result<()> {
                         let git_ops = git::SystemGitOps;
 
                         let summary = watch::run_watch_cycle(
-                            ws, false, &gh, &cache_store, &matrix_appender, &git_ops,
+                            ws,
+                            false,
+                            &gh,
+                            &cache_store,
+                            &matrix_appender,
+                            &git_ops,
                             &audit_log,
-                        ).await?;
+                        )
+                        .await?;
                         display::print_watch_summary(&ws.name, &summary);
                     }
                 }
@@ -1708,10 +1755,7 @@ async fn main() -> Result<()> {
                         .get("timestamp")
                         .and_then(|v| v.as_str())
                         .unwrap_or("?");
-                    let evt = entry
-                        .get("event")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("?");
+                    let evt = entry.get("event").and_then(|v| v.as_str()).unwrap_or("?");
 
                     // Collect data fields (everything except timestamp and event)
                     let data_fields: Vec<String> = entry
@@ -1763,9 +1807,7 @@ async fn main() -> Result<()> {
             // `gen kanshou query tend <field>`. Best-effort: bind
             // failure logs and continues so introspection-disabled
             // mode is graceful.
-            let kanshou_state = std::sync::Arc::new(
-                kanshou_state::TendDaemonState::new(),
-            );
+            let kanshou_state = std::sync::Arc::new(kanshou_state::TendDaemonState::new());
             match kanshou_state::spawn_server("tend", std::sync::Arc::clone(&kanshou_state)) {
                 Ok(path) => tracing::info!(
                     socket = %path.display(),
@@ -1867,10 +1909,9 @@ async fn main() -> Result<()> {
             // Render fn stub — produces the canonical 3-target workflow YAML
             // derived from repo_name + binary_name. Later swapped for a call
             // into arch-synthesizer's RustToolPublicReleaseDecl::render().
-            let render =
-                |repo_name: &str, repo_cfg: &release_swarm::RepoReleaseConfig| {
-                    render_rust_tool_release_workflow_yaml(repo_name, repo_cfg)
-                };
+            let render = |repo_name: &str, repo_cfg: &release_swarm::RepoReleaseConfig| {
+                render_rust_tool_release_workflow_yaml(repo_name, repo_cfg)
+            };
 
             for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
                 let swarm_cfg = match ws.watch.as_ref().and_then(|w| w.release_swarm.as_ref()) {
@@ -2000,9 +2041,7 @@ async fn run_flake_update_daemon(
     let audit_log = audit::AuditLog::default_path();
 
     if !quiet {
-        println!(
-            "flake-update daemon starting (min={min}s max={max}s). Ctrl-C to stop."
-        );
+        println!("flake-update daemon starting (min={min}s max={max}s). Ctrl-C to stop.");
     }
 
     loop {
@@ -2012,8 +2051,7 @@ async fn run_flake_update_daemon(
             serde_json::json!({ "interval_secs": interval }),
         );
 
-        match run_flake_update_cycle(config_path.as_deref(), ws_filter.as_deref(), quiet).await
-        {
+        match run_flake_update_cycle(config_path.as_deref(), ws_filter.as_deref(), quiet).await {
             Ok(summary) => {
                 let duration_ms = cycle_start.elapsed().as_millis() as u64;
                 audit_log.log(
@@ -2025,7 +2063,7 @@ async fn run_flake_update_daemon(
                         "skipped": summary.skipped,
                     }),
                 );
-                if summary.work() > 0 {
+                if !summary.converged() {
                     interval = min;
                 } else {
                     interval = (interval.saturating_mul(2)).min(max);
@@ -2077,8 +2115,7 @@ async fn run_flake_update_cycle(
         if chain.is_empty() {
             continue;
         }
-        let (chain, _dropped) =
-            flake::filter_to_divergent(ws, chain, Some(&upstream)).await?;
+        let (chain, _dropped) = flake::filter_to_divergent(ws, chain, Some(&upstream)).await?;
         if chain.is_empty() {
             continue;
         }
@@ -2089,6 +2126,9 @@ async fn run_flake_update_cycle(
         summary.updated += ws_summary.updated;
         summary.no_change += ws_summary.no_change;
         summary.skipped += ws_summary.skipped;
+        // See the CLI site: dropping `blocked` here made the DAEMON treat a
+        // fully-blocked fleet as converged and double its sleep interval.
+        summary.blocked += ws_summary.blocked;
     }
     Ok(summary)
 }
@@ -2107,9 +2147,8 @@ fn build_attic_push(
     let Some(cache) = cache_name else {
         return Ok(None);
     };
-    let url = server_url.ok_or_else(|| {
-        anyhow::anyhow!("--attic-url is required when --attic-cache is set")
-    })?;
+    let url = server_url
+        .ok_or_else(|| anyhow::anyhow!("--attic-url is required when --attic-cache is set"))?;
     let token = token_file.ok_or_else(|| {
         anyhow::anyhow!("--attic-token-file is required when --attic-cache is set")
     })?;
@@ -2204,11 +2243,9 @@ async fn run_prebuild_daemon(
         // producing closures we can't push. When it comes back up we
         // reset the streak and fall through to a normal cycle.
         if reachability.enabled {
-            let reachable = prebuild::probe_attic_reachable(
-                &reachability.url,
-                reachability.probe_timeout,
-            )
-            .await;
+            let reachable =
+                prebuild::probe_attic_reachable(&reachability.url, reachability.probe_timeout)
+                    .await;
             if !reachable {
                 unreachable_streak = unreachable_streak.saturating_add(1);
                 let sleep_secs = reachability.unreachable_sleep(unreachable_streak);
@@ -2369,7 +2406,10 @@ fn render_rust_tool_release_workflow_yaml(
     repo_name: &str,
     repo_cfg: &release_swarm::RepoReleaseConfig,
 ) -> String {
-    let binary_name = repo_cfg.binary_name.clone().unwrap_or_else(|| repo_name.to_string());
+    let binary_name = repo_cfg
+        .binary_name
+        .clone()
+        .unwrap_or_else(|| repo_name.to_string());
     let features = if repo_cfg.features.is_empty() {
         String::new()
     } else {
@@ -2549,7 +2589,11 @@ mod tests {
         let dir = std::env::temp_dir().join("tend-main-test-multi");
         let _ = std::fs::create_dir_all(&dir);
         let path = dir.join("multi-config.yaml");
-        std::fs::write(&path, "workspaces:\n  - name: a\n    base_dir: /a\n  - name: b\n    base_dir: /b\n").unwrap();
+        std::fs::write(
+            &path,
+            "workspaces:\n  - name: a\n    base_dir: /a\n  - name: b\n    base_dir: /b\n",
+        )
+        .unwrap();
         let cfg = load_config(Some(&path)).unwrap();
         assert_eq!(cfg.workspaces.len(), 2);
         let _ = std::fs::remove_file(&path);

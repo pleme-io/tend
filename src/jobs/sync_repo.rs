@@ -114,13 +114,37 @@ mod tests {
     use tempfile::TempDir;
 
     fn init_upstream(path: &std::path::Path) {
-        Command::new("git").args(["init", "-q", "-b", "main"]).current_dir(path).status().unwrap();
-        Command::new("git").args(["config", "user.email", "t@t"]).current_dir(path).status().unwrap();
-        Command::new("git").args(["config", "user.name", "t"]).current_dir(path).status().unwrap();
-        Command::new("git").args(["config", "commit.gpgsign", "false"]).current_dir(path).status().unwrap();
+        Command::new("git")
+            .args(["init", "-q", "-b", "main"])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "t@t"])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "t"])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "commit.gpgsign", "false"])
+            .current_dir(path)
+            .status()
+            .unwrap();
         std::fs::write(path.join("file"), "x\n").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(path).status().unwrap();
-        Command::new("git").args(["commit", "-q", "-m", "init"]).current_dir(path).status().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-q", "-m", "init"])
+            .current_dir(path)
+            .status()
+            .unwrap();
     }
 
     #[tokio::test]

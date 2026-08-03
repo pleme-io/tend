@@ -181,10 +181,7 @@ pub(crate) async fn resolve_repos(workspace: &Workspace, refresh: bool) -> Resul
     let mut repos = Vec::new();
 
     if workspace.discover {
-        let org = workspace
-            .org
-            .as_deref()
-            .unwrap_or(&workspace.name);
+        let org = workspace.org.as_deref().unwrap_or(&workspace.name);
         let discovered = provider::discover_github_repos_cached(org, refresh).await?;
         repos.extend(discovered);
     }
@@ -300,7 +297,11 @@ pub(crate) fn sync_one_repo(
     Ok(SyncOutcome::Cloned)
 }
 
-pub(crate) async fn sync_repos(workspace: &Workspace, repos: &[String], quiet: bool) -> Result<(usize, usize)> {
+pub(crate) async fn sync_repos(
+    workspace: &Workspace,
+    repos: &[String],
+    quiet: bool,
+) -> Result<(usize, usize)> {
     let base_dir = workspace.resolved_base_dir()?;
     std::fs::create_dir_all(&base_dir)
         .with_context(|| format!("creating {}", base_dir.display()))?;
@@ -324,7 +325,10 @@ pub(crate) async fn sync_repos(workspace: &Workspace, repos: &[String], quiet: b
 }
 
 /// Check status of all repos in a workspace
-pub(crate) async fn check_status(workspace: &Workspace, repos: &[String]) -> Result<Vec<RepoEntry>> {
+pub(crate) async fn check_status(
+    workspace: &Workspace,
+    repos: &[String],
+) -> Result<Vec<RepoEntry>> {
     let base_dir = workspace.resolved_base_dir()?;
     let mut entries = Vec::new();
 
@@ -417,7 +421,11 @@ pub(crate) enum FetchOutcome {
 
 /// Fetch one repo. The unit shared by the batch driver and the
 /// per-repo Job wrapper.
-pub(crate) fn fetch_one_repo(repo_path: &Path, quiet: bool, repo_label: &str) -> Result<FetchOutcome> {
+pub(crate) fn fetch_one_repo(
+    repo_path: &Path,
+    quiet: bool,
+    repo_label: &str,
+) -> Result<FetchOutcome> {
     if !is_git_worktree(repo_path) {
         return Ok(FetchOutcome::MissingSkipped);
     }
@@ -441,7 +449,11 @@ pub(crate) fn fetch_one_repo(repo_path: &Path, quiet: bool, repo_label: &str) ->
 }
 
 /// Fetch all remotes for existing repos. Returns (fetched, skipped) counts.
-pub(crate) async fn fetch_repos(workspace: &Workspace, repos: &[String], quiet: bool) -> Result<(usize, usize)> {
+pub(crate) async fn fetch_repos(
+    workspace: &Workspace,
+    repos: &[String],
+    quiet: bool,
+) -> Result<(usize, usize)> {
     let base_dir = workspace.resolved_base_dir()?;
     let mut fetched = 0usize;
     let mut skipped = 0usize;
@@ -529,7 +541,11 @@ fn head_sha(repo_path: &Path) -> Option<String> {
         return None;
     }
     let sha = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if sha.is_empty() { None } else { Some(sha) }
+    if sha.is_empty() {
+        None
+    } else {
+        Some(sha)
+    }
 }
 
 /// Pull one repo. The unit shared by the batch driver and the
@@ -540,7 +556,11 @@ fn head_sha(repo_path: &Path) -> Option<String> {
 /// git emits nothing for either branch, so a textual heuristic
 /// collapses both cases to "up to date" and the caller can't tell
 /// when a real fast-forward landed.
-pub(crate) fn pull_one_repo(repo_path: &Path, quiet: bool, repo_label: &str) -> Result<PullOutcome> {
+pub(crate) fn pull_one_repo(
+    repo_path: &Path,
+    quiet: bool,
+    repo_label: &str,
+) -> Result<PullOutcome> {
     if !is_git_worktree(repo_path) {
         return Ok(PullOutcome::MissingSkipped);
     }
@@ -776,7 +796,12 @@ mod tests {
             .status()
             .unwrap();
         std::process::Command::new("git")
-            .args(["remote", "add", "origin", "git@github.com:pleme-io/has-remote.git"])
+            .args([
+                "remote",
+                "add",
+                "origin",
+                "git@github.com:pleme-io/has-remote.git",
+            ])
             .current_dir(&repo)
             .status()
             .unwrap();
@@ -842,8 +867,14 @@ mod tests {
         std::fs::create_dir_all(&stub).unwrap();
         std::fs::write(stub.join("README.md"), "hello").unwrap();
 
-        assert!(!is_git_worktree(&stub), "stub without .git must not be a worktree");
-        assert!(!is_git_worktree(&tmp.join("does-not-exist")), "missing dir must not be a worktree");
+        assert!(
+            !is_git_worktree(&stub),
+            "stub without .git must not be a worktree"
+        );
+        assert!(
+            !is_git_worktree(&tmp.join("does-not-exist")),
+            "missing dir must not be a worktree"
+        );
 
         // Create `.git` dir and re-check.
         std::fs::create_dir_all(stub.join(".git")).unwrap();
@@ -853,14 +884,25 @@ mod tests {
         let wt = tmp.join("worktree-repo");
         std::fs::create_dir_all(&wt).unwrap();
         std::fs::write(wt.join(".git"), "gitdir: ../real/.git/worktrees/wt\n").unwrap();
-        assert!(is_git_worktree(&wt), "dir with .git file pointer must be a worktree");
+        assert!(
+            is_git_worktree(&wt),
+            "dir with .git file pointer must be a worktree"
+        );
 
         std::fs::remove_dir_all(&tmp).ok();
     }
 
     fn git(repo: &Path, args: &[&str]) {
-        let status = Command::new("git").args(args).current_dir(repo).status().unwrap();
-        assert!(status.success(), "git {args:?} failed in {}", repo.display());
+        let status = Command::new("git")
+            .args(args)
+            .current_dir(repo)
+            .status()
+            .unwrap();
+        assert!(
+            status.success(),
+            "git {args:?} failed in {}",
+            repo.display()
+        );
     }
 
     /// A repo with NO remote — the `ferrite-zig` shape. Tests asserting
@@ -881,7 +923,10 @@ mod tests {
         let upstream = repo.with_extension("upstream.git");
         std::fs::create_dir_all(&upstream).unwrap();
         git(&upstream, &["init", "-q", "--bare", "-b", "main"]);
-        git(repo, &["remote", "add", "origin", &upstream.to_string_lossy()]);
+        git(
+            repo,
+            &["remote", "add", "origin", &upstream.to_string_lossy()],
+        );
     }
 
     fn write_commit(repo: &Path, file: &str, content: &str, msg: &str) {
@@ -911,14 +956,24 @@ mod tests {
         write_commit(&repo, "f.txt", "main change\n", "main commit");
         git(&repo, &["checkout", "-q", "feature"]);
         // This rebase conflicts by construction (both branches touched f.txt).
-        let _ = Command::new("git").args(["rebase", "main"]).current_dir(&repo).output().unwrap();
+        let _ = Command::new("git")
+            .args(["rebase", "main"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
 
-        assert!(is_stuck(&repo).unwrap(), "mid-rebase-with-conflict must report stuck");
+        assert!(
+            is_stuck(&repo).unwrap(),
+            "mid-rebase-with-conflict must report stuck"
+        );
         assert_eq!(check_one_repo_status(&repo).unwrap(), RepoStatus::Stuck);
 
         // Abort cleanly and confirm the signal clears.
         git(&repo, &["rebase", "--abort"]);
-        assert!(!is_stuck(&repo).unwrap(), "aborted rebase must clear the stuck signal");
+        assert!(
+            !is_stuck(&repo).unwrap(),
+            "aborted rebase must clear the stuck signal"
+        );
 
         std::fs::remove_dir_all(&tmp).ok();
     }
@@ -1020,9 +1075,14 @@ mod tests {
         std::fs::remove_dir_all(&tmp).ok();
         let repo = tmp.join("repo");
         init_repo(&repo);
-        git(&repo, &["remote", "add", "origin", "https://example.invalid/x.git"]);
+        git(
+            &repo,
+            &["remote", "add", "origin", "https://example.invalid/x.git"],
+        );
 
-        let witness = RemoteWitness::observe(&repo).unwrap().expect("remote present");
+        let witness = RemoteWitness::observe(&repo)
+            .unwrap()
+            .expect("remote present");
         assert_eq!(witness.remote(), "origin");
 
         std::fs::remove_dir_all(&tmp).ok();

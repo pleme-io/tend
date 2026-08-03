@@ -282,12 +282,14 @@ pub(crate) async fn reconcile_workspace_pull(
     // spawn FetchRepoJobs as reactions without re-tuning the budget,
     // and REMEDIATE_REMOTE_KIND for the remote-URL healing reaction.
     let mut budget = BudgetTree::new();
-    budget
-        .by_kind
-        .insert(JobKindId::new(PULL_REPO_KIND), BudgetSpec::max_concurrent(max_inflight));
-    budget
-        .by_kind
-        .insert(JobKindId::new(FETCH_REPO_KIND), BudgetSpec::max_concurrent(max_inflight));
+    budget.by_kind.insert(
+        JobKindId::new(PULL_REPO_KIND),
+        BudgetSpec::max_concurrent(max_inflight),
+    );
+    budget.by_kind.insert(
+        JobKindId::new(FETCH_REPO_KIND),
+        BudgetSpec::max_concurrent(max_inflight),
+    );
     budget.by_kind.insert(
         JobKindId::new(REMEDIATE_REMOTE_KIND),
         BudgetSpec::max_concurrent(max_inflight),
@@ -496,24 +498,28 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
     // each get up to N inflight, but separately — a slow sync wave
     // doesn't starve the pull wave behind it.
     let mut budget = BudgetTree::new();
-    budget
-        .by_kind
-        .insert(JobKindId::new(SYNC_REPO_KIND), BudgetSpec::max_concurrent(max_inflight));
-    budget
-        .by_kind
-        .insert(JobKindId::new(PULL_REPO_KIND), BudgetSpec::max_concurrent(max_inflight));
+    budget.by_kind.insert(
+        JobKindId::new(SYNC_REPO_KIND),
+        BudgetSpec::max_concurrent(max_inflight),
+    );
+    budget.by_kind.insert(
+        JobKindId::new(PULL_REPO_KIND),
+        BudgetSpec::max_concurrent(max_inflight),
+    );
     // Discovery is naturally single-Job-per-workspace (no parallelism
     // benefit). Bound it at 1 to keep accounting tidy.
-    budget
-        .by_kind
-        .insert(JobKindId::new(DISCOVER_ORG_KIND), BudgetSpec::max_concurrent(1));
+    budget.by_kind.insert(
+        JobKindId::new(DISCOVER_ORG_KIND),
+        BudgetSpec::max_concurrent(1),
+    );
     // M6: FETCH_REPO_KIND for reactions that spawn fetches, and
     // REMEDIATE_REMOTE_KIND for the remote-URL healing reaction.
     // A kind with no budget entry never gets admitted, so a missing
     // line here silently disables the reaction rather than failing.
-    budget
-        .by_kind
-        .insert(JobKindId::new(FETCH_REPO_KIND), BudgetSpec::max_concurrent(max_inflight));
+    budget.by_kind.insert(
+        JobKindId::new(FETCH_REPO_KIND),
+        BudgetSpec::max_concurrent(max_inflight),
+    );
     budget.by_kind.insert(
         JobKindId::new(REMEDIATE_REMOTE_KIND),
         BudgetSpec::max_concurrent(max_inflight),
@@ -527,7 +533,10 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
         .register_retry_policy(JobKindId::new(SYNC_REPO_KIND), default_pull_retry_policy())
         .await;
     scheduler
-        .register_retry_policy(JobKindId::new(DISCOVER_ORG_KIND), default_pull_retry_policy())
+        .register_retry_policy(
+            JobKindId::new(DISCOVER_ORG_KIND),
+            default_pull_retry_policy(),
+        )
         .await;
     scheduler
         .register_retry_policy(JobKindId::new(FETCH_REPO_KIND), default_pull_retry_policy())
@@ -566,10 +575,12 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
     // provider::discover_github_repos_cached's existing convention).
     // The CacheFreshGate above auto-skips this when fresh.
     if workspace.discover {
-        let org = workspace.org.clone().unwrap_or_else(|| workspace.name.clone());
+        let org = workspace
+            .org
+            .clone()
+            .unwrap_or_else(|| workspace.name.clone());
         let discover_job = Arc::new(
-            DiscoverOrgJob::new(&workspace.name, org)
-                .with_output_sink(discovery_sink_for_jobs),
+            DiscoverOrgJob::new(&workspace.name, org).with_output_sink(discovery_sink_for_jobs),
         );
         let discover_id = <DiscoverOrgJob as shigoto_types::Job>::id(&discover_job);
         dag.ensure_node(discover_id);
@@ -733,18 +744,47 @@ mod tests {
     use tempfile::TempDir;
 
     fn init_repo(path: &std::path::Path) {
-        Command::new("git").args(["init", "-q", "-b", "main"]).current_dir(path).status().unwrap();
-        Command::new("git").args(["config", "user.email", "t@t"]).current_dir(path).status().unwrap();
-        Command::new("git").args(["config", "user.name", "t"]).current_dir(path).status().unwrap();
-        Command::new("git").args(["config", "commit.gpgsign", "false"]).current_dir(path).status().unwrap();
+        Command::new("git")
+            .args(["init", "-q", "-b", "main"])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "t@t"])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "t"])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "commit.gpgsign", "false"])
+            .current_dir(path)
+            .status()
+            .unwrap();
         std::fs::write(path.join("file"), "x\n").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(path).status().unwrap();
-        Command::new("git").args(["commit", "-q", "--no-verify", "-m", "init"]).current_dir(path).status().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-q", "--no-verify", "-m", "init"])
+            .current_dir(path)
+            .status()
+            .unwrap();
     }
 
     fn clone_from(upstream: &std::path::Path, dest: &std::path::Path) {
         Command::new("git")
-            .args(["clone", "-q", upstream.to_str().unwrap(), dest.to_str().unwrap()])
+            .args([
+                "clone",
+                "-q",
+                upstream.to_str().unwrap(),
+                dest.to_str().unwrap(),
+            ])
             .status()
             .unwrap();
     }
@@ -762,7 +802,10 @@ mod tests {
         let policy = default_pull_retry_policy();
 
         let r1 = policy.decide(1, &[]);
-        assert!(matches!(r1, RetryDecision::Retry { .. }), "attempt 1 should retry, got {r1:?}");
+        assert!(
+            matches!(r1, RetryDecision::Retry { .. }),
+            "attempt 1 should retry, got {r1:?}"
+        );
         let r2 = policy.decide(
             2,
             &[FailureRecord {
@@ -772,12 +815,25 @@ mod tests {
                 kind: FailureKind::Transient,
             }],
         );
-        assert!(matches!(r2, RetryDecision::Retry { .. }), "attempt 2 should retry, got {r2:?}");
+        assert!(
+            matches!(r2, RetryDecision::Retry { .. }),
+            "attempt 2 should retry, got {r2:?}"
+        );
         let r3 = policy.decide(
             3,
             &[
-                FailureRecord { attempt: 1, at_ms: 0, error: "boom".into(), kind: FailureKind::Transient },
-                FailureRecord { attempt: 2, at_ms: 0, error: "boom".into(), kind: FailureKind::Transient },
+                FailureRecord {
+                    attempt: 1,
+                    at_ms: 0,
+                    error: "boom".into(),
+                    kind: FailureKind::Transient,
+                },
+                FailureRecord {
+                    attempt: 2,
+                    at_ms: 0,
+                    error: "boom".into(),
+                    kind: FailureKind::Transient,
+                },
             ],
         );
         assert!(
@@ -790,7 +846,9 @@ mod tests {
     async fn empty_workspace_yields_empty_receipt() {
         let tmp = TempDir::new().unwrap();
         let ws = workspace_at(&tmp, "test");
-        let receipt = reconcile_workspace_pull(&ws, &[], DEFAULT_MAX_INFLIGHT_PULL, None).await.unwrap();
+        let receipt = reconcile_workspace_pull(&ws, &[], DEFAULT_MAX_INFLIGHT_PULL, None)
+            .await
+            .unwrap();
         assert_eq!(receipt.workspace, "test");
         assert!(receipt.outcomes.is_empty());
         assert!(receipt.failed_jobs.is_empty());
@@ -815,8 +873,16 @@ mod tests {
 
         // Advance upstream to commit B.
         std::fs::write(upstream.join("file"), "two\n").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(&upstream).status().unwrap();
-        Command::new("git").args(["commit", "-q", "--no-verify", "-m", "two"]).current_dir(&upstream).status().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&upstream)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-q", "--no-verify", "-m", "two"])
+            .current_dir(&upstream)
+            .status()
+            .unwrap();
 
         // Now clone "current" + "dirty" — they're at the same B commit
         // as upstream, so "current" pulls UpToDate.
@@ -840,7 +906,10 @@ mod tests {
         assert_eq!(counts.updated, 1, "behind should be Updated");
         assert_eq!(counts.up_to_date, 1, "current should be UpToDate");
         assert_eq!(counts.dirty_skipped, 1, "dirty should be DirtySkipped");
-        assert!(receipt.failed_jobs.is_empty(), "no Jobs should fail the FSM");
+        assert!(
+            receipt.failed_jobs.is_empty(),
+            "no Jobs should fail the FSM"
+        );
         assert!(receipt.all_clean(), "no Failed outcomes, no failed jobs");
     }
 
@@ -917,7 +986,9 @@ mod tests {
         // max_inflight=2 means at most 2 pull jobs can be Running
         // concurrently. With 8 repos that's 4 waves of execution
         // (within the same dag wave, but serialized by budget).
-        let receipt = reconcile_workspace_pull(&ws, &names, 2, None).await.unwrap();
+        let receipt = reconcile_workspace_pull(&ws, &names, 2, None)
+            .await
+            .unwrap();
         let counts = receipt.outcome_counts();
         // All 8 cloned-then-not-advanced repos report UpToDate.
         assert_eq!(counts.up_to_date, n_repos);
@@ -994,7 +1065,9 @@ mod tests {
         clone_from(&upstream, &tmp.path().join("not-in-config"));
 
         let ws = workspace_at(&tmp, "test-ws");
-        let receipt = reconcile_workspace_pull(&ws, &[], DEFAULT_MAX_INFLIGHT_PULL, None).await.unwrap();
+        let receipt = reconcile_workspace_pull(&ws, &[], DEFAULT_MAX_INFLIGHT_PULL, None)
+            .await
+            .unwrap();
         // Empty config but on-disk repo present → reconciled.
         assert_eq!(receipt.outcomes.len(), 1);
         assert_eq!(receipt.outcome_counts().up_to_date, 1);

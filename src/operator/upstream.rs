@@ -23,7 +23,9 @@ use std::fmt;
 ///
 /// Serialize/Deserialize derived so the persistent HEAD cache can
 /// round-trip these as JSON map keys (encoded via `to_string()` Display).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct UpstreamId {
     pub source: SourceKind,
     /// Canonical identifier within the source. For GitHub: `owner/repo`
@@ -35,7 +37,9 @@ pub struct UpstreamId {
     pub r#ref: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum SourceKind {
     Github,
     OciRegistry,
@@ -53,7 +57,11 @@ impl UpstreamId {
         Self {
             source: SourceKind::Github,
             key: format!("{}/{}", owner.to_lowercase(), repo.to_lowercase()),
-            r#ref: if r#ref.is_empty() { "HEAD".into() } else { r#ref.to_string() },
+            r#ref: if r#ref.is_empty() {
+                "HEAD".into()
+            } else {
+                r#ref.to_string()
+            },
         }
     }
 
@@ -189,7 +197,10 @@ impl RegistryError {
     /// False when it means "skip this input, continue with others".
     #[must_use]
     pub fn is_fatal_to_cycle(&self) -> bool {
-        matches!(self, RegistryError::RateLimited { .. } | RegistryError::AuthFailed(_))
+        matches!(
+            self,
+            RegistryError::RateLimited { .. } | RegistryError::AuthFailed(_)
+        )
     }
 
     /// K8s-style condition `reason` (CamelCase, stable across cycles).
@@ -374,7 +385,9 @@ mod tests {
         };
         let e2 = RegistryError::RateLimited {
             reset_at: Some(1777265408),
-            message: r#"{"message":"... request ID DIFFERENT ... timestamp 2026-04-27 04:46:51 UTC"}"#.to_string(),
+            message:
+                r#"{"message":"... request ID DIFFERENT ... timestamp 2026-04-27 04:46:51 UTC"}"#
+                    .to_string(),
         };
         assert_eq!(e1.condition_message(), e2.condition_message());
         assert!(!e1.condition_message().contains("request ID"));
@@ -384,11 +397,24 @@ mod tests {
     #[test]
     fn condition_reason_is_stable_camel_case() {
         assert_eq!(
-            RegistryError::RateLimited { reset_at: None, message: "x".into() }.condition_reason(),
+            RegistryError::RateLimited {
+                reset_at: None,
+                message: "x".into()
+            }
+            .condition_reason(),
             "RateLimited"
         );
-        assert_eq!(RegistryError::AuthFailed("x".into()).condition_reason(), "AuthFailed");
-        assert_eq!(RegistryError::NotFound("x".into()).condition_reason(), "NotFound");
-        assert_eq!(RegistryError::Transient("x".into()).condition_reason(), "TransientError");
+        assert_eq!(
+            RegistryError::AuthFailed("x".into()).condition_reason(),
+            "AuthFailed"
+        );
+        assert_eq!(
+            RegistryError::NotFound("x".into()).condition_reason(),
+            "NotFound"
+        );
+        assert_eq!(
+            RegistryError::Transient("x".into()).condition_reason(),
+            "TransientError"
+        );
     }
 }

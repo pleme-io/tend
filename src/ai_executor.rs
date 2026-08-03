@@ -1,11 +1,11 @@
 //! AI Flow Executor - plan/apply/destroy semantics like Terraform
-//! 
+//!
 //! Uses reqwest for HTTP calls to opencode-zen API directly.
 
-use anyhow::Result;
 use crate::ai_flow::{AiFlowPlan, AiStep, AiTaskRef, RetryPolicy};
 use crate::ai_models::ModelRegistry;
 use crate::ai_planner::PlannedFlow;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -52,7 +52,11 @@ impl ExecutionReport {
 
     pub fn summary(&self) -> String {
         if self.is_success() {
-            format!("{}: {} steps executed", self.phase.as_str(), self.outputs.len())
+            format!(
+                "{}: {} steps executed",
+                self.phase.as_str(),
+                self.outputs.len()
+            )
         } else {
             format!("{}: {} errors", self.phase.as_str(), self.errors.len())
         }
@@ -95,7 +99,9 @@ impl AiExecutor {
                 let step = &planned.plan.steps[idx];
                 report.plan_output.push(format!(
                     "Step {}: {} would execute with model {}",
-                    step.id, step.task.kind(), step.task.model()
+                    step.id,
+                    step.task.kind(),
+                    step.task.model()
                 ));
             }
             return Ok(report);
@@ -108,7 +114,9 @@ impl AiExecutor {
                     report.outputs.insert(step.id.clone(), result);
                 }
                 Err(e) => {
-                    report.errors.push(format!("Step {} failed: {}", step.id, e));
+                    report
+                        .errors
+                        .push(format!("Step {} failed: {}", step.id, e));
                     break;
                 }
             }
@@ -202,7 +210,8 @@ impl AiExecutor {
             max_tokens: 4096,
         };
 
-        let resp = self.client
+        let resp = self
+            .client
             .post("https://opencode.ai/zen/v1/chat/completions")
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
@@ -230,8 +239,11 @@ impl AiExecutor {
         }
 
         let response: ChatResponse = resp.json().await?;
-        
-        Ok(response.choices.into_iter().next()
+
+        Ok(response
+            .choices
+            .into_iter()
+            .next()
             .map(|c| c.message.content)
             .unwrap_or_default())
     }

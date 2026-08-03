@@ -12,17 +12,17 @@ pub mod discovery;
 pub mod failure_set;
 pub mod flake_lock_adapter;
 pub mod flake_nix;
+pub mod fleet_advance_consumer;
+pub mod fleet_watch;
 pub mod gates;
-pub mod head_cache;
 pub mod git_ops;
+pub mod head_cache;
 pub mod helm_release_adapter;
 pub mod lock_format;
 pub mod metrics;
+pub mod nats_throttle;
 pub mod planner;
 pub mod reconcile;
-pub mod fleet_advance_consumer;
-pub mod fleet_watch;
-pub mod nats_throttle;
 pub mod status;
 pub mod throttle;
 pub mod upstream;
@@ -53,7 +53,10 @@ pub async fn run() -> Result<()> {
         )
         .init();
 
-    tracing::info!(version = env!("CARGO_PKG_VERSION"), "tend operator starting");
+    tracing::info!(
+        version = env!("CARGO_PKG_VERSION"),
+        "tend operator starting"
+    );
 
     let client = Client::try_default()
         .await
@@ -63,10 +66,8 @@ pub async fn run() -> Result<()> {
     // mounted from the workspace ConfigMap). Falls back to load_config's
     // default ~/.config/tend/config.yaml for local CLI use.
     let tend_config = match std::env::var("TEND_WORKSPACE_CONFIG").ok() {
-        Some(path) if !path.is_empty() => {
-            crate::load_config(Some(std::path::Path::new(&path)))
-                .with_context(|| format!("loading tend workspace config from {path}"))?
-        }
+        Some(path) if !path.is_empty() => crate::load_config(Some(std::path::Path::new(&path)))
+            .with_context(|| format!("loading tend workspace config from {path}"))?,
         _ => crate::load_config(None).context("loading tend workspace config")?,
     };
 
@@ -78,9 +79,7 @@ pub async fn run() -> Result<()> {
             .build()
             .context("building http client")?,
         github_token: load_github_token(),
-        repo_locks: Arc::new(tokio::sync::Mutex::new(
-            std::collections::HashMap::new(),
-        )),
+        repo_locks: Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),
         // File-backed cache on the workspace PVC. Survives pod
         // restarts. Path is operator-tunable via TEND_HEAD_CACHE_PATH
         // (set by the chart); falls back to the default location
@@ -97,8 +96,8 @@ pub async fn run() -> Result<()> {
 
     // Prometheus metrics endpoint — vmagent scrapes via the chart's
     // ServiceMonitor (VMOperator converts SM → VMServiceScrape).
-    let metrics_addr = std::env::var("TEND_METRICS_ADDR")
-        .unwrap_or_else(|_| "0.0.0.0:9090".to_string());
+    let metrics_addr =
+        std::env::var("TEND_METRICS_ADDR").unwrap_or_else(|_| "0.0.0.0:9090".to_string());
     metrics::spawn_server(&metrics_addr).context("spawning metrics server")?;
 
     // Fleet-wide org watcher — when TEND_FLEET_WATCH_ENABLED=true,

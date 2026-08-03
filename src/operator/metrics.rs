@@ -13,9 +13,7 @@ use anyhow::Result;
 use http_body_util::Full;
 use hyper::{body::Bytes, server::conn::http1, service::service_fn, Request, Response};
 use hyper_util::rt::TokioIo;
-use prometheus::{
-    register_int_counter_vec, Encoder, IntCounterVec, Registry, TextEncoder,
-};
+use prometheus::{register_int_counter_vec, Encoder, IntCounterVec, Registry, TextEncoder};
 use std::sync::OnceLock;
 use tokio::net::TcpListener;
 
@@ -110,7 +108,9 @@ pub fn spawn_server(addr: &str) -> Result<()> {
     Ok(())
 }
 
-async fn serve(_req: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, hyper::Error> {
+async fn serve(
+    _req: Request<hyper::body::Incoming>,
+) -> Result<Response<Full<Bytes>>, hyper::Error> {
     let encoder = TextEncoder::new();
     let metric_families = registry().gather();
     let mut buf = Vec::new();
@@ -129,9 +129,17 @@ mod tests {
     fn metrics_init_and_increment() {
         let m = metrics();
         m.proposals_total.with_label_values(&["Pending"]).inc();
-        m.gates_total.with_label_values(&["nix-flake-check", "passed"]).inc();
+        m.gates_total
+            .with_label_values(&["nix-flake-check", "passed"])
+            .inc();
         m.applies_total.with_label_values(&["landed"]).inc();
         // Re-fetching the same counter handle returns the same singleton.
-        assert!(metrics().proposals_total.with_label_values(&["Pending"]).get() >= 1);
+        assert!(
+            metrics()
+                .proposals_total
+                .with_label_values(&["Pending"])
+                .get()
+                >= 1
+        );
     }
 }

@@ -21,8 +21,8 @@
 //! See pleme-io/theory/RATE-LIMITED-CONSUMERS.md §V (per-consumer
 //! ingestion strategy: Mode A steady-trickle).
 
-use anyhow::{Context as _, Result};
 use crate::secret::Secret;
+use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -82,8 +82,7 @@ impl FleetWatchConfig {
         if !enabled {
             return None;
         }
-        let org = std::env::var("TEND_FLEET_WATCH_ORG")
-            .unwrap_or_else(|_| "pleme-io".to_string());
+        let org = std::env::var("TEND_FLEET_WATCH_ORG").unwrap_or_else(|_| "pleme-io".to_string());
         let nats_url = std::env::var("TEND_NATS_URL")
             .unwrap_or_else(|_| "nats://pleme-nats.nats.svc:4222".to_string());
         let refresh_subject = std::env::var("TEND_THROTTLE_REFRESH_SUBJECT")
@@ -299,21 +298,23 @@ impl FleetWatchTask {
             let prev = {
                 let state = self.state.read().await;
                 let key = sanitize_key(&id);
-                state.get(&key).and_then(|s| s.last_seen_rev.as_ref().map(|rev| {
-                    crate::operator::upstream::CachedHead {
-                        info: crate::operator::upstream::HeadInfo {
-                            upstream_rev: rev.clone(),
-                            upstream_modified: 0,
-                        },
-                        // We don't track ETags in the watcher state yet;
-                        // the throttle worker's per-pod ETag cache picks
-                        // up the slack. This means the FIRST cycle pays
-                        // a non-conditional GET; steady-state hits the
-                        // worker's cache.
-                        etag: None,
-                        fetched_at: chrono::Utc::now(),
-                    }
-                }))
+                state.get(&key).and_then(|s| {
+                    s.last_seen_rev.as_ref().map(|rev| {
+                        crate::operator::upstream::CachedHead {
+                            info: crate::operator::upstream::HeadInfo {
+                                upstream_rev: rev.clone(),
+                                upstream_modified: 0,
+                            },
+                            // We don't track ETags in the watcher state yet;
+                            // the throttle worker's per-pod ETag cache picks
+                            // up the slack. This means the FIRST cycle pays
+                            // a non-conditional GET; steady-state hits the
+                            // worker's cache.
+                            etag: None,
+                            fetched_at: chrono::Utc::now(),
+                        }
+                    })
+                })
             };
 
             if let Err(e) = self.publish_refresh(&id, prev.as_ref()).await {

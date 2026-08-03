@@ -83,12 +83,9 @@ pub fn find_orphaned(
     let mut found = Vec::new();
     for line in raw.lines() {
         let mut fields = line.split_whitespace();
-        let (Some(pid_s), Some(ppid_s), Some(etime), Some(tty)) = (
-            fields.next(),
-            fields.next(),
-            fields.next(),
-            fields.next(),
-        ) else {
+        let (Some(pid_s), Some(ppid_s), Some(etime), Some(tty)) =
+            (fields.next(), fields.next(), fields.next(), fields.next())
+        else {
             continue;
         };
         let command: String = fields.collect::<Vec<_>>().join(" ");
@@ -340,7 +337,11 @@ impl LockProbe for SystemLockProbe {
         // >60s per call on cid and made the tend suite 7x slower (46s ->
         // 349s) the first time this shipped without them. `-n` skips DNS,
         // `-P` skips port-name lookup, `-t` trims output to bare pids.
-        match Command::new("lsof").args(["-n", "-P", "-t"]).arg(lock).output() {
+        match Command::new("lsof")
+            .args(["-n", "-P", "-t"])
+            .arg(lock)
+            .output()
+        {
             Ok(out) => Ok(out.status.success()),
             Err(_) => Ok(true),
         }
@@ -553,7 +554,10 @@ mod tests {
         let probe = FakeLockProbe::reapable();
         let found = find_stale_index_locks(&probe, &repos(), 120).unwrap();
         assert_eq!(found.len(), 1);
-        assert_eq!(found[0].lock, PathBuf::from("/tmp/fake-repo/.git/index.lock"));
+        assert_eq!(
+            found[0].lock,
+            PathBuf::from("/tmp/fake-repo/.git/index.lock")
+        );
         assert_eq!(found[0].age_secs, 600);
     }
 
@@ -574,7 +578,10 @@ mod tests {
         };
         let found = find_stale_index_locks(&probe, &repos(), 120).unwrap();
         assert_eq!(found.len(), 1, "a large stranded lock is still garbage");
-        assert_eq!(found[0].size_bytes, 655_360, "size is carried for diagnostics");
+        assert_eq!(
+            found[0].size_bytes, 655_360,
+            "size is carried for diagnostics"
+        );
     }
 
     #[test]
@@ -583,7 +590,9 @@ mod tests {
             holder: true,
             ..FakeLockProbe::reapable()
         };
-        assert!(find_stale_index_locks(&probe, &repos(), 120).unwrap().is_empty());
+        assert!(find_stale_index_locks(&probe, &repos(), 120)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -592,7 +601,9 @@ mod tests {
             age: 5,
             ..FakeLockProbe::reapable()
         };
-        assert!(find_stale_index_locks(&probe, &repos(), 120).unwrap().is_empty());
+        assert!(find_stale_index_locks(&probe, &repos(), 120)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -601,7 +612,9 @@ mod tests {
             git_alive: true,
             ..FakeLockProbe::reapable()
         };
-        assert!(find_stale_index_locks(&probe, &repos(), 120).unwrap().is_empty());
+        assert!(find_stale_index_locks(&probe, &repos(), 120)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -610,7 +623,9 @@ mod tests {
             exists: false,
             ..FakeLockProbe::reapable()
         };
-        assert!(find_stale_index_locks(&probe, &repos(), 120).unwrap().is_empty());
+        assert!(find_stale_index_locks(&probe, &repos(), 120)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -704,7 +719,8 @@ mod tests {
 
     #[test]
     fn flags_orphaned_watched_command() {
-        let lister = FakeLister("76677 1 01:14:22 ?? /nix/store/ka03l-rust_frost-0.1.0/bin/frost\n");
+        let lister =
+            FakeLister("76677 1 01:14:22 ?? /nix/store/ka03l-rust_frost-0.1.0/bin/frost\n");
         let found = find_orphaned(&lister, FROST).unwrap();
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].pid, 76677);
@@ -714,8 +730,9 @@ mod tests {
 
     #[test]
     fn ignores_non_orphaned_watched_command() {
-        let lister =
-            FakeLister("76677 54321 00:00:41 ttys007 /nix/store/ka03l-rust_frost-0.1.0/bin/frost\n");
+        let lister = FakeLister(
+            "76677 54321 00:00:41 ttys007 /nix/store/ka03l-rust_frost-0.1.0/bin/frost\n",
+        );
         assert!(find_orphaned(&lister, FROST).unwrap().is_empty());
     }
 
@@ -839,9 +856,12 @@ mod tests {
     #[test]
     fn fd_pressure_ratio_computed_correctly() {
         let sysctl = FakeSysctl(
-            [("kern.num_files", 16_776_780u64), ("kern.maxfiles", 16_777_216u64)]
-                .into_iter()
-                .collect(),
+            [
+                ("kern.num_files", 16_776_780u64),
+                ("kern.maxfiles", 16_777_216u64),
+            ]
+            .into_iter()
+            .collect(),
         );
         let pressure = check_fd_pressure(&sysctl).unwrap();
         assert!((pressure.ratio() - 0.99997).abs() < 0.0001);
@@ -850,9 +870,12 @@ mod tests {
     #[test]
     fn fd_pressure_below_threshold_is_healthy() {
         let sysctl = FakeSysctl(
-            [("kern.num_files", 8_047u64), ("kern.maxfiles", 16_777_216u64)]
-                .into_iter()
-                .collect(),
+            [
+                ("kern.num_files", 8_047u64),
+                ("kern.maxfiles", 16_777_216u64),
+            ]
+            .into_iter()
+            .collect(),
         );
         let pressure = check_fd_pressure(&sysctl).unwrap();
         assert!(pressure.ratio() < 0.5);
@@ -860,14 +883,18 @@ mod tests {
 
     #[test]
     fn run_host_health_check_reaps_by_default_and_logs_everything() {
-        let lister = FakeLister("76677 1 01:14:22 ?? /nix/store/ka03l-rust_frost-0.1.0/bin/frost\n");
+        let lister =
+            FakeLister("76677 1 01:14:22 ?? /nix/store/ka03l-rust_frost-0.1.0/bin/frost\n");
         let killer = FakeKiller {
             already_gone: vec![76677],
         };
         let sysctl = FakeSysctl(
-            [("kern.num_files", 8_047u64), ("kern.maxfiles", 16_777_216u64)]
-                .into_iter()
-                .collect(),
+            [
+                ("kern.num_files", 8_047u64),
+                ("kern.maxfiles", 16_777_216u64),
+            ]
+            .into_iter()
+            .collect(),
         );
         let (dir, audit) = temp_audit();
         let report = run_host_health_check(
@@ -895,14 +922,18 @@ mod tests {
 
     #[test]
     fn run_host_health_check_skips_reap_when_fix_disabled() {
-        let lister = FakeLister("76677 1 01:14:22 ?? /nix/store/ka03l-rust_frost-0.1.0/bin/frost\n");
+        let lister =
+            FakeLister("76677 1 01:14:22 ?? /nix/store/ka03l-rust_frost-0.1.0/bin/frost\n");
         let killer = FakeKiller {
             already_gone: vec![],
         };
         let sysctl = FakeSysctl(
-            [("kern.num_files", 8_047u64), ("kern.maxfiles", 16_777_216u64)]
-                .into_iter()
-                .collect(),
+            [
+                ("kern.num_files", 8_047u64),
+                ("kern.maxfiles", 16_777_216u64),
+            ]
+            .into_iter()
+            .collect(),
         );
         let (dir, audit) = temp_audit();
         let report = run_host_health_check(

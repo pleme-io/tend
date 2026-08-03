@@ -65,8 +65,7 @@ impl WatchStateStore for FsWatchStateStore {
         std::fs::create_dir_all(&dir)
             .with_context(|| format!("creating watch cache dir {}", dir.display()))?;
 
-        let content = toml::to_string_pretty(state)
-            .context("serializing watch state")?;
+        let content = toml::to_string_pretty(state).context("serializing watch state")?;
 
         let path = cache_path(workspace_name);
         std::fs::write(&path, content)
@@ -103,11 +102,14 @@ mod tests {
     #[test]
     fn test_watch_state_roundtrip() {
         let mut state = WatchState::default();
-        state.repos.insert("test-repo".to_string(), RepoState {
-            head: "abc123".to_string(),
-            latest_tag: Some("v1.0.0".to_string()),
-            language: Some("go".to_string()),
-        });
+        state.repos.insert(
+            "test-repo".to_string(),
+            RepoState {
+                head: "abc123".to_string(),
+                latest_tag: Some("v1.0.0".to_string()),
+                language: Some("go".to_string()),
+            },
+        );
 
         let serialized = toml::to_string_pretty(&state).unwrap();
         let deserialized: WatchState = toml::from_str(&serialized).unwrap();
@@ -122,16 +124,22 @@ mod tests {
     #[test]
     fn test_watch_state_multiple_repos() {
         let mut state = WatchState::default();
-        state.repos.insert("repo-a".to_string(), RepoState {
-            head: "aaa111".to_string(),
-            latest_tag: Some("v1.0.0".to_string()),
-            language: Some("rust".to_string()),
-        });
-        state.repos.insert("repo-b".to_string(), RepoState {
-            head: "bbb222".to_string(),
-            latest_tag: None,
-            language: None,
-        });
+        state.repos.insert(
+            "repo-a".to_string(),
+            RepoState {
+                head: "aaa111".to_string(),
+                latest_tag: Some("v1.0.0".to_string()),
+                language: Some("rust".to_string()),
+            },
+        );
+        state.repos.insert(
+            "repo-b".to_string(),
+            RepoState {
+                head: "bbb222".to_string(),
+                latest_tag: None,
+                language: None,
+            },
+        );
 
         let serialized = toml::to_string_pretty(&state).unwrap();
         let deserialized: WatchState = toml::from_str(&serialized).unwrap();
@@ -144,10 +152,9 @@ mod tests {
     #[test]
     fn test_watch_state_file_shas_roundtrip() {
         let mut state = WatchState::default();
-        state.file_shas.insert(
-            "org/repo/path.yaml".to_string(),
-            "sha256abc".to_string(),
-        );
+        state
+            .file_shas
+            .insert("org/repo/path.yaml".to_string(), "sha256abc".to_string());
 
         let serialized = toml::to_string_pretty(&state).unwrap();
         let deserialized: WatchState = toml::from_str(&serialized).unwrap();
@@ -160,12 +167,17 @@ mod tests {
     #[test]
     fn test_watch_state_flake_refresh_fields_roundtrip() {
         let mut state = WatchState::default();
-        state.flake_refresh_at.insert("repo-a".to_string(), 1700000000);
+        state
+            .flake_refresh_at
+            .insert("repo-a".to_string(), 1700000000);
         state.flake_refresh_misses.insert("repo-a".to_string(), 3);
 
         let serialized = toml::to_string_pretty(&state).unwrap();
         let deserialized: WatchState = toml::from_str(&serialized).unwrap();
-        assert_eq!(*deserialized.flake_refresh_at.get("repo-a").unwrap(), 1700000000);
+        assert_eq!(
+            *deserialized.flake_refresh_at.get("repo-a").unwrap(),
+            1700000000
+        );
         assert_eq!(*deserialized.flake_refresh_misses.get("repo-a").unwrap(), 3);
     }
 
@@ -191,26 +203,40 @@ mod tests {
         let ws_name = &format!("tend-test-wss-{}", std::process::id());
 
         let mut state = WatchState::default();
-        state.repos.insert("my-repo".to_string(), RepoState {
-            head: "deadbeef".to_string(),
-            latest_tag: Some("v2.0.0".to_string()),
-            language: Some("go".to_string()),
-        });
-        state.file_shas.insert("org/repo/file".to_string(), "sha123".to_string());
-        state.flake_inputs.insert("watch-1".to_string(), FlakeInputCacheEntry {
-            upstream_rev: "upstream-abc".to_string(),
-            upstream_tag: Some("v3.0.0".to_string()),
-        });
+        state.repos.insert(
+            "my-repo".to_string(),
+            RepoState {
+                head: "deadbeef".to_string(),
+                latest_tag: Some("v2.0.0".to_string()),
+                language: Some("go".to_string()),
+            },
+        );
+        state
+            .file_shas
+            .insert("org/repo/file".to_string(), "sha123".to_string());
+        state.flake_inputs.insert(
+            "watch-1".to_string(),
+            FlakeInputCacheEntry {
+                upstream_rev: "upstream-abc".to_string(),
+                upstream_tag: Some("v3.0.0".to_string()),
+            },
+        );
 
         store.save(ws_name, &state).unwrap();
         let loaded = store.load(ws_name).unwrap();
 
         assert_eq!(loaded.repos.len(), 1);
         assert_eq!(loaded.repos["my-repo"].head, "deadbeef");
-        assert_eq!(loaded.repos["my-repo"].latest_tag.as_deref(), Some("v2.0.0"));
+        assert_eq!(
+            loaded.repos["my-repo"].latest_tag.as_deref(),
+            Some("v2.0.0")
+        );
         assert_eq!(loaded.file_shas["org/repo/file"], "sha123");
         assert_eq!(loaded.flake_inputs["watch-1"].upstream_rev, "upstream-abc");
-        assert_eq!(loaded.flake_inputs["watch-1"].upstream_tag.as_deref(), Some("v3.0.0"));
+        assert_eq!(
+            loaded.flake_inputs["watch-1"].upstream_tag.as_deref(),
+            Some("v3.0.0")
+        );
 
         // Clean up
         let _ = std::fs::remove_file(cache_path(ws_name));
@@ -222,19 +248,25 @@ mod tests {
         let ws_name = &format!("tend-test-wss-ow-{}", std::process::id());
 
         let mut state1 = WatchState::default();
-        state1.repos.insert("repo-1".to_string(), RepoState {
-            head: "first".to_string(),
-            latest_tag: None,
-            language: None,
-        });
+        state1.repos.insert(
+            "repo-1".to_string(),
+            RepoState {
+                head: "first".to_string(),
+                latest_tag: None,
+                language: None,
+            },
+        );
         store.save(ws_name, &state1).unwrap();
 
         let mut state2 = WatchState::default();
-        state2.repos.insert("repo-2".to_string(), RepoState {
-            head: "second".to_string(),
-            latest_tag: Some("v1.0.0".to_string()),
-            language: Some("rust".to_string()),
-        });
+        state2.repos.insert(
+            "repo-2".to_string(),
+            RepoState {
+                head: "second".to_string(),
+                latest_tag: Some("v1.0.0".to_string()),
+                language: Some("rust".to_string()),
+            },
+        );
         store.save(ws_name, &state2).unwrap();
 
         let loaded = store.load(ws_name).unwrap();

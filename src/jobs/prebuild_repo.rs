@@ -233,7 +233,10 @@ mod tests {
             repo_name,
             "ws",
             prev_rev,
-            Arc::new(PrebuildOptions { quiet: true, ..Default::default() }),
+            Arc::new(PrebuildOptions {
+                quiet: true,
+                ..Default::default()
+            }),
             Arc::new(Vec::new()),
             Arc::new(Mutex::new(ClosureDedup::new())),
             Arc::new(AuditLog::default_path()),
@@ -246,7 +249,12 @@ mod tests {
     #[tokio::test]
     async fn id_namespaces_by_workspace_and_repo() {
         let env: Arc<dyn CacheFillEnv> = Arc::new(MinimalEnv::default());
-        let job = job_over(env, PathBuf::from("/tmp/x/name"), None, PathBuf::from("/tmp/seen"));
+        let job = job_over(
+            env,
+            PathBuf::from("/tmp/x/name"),
+            None,
+            PathBuf::from("/tmp/seen"),
+        );
         let id = <PrebuildRepoJob as Job>::id(&job);
         assert_eq!(id.kind, JobKindId::new(PREBUILD_REPO_KIND));
         assert_eq!(id.subject, JobSubject::Repo("name".to_string()));

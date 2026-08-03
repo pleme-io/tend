@@ -63,6 +63,28 @@ pub(crate) enum StepOutcome {
     Blocked,
 }
 
+/// Record a step as blocked and move on.
+///
+/// A macro-free helper so every failure arm in the loop is IDENTICAL. The
+/// arms were converted one at a time and four were missed — dirty-tree and
+/// flake-check blocked, while clone / pull / update / add / commit / push
+/// still `?`-aborted the whole chain, which is exactly what
+/// `StepOutcome::Blocked`'s doc comment said could no longer happen.
+/// One function means the next arm added cannot be half-converted.
+fn block_step(
+    repo: &str,
+    reason: &str,
+    quiet: bool,
+    blocked: &mut std::collections::HashSet<String>,
+    summary: &mut ExecSummary,
+) {
+    blocked.insert(repo.to_owned());
+    summary.record(StepOutcome::Blocked);
+    if !quiet {
+        display::print_flake_step_blocked(repo, reason);
+    }
+}
+
 /// Whether `step` must be blocked because one of its flake inputs names a
 /// repo that was already blocked this run.
 ///
@@ -105,6 +127,21 @@ impl ExecSummary {
     /// Total work actually performed (lockfile pushes).
     pub fn work(&self) -> usize {
         self.updated
+    }
+
+    /// Whether this cycle CONVERGED — nothing left to do.
+    ///
+    /// ── ★ NOT THE SAME AS `work() == 0` ─────────────────────────────
+    /// The daemon keys its exponential backoff off "did anything happen",
+    /// and blocked steps make nothing happen. So a fleet where every repo
+    /// was blocked looked exactly like a fleet with nothing to update, and
+    /// the daemon doubled its sleep — up to a day — precisely when it
+    /// should have been retrying soonest.
+    ///
+    /// Converged means no work AND nothing blocked. A blocked cycle holds
+    /// the interval at its minimum instead.
+    pub fn converged(&self) -> bool {
+        self.updated == 0 && self.blocked == 0
     }
 }
 
@@ -214,8 +251,9 @@ pub(crate) fn compute_update_chain(
 
     let mut steps = Vec::new();
     for &repo in &sorted {
-        let deps = flake_deps.get(repo)
-            .ok_or_else(|| anyhow::anyhow!("repo '{repo}' missing from flake_deps after topo sort"))?;
+        let deps = flake_deps.get(repo).ok_or_else(|| {
+            anyhow::anyhow!("repo '{repo}' missing from flake_deps after topo sort")
+        })?;
         let inputs: Vec<String> = deps
             .iter()
             .filter(|d| updated_so_far.contains(d.as_str()))
@@ -364,8 +402,15 @@ pub(crate) fn execute_update_chain(
                 if !opts.quiet {
                     println!("    would clone {} into {}", step.repo, base_dir.display());
                 }
-            } else {
-                clone_repo(workspace, &step.repo, &base_dir, opts.quiet)?;
+            } else if let Err(e) = clone_repo(workspace, &step.repo, &base_dir, opts.quiet) {
+                block_step(
+                    &step.repo,
+                    &["clone failed: ", &e.to_string()].concat(),
+                    opts.quiet,
+                    &mut blocked_repos,
+                    &mut summary,
+                );
+                continue;
             }
         }
 
@@ -397,7 +442,18 @@ pub(crate) fn execute_update_chain(
         }
 
         if opts.pull_before_update {
-            git_pull_ff(&repo_path, &step.repo, opts.quiet)?;
+            if let Err(e) = git_pull_ff(&repo_path, &step.repo, opts.quiet) {
+                // A diverged repo is the operator's to resolve; it must not
+                // take the rest of the fleet down with it.
+                block_step(
+                    &step.repo,
+                    &["ff-only pull failed: ", &e.to_string()].concat(),
+                    opts.quiet,
+                    &mut blocked_repos,
+                    &mut summary,
+                );
+                continue;
+            }
         }
 
         // nix flake update <inputs...>
@@ -414,7 +470,19 @@ pub(crate) fn execute_update_chain(
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            bail!("nix flake update failed in {}: {}", step.repo, stderr);
+            let last = stderr
+                .lines()
+                .last()
+                .unwrap_or("nix flake update failed")
+                .trim();
+            block_step(
+                &step.repo,
+                &["nix flake update failed: ", last].concat(),
+                opts.quiet,
+                &mut blocked_repos,
+                &mut summary,
+            );
+            continue;
         }
 
         // ── ★ VERIFY THE LOCK BEFORE COMMITTING IT ───────────────────────
@@ -470,8 +538,11 @@ pub(crate) fn execute_update_chain(
                 if !opts.quiet {
                     display::print_flake_step_blocked(
                         &step.repo,
-                        &["the updated lock does not evaluate — reverted, not pushed: ", &reason]
-                            .concat(),
+                        &[
+                            "the updated lock does not evaluate — reverted, not pushed: ",
+                            &reason,
+                        ]
+                        .concat(),
                     );
                 }
                 continue;
@@ -487,7 +558,14 @@ pub(crate) fn execute_update_chain(
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            bail!("git add failed in {}: {}", step.repo, stderr);
+            block_step(
+                &step.repo,
+                &["git add failed: ", stderr.trim()].concat(),
+                opts.quiet,
+                &mut blocked_repos,
+                &mut summary,
+            );
+            continue;
         }
 
         // Check if flake.lock actually changed
@@ -516,10 +594,34 @@ pub(crate) fn execute_update_chain(
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            bail!("git commit failed in {}: {}", step.repo, stderr);
+            block_step(
+                &step.repo,
+                &["git commit failed: ", stderr.trim()].concat(),
+                opts.quiet,
+                &mut blocked_repos,
+                &mut summary,
+            );
+            continue;
         }
 
-        push_with_retry(&repo_path, &step.repo, opts)?;
+        // Push failure is the one arm where the repo is left COMMITTED but
+        // unpushed. That is still a block, not an abort: the lock is valid
+        // locally and the next run pushes it, while the fleet behind this
+        // step keeps updating.
+        if let Err(e) = push_with_retry(&repo_path, &step.repo, opts) {
+            block_step(
+                &step.repo,
+                &[
+                    "push failed (commit is local, next run retries): ",
+                    &e.to_string(),
+                ]
+                .concat(),
+                opts.quiet,
+                &mut blocked_repos,
+                &mut summary,
+            );
+            continue;
+        }
         invalidate_head_cache_after_push(workspace, &step.repo, &repo_path);
         maybe_prune_direnv(&repo_path, &step.repo, opts);
 
@@ -554,7 +656,13 @@ fn maybe_prune_direnv(repo_path: &Path, repo: &str, opts: ExecOptions) {
         }
     };
     let status = Command::new("seibi")
-        .args(["direnv-prune", "--paths", path_str, "--older-than-days", "0"])
+        .args([
+            "direnv-prune",
+            "--paths",
+            path_str,
+            "--older-than-days",
+            "0",
+        ])
         .status();
     match status {
         Ok(s) if s.success() => {
@@ -835,10 +943,7 @@ pub(crate) async fn filter_to_divergent(
             dropped.push(step);
         } else {
             let mut narrowed = step;
-            narrowed.inputs = divergent
-                .into_iter()
-                .chain(unknown)
-                .collect();
+            narrowed.inputs = divergent.into_iter().chain(unknown).collect();
             keep.push(narrowed);
         }
     }
@@ -880,7 +985,9 @@ fn invalidate_head_cache_after_push(workspace: &Workspace, repo: &str, repo_path
         .output()
     {
         if branch_out.status.success() {
-            let branch = String::from_utf8_lossy(&branch_out.stdout).trim().to_string();
+            let branch = String::from_utf8_lossy(&branch_out.stdout)
+                .trim()
+                .to_string();
             if !branch.is_empty() && branch != "main" {
                 let _ = head_cache::write(org, repo, &branch, &new_rev);
             }
@@ -961,7 +1068,9 @@ pub(crate) fn git_pull_ff(repo_path: &Path, repo: &str, quiet: bool) -> Result<(
         let stderr = String::from_utf8_lossy(&branch_out.stderr);
         bail!("detecting branch in {repo}: {}", stderr.trim());
     }
-    let branch = String::from_utf8_lossy(&branch_out.stdout).trim().to_string();
+    let branch = String::from_utf8_lossy(&branch_out.stdout)
+        .trim()
+        .to_string();
     if branch.is_empty() || branch == "HEAD" {
         // Detached HEAD — skip pulling; nothing well-defined to fast-forward.
         return Ok(());
@@ -1015,7 +1124,10 @@ fn check_repo_dirty(repo_path: &Path) -> Result<bool> {
     let changes = String::from_utf8_lossy(&output.stdout);
     // Filter out build artifacts (target/, node_modules/, etc.)
     let has_real_changes = changes.lines().any(|line| {
-        let path = line.trim_start_matches("?? ").trim_start_matches("!! ").trim();
+        let path = line
+            .trim_start_matches("?? ")
+            .trim_start_matches("!! ")
+            .trim();
         !path.starts_with("target/")
             && !path.starts_with("node_modules/")
             && !path.starts_with(".direnv/")
@@ -1082,6 +1194,66 @@ pub(crate) fn find_cargo_lock_repos(workspace: &Workspace) -> Result<Vec<String>
 #[cfg(test)]
 mod tests {
 
+    // ── ★ COUNTING A THING AND NOT READING IT ───────────────────────────
+    // `StepOutcome::Blocked` and `had_blocked()` shipped with ZERO
+    // non-test callers: both aggregation sites copied three of four
+    // fields, the completion line printed `chain.len()` as "updated", and
+    // the daemon keyed its backoff off `work()`. So an all-blocked run
+    // printed "done: 12 updated", exited 0, and doubled the sleep as if
+    // the fleet had converged — a fresh instance of the exact class the
+    // Blocked variant was introduced to remove.
+
+    #[test]
+    fn a_blocked_cycle_is_not_converged() {
+        let mut s = super::ExecSummary::default();
+        s.record(super::StepOutcome::Blocked);
+        assert!(!s.converged(), "blocked work is work still owed");
+        assert!(s.had_blocked());
+        // The distinction the daemon backs off on: nothing to do vs
+        // nothing COULD be done. Identical under `work() == 0`.
+        assert_eq!(s.work(), 0, "a blocked step performs no work...");
+        assert!(!s.converged(), "...but the fleet is not converged");
+    }
+
+    #[test]
+    fn a_genuinely_idle_cycle_is_converged() {
+        let mut s = super::ExecSummary::default();
+        s.record(super::StepOutcome::NoChange);
+        s.record(super::StepOutcome::NoChange);
+        assert!(s.converged(), "nothing to update IS convergence");
+        assert!(!s.had_blocked());
+    }
+
+    #[test]
+    fn work_done_is_not_convergence_either() {
+        let mut s = super::ExecSummary::default();
+        s.record(super::StepOutcome::Updated);
+        assert!(!s.converged(), "something changed — re-check soon");
+    }
+
+    /// Every field `execute_update_chain` counts must be READ by the
+    /// aggregation sites. Asserted against main.rs's source because the
+    /// defect was a missing line at a call site, which no test built from
+    /// a literal summary could ever see.
+    #[test]
+    fn every_caller_aggregates_every_counted_field() {
+        let main_rs = include_str!("main.rs");
+        let sites = main_rs
+            .matches("summary.updated += ws_summary.updated;")
+            .count();
+        assert!(sites > 0, "no aggregation sites found — test is stale");
+        for field in ["updated", "no_change", "skipped", "blocked"] {
+            let seen = main_rs
+                .matches(&["summary.", field, " += ws_summary.", field, ";"].concat())
+                .count();
+            assert_eq!(
+                seen, sites,
+                "`{field}` is aggregated at {seen} of {sites} sites — a counted field \
+                 that some caller drops is the same as one never counted"
+            );
+        }
+    }
+
     /// ── ★ VERIFICATION IS ON UNLESS SOMEONE TYPES OTHERWISE ─────────────
     /// Every `ExecOptions` the binary builds must leave `skip_verify`
     /// false. The gate between `nix flake update` and the commit is the
@@ -1109,7 +1281,6 @@ mod tests {
             "no call site may default to skipping verification"
         );
     }
-
 
     // ── ★ ONE DIRTY REPO MUST NOT ABORT THE FLEET ───────────────────────
     // The chain used to `?`-propagate a dirty working tree, so the first
@@ -1156,7 +1327,10 @@ mod tests {
         sum.record(super::StepOutcome::NoChange);
         assert_eq!(sum.updated, 1);
         assert_eq!(sum.blocked, 1);
-        assert!(sum.had_blocked(), "a run that skipped work must not look clean");
+        assert!(
+            sum.had_blocked(),
+            "a run that skipped work must not look clean"
+        );
 
         let mut clean = super::ExecSummary::default();
         clean.record(super::StepOutcome::Updated);
@@ -1212,13 +1386,18 @@ mod tests {
         let mut deps = HashMap::new();
         deps.insert("repo-a".to_string(), vec!["lib-x".to_string()]);
         deps.insert("repo-b".to_string(), vec!["lib-x".to_string()]);
-        deps.insert("repo-c".to_string(), vec!["repo-a".to_string(), "repo-b".to_string()]);
+        deps.insert(
+            "repo-c".to_string(),
+            vec!["repo-a".to_string(), "repo-b".to_string()],
+        );
 
         let chain = compute_update_chain("lib-x", &deps).unwrap();
         assert_eq!(chain.len(), 3);
 
         // repo-a and repo-b must come before repo-c
-        let positions: HashMap<&str, usize> = chain.iter().enumerate()
+        let positions: HashMap<&str, usize> = chain
+            .iter()
+            .enumerate()
             .map(|(i, s)| (s.repo.as_str(), i))
             .collect();
         assert!(positions["repo-a"] < positions["repo-c"]);
@@ -1240,14 +1419,20 @@ mod tests {
         let result = compute_update_chain("repo-a", &deps);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("cycle detected"), "expected cycle error, got: {err_msg}");
+        assert!(
+            err_msg.contains("cycle detected"),
+            "expected cycle error, got: {err_msg}"
+        );
     }
 
     #[test]
     fn test_compute_update_chain_multiple_inputs_per_repo() {
         // repo-a depends on both lib-x and lib-y; only lib-x changed
         let mut deps = HashMap::new();
-        deps.insert("repo-a".to_string(), vec!["lib-x".to_string(), "lib-y".to_string()]);
+        deps.insert(
+            "repo-a".to_string(),
+            vec!["lib-x".to_string(), "lib-y".to_string()],
+        );
 
         let chain = compute_update_chain("lib-x", &deps).unwrap();
         assert_eq!(chain.len(), 1);
@@ -1311,7 +1496,10 @@ mod tests {
     #[test]
     fn test_compute_update_chain_partial_dependency_only_changed_inputs() {
         let mut deps = HashMap::new();
-        deps.insert("a".to_string(), vec!["lib-x".to_string(), "lib-y".to_string()]);
+        deps.insert(
+            "a".to_string(),
+            vec!["lib-x".to_string(), "lib-y".to_string()],
+        );
         deps.insert("b".to_string(), vec!["lib-y".to_string()]);
 
         let chain = compute_update_chain("lib-x", &deps).unwrap();
@@ -1347,7 +1535,10 @@ mod tests {
 
         let chain = compute_update_chain("root", &deps).unwrap();
         for step in &chain {
-            assert_ne!(step.repo, "root", "changed repo should not appear as an update step");
+            assert_ne!(
+                step.repo, "root",
+                "changed repo should not appear as an update step"
+            );
         }
     }
 

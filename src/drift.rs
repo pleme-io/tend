@@ -125,10 +125,7 @@ pub(crate) enum DriftEvent {
     /// cycle. Could be Deadlettered (retries exhausted), Retrying
     /// (will try again next cycle), or WaitingForOperator. The
     /// JobId names which Job + JobPhase carries the terminal state.
-    JobUnhealed {
-        job_id: JobId,
-        phase: JobPhase,
-    },
+    JobUnhealed { job_id: JobId, phase: JobPhase },
     /// A repo has **no git remote configured at all**. Its entire
     /// history exists on one machine and has never been pushed
     /// anywhere; every backup path the fleet has is bypassed.
@@ -246,11 +243,7 @@ impl DriftEvent {
 /// (~18 of 23), `Diverged` is next, `NoUpstream` is third. Order
 /// matters only when two predicates could match (which shouldn't
 /// happen in practice, but is defensive).
-pub(crate) fn classify_pull_failure(
-    workspace: &str,
-    repo_name: &str,
-    stderr: &str,
-) -> DriftEvent {
+pub(crate) fn classify_pull_failure(workspace: &str, repo_name: &str, stderr: &str) -> DriftEvent {
     // BranchRenamed / ref-not-fetched: try to extract the ref name
     // from the message body ("refs/heads/<X>") for traceability.
     if stderr.contains("no such ref was fetched") {
@@ -261,9 +254,7 @@ pub(crate) fn classify_pull_failure(
             expected_ref,
         };
     }
-    if stderr.contains("Repository not found")
-        || stderr.contains("ERROR: Repository not found")
-    {
+    if stderr.contains("Repository not found") || stderr.contains("ERROR: Repository not found") {
         return DriftEvent::PullFailedRepoMissing {
             workspace: workspace.to_string(),
             repo_name: repo_name.to_string(),
@@ -302,9 +293,7 @@ pub(crate) fn classify_pull_failure(
         let snippet = stderr
             .lines()
             .find(|l| {
-                l.contains("mux_client")
-                    || l.contains("Could not read")
-                    || l.contains("Connection")
+                l.contains("mux_client") || l.contains("Could not read") || l.contains("Connection")
             })
             .unwrap_or(stderr)
             .trim()
@@ -597,7 +586,11 @@ mod tests {
         r.sync_outcomes.insert(sync_id("r2"), SyncOutcome::Cloned);
 
         let events = derive_from_receipt(&r);
-        assert!(events.is_empty(), "expected no drift events; got {:?}", events);
+        assert!(
+            events.is_empty(),
+            "expected no drift events; got {:?}",
+            events
+        );
     }
 
     #[test]
@@ -609,7 +602,10 @@ mod tests {
         let events = derive_from_receipt(&r);
         assert_eq!(events.len(), 1);
         match &events[0] {
-            DriftEvent::DirtyTreeBlocksPull { workspace, repo_name } => {
+            DriftEvent::DirtyTreeBlocksPull {
+                workspace,
+                repo_name,
+            } => {
                 assert_eq!(workspace, "ws");
                 assert_eq!(repo_name, "dirty");
             }
@@ -683,7 +679,10 @@ mod tests {
             stderr: "ERROR: Repository not found".into(),
         };
         match PullFailureClassifier.classify(&ctx) {
-            DriftEvent::PullFailedRepoMissing { workspace, repo_name } => {
+            DriftEvent::PullFailedRepoMissing {
+                workspace,
+                repo_name,
+            } => {
                 assert_eq!(workspace, "ws");
                 assert_eq!(repo_name, "r");
             }
@@ -709,7 +708,10 @@ mod tests {
         let stderr = "hint: Diverging branches can't be fast-forwarded, \
             you need to either:\nfatal: Not possible to fast-forward, aborting.";
         match classify_pull_failure("ws", "r", stderr) {
-            DriftEvent::PullFailedDiverged { workspace, repo_name } => {
+            DriftEvent::PullFailedDiverged {
+                workspace,
+                repo_name,
+            } => {
                 assert_eq!(workspace, "ws");
                 assert_eq!(repo_name, "r");
             }
@@ -722,7 +724,10 @@ mod tests {
         let stderr = "There is no tracking information for the current branch.\n\
             Please specify which branch you want to merge with.";
         match classify_pull_failure("ws", "r", stderr) {
-            DriftEvent::PullFailedNoUpstream { workspace, repo_name } => {
+            DriftEvent::PullFailedNoUpstream {
+                workspace,
+                repo_name,
+            } => {
                 assert_eq!(workspace, "ws");
                 assert_eq!(repo_name, "r");
             }
@@ -734,7 +739,10 @@ mod tests {
     fn classifier_repository_not_found_becomes_repo_missing() {
         let stderr = "ERROR: Repository not found.\nfatal: Could not read from remote repository.";
         match classify_pull_failure("ws", "r", stderr) {
-            DriftEvent::PullFailedRepoMissing { workspace, repo_name } => {
+            DriftEvent::PullFailedRepoMissing {
+                workspace,
+                repo_name,
+            } => {
                 assert_eq!(workspace, "ws");
                 assert_eq!(repo_name, "r");
             }
@@ -802,7 +810,11 @@ mod tests {
             .insert(pull_id("ferrite-zig"), PullOutcome::NoRemoteSkipped);
 
         let events = derive_from_receipt(&r);
-        assert_eq!(events.len(), 1, "expected exactly one finding; got {events:?}");
+        assert_eq!(
+            events.len(),
+            1,
+            "expected exactly one finding; got {events:?}"
+        );
         match &events[0] {
             DriftEvent::RepoHasNoRemote {
                 workspace,

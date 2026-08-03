@@ -140,12 +140,7 @@ mod tests {
         async fn detect_repo_language(&self, _: &str, _: &str) -> Result<Option<String>> {
             Ok(None)
         }
-        async fn get_file_sha(
-            &self,
-            _: &str,
-            _: &str,
-            _: &str,
-        ) -> Result<(String, u64, String)> {
+        async fn get_file_sha(&self, _: &str, _: &str, _: &str) -> Result<(String, u64, String)> {
             Ok((String::new(), 0, String::new()))
         }
     }
@@ -204,7 +199,11 @@ mod tests {
         let r2 = resolver.head_sha(owner, repo, "main").await.unwrap();
         assert_eq!(r1, "cafe");
         assert_eq!(r2, "cafe");
-        assert_eq!(calls.load(Ordering::SeqCst), 1, "second call should hit cache");
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            1,
+            "second call should hit cache"
+        );
 
         let _ = std::fs::remove_file(cache_path(owner, repo, "main"));
     }

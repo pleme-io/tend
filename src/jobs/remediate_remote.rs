@@ -185,7 +185,9 @@ impl RecordingJob for RemediateRemoteUrlJob {
         let method = self.clone_method.clone();
         tokio::task::spawn_blocking(move || remediate_one(&path, &method))
             .await
-            .map_err(|join_err| RemediateRemoteError::Invocation(format!("join error: {join_err}")))?
+            .map_err(|join_err| {
+                RemediateRemoteError::Invocation(format!("join error: {join_err}"))
+            })?
             .map_err(|err| RemediateRemoteError::Invocation(err.to_string()))
     }
 }
@@ -235,7 +237,10 @@ mod tests {
                 slug: "akeylesslabs/k8s".into(),
             }
         );
-        assert_eq!(origin_url(tmp.path()), "git@github.com:akeylesslabs/k8s.git");
+        assert_eq!(
+            origin_url(tmp.path()),
+            "git@github.com:akeylesslabs/k8s.git"
+        );
     }
 
     /// The point of the whole exercise: after healing, the secret is
@@ -273,7 +278,10 @@ mod tests {
         repo_with_remote(tmp.path(), "git@github.com:pleme-io/tend.git");
 
         remediate_one(tmp.path(), &CloneMethod::Https).unwrap();
-        assert_eq!(origin_url(tmp.path()), "https://github.com/pleme-io/tend.git");
+        assert_eq!(
+            origin_url(tmp.path()),
+            "https://github.com/pleme-io/tend.git"
+        );
     }
 
     #[test]

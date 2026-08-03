@@ -265,7 +265,8 @@ impl PackageRef {
 #[derive(Debug, Deserialize)]
 struct FlakeShow {
     #[serde(default)]
-    packages: std::collections::BTreeMap<String, std::collections::BTreeMap<String, serde_json::Value>>,
+    packages:
+        std::collections::BTreeMap<String, std::collections::BTreeMap<String, serde_json::Value>>,
 }
 
 /// Parse `nix flake show --json` into the concrete set of [`PackageRef`]s
@@ -657,11 +658,20 @@ fn attic_login_target_inner(target: &CacheTarget) -> Result<()> {
     let token = std::fs::read_to_string(&target.token_file)
         .with_context(|| format!("reading {}", target.token_file))?;
     let status = Command::new("attic")
-        .args(["login", &target.server_name, &target.server_url, token.trim()])
+        .args([
+            "login",
+            &target.server_name,
+            &target.server_url,
+            token.trim(),
+        ])
         .status()
         .context("running attic login")?;
     if !status.success() {
-        anyhow::bail!("attic login for cache '{}' exited {}", target.cache_name, status);
+        anyhow::bail!(
+            "attic login for cache '{}' exited {}",
+            target.cache_name,
+            status
+        );
     }
     Ok(())
 }
@@ -674,8 +684,13 @@ fn attic_login_target_inner(target: &CacheTarget) -> Result<()> {
 pub fn run_flake_show(repo: &std::path::Path) -> Result<String> {
     let out = Command::new("nix")
         .args([
-            "flake", "show", "--json", "--all-systems",
-            "--option", "warn-dirty", "false",
+            "flake",
+            "show",
+            "--json",
+            "--all-systems",
+            "--option",
+            "warn-dirty",
+            "false",
         ])
         .current_dir(repo)
         .output()
@@ -695,9 +710,14 @@ pub fn run_flake_show(repo: &std::path::Path) -> Result<String> {
 pub fn nix_build_installable(repo: &std::path::Path, installable: &str) -> Result<Vec<String>> {
     let out = Command::new("nix")
         .args([
-            "build", installable,
-            "--no-link", "--print-out-paths", "--refresh",
-            "--option", "warn-dirty", "false",
+            "build",
+            installable,
+            "--no-link",
+            "--print-out-paths",
+            "--refresh",
+            "--option",
+            "warn-dirty",
+            "false",
         ])
         .current_dir(repo)
         .output()
@@ -998,9 +1018,7 @@ fn refine_object_drift(outcome: DeterminismOutcome) -> DeterminismOutcome {
         .collect();
 
     match fold_metadata_comparison(&pairs) {
-        MetadataVerdict::Identical => DeterminismOutcome::ObjectDriftOnly {
-            path: orig.clone(),
-        },
+        MetadataVerdict::Identical => DeterminismOutcome::ObjectDriftOnly { path: orig.clone() },
         MetadataVerdict::Differs | MetadataVerdict::Unknown => outcome,
     }
 }
@@ -1057,10 +1075,16 @@ mod tests {
         };
         assert!(full.is_usable());
 
-        let disabled = CacheTarget { enabled: false, ..full.clone() };
+        let disabled = CacheTarget {
+            enabled: false,
+            ..full.clone()
+        };
         assert!(!disabled.is_usable(), "disabled target is unusable");
 
-        let partial = CacheTarget { token_file: String::new(), ..full };
+        let partial = CacheTarget {
+            token_file: String::new(),
+            ..full
+        };
         assert!(!partial.is_usable(), "missing token_file → unusable");
     }
 
@@ -1116,7 +1140,10 @@ mod tests {
 
     #[test]
     fn package_ref_installable_string() {
-        let p = PackageRef { system: "aarch64-darwin".into(), attr: "mado".into() };
+        let p = PackageRef {
+            system: "aarch64-darwin".into(),
+            attr: "mado".into(),
+        };
         assert_eq!(p.installable(), ".#packages.aarch64-darwin.mado");
     }
 
@@ -1135,11 +1162,33 @@ mod tests {
           "devShells": {"aarch64-darwin": {"default": {}}}
         }"#;
         let got = flake_show_packages(json, &[], &PackageSelector::All).unwrap();
-        assert_eq!(got.len(), 3, "2 darwin + 1 linux package, devShells ignored");
+        assert_eq!(
+            got.len(),
+            3,
+            "2 darwin + 1 linux package, devShells ignored"
+        );
         // Deterministic sort: darwin before linux, default before tear.
-        assert_eq!(got[0], PackageRef { system: "aarch64-darwin".into(), attr: "default".into() });
-        assert_eq!(got[1], PackageRef { system: "aarch64-darwin".into(), attr: "tear".into() });
-        assert_eq!(got[2], PackageRef { system: "x86_64-linux".into(), attr: "default".into() });
+        assert_eq!(
+            got[0],
+            PackageRef {
+                system: "aarch64-darwin".into(),
+                attr: "default".into()
+            }
+        );
+        assert_eq!(
+            got[1],
+            PackageRef {
+                system: "aarch64-darwin".into(),
+                attr: "tear".into()
+            }
+        );
+        assert_eq!(
+            got[2],
+            PackageRef {
+                system: "x86_64-linux".into(),
+                attr: "default".into()
+            }
+        );
     }
 
     #[test]
@@ -1170,10 +1219,14 @@ mod tests {
 
     #[test]
     fn flake_show_empty_packages_yields_empty_not_error() {
-        assert!(flake_show_packages("{}", &[], &PackageSelector::All).unwrap().is_empty());
-        assert!(flake_show_packages(r#"{"packages":{}}"#, &[], &PackageSelector::All)
+        assert!(flake_show_packages("{}", &[], &PackageSelector::All)
             .unwrap()
             .is_empty());
+        assert!(
+            flake_show_packages(r#"{"packages":{}}"#, &[], &PackageSelector::All)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]
@@ -1196,7 +1249,10 @@ mod tests {
     #[test]
     fn repro_policy_parse_and_verifies() {
         assert_eq!(ReproPolicy::parse("verify"), ReproPolicy::VerifyBeforePush);
-        assert_eq!(ReproPolicy::parse("verify-before-push"), ReproPolicy::VerifyBeforePush);
+        assert_eq!(
+            ReproPolicy::parse("verify-before-push"),
+            ReproPolicy::VerifyBeforePush
+        );
         assert_eq!(ReproPolicy::parse("true"), ReproPolicy::VerifyBeforePush);
         assert_eq!(ReproPolicy::parse(""), ReproPolicy::Trusting);
         assert_eq!(ReproPolicy::parse("trusting"), ReproPolicy::Trusting);
@@ -1241,7 +1297,10 @@ mod tests {
         }
         // "checking is not possible" → Uncheckable too.
         assert!(matches!(
-            classify_determinism(false, "error: checking is not possible for a substituted path"),
+            classify_determinism(
+                false,
+                "error: checking is not possible for a substituted path"
+            ),
             DeterminismOutcome::Uncheckable { .. }
         ));
 
@@ -1260,22 +1319,34 @@ mod tests {
 
         // 1. any NonReproducible wins (first one, preserving its path) —
         // even when a Reproducible and an Inconclusive are also present.
-        let nonrepro = NonReproducible { path: Some("/nix/store/p".into()) };
+        let nonrepro = NonReproducible {
+            path: Some("/nix/store/p".into()),
+        };
         assert_eq!(
             aggregate_closure_determinism(&[
                 Reproducible,
                 nonrepro.clone(),
-                Inconclusive { stderr_tail: "x".into() },
-                NonReproducible { path: Some("/nix/store/other".into()) },
+                Inconclusive {
+                    stderr_tail: "x".into()
+                },
+                NonReproducible {
+                    path: Some("/nix/store/other".into())
+                },
             ]),
             nonrepro,
             "first NonReproducible (with its path) takes precedence"
         );
 
         // 2. else any Inconclusive withholds (no NonReproducible present).
-        let inconc = Inconclusive { stderr_tail: "boom".into() };
+        let inconc = Inconclusive {
+            stderr_tail: "boom".into(),
+        };
         assert_eq!(
-            aggregate_closure_determinism(&[Reproducible, inconc.clone(), Uncheckable { reason: "r".into() }]),
+            aggregate_closure_determinism(&[
+                Reproducible,
+                inconc.clone(),
+                Uncheckable { reason: "r".into() }
+            ]),
             inconc,
             "Inconclusive withholds over Reproducible"
         );
@@ -1283,9 +1354,13 @@ mod tests {
         // 3. else ≥1 Reproducible + only Uncheckables → Reproducible.
         assert_eq!(
             aggregate_closure_determinism(&[
-                Uncheckable { reason: "substituted".into() },
+                Uncheckable {
+                    reason: "substituted".into()
+                },
                 Reproducible,
-                Uncheckable { reason: "substituted".into() },
+                Uncheckable {
+                    reason: "substituted".into()
+                },
             ]),
             Reproducible,
             "one proven + trailing substituted-skips → Reproducible"
@@ -1294,7 +1369,9 @@ mod tests {
         // 4. empty → Uncheckable (proved nothing, conservative withhold).
         assert_eq!(
             aggregate_closure_determinism(&[]),
-            Uncheckable { reason: "no resident derivations to check".into() }
+            Uncheckable {
+                reason: "no resident derivations to check".into()
+            }
         );
         // all-Uncheckable → same conservative withhold.
         assert_eq!(
@@ -1302,7 +1379,9 @@ mod tests {
                 Uncheckable { reason: "a".into() },
                 Uncheckable { reason: "b".into() },
             ]),
-            Uncheckable { reason: "no resident derivations to check".into() }
+            Uncheckable {
+                reason: "no resident derivations to check".into()
+            }
         );
     }
 
@@ -1328,10 +1407,19 @@ mod tests {
         let t = sui_target("http://127.0.0.1:5000");
         assert!(t.is_usable(), "sui target needs only a URL");
 
-        let no_url = CacheTarget { server_url: String::new(), ..t.clone() };
-        assert!(!no_url.is_usable(), "a sui target without a URL is unusable");
+        let no_url = CacheTarget {
+            server_url: String::new(),
+            ..t.clone()
+        };
+        assert!(
+            !no_url.is_usable(),
+            "a sui target without a URL is unusable"
+        );
 
-        let disabled = CacheTarget { enabled: false, ..t };
+        let disabled = CacheTarget {
+            enabled: false,
+            ..t
+        };
         assert!(!disabled.is_usable(), "disabled beats backend");
     }
 
@@ -1369,7 +1457,8 @@ mod tests {
     #[test]
     fn wire_format_defaults_to_attic_so_old_configs_still_parse() {
         // A pre-existing rendered config carries no `backend` key.
-        let json = r#"[{"name":"nexus","server":"nexus","url":"http://rio:8080/","token_file":"/t"}]"#;
+        let json =
+            r#"[{"name":"nexus","server":"nexus","url":"http://rio:8080/","token_file":"/t"}]"#;
         let parsed = parse_caches_json(json).expect("legacy config must still parse");
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0].backend, CacheBackend::Attic);
@@ -1451,9 +1540,13 @@ mod tests {
         assert_eq!(
             aggregate_closure_determinism(&[
                 DeterminismOutcome::Reproducible,
-                DeterminismOutcome::ObjectDriftOnly { path: "/nix/store/x".into() },
+                DeterminismOutcome::ObjectDriftOnly {
+                    path: "/nix/store/x".into()
+                },
             ]),
-            DeterminismOutcome::ObjectDriftOnly { path: "/nix/store/x".into() }
+            DeterminismOutcome::ObjectDriftOnly {
+                path: "/nix/store/x".into()
+            }
         );
     }
 
@@ -1462,18 +1555,30 @@ mod tests {
         // The refinement must never be able to mask real poison.
         assert_eq!(
             aggregate_closure_determinism(&[
-                DeterminismOutcome::ObjectDriftOnly { path: "/nix/store/x".into() },
-                DeterminismOutcome::NonReproducible { path: Some("/nix/store/y".into()) },
+                DeterminismOutcome::ObjectDriftOnly {
+                    path: "/nix/store/x".into()
+                },
+                DeterminismOutcome::NonReproducible {
+                    path: Some("/nix/store/y".into())
+                },
             ]),
-            DeterminismOutcome::NonReproducible { path: Some("/nix/store/y".into()) }
+            DeterminismOutcome::NonReproducible {
+                path: Some("/nix/store/y".into())
+            }
         );
         // ...and an unknown failure still withholds too.
         assert_eq!(
             aggregate_closure_determinism(&[
-                DeterminismOutcome::ObjectDriftOnly { path: "/nix/store/x".into() },
-                DeterminismOutcome::Inconclusive { stderr_tail: "boom".into() },
+                DeterminismOutcome::ObjectDriftOnly {
+                    path: "/nix/store/x".into()
+                },
+                DeterminismOutcome::Inconclusive {
+                    stderr_tail: "boom".into()
+                },
             ]),
-            DeterminismOutcome::Inconclusive { stderr_tail: "boom".into() }
+            DeterminismOutcome::Inconclusive {
+                stderr_tail: "boom".into()
+            }
         );
     }
 
@@ -1545,7 +1650,9 @@ mod tests {
                 if !is_rust_artifact(name) {
                     continue;
                 }
-                let Ok(bytes) = std::fs::read(&p) else { continue };
+                let Ok(bytes) = std::fs::read(&p) else {
+                    continue;
+                };
                 let Some(meta) = extract_crate_metadata(&bytes) else {
                     continue;
                 };

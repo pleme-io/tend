@@ -70,16 +70,20 @@ pub struct WorkItem {
 impl WorkItem {
     #[must_use]
     pub fn workspace(kind: WorkKind, workspace: impl Into<String>) -> Self {
-        Self { kind, workspace: workspace.into(), scope: None }
+        Self {
+            kind,
+            workspace: workspace.into(),
+            scope: None,
+        }
     }
 
     #[must_use]
-    pub fn per_repo(
-        kind: WorkKind,
-        workspace: impl Into<String>,
-        repo: impl Into<String>,
-    ) -> Self {
-        Self { kind, workspace: workspace.into(), scope: Some(repo.into()) }
+    pub fn per_repo(kind: WorkKind, workspace: impl Into<String>, repo: impl Into<String>) -> Self {
+        Self {
+            kind,
+            workspace: workspace.into(),
+            scope: Some(repo.into()),
+        }
     }
 }
 
@@ -192,8 +196,7 @@ pub fn plan(items: Vec<WorkItem>) -> ExecutionPlan {
     // Stable sort within each stage for reproducibility.
     for stage in &mut stages {
         stage.sort_by(|a, b| {
-            (a.kind as u8, &a.workspace, &a.scope)
-                .cmp(&(b.kind as u8, &b.workspace, &b.scope))
+            (a.kind as u8, &a.workspace, &a.scope).cmp(&(b.kind as u8, &b.workspace, &b.scope))
         });
     }
 
@@ -261,8 +264,12 @@ mod tests {
         ]);
         // Plan in stage 1, Apply in stage 3
         assert!(p.stages.len() >= 4);
-        assert!(p.stages[1].iter().any(|i| i.kind == WorkKind::ReleaseSwarmPlan));
-        assert!(p.stages[3].iter().any(|i| i.kind == WorkKind::ReleaseSwarmApply));
+        assert!(p.stages[1]
+            .iter()
+            .any(|i| i.kind == WorkKind::ReleaseSwarmPlan));
+        assert!(p.stages[3]
+            .iter()
+            .any(|i| i.kind == WorkKind::ReleaseSwarmApply));
     }
 
     #[test]

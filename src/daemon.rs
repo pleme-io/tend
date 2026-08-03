@@ -1,12 +1,15 @@
 use anyhow::{Context, Result};
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Duration;
 
-use crate::{display, git, github, load_config, filter_workspaces, planner, reconcile, sync, watch, watch_cache};
 use crate::kanshou_state::TendDaemonState;
 use crate::planner::{ExecutionPlan, WorkItem, WorkKind};
+use crate::{
+    display, filter_workspaces, git, github, load_config, planner, reconcile, sync, watch,
+    watch_cache,
+};
 
 /// Options for the daemon command.
 pub(crate) struct DaemonOpts {
@@ -85,15 +88,14 @@ pub(crate) async fn run_with_kanshou(
         let kstate = Arc::clone(&kanshou_state);
         let quiet = opts.quiet;
         tokio::spawn(async move {
-            let mut hup = match tokio::signal::unix::signal(
-                tokio::signal::unix::SignalKind::hangup(),
-            ) {
-                Ok(s) => s,
-                Err(e) => {
-                    eprintln!("daemon: SIGHUP reload unavailable: {e}");
-                    return;
-                }
-            };
+            let mut hup =
+                match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup()) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        eprintln!("daemon: SIGHUP reload unavailable: {e}");
+                        return;
+                    }
+                };
             let audit = crate::audit::AuditLog::default_path();
             while hup.recv().await.is_some() {
                 match reload_github_token(&token_path) {
@@ -183,9 +185,10 @@ pub(crate) async fn run_with_kanshou(
         // outage of its own. Only a real, measured reading can stop a cycle.
         let effective_inflight = {
             let reader = crate::pressure::SystemPressureReader {
-                path: workspaces
-                    .first()
-                    .map_or_else(|| std::path::PathBuf::from("."), |w| std::path::PathBuf::from(&w.base_dir)),
+                path: workspaces.first().map_or_else(
+                    || std::path::PathBuf::from("."),
+                    |w| std::path::PathBuf::from(&w.base_dir),
+                ),
             };
             match crate::pressure::PressureReader::read(&reader) {
                 Ok(reading) => {
@@ -211,7 +214,9 @@ pub(crate) async fn run_with_kanshou(
                     }
                 }
                 Err(e) => {
-                    eprintln!("tend: pressure unreadable ({e}); proceeding at configured concurrency");
+                    eprintln!(
+                        "tend: pressure unreadable ({e}); proceeding at configured concurrency"
+                    );
                     opts.max_inflight
                 }
             }
@@ -250,7 +255,9 @@ pub(crate) async fn run_with_kanshou(
         // Wire the kanshou counters at the cycle boundary so external
         // observers see "tick N completed at T, ms_since_last = now-T"
         // and "tend has done X total cycles."
-        kanshou_state.ticks_completed.fetch_add(1, Ordering::Relaxed);
+        kanshou_state
+            .ticks_completed
+            .fetch_add(1, Ordering::Relaxed);
         kanshou_state
             .last_tick_unix_ms
             .store(now_unix_ms(), Ordering::Relaxed);
@@ -354,7 +361,17 @@ async fn run_workspace_cycle(
             let git_ops = git::SystemGitOps;
             let audit = crate::audit::AuditLog::default_path();
 
-            match watch::run_watch_cycle(ws, quiet, &gh, &cache_store, &matrix_appender, &git_ops, &audit).await {
+            match watch::run_watch_cycle(
+                ws,
+                quiet,
+                &gh,
+                &cache_store,
+                &matrix_appender,
+                &git_ops,
+                &audit,
+            )
+            .await
+            {
                 Ok(summary) => {
                     if !quiet {
                         display::print_watch_summary(&ws.name, &summary);
@@ -414,7 +431,8 @@ async fn run_nix_audit_cycle(
             for line in stdout.lines() {
                 if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
                     total_repos += 1;
-                    let findings = v.get("findings")
+                    let findings = v
+                        .get("findings")
                         .and_then(|f| f.as_array())
                         .map(|a| a.len())
                         .unwrap_or(0);
@@ -535,7 +553,10 @@ async fn run_hook(hook: &crate::config::PostHook, audit: &crate::audit::AuditLog
         .await;
 
     let (exit_code, duration_ms) = match result {
-        Ok(output) => (output.status.code().unwrap_or(-1), start.elapsed().as_millis() as u64),
+        Ok(output) => (
+            output.status.code().unwrap_or(-1),
+            start.elapsed().as_millis() as u64,
+        ),
         Err(_) => (-1, start.elapsed().as_millis() as u64),
     };
 
@@ -567,10 +588,8 @@ mod tests {
 
     #[test]
     fn read_token_file_missing_path_errors() {
-        let err = read_token_file(std::path::Path::new(
-            "/nonexistent/tend/token/path/xyz",
-        ))
-        .unwrap_err();
+        let err =
+            read_token_file(std::path::Path::new("/nonexistent/tend/token/path/xyz")).unwrap_err();
         assert!(err.to_string().contains("reading token from"));
     }
 }

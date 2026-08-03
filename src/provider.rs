@@ -199,7 +199,6 @@ mod tests {
         assert_eq!(state.name(), "shigoto");
     }
 
-
     use std::sync::Mutex;
 
     static ENV_MUTEX: Mutex<()> = Mutex::new(());
