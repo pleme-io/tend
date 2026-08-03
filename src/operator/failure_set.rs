@@ -164,6 +164,32 @@ fn is_eval_only_artifact(line: &str) -> bool {
     line.contains("is not valid") && line.contains("/nix/store/")
 }
 
+/// True when `log` contains no failure signatures beyond eval-only
+/// artifacts ("path '...' is not valid" — a derivation reference whose
+/// store path hasn't been realized, which the user's real rebuild would
+/// substitute or build). Used by the flake-update gate to tell a benign
+/// `--no-build` artifact apart from a flake that genuinely cannot
+/// evaluate.
+///
+/// A log with NO recognizable failure at all (silent non-zero exit) is
+/// NOT "only eval artifacts" — that is unverifiable and must block.
+#[must_use]
+pub fn has_only_eval_artifacts(log: &str) -> bool {
+    let cleaned = strip_ansi(log);
+    let mut saw_artifact = false;
+    for line in cleaned.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("error:") {
+            if is_eval_only_artifact(trimmed) {
+                saw_artifact = true;
+            } else {
+                return false;
+            }
+        }
+    }
+    saw_artifact
+}
+
 /// Pull individual test names out of a "NixOS eval tests failed
 /// (NN/MM passed): a: msg1; b: msg2; c: msg3" line.
 fn extract_eval_test_failures(log: &str) -> Vec<String> {
@@ -299,5 +325,37 @@ error: infinite recursion encountered while evaluating module foo
             !body.contains("is not valid"),
             "eval-only artifact should be filtered: {body}"
         );
+    }
+
+    #[test]
+    fn has_only_eval_artifacts_true_for_pure_eval_only_log() {
+        let log = "\
+error: path '/nix/store/dy3bnagxvay5gmbhg7dfwk0g54mcwi5g-pangea-compiler-gemdir.drv' is not valid
+error: path '/nix/store/zgc8vj7wc3yjlxnrjkgsgbzn3nz41ad6-nord-ls-colors.drv' is not valid
+";
+        assert!(has_only_eval_artifacts(log));
+    }
+
+    #[test]
+    fn has_only_eval_artifacts_false_for_real_error() {
+        let log = "\
+error: path '/nix/store/abc-foo.drv' is not valid
+error: infinite recursion encountered while evaluating module foo
+";
+        assert!(!has_only_eval_artifacts(log));
+    }
+
+    #[test]
+    fn has_only_eval_artifacts_false_for_silent_or_empty_log() {
+        // A non-zero exit with no recognizable failure signature must
+        // block — we cannot prove the flake evaluates.
+        assert!(!has_only_eval_artifacts(""));
+        assert!(!has_only_eval_artifacts("warning: some unrelated note"));
+    }
+
+    #[test]
+    fn has_only_eval_artifacts_ignores_ansi() {
+        let log = "error: \x1b[31;1mpath\x1b[0m '/nix/store/abc-foo.drv' is not valid";
+        assert!(has_only_eval_artifacts(log));
     }
 }

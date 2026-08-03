@@ -7,6 +7,7 @@ use crate::config::Workspace;
 use crate::display;
 use crate::flake_lock::FlakeLock;
 use crate::head_cache::{self, UpstreamHead};
+use crate::operator::failure_set::has_only_eval_artifacts;
 use crate::watch::{run_bounded_sync, SUBPROCESS_DEADLINE_SECS};
 
 /// Options that govern execution of an update chain.
@@ -93,8 +94,19 @@ pub(crate) enum StepOutcome {
 /// That is a property of the checker, not the flake — devenv documents
 /// `--impure` as the required invocation. When the pure check fails with
 /// exactly that signature, we retry impure before believing the flake is
-/// broken. Any other failure blocks as before, so the gate still catches
-/// the class it exists for.
+/// broken.
+///
+/// Eval-only artifacts are the other false positive: `nix flake check
+/// --no-build` cannot realize derivations, so a flake whose checks merely
+/// REFERENCE an unbuilt store path fails with "path '...' is not valid"
+/// even when it evaluates perfectly — the user's real `nix run .#rebuild`
+/// would substitute or build it. Such a log carries no real failure
+/// signature (`has_only_eval_artifacts`), and we do not block a healthy
+/// flake on a checker that could not be bothered to build.
+///
+/// Any other failure blocks as before, so the gate still catches the
+/// class it exists for: a missing attribute, a bad follows, a module that
+/// no longer type-checks.
 pub(crate) fn verify_flake_evaluates(repo_path: &std::path::Path) -> Option<String> {
     match run_flake_check(repo_path, false) {
         Ok(o) if o.status.success() => None,
@@ -106,33 +118,40 @@ pub(crate) fn verify_flake_evaluates(repo_path: &std::path::Path) -> Option<Stri
                 // retry is a real failure, not a second chance.
                 return match run_flake_check(repo_path, true) {
                     Ok(i) if i.status.success() => None,
-                    Ok(i) => Some(
-                        String::from_utf8_lossy(&i.stderr)
-                            .lines()
-                            .filter(|l| l.contains("error"))
-                            .last()
-                            .unwrap_or("nix flake check --impure failed")
-                            .trim()
-                            .to_owned(),
-                    ),
+                    Ok(i) => failure_reason(&String::from_utf8_lossy(&i.stderr), "--impure"),
                     Err(e) => Some(e.to_string()),
                 };
             }
-            Some(
-                stderr
-                    .lines()
-                    .filter(|l| l.contains("error"))
-                    .last()
-                    .unwrap_or("nix flake check failed")
-                    .trim()
-                    .to_owned(),
-            )
+            failure_reason(&stderr, "")
         }
         // nix absent or unrunnable is not evidence the flake is bad, but it
         // is not evidence it is good either — and this gate exists to stop
         // unverified pushes, so "cannot verify" blocks like "failed".
         Err(e) => Some(e.to_string()),
     }
+}
+
+/// The single reason a failed `nix flake check` becomes a block — or
+/// `None` when the log carries no real failure (eval-only artifacts only).
+/// Extracted so the pure and impure failure arms cannot drift.
+fn failure_reason(stderr: &str, mode: &str) -> Option<String> {
+    if has_only_eval_artifacts(stderr) {
+        return None;
+    }
+    let label = if mode.is_empty() {
+        "nix flake check failed"
+    } else {
+        "nix flake check --impure failed"
+    };
+    Some(
+        stderr
+            .lines()
+            .filter(|l| l.contains("error"))
+            .last()
+            .unwrap_or(label)
+            .trim()
+            .to_owned(),
+    )
 }
 
 /// Run `nix flake check --no-build`, optionally `--impure`, bounded by the
