@@ -739,7 +739,7 @@ mod tests {
         Command::new("git").args(["config", "commit.gpgsign", "false"]).current_dir(path).status().unwrap();
         std::fs::write(path.join("file"), "x\n").unwrap();
         Command::new("git").args(["add", "."]).current_dir(path).status().unwrap();
-        Command::new("git").args(["commit", "-q", "-m", "init"]).current_dir(path).status().unwrap();
+        Command::new("git").args(["commit", "-q", "--no-verify", "-m", "init"]).current_dir(path).status().unwrap();
     }
 
     fn clone_from(upstream: &std::path::Path, dest: &std::path::Path) {
@@ -816,7 +816,7 @@ mod tests {
         // Advance upstream to commit B.
         std::fs::write(upstream.join("file"), "two\n").unwrap();
         Command::new("git").args(["add", "."]).current_dir(&upstream).status().unwrap();
-        Command::new("git").args(["commit", "-q", "-m", "two"]).current_dir(&upstream).status().unwrap();
+        Command::new("git").args(["commit", "-q", "--no-verify", "-m", "two"]).current_dir(&upstream).status().unwrap();
 
         // Now clone "current" + "dirty" — they're at the same B commit
         // as upstream, so "current" pulls UpToDate.

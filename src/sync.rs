@@ -887,7 +887,7 @@ mod tests {
     fn write_commit(repo: &Path, file: &str, content: &str, msg: &str) {
         std::fs::write(repo.join(file), content).unwrap();
         git(repo, &["add", "."]);
-        git(repo, &["commit", "-q", "-m", msg]);
+        git(repo, &["commit", "-q", "--no-verify", "-m", msg]);
     }
 
     /// Regression guard for the incident this variant exists to catch: a

@@ -1,3 +1,4 @@
+mod worktree;
 mod ai_cron;
 mod ai_executor;
 mod ai_flow;
@@ -58,6 +59,17 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Per-session git worktrees — real isolation for concurrent agents.
+    ///
+    /// Concurrent sessions sharing one checkout share one INDEX, so a
+    /// `git add -A` in one stages another's work. A worktree gives each session
+    /// its own index and checkout, making that unconstructible rather than
+    /// merely discouraged.
+    Worktree {
+        #[command(subcommand)]
+        action: WorktreeAction,
+    },
+
     /// Clone missing repos into the workspace
     Sync {
         /// Path to config file
@@ -615,11 +627,79 @@ enum Commands {
     ConfigShow(shikumi::cli::ConfigShowCommand),
 }
 
+#[derive(Subcommand)]
+enum WorktreeAction {
+    /// Create (or reuse) this session's worktree and print its path.
+    ///
+    /// Idempotent: every call in one session lands in the SAME worktree, so it
+    /// is safe to invoke from a shell hook on each command.
+    Enter {
+        /// Repo to isolate (default: current directory).
+        #[arg(long)]
+        repo: Option<PathBuf>,
+        /// Session id (default: $CLAUDE_CODE_SESSION_ID).
+        #[arg(long)]
+        session: Option<String>,
+    },
+    /// Show every session worktree with its safety verdict.
+    List {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+    },
+    /// Remove worktrees that hold no work. Refuses on uncommitted or unpushed
+    /// changes — never removes on a guess.
+    Prune {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+        /// Report what would be removed without touching anything.
+        #[arg(long)]
+        dry_run: bool,
+    },
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::Worktree { action } => {
+            let here = std::env::current_dir()?;
+            match action {
+                WorktreeAction::Enter { repo, session } => {
+                    let repo = repo.unwrap_or(here);
+                    let session = session
+                        .or_else(worktree::session_from_env)
+                        .ok_or_else(|| anyhow::anyhow!(
+                            "no session id: pass --session or set CLAUDE_CODE_SESSION_ID"
+                        ))?;
+                    let path = worktree::enter(&repo, &session, &worktree::default_root())?;
+                    println!("{}", path.display());
+                }
+                WorktreeAction::List { repo } => {
+                    let repo = repo.unwrap_or(here);
+                    for e in worktree::list(&repo)? {
+                        println!("{}  {}  {}", e.branch, e.path.display(), e.verdict().reason());
+                    }
+                }
+                WorktreeAction::Prune { repo, dry_run } => {
+                    let repo = repo.unwrap_or(here);
+                    for e in worktree::list(&repo)? {
+                        let v = e.verdict();
+                        if v.is_safe() {
+                            if dry_run {
+                                println!("would remove {}", e.path.display());
+                            } else {
+                                worktree::remove(&repo, &e)?;
+                                println!("removed {}", e.path.display());
+                            }
+                        } else {
+                            println!("kept {}  {}", e.path.display(), v.reason());
+                        }
+                    }
+                }
+            }
+        }
+
         Commands::Sync {
             config: config_path,
             workspace: ws_filter,

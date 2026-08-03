@@ -334,7 +334,16 @@ mod tests {
         // Seed an initial commit so HEAD exists for git rev-parse.
         std::fs::write(work.path().join("a.txt"), "hello").unwrap();
         let committer = GitCommitter::tend_bot();
-        let sha = commit_and_push(work.path(), &["a.txt"], "init", &committer, None)
+        let sha = commit_and_push(
+            work.path(),
+            &["a.txt"],
+            // A real subject on purpose: this exercises the PRODUCTION commit path,
+            // which must stay subject to the global commit-msg hook. Bypassing
+            // hooks here would test something tend never actually does.
+            "test: fixture commit exercising the bare-repo push path",
+            &committer,
+            None,
+        )
             .await
             .unwrap();
         assert_eq!(sha.len(), 40, "expected 40-char sha, got `{sha}`");
@@ -342,7 +351,7 @@ mod tests {
         // Push another change to verify idempotent re-use.
         std::fs::write(work.path().join("a.txt"), "world").unwrap();
         let sha2 =
-            commit_and_push(work.path(), &["a.txt"], "update", &committer, None)
+            commit_and_push(work.path(), &["a.txt"], "test: fixture second commit on the push path", &committer, None)
                 .await
                 .unwrap();
         assert_ne!(sha, sha2);

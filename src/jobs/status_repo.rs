@@ -116,7 +116,7 @@ mod tests {
         Command::new("git").args(["config", "commit.gpgsign", "false"]).current_dir(path).status().unwrap();
         std::fs::write(path.join("file"), "x\n").unwrap();
         Command::new("git").args(["add", "."]).current_dir(path).status().unwrap();
-        Command::new("git").args(["commit", "-q", "-m", "init"]).current_dir(path).status().unwrap();
+        Command::new("git").args(["commit", "-q", "--no-verify", "-m", "init"]).current_dir(path).status().unwrap();
     }
 
     /// The realistic fixture: a repo that is actually backed by a
