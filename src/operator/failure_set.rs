@@ -171,6 +171,10 @@ fn is_eval_only_artifact(line: &str) -> bool {
 /// `--no-build` artifact apart from a flake that genuinely cannot
 /// evaluate.
 ///
+/// A bare `error:` line is a nix trace header for a following multi-line
+/// block; its payload is the terminal `error:` line, so it is not itself
+/// a failure signature.
+///
 /// A log with NO recognizable failure at all (silent non-zero exit) is
 /// NOT "only eval artifacts" — that is unverifiable and must block.
 #[must_use]
@@ -180,6 +184,11 @@ pub fn has_only_eval_artifacts(log: &str) -> bool {
     for line in cleaned.lines() {
         let trimmed = line.trim_start();
         if trimmed.starts_with("error:") {
+            let message = trimmed.trim_start_matches("error:").trim();
+            if message.is_empty() {
+                // nix trace header; the real error follows on a later line
+                continue;
+            }
             if is_eval_only_artifact(trimmed) {
                 saw_artifact = true;
             } else {
@@ -357,5 +366,32 @@ error: infinite recursion encountered while evaluating module foo
     fn has_only_eval_artifacts_ignores_ansi() {
         let log = "error: \x1b[31;1mpath\x1b[0m '/nix/store/abc-foo.drv' is not valid";
         assert!(has_only_eval_artifacts(log));
+    }
+
+    #[test]
+    fn has_only_eval_artifacts_ignores_bare_trace_header() {
+        // nix emits a bare `error:` line as a trace header for a following
+        // multi-line block. With only the header + the artifact, the log is
+        // still eval-only.
+        let log = "\
+error:
+       … while evaluating the option `perSystem.aarch64-darwin.apps.release.program':
+       (stack trace truncated; use '--show-trace' to show the full, detailed trace)
+       error: path '/nix/store/zgc8vj7wc3yjlxnrjkgsgbzn3nz41ad6-nord-ls-colors.drv' is not valid
+";
+        assert!(has_only_eval_artifacts(log));
+    }
+
+    #[test]
+    fn has_only_eval_artifacts_false_when_bare_header_has_real_message() {
+        // Same trace shape but the terminal error is a real failure, not
+        // an eval-only artifact — must block.
+        let log = "\
+error:
+       … while evaluating definitions from `/nix/store/foo/source/modules/top-level.nix':
+       error: Failed assertions:
+       - devenv was not able to determine the current directory.
+";
+        assert!(!has_only_eval_artifacts(log));
     }
 }
