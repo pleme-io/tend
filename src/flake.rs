@@ -85,26 +85,75 @@ pub(crate) enum StepOutcome {
 /// follows, a module that no longer type-checks) in seconds. A full build
 /// would be more thorough and too slow to run per repo per cycle, and the
 /// gate that is too slow to run is the gate that gets skipped.
+///
+/// Devenv flakes are the one false positive the pure check cannot run: a
+/// `devenv.lib.mkShell` asserts on `builtins.getEnv "PWD"`, which pure
+/// evaluation strips, so every devenv flake fails with "devenv was not
+/// able to determine the current directory" even when the lock is perfect.
+/// That is a property of the checker, not the flake — devenv documents
+/// `--impure` as the required invocation. When the pure check fails with
+/// exactly that signature, we retry impure before believing the flake is
+/// broken. Any other failure blocks as before, so the gate still catches
+/// the class it exists for.
 pub(crate) fn verify_flake_evaluates(repo_path: &std::path::Path) -> Option<String> {
-    let mut c = Command::new("nix");
-    c.args(["flake", "check", "--no-build", "--no-warn-dirty"])
-        .current_dir(repo_path);
-    match run_bounded_sync(c, SUBPROCESS_DEADLINE_SECS, "nix flake check") {
+    match run_flake_check(repo_path, false) {
         Ok(o) if o.status.success() => None,
-        Ok(o) => Some(
-            String::from_utf8_lossy(&o.stderr)
-                .lines()
-                .filter(|l| l.contains("error"))
-                .last()
-                .unwrap_or("nix flake check failed")
-                .trim()
-                .to_owned(),
-        ),
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            if stderr.contains("devenv was not able to determine the current directory") {
+                // Pure eval can't verify devenv flakes — retry the way the
+                // flake is actually meant to be evaluated. A failed impure
+                // retry is a real failure, not a second chance.
+                return match run_flake_check(repo_path, true) {
+                    Ok(i) if i.status.success() => None,
+                    Ok(i) => Some(
+                        String::from_utf8_lossy(&i.stderr)
+                            .lines()
+                            .filter(|l| l.contains("error"))
+                            .last()
+                            .unwrap_or("nix flake check --impure failed")
+                            .trim()
+                            .to_owned(),
+                    ),
+                    Err(e) => Some(e.to_string()),
+                };
+            }
+            Some(
+                stderr
+                    .lines()
+                    .filter(|l| l.contains("error"))
+                    .last()
+                    .unwrap_or("nix flake check failed")
+                    .trim()
+                    .to_owned(),
+            )
+        }
         // nix absent or unrunnable is not evidence the flake is bad, but it
         // is not evidence it is good either — and this gate exists to stop
         // unverified pushes, so "cannot verify" blocks like "failed".
         Err(e) => Some(e.to_string()),
     }
+}
+
+/// Run `nix flake check --no-build`, optionally `--impure`, bounded by the
+/// subprocess deadline. Shares one argument list so the pure and impure
+/// arms of `verify_flake_evaluates` cannot drift.
+fn run_flake_check(
+    repo_path: &std::path::Path,
+    impure: bool,
+) -> Result<std::process::Output> {
+    let mut args = vec!["flake", "check", "--no-build", "--no-warn-dirty"];
+    if impure {
+        args.push("--impure");
+    }
+    let what = if impure {
+        "nix flake check --impure"
+    } else {
+        "nix flake check"
+    };
+    let mut c = Command::new("nix");
+    c.args(&args).current_dir(repo_path);
+    run_bounded_sync(c, SUBPROCESS_DEADLINE_SECS, what)
 }
 
 /// Record a step as blocked and move on.
@@ -1360,6 +1409,41 @@ mod tests {
                 .unwrap_or("")
                 .contains("default_true"),
             "auto_commit must be opt-in — every other write flag in WatchConfig is"
+        );
+    }
+
+    /// ── ★ THE GATE MUST ASK TWICE BEFORE BELIEVING A DEVENV FLAKE IS BROKEN ──
+    /// Devenv flakes assert on `builtins.getEnv "PWD"`, which pure eval
+    /// strips, so the pure `nix flake check` gate false-positives on EVERY
+    /// devenv flake with "devenv was not able to determine the current
+    /// directory" — even a perfect lock. If someone drops the `--impure`
+    /// retry, every devenv repo (blackmatter-shell is the fleet's first)
+    /// BLOCKS forever and the update chain stops at step 1.
+    ///
+    /// Asserted against source, matching the gate tests above: the defect
+    /// this guards is a MISSING call, so it must be checked by reading the
+    /// source that must contain it, not by exercising behavior that would
+    /// pass all along without the retry.
+    #[test]
+    fn the_gate_retries_devenv_flakes_impure() {
+        let src = include_str!("flake.rs");
+        let head = &src[..src.find("fn verify_flake_evaluates").unwrap()];
+        assert!(
+            src.contains("--impure"),
+            "verify_flake_evaluates must retry devenv flakes with --impure — \
+             a pure-only check false-positives on every devenv flake"
+        );
+        assert!(
+            src.contains("devenv was not able to determine the current directory"),
+            "the impure retry must be gated on the specific devenv signature, \
+             not blanket-triggered on any failure"
+        );
+        // The retry must not weaken the gate for real failures: only the
+        // devenv signature may trigger it, and it must live in the gate
+        // function's docs, not in a stray --impure elsewhere in the file.
+        assert!(
+            head.contains("Devenv flakes are the one false positive"),
+            "the devenv handling must be documented on the gate function"
         );
     }
 
