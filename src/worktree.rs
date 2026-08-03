@@ -163,6 +163,63 @@ pub fn default_root(repo: &Path) -> PathBuf {
     repo.join(".claude").join("worktrees")
 }
 
+/// Mint a session name for a launch that has no id to inherit.
+///
+/// `CLAUDE_CODE_SESSION_ID` is published INSIDE a claude session for its
+/// subprocesses. At LAUNCH there is no session yet, so the operator's own
+/// launcher can never supply one — and a verb that errors there is not a
+/// launcher. Measured 2026-08-03: pointing `cld` at `worktree session` broke it
+/// in every directory with `no session id`, because the check ran in an
+/// interactive shell rather than in a claude subprocess.
+///
+/// Pure: the caller supplies both parts, so every property is testable without
+/// a clock or an RNG. `hhmm` + 7 hex fits SLUG_LEN (12) and stays `[a-z0-9-]`.
+/// A collision is benign rather than destructive — `enter` ADOPTS an existing
+/// worktree of the same slug instead of resetting it.
+#[must_use]
+pub fn mint_slug(hhmm: &str, rand_hex: &str) -> String {
+    let mut raw = String::from(hhmm);
+    raw.push_str(rand_hex);
+    session_slug(&raw)
+}
+
+/// Impure companion to [`mint_slug`] — reads the clock and the pid.
+///
+/// Deliberately not `rand`: that dependency is optional in this crate and a
+/// benign-collision slug does not justify enabling it. Minute-of-day plus 7 hex
+/// of (nanos ^ pid<<32) is ~268M values per minute, and `enter` adopts rather
+/// than resets on a repeat, so the failure mode of a collision is two launches
+/// sharing a worktree, not lost work. No `format!` — TYPED EMISSION.
+#[must_use]
+pub fn mint_slug_now() -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0u128, |d| d.as_nanos());
+
+    let minute_of_day = ((nanos / 1_000_000_000) % 86_400) / 60;
+    let mut hhmm = String::new();
+    if minute_of_day < 1000 {
+        hhmm.push('0');
+    }
+    if minute_of_day < 100 {
+        hhmm.push('0');
+    }
+    if minute_of_day < 10 {
+        hhmm.push('0');
+    }
+    hhmm.push_str(&minute_of_day.to_string());
+
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mixed = (nanos as u64) ^ (u64::from(std::process::id()) << 32);
+    let mut rand_hex = String::new();
+    for i in 0..7_u32 {
+        let nibble = ((mixed >> (i * 4)) & 0xf) as usize;
+        rand_hex.push(char::from(HEX[nibble]));
+    }
+
+    mint_slug(&hhmm, &rand_hex)
+}
+
 /// Is `dir` inside a git work tree?
 ///
 /// The delegation path passes `--worktree`, which claude cannot honour outside a
@@ -234,6 +291,53 @@ pub fn session_from_env() -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_launch_with_no_session_id_still_gets_a_usable_slug() {
+        // CLAUDE_CODE_SESSION_ID exists only INSIDE a session, so a launcher
+        // never has one. Measured 2026-08-03: pointing `cld` at
+        // `worktree session` broke it in EVERY directory with
+        // `Error: no session id`, because it had only been checked from a
+        // claude subprocess (which does carry the variable) rather than from an
+        // interactive shell.
+        let s = mint_slug("0731", "a1b2c3d");
+        assert!(!s.is_empty(), "a minted slug must never be empty");
+        assert!(s.len() <= SLUG_LEN, "must fit the slug budget: {s}");
+        assert!(
+            s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'),
+            "must be path- and ref-safe: {s}"
+        );
+        // Idempotent under the sanitiser — a minted slug is already legal, so
+        // passing it through `session_slug` again cannot change it.
+        assert_eq!(session_slug(&s), s, "minted slug must be a fixed point");
+
+        // Distinct inputs stay distinct, so two launches in the same minute do
+        // not silently share a worktree.
+        assert_ne!(mint_slug("0731", "a1b2c3d"), mint_slug("0731", "e4f5a6b"));
+
+        // And the live minter obeys the same contract.
+        let live = mint_slug_now();
+        assert!(live.len() <= SLUG_LEN, "live slug too long: {live}");
+        assert_eq!(session_slug(&live), live, "live slug must be a fixed point");
+    }
+
+    #[test]
+    fn resolve_refuses_to_invent_a_worktree_to_land() {
+        // `land` used `enter`, which CREATES. Landing a session whose worktree
+        // directory was gone therefore built a fresh one, and `enter`'s old
+        // `-B` reset the branch that held the only copy of the work: the rebase
+        // became a no-op, the push said `Everything up-to-date`, and it printed
+        // `landed <sha>` over destroyed commits. Landing must resolve, never
+        // invent.
+        let tmp = std::env::temp_dir().join("tend-resolve-probe-does-not-exist");
+        let err = resolve(&tmp, "sessionthatnevermadeaworktree")
+            .expect_err("resolve must fail when no worktree exists");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("nothing to land"),
+            "the error must say what the operator has to do, got: {msg}"
+        );
+    }
 
     #[test]
     fn claude_flags_delegate_but_a_program_does_not() {
@@ -466,12 +570,53 @@ pub fn enter(repo: &Path, session: &str, root: &Path) -> Result<PathBuf> {
     let base = git(repo, &["rev-parse", "--abbrev-ref", "HEAD"])?;
     let p = path.to_string_lossy().to_string();
 
-    // `git worktree add -B` resets the branch if it already exists (a worktree
-    // removed without its branch), so a re-entered session does not fail on a
-    // leftover ref.
-    git(repo, &["worktree", "add", "-B", &branch, &p, &base])?;
+    // ADOPT an existing branch; never reset it.
+    //
+    // This used `-B`, which RESETS the branch to base when it already exists.
+    // The case it was meant to smooth — a worktree directory removed while its
+    // branch survived — is exactly the case where the branch is the ONLY place
+    // that session's commits still live, and `-B` discarded them. Worse via
+    // `land`, which called `enter` first: the reset threw the commits away, the
+    // rebase became a no-op, the push said `Everything up-to-date`, and it
+    // printed `landed <sha>` over destroyed work.
+    //
+    // So: if the ref exists, check it out as-is; only create when it does not.
+    // Re-entry still does not fail on a leftover ref, which was the original
+    // goal, and no path resets a branch that may hold unpushed work.
+    let branch_ref = {
+        let mut r = String::from("refs/heads/");
+        r.push_str(&branch);
+        r
+    };
+    let exists = git(repo, &["rev-parse", "--verify", "--quiet", &branch_ref]).is_ok();
+    if exists {
+        git(repo, &["worktree", "add", &p, &branch])?;
+    } else {
+        git(repo, &["worktree", "add", "-b", &branch, &p, &base])?;
+    }
     link_project_memory(repo, &path);
     Ok(path)
+}
+
+/// Resolve a session's EXISTING worktree, or fail.
+///
+/// `land` must never create. It used `enter`, which creates on demand — so
+/// landing a session whose worktree directory was gone silently built a fresh
+/// one and (before the fix above) reset the branch that held the only copy of
+/// the work. Landing is an operation ON existing work; if there is none to
+/// find, that is an error the operator must see, not a thing to invent.
+pub fn resolve(root: &Path, session: &str) -> Result<PathBuf> {
+    let slug = session_slug(session);
+    let path = worktree_path(root, &slug);
+    if path.join(".git").exists() {
+        return Ok(path);
+    }
+    let mut m = String::from("no worktree for session ");
+    m.push_str(&slug);
+    m.push_str(" at ");
+    m.push_str(&path.to_string_lossy());
+    m.push_str(" — nothing to land. `tend worktree list` shows what exists.");
+    bail!(m)
 }
 
 /// Point the worktree's Claude-Code project memory at the canonical repo's.

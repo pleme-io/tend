@@ -785,11 +785,12 @@ async fn main() -> Result<()> {
             match action {
                 WorktreeAction::Enter { repo, session } => {
                     let repo = repo.unwrap_or(here);
-                    let session = session.or_else(worktree::session_from_env).ok_or_else(|| {
-                        anyhow::anyhow!(
-                            "no session id: pass --session or set CLAUDE_CODE_SESSION_ID"
-                        )
-                    })?;
+                    // MINT when absent. CLAUDE_CODE_SESSION_ID exists only
+                    // INSIDE a session, so a launch has none and erroring here
+                    // makes the verb unusable as a launcher.
+                    let session = session
+                        .or_else(worktree::session_from_env)
+                        .unwrap_or_else(worktree::mint_slug_now);
                     let path = worktree::enter(&repo, &session, &worktree::default_root(&repo))?;
                     println!("{}", path.display());
                 }
@@ -810,11 +811,12 @@ async fn main() -> Result<()> {
                     // Non-claude commands still get a tend-made worktree, since
                     // `--worktree` is claude's flag and nothing else has it.
                     let repo = repo.unwrap_or(here);
-                    let session = session.or_else(worktree::session_from_env).ok_or_else(|| {
-                        anyhow::anyhow!(
-                            "no session id: pass --session or set CLAUDE_CODE_SESSION_ID"
-                        )
-                    })?;
+                    // MINT when absent — same reason as Enter. This is THE
+                    // launcher path, so it must work in a plain interactive
+                    // shell, which never carries CLAUDE_CODE_SESSION_ID.
+                    let session = session
+                        .or_else(worktree::session_from_env)
+                        .unwrap_or_else(worktree::mint_slug_now);
                     let slug = worktree::session_slug(&session);
 
                     // Empty command, or one that is only FLAGS, means "claude
@@ -863,7 +865,13 @@ async fn main() -> Result<()> {
                             "no session id: pass --session or set CLAUDE_CODE_SESSION_ID"
                         )
                     })?;
-                    let path = worktree::enter(&repo, &session, &worktree::default_root(&repo))?;
+                    // RESOLVE, never create. This called `enter`, which creates
+                    // on demand — so landing a session whose worktree directory
+                    // was gone built a fresh one, and `enter`'s old `-B` reset
+                    // the branch holding the only copy of the work. Landing acts
+                    // ON existing work; nothing to find is an error, not a cue
+                    // to invent one.
+                    let path = worktree::resolve(&worktree::default_root(&repo), &session)?;
                     let sha = worktree::land(&path, &base)?;
                     println!("landed {sha} onto {base}");
                 }
