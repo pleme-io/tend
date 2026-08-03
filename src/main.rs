@@ -641,6 +641,22 @@ enum WorktreeAction {
         #[arg(long)]
         session: Option<String>,
     },
+    /// Run a command inside this session's worktree (default: claude).
+    ///
+    /// THE ENTRY POINT: `tend worktree session` is what makes isolation actually
+    /// take effect, rather than being a capability nobody invokes. Creates or
+    /// reuses the worktree, then EXECs — so the agent inherits the tty, signals
+    /// and exit code directly.
+    Session {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+        #[arg(long)]
+        session: Option<String>,
+        /// Command to run (default: claude). Everything after `--` is its args.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        command: Vec<String>,
+    },
+
     /// Show every session worktree with its safety verdict.
     List {
         #[arg(long)]
@@ -675,6 +691,23 @@ async fn main() -> Result<()> {
                     let path = worktree::enter(&repo, &session, &worktree::default_root())?;
                     println!("{}", path.display());
                 }
+                WorktreeAction::Session { repo, session, command } => {
+                    let repo = repo.unwrap_or(here);
+                    let session = session
+                        .or_else(worktree::session_from_env)
+                        .ok_or_else(|| anyhow::anyhow!(
+                            "no session id: pass --session or set CLAUDE_CODE_SESSION_ID"
+                        ))?;
+                    let path = worktree::enter(&repo, &session, &worktree::default_root())?;
+                    let (cmd, args) = command.split_first().map_or_else(
+                        || (String::from("claude"), Vec::new()),
+                        |(c, rest)| (c.clone(), rest.to_vec()),
+                    );
+                    eprintln!("tend: isolated worktree {}", path.display());
+                    worktree::exec_in(&path, &cmd, &args)?;
+                    unreachable!("exec_in only returns on failure");
+                }
+
                 WorktreeAction::List { repo } => {
                     let repo = repo.unwrap_or(here);
                     for e in worktree::list(&repo)? {

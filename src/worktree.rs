@@ -249,6 +249,17 @@ mod tests {
     }
 
     #[test]
+    fn exec_failure_names_the_command_and_the_directory() {
+        // exec_in only returns on failure, and that error is the only thing the
+        // operator sees when a launcher is misconfigured — it must say WHAT could
+        // not run and WHERE, not just "No such file or directory".
+        let err = exec_in(Path::new("/"), "definitely-not-a-real-binary-xyz", &[]).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("definitely-not-a-real-binary-xyz"), "got {msg:?}");
+        assert!(msg.contains('/'), "got {msg:?}");
+    }
+
+    #[test]
     fn refusal_reasons_say_what_to_do_next() {
         assert!(removal_verdict(false, 0).reason().contains("commit or discard"));
         let r = removal_verdict(true, 2).reason();
@@ -388,4 +399,25 @@ pub fn remove(repo: &Path, entry: &Entry) -> Result<()> {
     git(repo, &["worktree", "remove", &p])?;
     git(repo, &["branch", "-D", &entry.branch]).ok();
     Ok(())
+}
+
+/// Replace this process with `command` running inside `dir`.
+///
+/// `exec`, not spawn-and-wait: the launched agent should BE this process, so
+/// signals, the tty, and the exit code pass straight through. A wrapper that
+/// waits would swallow Ctrl-C and report its own status — the same
+/// exit-code-masking class as piping through `tail`.
+///
+/// # Errors
+/// Only returns if the exec itself failed; on success it never returns.
+pub fn exec_in(dir: &Path, command: &str, args: &[String]) -> Result<std::convert::Infallible> {
+    use std::os::unix::process::CommandExt;
+    let err = Command::new(command).args(args).current_dir(dir).exec();
+    let mut m = String::from("exec ");
+    m.push_str(command);
+    m.push_str(" in ");
+    m.push_str(&dir.to_string_lossy());
+    m.push_str(": ");
+    m.push_str(&err.to_string());
+    bail!(m)
 }
