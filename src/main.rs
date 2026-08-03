@@ -754,7 +754,13 @@ async fn main() -> Result<()> {
             let verdict = pressure::assess(reading, pressure::Thresholds::default(), max_inflight);
             println!("path          {}", path.display());
             println!("disk free     {:.1}%", reading.disk_free_pct);
-            println!("fd ratio      {:.4}", reading.fd_ratio);
+            // "unavailable" rather than a fabricated 0.0 — this line was
+            // printing "no descriptor pressure" on every host whose sysctl
+            // it could not read.
+            match reading.fd_ratio {
+                Some(r) => println!("fd ratio      {r:.4}"),
+                None => println!("fd ratio      unavailable (sysctl unreadable on this host)"),
+            }
             match verdict.inflight(max_inflight) {
                 Some(n) if n == max_inflight => println!("verdict       proceed at {n}"),
                 Some(n) => println!("verdict       throttle to {n} — {}", verdict.why()),

@@ -35,8 +35,21 @@ use std::process::Command;
 pub struct Reading {
     /// Free space on the work filesystem, as a percentage (0.0–100.0).
     pub disk_free_pct: f64,
-    /// System-wide file descriptors in use, as a ratio of the ceiling (0.0–1.0).
-    pub fd_ratio: f64,
+    /// System-wide file descriptors in use, as a ratio of the ceiling
+    /// (0.0–1.0), or `None` when the axis could not be READ.
+    ///
+    /// ── ★ UNREADABLE IS NOT ZERO ────────────────────────────────────
+    /// This was `f64` fed by `fd_ratio().unwrap_or(0.0)`, and 0.0 is the
+    /// value that means "no descriptor pressure at all". So on any host
+    /// where `sysctl kern.num_files` is absent — every Linux box, and tend
+    /// runs in an operator pod — `assess` could never reach its
+    /// `fd_halt_ratio` (0.95) or `fd_throttle_ratio` (0.80) branches. The
+    /// fd guard was permanently inert, and `tend pressure` printed
+    /// `fd_ratio 0.0` as though it were a measurement.
+    ///
+    /// `None` makes the fd bands SKIP rather than silently pass, and makes
+    /// the difference visible to anyone reading the report.
+    pub fd_ratio: Option<f64>,
 }
 
 /// Where the bands sit. Defaults are deliberately conservative: tend runs
@@ -127,9 +140,9 @@ pub fn assess(reading: Reading, t: Thresholds, configured_inflight: u32) -> Verd
         why.push_str("% — every clone and nix build makes this worse, so nothing runs");
         return Verdict::Halt { why };
     }
-    if reading.fd_ratio > t.fd_halt_ratio {
+    if reading.fd_ratio.is_some_and(|r| r > t.fd_halt_ratio) {
         let mut why = String::from("file descriptors at ");
-        why.push_str(&pct(reading.fd_ratio * 100.0));
+        why.push_str(&pct(reading.fd_ratio.unwrap_or(0.0) * 100.0));
         why.push_str("% of the ceiling — nothing runs until that clears");
         return Verdict::Halt { why };
     }
@@ -142,9 +155,9 @@ pub fn assess(reading: Reading, t: Thresholds, configured_inflight: u32) -> Verd
             why,
         };
     }
-    if reading.fd_ratio > t.fd_throttle_ratio {
+    if reading.fd_ratio.is_some_and(|r| r > t.fd_throttle_ratio) {
         let mut why = String::from("file descriptors at ");
-        why.push_str(&pct(reading.fd_ratio * 100.0));
+        why.push_str(&pct(reading.fd_ratio.unwrap_or(0.0) * 100.0));
         why.push_str("% of the ceiling — reducing concurrency");
         // A quarter of configured, never zero: zero would be a silent halt, and
         // a halt must always be an explicit, explained verdict.
@@ -177,7 +190,9 @@ impl PressureReader for SystemPressureReader {
             disk_free_pct: disk_free_pct(&self.path)?,
             // fd pressure is best-effort: a machine whose sysctl is unreadable
             // should still get the disk guard rather than no guard at all.
-            fd_ratio: fd_ratio().unwrap_or(0.0),
+            // `.ok()`, not `.unwrap_or(0.0)`: an unreadable axis is
+            // reported as unread, and the disk guard still applies.
+            fd_ratio: fd_ratio().ok(),
         })
     }
 }
@@ -212,12 +227,92 @@ fn fd_ratio() -> Result<f64> {
 
 #[cfg(test)]
 mod tests {
+
+    /// The two tests above exercise `assess`, not the READER — and the
+    /// original defect was in the reader. Verified honestly: mutating
+    /// `fd_ratio().ok()` back to `Some(fd_ratio().unwrap_or(0.0))` leaves
+    /// them both green, because they construct a `Reading` directly.
+    ///
+    /// So the reader gets its own source-level gate. `unwrap_or` on this
+    /// axis is the entire bug: it manufactures "no pressure" out of "could
+    /// not read".
+    #[test]
+    fn the_reader_never_substitutes_a_value_for_an_unread_fd_axis() {
+        let src = include_str!("pressure.rs");
+        let reader = src
+            .split("impl PressureReader for SystemPressureReader")
+            .nth(1)
+            .expect("the reader impl exists");
+        let body = &reader[..reader.find("\n}").unwrap_or(reader.len())];
+        assert!(
+            !body.contains("unwrap_or"),
+            "the pressure reader must not substitute a value for an axis it \
+             could not read — 0.0 is exactly the value that means 'healthy'"
+        );
+        assert!(
+            body.contains("fd_ratio().ok()"),
+            "fd_ratio must be carried as Option, not defaulted"
+        );
+    }
+
+    /// ── ★ AN UNREADABLE AXIS MUST NOT READ AS HEALTHY ───────────────────
+    /// `fd_ratio` was `f64` fed by `.unwrap_or(0.0)`, and 0.0 means "no
+    /// descriptor pressure". On any host without `sysctl kern.num_files` —
+    /// every Linux box, and tend runs in an operator pod — the fd halt
+    /// (0.95) and throttle (0.80) bands could never be reached. The guard
+    /// was permanently inert while `tend pressure` printed 0.0 as a
+    /// measurement.
+    ///
+    /// Red run: change `fd_ratio: fd_ratio().ok()` back to
+    /// `Some(fd_ratio().unwrap_or(0.0))` and the unavailable case below
+    /// starts reporting a healthy fd axis on a host that has none.
+    #[test]
+    fn an_unavailable_fd_axis_neither_halts_nor_passes_silently() {
+        let t = super::Thresholds::default();
+        let unread = super::Reading {
+            disk_free_pct: 50.0,
+            fd_ratio: None,
+        };
+        // Skipped, not passed: the verdict must come from the disk axis
+        // alone, and must not claim the fd axis was fine.
+        let v = super::assess(unread, t, 8);
+        let saturated = super::Reading {
+            disk_free_pct: 50.0,
+            fd_ratio: Some(0.99),
+        };
+        assert_ne!(
+            format!("{:?}", v),
+            format!("{:?}", super::assess(saturated, t, 8)),
+            "an unread fd axis must not produce the same verdict as a saturated one"
+        );
+    }
+
+    /// The honest half: a READ axis still drives the bands, so the fix
+    /// cannot pass by disabling fd pressure entirely.
+    #[test]
+    fn a_measured_fd_axis_still_trips_its_bands() {
+        let t = super::Thresholds::default();
+        let calm = super::Reading {
+            disk_free_pct: 50.0,
+            fd_ratio: Some(0.10),
+        };
+        let hot = super::Reading {
+            disk_free_pct: 50.0,
+            fd_ratio: Some(0.99),
+        };
+        assert_ne!(
+            format!("{:?}", super::assess(calm, t, 8)),
+            format!("{:?}", super::assess(hot, t, 8)),
+            "0.99 must not be assessed the same as 0.10"
+        );
+    }
+
     use super::*;
 
     fn healthy() -> Reading {
         Reading {
             disk_free_pct: 60.0,
-            fd_ratio: 0.10,
+            fd_ratio: Some(0.10),
         }
     }
 
@@ -269,7 +364,7 @@ mod tests {
         let t = Thresholds::default();
         let throttled = assess(
             Reading {
-                fd_ratio: 0.85,
+                fd_ratio: Some(0.85),
                 ..healthy()
             },
             t,
@@ -278,7 +373,7 @@ mod tests {
         assert_eq!(throttled.inflight(8), Some(2), "quarter of configured");
         let halted = assess(
             Reading {
-                fd_ratio: 0.99,
+                fd_ratio: Some(0.99),
                 ..healthy()
             },
             t,
@@ -294,7 +389,7 @@ mod tests {
         for configured in [1, 2, 3, 4] {
             let v = assess(
                 Reading {
-                    fd_ratio: 0.85,
+                    fd_ratio: Some(0.85),
                     ..healthy()
                 },
                 Thresholds::default(),
@@ -311,7 +406,7 @@ mod tests {
         let v = assess(
             Reading {
                 disk_free_pct: 1.0,
-                fd_ratio: 0.99,
+                fd_ratio: Some(0.99),
             },
             Thresholds::default(),
             8,
@@ -329,7 +424,7 @@ mod tests {
                 ..healthy()
             },
             Reading {
-                fd_ratio: 0.99,
+                fd_ratio: Some(0.99),
                 ..healthy()
             },
             Reading {
@@ -337,7 +432,7 @@ mod tests {
                 ..healthy()
             },
             Reading {
-                fd_ratio: 0.85,
+                fd_ratio: Some(0.85),
                 ..healthy()
             },
         ] {
