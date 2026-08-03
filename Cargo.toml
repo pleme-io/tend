@@ -80,7 +80,10 @@ rowan = { version = "0.15", optional = true }
 # Pure-Rust RNG for jittered requeue intervals — eliminates the
 # cron-shaped polling pattern that GitHub's abuse detector flags.
 rand = { version = "0.8", optional = true }
-prometheus = { version = "0.13", default-features = false, optional = true }
+# 0.14 drops the protobuf 2.x dependency chain. 0.13 pinned
+# protobuf 2.28.0, which carries RUSTSEC "Crash due to uncontrolled
+# recursion in protobuf crate" (fixed >=3.7.2).
+prometheus = { version = "0.14", default-features = false, optional = true }
 hyper = { version = "1", features = ["server", "http1"], optional = true }
 hyper-util = { version = "0.1", features = ["tokio"], optional = true }
 http-body-util = { version = "0.1", optional = true }
@@ -90,7 +93,13 @@ http-body-util = { version = "0.1", optional = true }
 samba = { git = "https://github.com/pleme-io/samba", optional = true }
 # async-nats for the operator-side NatsThrottleClient that publishes
 # refresh jobs + awaits results when TEND_THROTTLE_ENABLED=true.
-async-nats = { version = "0.38", optional = true }
+# 0.38 pinned rustls-webpki 0.102.8, which carries FOUR advisories —
+# three of them certificate-validation bypasses (name constraints
+# incorrectly accepted for URI names and for wildcard names; CRLs not
+# treated as authoritative by distribution point) plus a reachable panic
+# in CRL parsing. tend makes continuous HTTPS calls to GitHub, so a
+# name-constraint bypass is squarely on its trust path.
+async-nats = { version = "0.50", optional = true }
 uuid = { version = "1.10", features = ["v4"], optional = true }
 
 [dev-dependencies]

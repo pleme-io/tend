@@ -687,10 +687,13 @@ pub async fn reconcile_proposal(
                 .await
                 .map_err(|e| ReconcileError::Other(anyhow::anyhow!("gates: {e}")))?;
             for r in &results {
-                let outcome = if r.passed { "passed" } else { "failed" };
+                // prometheus 0.14 tightened `with_label_values` to
+                // `&[&String]`; `outcome` is a `&'static str`, so it is
+                // owned here rather than the label type being widened.
+                let outcome = if r.passed { "passed".to_owned() } else { "failed".to_owned() };
                 metrics()
                     .gates_total
-                    .with_label_values(&[&r.name, outcome])
+                    .with_label_values(&[&r.name, &outcome])
                     .inc();
             }
             // Skipped gates (platform mismatch, no remote builder yet)
