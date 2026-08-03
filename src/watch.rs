@@ -1925,6 +1925,24 @@ fn auto_commit_matrix(matrix_file: &Path, git_ops: &dyn GitOps) -> Result<()> {
         .parent()
         .ok_or_else(|| anyhow::anyhow!("matrix file has no parent directory"))?;
 
+    // ── ★ REFUSE TO SWEEP UP WORK THAT IS NOT OURS ───────────────────────
+    // This stages whole DIRECTORIES (`lib/`, `builds/`) and then commits +
+    // pushes to main. With no clean-tree precheck it captures whatever the
+    // operator happened to have in flight there, under a message that says
+    // "certify new upstream versions". The sibling flake-refresh path 700
+    // lines earlier already gates on cleanliness — this is asymmetry, not
+    // design.
+    //
+    // Checked BEFORE the first `add`, so a refusal leaves the index exactly
+    // as it was found.
+    if crate::flake::repo_has_foreign_changes(repo_dir)? {
+        anyhow::bail!(
+            "refusing to auto-commit the matrix: {} has uncommitted changes that are \
+             not ours, and this path stages whole directories — commit or stash them first",
+            repo_dir.display()
+        );
+    }
+
     // Stage all relevant files
     git_ops.add(repo_dir, matrix_file)?;
     let lib_dir = repo_dir.join("lib");
@@ -2040,7 +2058,12 @@ mod tests {
         // internally, so a bounded site never chains `.output()`/`.status()`
         // onto the Command it built.
         let ctor = ["std::process::", "Command::new"].concat();
-        let lines: Vec<&str> = src.lines().collect();
+        // RUNTIME code only. Test fixtures spawn `git init` to build a
+        // tree, and a fixture that hangs fails its own test loudly — it
+        // cannot wedge a daemon, which is what this gate is about. Scoping
+        // added after the gate flagged its own module's fixtures.
+        let runtime = src.split("\n#[cfg(test)]").next().unwrap_or(src);
+        let lines: Vec<&str> = runtime.lines().collect();
         let mut unbounded = Vec::new();
         for (n, line) in lines.iter().enumerate() {
             if line.trim_start().starts_with("//") || !line.contains(&ctor) {
@@ -2491,9 +2514,33 @@ repo = "repo-a"
     #[tokio::test]
     async fn test_watch_cycle_auto_commit() {
         let tmp_dir = std::env::temp_dir().join("tend-test-watch-autocommit");
+        let _ = std::fs::remove_dir_all(&tmp_dir);
         let _ = std::fs::create_dir_all(&tmp_dir);
+        // ── ★ A REAL, CLEAN GIT REPO ─────────────────────────────────────
+        // The fixture was a bare temp dir, so `git status` FAILED in it —
+        // and the new clean-tree gate (correctly) refuses to stage whole
+        // directories when it cannot determine cleanliness. The test only
+        // passed before because nothing checked. A write path's test needs
+        // a tree it can actually ask about.
+        for args in [
+            vec!["init", "-q"],
+            vec!["config", "user.email", "t@t"],
+            vec!["config", "user.name", "t"],
+        ] {
+            let _ = std::process::Command::new("git")
+                .args(&args)
+                .current_dir(&tmp_dir)
+                .output();
+        }
         let matrix_path = tmp_dir.join("matrix.toml");
         std::fs::write(&matrix_path, "[packages.repo-a]\nrepo = \"repo-a\"\n").unwrap();
+        // Commit the fixture so the tree is CLEAN when the cycle runs.
+        for args in [vec!["add", "-A"], vec!["commit", "-qm", "fixture"]] {
+            let _ = std::process::Command::new("git")
+                .args(&args)
+                .current_dir(&tmp_dir)
+                .output();
+        }
 
         let mut ws = make_test_workspace("test-ws", Some(matrix_path.to_str().unwrap()));
         ws.watch.as_mut().unwrap().auto_commit = true;

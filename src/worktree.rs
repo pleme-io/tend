@@ -163,6 +163,20 @@ pub fn default_root(repo: &Path) -> PathBuf {
     repo.join(".claude").join("worktrees")
 }
 
+/// Is `dir` inside a git work tree?
+///
+/// The delegation path passes `--worktree`, which claude cannot honour outside a
+/// repository. The operator's launcher (`cld`) is used EVERYWHERE, not only in
+/// repos, so making it the isolated path requires the flag to be conditional —
+/// and the condition belongs here, in the typed tool, rather than in a shell
+/// conditional in an alias (NO SHELL). A false answer degrades to running
+/// claude plainly, which is the pre-existing behaviour, so the worst case of a
+/// misdetection is no isolation rather than a broken launcher.
+#[must_use]
+pub fn is_inside_work_tree(dir: &Path) -> bool {
+    git(dir, &["rev-parse", "--is-inside-work-tree"]).is_ok_and(|out| out == "true")
+}
+
 /// Is `command` a set of extra flags for claude rather than a program to run?
 ///
 /// `worktree session` has two shapes and this decides between them. A command

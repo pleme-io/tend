@@ -452,8 +452,20 @@ enum Commands {
         #[arg(long)]
         workspace: Option<String>,
 
-        /// If true (default), render but skip the PR-open call.
-        #[arg(long, default_value_t = true)]
+        /// Render but skip the PR-open call. Defaults TRUE — this
+        /// command opens pull requests, so the safe posture is the default.
+        ///
+        /// ── ★ IT TAKES A VALUE, BECAUSE IT MUST BE TURNABLE OFF ────────
+        /// This was a bare `#[arg(long, default_value_t = true)]`, which
+        /// clap renders as SetTrue: `--dry-run` sets it true and there is
+        /// no spelling that sets it false. So `release-swarm apply` could
+        /// never actually apply — the subcommand's entire purpose was
+        /// unreachable from the CLI, and every invocation reported a
+        /// successful dry run.
+        ///
+        /// `ArgAction::Set` makes `--dry-run false` (or `--dry-run=false`)
+        /// work while keeping the safe default.
+        #[arg(long, action = clap::ArgAction::Set, default_value_t = true)]
         dry_run: bool,
     },
 
@@ -813,7 +825,17 @@ async fn main() -> Result<()> {
                     // form and `session -- --dangerously-skip-permissions` tried
                     // to exec a flag as a program.
                     if worktree::is_claude_args(&command) {
-                        let mut args = vec![String::from("--worktree"), slug];
+                        // `--worktree` ONLY inside a work tree: claude cannot
+                        // honour it elsewhere, and this verb is the operator's
+                        // default launcher everywhere, so a non-repo cwd must
+                        // degrade to a plain claude rather than fail.
+                        let mut args = Vec::new();
+                        if worktree::is_inside_work_tree(&repo) {
+                            args.push(String::from("--worktree"));
+                            args.push(slug);
+                        } else {
+                            eprintln!("tend: not a git work tree — no isolation available here");
+                        }
                         args.extend(command.iter().cloned());
                         eprintln!("tend: delegating to `claude {}`", args.join(" "));
                         worktree::exec_in(&repo, "claude", &args)?;

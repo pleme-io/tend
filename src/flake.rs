@@ -1153,6 +1153,16 @@ fn ensure_clean(repo_path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Does this repo have uncommitted changes a caller must not sweep up?
+///
+/// Public wrapper over `check_repo_dirty` for write paths that stage whole
+/// DIRECTORIES rather than named files — those cannot distinguish their own
+/// output from an operator's in-flight edit, so they must refuse rather
+/// than guess.
+pub(crate) fn repo_has_foreign_changes(repo_path: &Path) -> Result<bool> {
+    check_repo_dirty(repo_path)
+}
+
 fn check_repo_dirty(repo_path: &Path) -> Result<bool> {
     let output = Command::new("git")
         .args(["--no-optional-locks", "status", "--porcelain"])
