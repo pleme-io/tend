@@ -1369,6 +1369,9 @@ async fn main() -> Result<()> {
 
             let cfg = load_config(config_path.as_deref())?;
             let opts = flake::ExecOptions {
+        // Verification ON by default — an unverified lock is how a
+        // withdrawn upstream reached main and stopped the fleet.
+        skip_verify: false,
                 dry_run,
                 quiet,
                 auto_clone: !no_clone,
@@ -2052,6 +2055,9 @@ async fn run_flake_update_cycle(
 ) -> Result<flake::ExecSummary> {
     let cfg = load_config(config_path)?;
     let opts = flake::ExecOptions {
+        // Verification ON by default — an unverified lock is how a
+        // withdrawn upstream reached main and stopped the fleet.
+        skip_verify: false,
         dry_run: false,
         quiet,
         auto_clone: true,

@@ -26,6 +26,16 @@ pub(crate) struct ExecOptions {
     /// pinned-by-direnv old closure is released and the next nix-gc can
     /// reclaim it. Best-effort: silently skipped when `seibi` isn't on PATH.
     pub prune_direnv: bool,
+    /// Skip the `nix flake check --no-build` gate that runs between the
+    /// lock update and the commit.
+    ///
+    /// Default MUST be false. The gate exists because the chain pushed
+    /// unverified locks straight to main — on 2026-08-03 one carried a
+    /// reference to a withdrawn nixpkgs package, `nix` HEAD stopped
+    /// evaluating, and every reconciler in the fleet would have failed
+    /// against it. An escape hatch is here for a repo whose `flake check`
+    /// is legitimately unrunnable, not as a default.
+    pub skip_verify: bool,
 }
 
 /// Outcome of a single chain step's execution.
@@ -405,6 +415,67 @@ pub(crate) fn execute_update_chain(
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             bail!("nix flake update failed in {}: {}", step.repo, stderr);
+        }
+
+        // ── ★ VERIFY THE LOCK BEFORE COMMITTING IT ───────────────────────
+        // The chain went `nix flake update` -> `git add` -> commit -> push
+        // with NOTHING in between, so a lock that breaks evaluation reached
+        // main and every node's reconciler failed on it.
+        //
+        // That is not hypothetical: on 2026-08-03 an input bump carried a
+        // reference to a package nixpkgs had withdrawn, `nix` HEAD stopped
+        // evaluating entirely, and the fleet would have sat on its last
+        // good generation reporting `failing` until a human looked.
+        //
+        // `nix flake check --no-build` is the cheap half of the question —
+        // it evaluates without realising derivations, so it catches exactly
+        // the class that broke us (a missing attribute, a bad follows, a
+        // module that no longer type-checks) in seconds rather than in a
+        // full build. A lock that cannot evaluate is never a lock we push.
+        //
+        // Failing this BLOCKS the repo rather than aborting the chain (see
+        // the dirty-tree note above): one input's bad bump must not stop
+        // every other repo from updating.
+        if !opts.skip_verify {
+            let check = Command::new("nix")
+                .args(["flake", "check", "--no-build", "--no-warn-dirty"])
+                .current_dir(&repo_path)
+                .output();
+            let bad = match check {
+                Ok(o) if o.status.success() => None,
+                Ok(o) => Some(
+                    String::from_utf8_lossy(&o.stderr)
+                        .lines()
+                        .filter(|l| l.contains("error"))
+                        .last()
+                        .unwrap_or("nix flake check failed")
+                        .trim()
+                        .to_owned(),
+                ),
+                // nix absent or unrunnable is not evidence the lock is bad,
+                // but it is also not evidence it is good — say so and let
+                // the operator decide rather than silently pushing.
+                Err(e) => Some(e.to_string()),
+            };
+            if let Some(reason) = bad {
+                // Revert the lock we just wrote: leaving a broken update in
+                // the tree would make the NEXT run see a dirty repo and
+                // block it for a reason that is ours, not the operator's.
+                let _ = Command::new("git")
+                    .args(["checkout", "--", "flake.lock"])
+                    .current_dir(&repo_path)
+                    .status();
+                blocked_repos.insert(step.repo.clone());
+                summary.record(StepOutcome::Blocked);
+                if !opts.quiet {
+                    display::print_flake_step_blocked(
+                        &step.repo,
+                        &["the updated lock does not evaluate — reverted, not pushed: ", &reason]
+                            .concat(),
+                    );
+                }
+                continue;
+            }
         }
 
         // git add flake.lock
@@ -1010,6 +1081,35 @@ pub(crate) fn find_cargo_lock_repos(workspace: &Workspace) -> Result<Vec<String>
 
 #[cfg(test)]
 mod tests {
+
+    /// ── ★ VERIFICATION IS ON UNLESS SOMEONE TYPES OTHERWISE ─────────────
+    /// Every `ExecOptions` the binary builds must leave `skip_verify`
+    /// false. The gate between `nix flake update` and the commit is the
+    /// only thing standing between a bad input bump and every node in the
+    /// fleet — on 2026-08-03 an unverified lock referenced a withdrawn
+    /// nixpkgs package, `nix` HEAD stopped evaluating, and each reconciler
+    /// would have failed against main until a human noticed.
+    ///
+    /// Asserted against the SOURCE of the call sites rather than a
+    /// constructed value, because the regression this guards against is
+    /// someone flipping a default in main.rs — which no unit test built
+    /// from a literal would ever see.
+    #[test]
+    fn every_call_site_leaves_verification_on() {
+        let main_rs = include_str!("main.rs");
+        let sites = main_rs.matches("flake::ExecOptions {").count();
+        assert!(sites > 0, "no ExecOptions call sites found — test is stale");
+        let verified = main_rs.matches("skip_verify: false").count();
+        assert_eq!(
+            verified, sites,
+            "every ExecOptions must set skip_verify: false ({sites} sites, {verified} verified)"
+        );
+        assert!(
+            !main_rs.contains("skip_verify: true"),
+            "no call site may default to skipping verification"
+        );
+    }
+
 
     // ── ★ ONE DIRTY REPO MUST NOT ABORT THE FLEET ───────────────────────
     // The chain used to `?`-propagate a dirty working tree, so the first
