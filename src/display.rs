@@ -253,6 +253,16 @@ pub(crate) fn print_flake_step_dry_run() {
     println!("  [{}] (dry-run, skipped)", ">>".yellow());
 }
 
+/// Print a step the chain stepped OVER, with the reason.
+///
+/// Deliberately loud (`!!`, yellow) and deliberately not fatal: the whole
+/// point is that the run continues, so this line is the only record that a
+/// repo was left behind. A silent skip would be worse than the abort it
+/// replaces — the operator would believe the fleet was updated.
+pub(crate) fn print_flake_step_blocked(repo: &str, why: &str) {
+    println!("  [{}] {} BLOCKED — {}", "!!".yellow(), repo, why);
+}
+
 /// Print indicator that flake.lock was unchanged.
 pub(crate) fn print_flake_step_no_changes(repo: &str) {
     println!("  [{}] {} flake.lock unchanged", "==".cyan(), repo);
