@@ -805,9 +805,18 @@ async fn main() -> Result<()> {
                     })?;
                     let slug = worktree::session_slug(&session);
 
-                    if command.is_empty() {
-                        eprintln!("tend: delegating to `claude --worktree {slug}`");
-                        worktree::exec_in(&repo, "claude", &[String::from("--worktree"), slug])?;
+                    // Empty command, or one that is only FLAGS, means "claude
+                    // with these extra args" — delegate, forwarding them. Only
+                    // the empty case delegated before, so the launcher the
+                    // operator actually types
+                    // (`claude --dangerously-skip-permissions`) had no isolated
+                    // form and `session -- --dangerously-skip-permissions` tried
+                    // to exec a flag as a program.
+                    if worktree::is_claude_args(&command) {
+                        let mut args = vec![String::from("--worktree"), slug];
+                        args.extend(command.iter().cloned());
+                        eprintln!("tend: delegating to `claude {}`", args.join(" "));
+                        worktree::exec_in(&repo, "claude", &args)?;
                         unreachable!("exec_in only returns on failure");
                     }
 

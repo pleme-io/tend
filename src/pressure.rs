@@ -244,13 +244,22 @@ mod tests {
             .nth(1)
             .expect("the reader impl exists");
         let body = &reader[..reader.find("\n}").unwrap_or(reader.len())];
+        // CODE only: the reader's own comment explains why `.unwrap_or`
+        // is wrong here, and the first version of this gate matched that
+        // comment and failed on a correct tree. A source-reading gate that
+        // cannot tell code from prose reports the explanation as the bug.
+        let code: String = body
+            .lines()
+            .filter(|l| !l.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(
-            !body.contains("unwrap_or"),
+            !code.contains("unwrap_or"),
             "the pressure reader must not substitute a value for an axis it \
              could not read — 0.0 is exactly the value that means 'healthy'"
         );
         assert!(
-            body.contains("fd_ratio().ok()"),
+            code.contains("fd_ratio().ok()"),
             "fd_ratio must be carried as Option, not defaulted"
         );
     }

@@ -163,6 +163,28 @@ pub fn default_root(repo: &Path) -> PathBuf {
     repo.join(".claude").join("worktrees")
 }
 
+/// Is `command` a set of extra flags for claude rather than a program to run?
+///
+/// `worktree session` has two shapes and this decides between them. A command
+/// that is empty, or whose first token is a FLAG, means "run claude with these
+/// extra args" and is delegated to claude's own `--worktree`. A command whose
+/// first token is a program name gets a tend-made worktree instead, since
+/// `--worktree` is claude's flag and nothing else has it.
+///
+/// WHY THIS EXISTS: before it, only the bare form delegated, so the launcher
+/// the operator actually types — `claude --dangerously-skip-permissions` —
+/// had no isolated form at all. `session -- --dangerously-skip-permissions`
+/// took the program branch and tried to `exec` a flag. Measured 2026-08-03:
+/// zero session worktrees existed across a night in which concurrent sessions
+/// committed conflict markers to `main` three times, because the isolated path
+/// could not express the way sessions are actually started.
+#[must_use]
+pub fn is_claude_args(command: &[String]) -> bool {
+    command
+        .first()
+        .is_none_or(|first| first.starts_with('-'))
+}
+
 /// Claude Code's project-state directory for a given working directory.
 ///
 /// The slug is the absolute path with every `/` replaced by `-`, verified
@@ -200,6 +222,35 @@ pub fn session_from_env() -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn claude_flags_delegate_but_a_program_does_not() {
+        // The whole point: the launcher the operator types is
+        // `claude --dangerously-skip-permissions`, so its isolated form must be
+        // expressible. Before this, only the EMPTY command delegated and
+        // `session -- --dangerously-skip-permissions` fell through to the
+        // program branch, which tried to exec a flag.
+        assert!(is_claude_args(&[]), "bare session must delegate to claude");
+        assert!(
+            is_claude_args(&[String::from("--dangerously-skip-permissions")]),
+            "claude flags must delegate, not be exec'd as a program"
+        );
+        assert!(
+            is_claude_args(&[String::from("-w")]),
+            "short flags must delegate too"
+        );
+
+        // A program name still gets a tend-made worktree — `--worktree` is
+        // claude's flag and nothing else has it.
+        assert!(
+            !is_claude_args(&[String::from("echo"), String::from("hi")]),
+            "a program must NOT be turned into claude args"
+        );
+        assert!(
+            !is_claude_args(&[String::from("claude")]),
+            "an explicit `claude` is a program invocation, not a flag list"
+        );
+    }
 
     #[test]
     fn slug_is_ref_safe_and_bounded() {
