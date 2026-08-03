@@ -1037,7 +1037,24 @@ pub async fn run_watch_cycle(
                             &base_dir,
                             &refresh_cfg.branch,
                         ) {
-                            Ok(false) => {
+                            // ── ★ UNDETERMINED MUST NOT BACK OFF ────────
+                            // This arm bumps an exponential backoff toward a
+                            // 24-hour ceiling. Reaching it because NOTHING
+                            // could be compared is the worst outcome: the
+                            // loop goes quietest exactly when it is blindest.
+                            Ok(Staleness::Undetermined { unresolved }) => {
+                                if !quiet {
+                                    display::print_flake_refresh_error(
+                                        repo_name,
+                                        &format!(
+                                            "staleness UNDETERMINED — {unresolved} input(s) \
+                                             unresolvable, none compared; not backing off"
+                                        ),
+                                    );
+                                }
+                                errors += 1;
+                            }
+                            Ok(Staleness::Fresh { .. }) => {
                                 // All inputs are fresh — skip update, record timestamp, bump backoff
                                 let miss_count = state
                                     .flake_refresh_misses
@@ -1061,7 +1078,7 @@ pub async fn run_watch_cycle(
                                 }
                                 continue;
                             }
-                            Ok(true) => {
+                            Ok(Staleness::Stale) => {
                                 // At least one input is stale — proceed with update
                                 if !quiet {
                                     eprintln!(
@@ -1630,17 +1647,43 @@ fn parse_all_flake_lock_inputs(flake_lock_path: &Path) -> Result<Vec<FlakeLockIn
 /// For external repos, falls back to `git ls-remote` (1 call per unique upstream).
 ///
 /// Returns `true` if at least one input's upstream has diverged from the locked rev.
+/// What a staleness sweep concluded, and on what evidence.
+///
+/// ── ★ "FRESH" NEEDS A DENOMINATOR ────────────────────────────────────
+/// The sweep `continue`s past any input whose upstream rev it cannot
+/// resolve — a missing local repo, a failed ls-remote, a follows-only
+/// node — and then fell through to `Ok(false)`, the same value that means
+/// "every input checked and none moved". So a sweep that resolved ZERO
+/// inputs reported the repo fresh, and the caller responded by bumping an
+/// exponential backoff toward its 24-hour ceiling and printing "all
+/// inputs fresh".
+///
+/// Offline, or with a moved upstream, that is the loudest possible wrong
+/// answer delivered in the quietest possible way.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Staleness {
+    /// At least one input's upstream has moved.
+    Stale,
+    /// Every input was COMPARED and none had moved.
+    Fresh { compared: usize },
+    /// Nothing could be compared — no verdict.
+    Undetermined { unresolved: usize },
+}
+
 fn check_flake_staleness(
     flake_lock_path: &Path,
     base_dir: &Path,
     default_branch: &str,
-) -> Result<bool> {
+) -> Result<Staleness> {
     let inputs = parse_all_flake_lock_inputs(flake_lock_path)?;
 
+    // A lock with no inputs has nothing to be stale ABOUT — genuinely
+    // fresh, and honest about the zero.
     if inputs.is_empty() {
-        return Ok(false);
+        return Ok(Staleness::Fresh { compared: 0 });
     }
 
+    let mut compared = 0usize;
     for input in &inputs {
         // Try local repo first (zero network)
         let local_repo = base_dir.join(&input.repo);
@@ -1682,12 +1725,33 @@ fn check_flake_staleness(
             }
         };
 
+        // We resolved this input's upstream — it counts toward the
+        // denominator whether or not it moved.
+        compared += 1;
         if upstream_rev != input.locked_rev {
-            return Ok(true); // At least one input is stale
+            return Ok(Staleness::Stale);
         }
     }
 
-    Ok(false)
+    // Reached the end without finding movement. That is only "fresh" if
+    // something was actually compared.
+    Ok(no_movement_verdict(compared, inputs.len()))
+}
+
+/// The verdict when the sweep found no movement: fresh only if something
+/// was actually compared.
+///
+/// Pure and separate because a source-level gate cannot see it — I wrote
+/// one that checked the caller's match arms and it stayed green when the
+/// zero-compared guard was deleted. The rule needs a test that exercises
+/// the rule.
+#[must_use]
+pub(crate) fn no_movement_verdict(compared: usize, total: usize) -> Staleness {
+    if compared == 0 {
+        Staleness::Undetermined { unresolved: total }
+    } else {
+        Staleness::Fresh { compared }
+    }
 }
 
 /// Compute adaptive cooldown interval with exponential backoff.
@@ -1888,6 +1952,73 @@ fn auto_commit_matrix(matrix_file: &Path, git_ops: &dyn GitOps) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+
+    /// ── ★ "ALL INPUTS FRESH" NEEDS A DENOMINATOR ────────────────────────
+    /// `check_flake_staleness` `continue`s past any input it cannot
+    /// resolve, then fell through to `Ok(false)` — the same value that
+    /// means "every input compared, none moved". A sweep that resolved
+    /// ZERO inputs reported the repo fresh, and the caller answered by
+    /// bumping an exponential backoff toward its 24-hour ceiling while
+    /// printing "all inputs fresh".
+    ///
+    /// Offline, that is the loudest possible wrong answer delivered in the
+    /// quietest possible way: the loop goes silent exactly when it is
+    /// blindest.
+    #[test]
+    fn fresh_and_undetermined_are_different_verdicts() {
+        use super::Staleness;
+        // Fresh carries what it compared; Undetermined carries what it
+        // could not. Neither can be mistaken for the other, and neither
+        // can be mistaken for Stale.
+        assert_ne!(
+            Staleness::Fresh { compared: 3 },
+            Staleness::Undetermined { unresolved: 3 }
+        );
+        assert_ne!(Staleness::Fresh { compared: 0 }, Staleness::Stale);
+        assert_ne!(Staleness::Undetermined { unresolved: 1 }, Staleness::Stale);
+    }
+
+    /// The caller must not back off on Undetermined. Source-level because
+    /// the defect is a MISSING match arm — a test over the enum alone
+    /// would pass while the caller still treated it as fresh.
+    /// The RULE, exercised. Red run: make `no_movement_verdict` always
+    /// return `Fresh` and this reports a repo fresh having compared
+    /// nothing — the original bug exactly.
+    #[test]
+    fn no_movement_with_nothing_compared_is_undetermined_not_fresh() {
+        use super::{no_movement_verdict, Staleness};
+        assert_eq!(
+            no_movement_verdict(0, 14),
+            Staleness::Undetermined { unresolved: 14 },
+            "zero comparisons cannot yield a freshness verdict"
+        );
+        // The honest half: real comparisons still report fresh, so the fix
+        // cannot pass by never saying fresh.
+        assert_eq!(
+            no_movement_verdict(14, 14),
+            Staleness::Fresh { compared: 14 }
+        );
+        assert_eq!(no_movement_verdict(1, 14), Staleness::Fresh { compared: 1 });
+    }
+
+    #[test]
+    fn the_refresh_caller_handles_undetermined_without_backing_off() {
+        let src = include_str!("watch.rs");
+        let code: String = src
+            .lines()
+            .filter(|l| !l.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            code.contains("Ok(Staleness::Undetermined"),
+            "the flake-refresh caller must match Undetermined explicitly — \
+             folding it into the fresh arm is the original bug"
+        );
+        assert!(
+            code.contains("Ok(Staleness::Fresh"),
+            "and Fresh must remain its own arm"
+        );
+    }
 
     /// ── ★ NO UNBOUNDED SUBPROCESS IN THE WATCH LOOP ─────────────────────
     /// `run_certify`, `run_nix_flake_update` and `run_flake_propagate` used
