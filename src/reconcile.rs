@@ -188,6 +188,49 @@ pub(crate) struct OutcomeCounts {
     pub failed_pull: usize,
 }
 
+/// Why a scheduler drain loop stopped.
+///
+/// ── ★ "DONE" AND "OUT OF TICKS" ARE DIFFERENT ANSWERS ────────────────
+/// The loop was `for _ in 0..MAX_TICKS { tick; if no transitions break }`,
+/// which exits BOTH ways through the same path and reports neither. Each
+/// tick admits at most `max_inflight` jobs per kind, and the pressure
+/// governor legitimately drops that to 1 under load — so on a large
+/// workspace (968 dirs in pleme-io) the loop can exhaust 64 ticks with
+/// most repos still `Ready`, never touched.
+///
+/// Those untouched repos are then read out of the snapshot as NOT
+/// SUCCEEDED and reported as FAILED — the worst possible rendering, since
+/// the honest answer is "not run". A caller that cannot distinguish the
+/// two cannot decide whether to re-run, alert, or wait.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DrainOutcome {
+    /// A tick produced no transitions: the scheduler has nothing left.
+    Quiesced,
+    /// The tick budget ran out with work still admitted or pending.
+    TicksExhausted { ticks: usize },
+}
+
+impl DrainOutcome {
+    pub(crate) fn is_quiesced(self) -> bool {
+        matches!(self, Self::Quiesced)
+    }
+}
+
+/// Drive a scheduler to quiescence, or to the tick ceiling, and SAY WHICH.
+async fn drain_scheduler(
+    scheduler: &shigoto_scheduler::InProcessScheduler,
+    dag: &mut shigoto_dag::Dag,
+    max_ticks: usize,
+) -> anyhow::Result<DrainOutcome> {
+    for _ in 0..max_ticks {
+        let receipt = scheduler.tick(dag).await?;
+        if receipt.transitions_this_tick.is_empty() {
+            return Ok(DrainOutcome::Quiesced);
+        }
+    }
+    Ok(DrainOutcome::TicksExhausted { ticks: max_ticks })
+}
+
 /// Reconcile one workspace by running a `PullRepoJob` for every
 /// configured repo through `InProcessScheduler`. Returns a typed
 /// receipt.
@@ -335,11 +378,16 @@ pub(crate) async fn reconcile_workspace_pull(
         scheduler.register_job(job).await;
     }
 
-    for _ in 0..MAX_TICKS {
-        let receipt = scheduler.tick(&mut dag).await?;
-        if receipt.transitions_this_tick.is_empty() {
-            break;
-        }
+    let drain = drain_scheduler(&scheduler, &mut dag, MAX_TICKS).await?;
+    if let DrainOutcome::TicksExhausted { ticks } = drain {
+        // Loud, because the snapshot below will read every un-admitted job
+        // as not-succeeded and the caller will render it as FAILED. "Not
+        // run" and "failed" demand opposite responses.
+        tracing::warn!(
+            ticks,
+            "reconcile: tick budget exhausted before quiescence — repos still \
+             pending were NOT attempted, and any failure count below includes them"
+        );
     }
 
     let snap = scheduler.snapshot(&dag).await;
@@ -398,11 +446,12 @@ pub(crate) async fn reconcile_workspace_pull(
             scheduler.register_job(job).await;
         }
 
-        for _ in 0..MAX_TICKS {
-            let tick = scheduler.tick(&mut dag).await?;
-            if tick.transitions_this_tick.is_empty() {
-                break;
-            }
+        let drain = drain_scheduler(&scheduler, &mut dag, MAX_TICKS).await?;
+        if let DrainOutcome::TicksExhausted { ticks } = drain {
+            tracing::warn!(
+                ticks,
+                "tick budget exhausted before quiescence — pending work was NOT attempted"
+            );
         }
 
         let snap = scheduler.snapshot(&dag).await;
@@ -616,11 +665,16 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
         pull_ids.push(pull_id);
     }
 
-    for _ in 0..MAX_TICKS {
-        let receipt = scheduler.tick(&mut dag).await?;
-        if receipt.transitions_this_tick.is_empty() {
-            break;
-        }
+    let drain = drain_scheduler(&scheduler, &mut dag, MAX_TICKS).await?;
+    if let DrainOutcome::TicksExhausted { ticks } = drain {
+        // Loud, because the snapshot below will read every un-admitted job
+        // as not-succeeded and the caller will render it as FAILED. "Not
+        // run" and "failed" demand opposite responses.
+        tracing::warn!(
+            ticks,
+            "reconcile: tick budget exhausted before quiescence — repos still \
+             pending were NOT attempted, and any failure count below includes them"
+        );
     }
 
     let snap = scheduler.snapshot(&dag).await;
@@ -692,11 +746,12 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
         }
 
         // One more tick — bounded; reactions are one-shot per cycle.
-        for _ in 0..MAX_TICKS {
-            let tick = scheduler.tick(&mut dag).await?;
-            if tick.transitions_this_tick.is_empty() {
-                break;
-            }
+        let drain = drain_scheduler(&scheduler, &mut dag, MAX_TICKS).await?;
+        if let DrainOutcome::TicksExhausted { ticks } = drain {
+            tracing::warn!(
+                ticks,
+                "tick budget exhausted before quiescence — pending work was NOT attempted"
+            );
         }
 
         // Re-derive failed_jobs now that the scheduler ran more Jobs.
@@ -738,6 +793,51 @@ pub(crate) fn print_receipt(receipt: &ReconcileReceipt) {
 
 #[cfg(test)]
 mod tests {
+
+    /// ── ★ EXHAUSTION IS NOT QUIESCENCE ──────────────────────────────────
+    /// Four copies of `for _ in 0..MAX_TICKS { tick; if empty break }`
+    /// exited BOTH ways through the same path and reported neither. Under
+    /// the pressure governor `max_inflight` legitimately drops to 1, so a
+    /// 968-dir workspace can burn 64 ticks with most repos still `Ready` —
+    /// never attempted, then read out of the snapshot as not-succeeded and
+    /// rendered FAILED. "Not run" and "failed" demand opposite responses.
+    #[test]
+    fn quiesced_and_exhausted_are_distinguishable() {
+        assert!(super::DrainOutcome::Quiesced.is_quiesced());
+        assert!(!super::DrainOutcome::TicksExhausted { ticks: 64 }.is_quiesced());
+        // And the budget travels with the verdict, so a caller can say how
+        // much was left rather than only that something was.
+        assert_eq!(
+            super::DrainOutcome::TicksExhausted { ticks: 64 },
+            super::DrainOutcome::TicksExhausted { ticks: 64 }
+        );
+        assert_ne!(
+            super::DrainOutcome::TicksExhausted { ticks: 64 },
+            super::DrainOutcome::Quiesced
+        );
+    }
+
+    /// Every drain site goes through the shared helper. Asserted against
+    /// source because the defect was four INDEPENDENT copies of the loop,
+    /// and converting three of four is the failure mode that produced it.
+    #[test]
+    fn no_hand_rolled_drain_loops_remain() {
+        let src = include_str!("reconcile.rs");
+        // Needle is the LOOP HEADER, not the range: the doc comment quotes
+        // the old shape, and this test's own filter line contains the range
+        // literal — the first version matched itself and failed.
+        let needle = ["for _ in ", "0..MAX_TICKS"].concat();
+        let hand_rolled = src
+            .lines()
+            .filter(|l| !l.trim_start().starts_with("///"))
+            .filter(|l| l.contains(&needle))
+            .count();
+        assert_eq!(
+            hand_rolled, 0,
+            "a hand-rolled drain loop cannot report exhaustion — use drain_scheduler"
+        );
+    }
+
     use super::*;
     use crate::config::Workspace;
     use std::process::Command;
