@@ -231,6 +231,31 @@ pub async fn run_all_differential(
 }
 
 /// Single-gate differential. See `run_all_differential` for semantics.
+/// Did the proposed pin fail a gate the baseline passed, WITHOUT leaving a
+/// comparable failure signature?
+///
+/// Pure, so the rule is provable without running a gate — and the rule is
+/// the whole point: `FailureSet::extract` only recognises lines beginning
+/// `error:` and friends, so a silent-but-nonzero failure (killed process,
+/// OOM, diagnostics on stdout, an unrecognised error prefix) extracts to
+/// the EMPTY set, which is a subset of everything. The signature
+/// comparison then reports `passed: true` and the pin is pushed.
+///
+/// Dampening pre-existing noise is what the signature diff is for. It is
+/// not a substitute for asking whether the run succeeded.
+#[must_use]
+pub fn is_silent_regression(
+    proposed_passed: bool,
+    baseline_passed: bool,
+    proposed_fails: &FailureSet,
+) -> bool {
+    // The signature set is deliberately NOT consulted for the pass/fail
+    // decision here — an extractable failure flows to the normal
+    // subset comparison below, which can report it properly.
+    let _ = proposed_fails;
+    !proposed_passed && baseline_passed
+}
+
 pub async fn run_gate_differential(
     gate_name: &str,
     repo_dir: &Path,
@@ -254,6 +279,38 @@ pub async fn run_gate_differential(
 
     let baseline_fails = FailureSet::extract(baseline.log_excerpt.as_deref().unwrap_or(""));
     let proposed_fails = FailureSet::extract(proposed.log_excerpt.as_deref().unwrap_or(""));
+
+    // ── ★ THE EXIT STATUS IS LOAD-BEARING, NOT DECORATIVE ────────────────
+    // The verdict below is derived purely from comparing EXTRACTED failure
+    // signatures, and `proposed.passed` — the child's real exit status —
+    // was discarded once both runs completed. `FailureSet::extract` only
+    // recognises lines starting with `error:` and friends, so a gate that
+    // failed WITHOUT emitting a recognised line extracts to the empty set,
+    // and the empty set is a subset of everything. The gate then reports
+    // `passed: true` and the pin is pushed to main.
+    //
+    // Any failure mode that is silent-but-nonzero lands here: a killed
+    // process, an OOM, a tool that writes its diagnostics to stdout, a new
+    // nix error prefix. The signature comparison is a good way to DAMPEN
+    // pre-existing noise; it is not a substitute for asking whether the
+    // run succeeded.
+    //
+    // So: a proposed run that FAILED while the baseline SUCCEEDED is a
+    // regression regardless of what could be extracted from its log.
+    if is_silent_regression(proposed.passed, baseline.passed, &proposed_fails) {
+        return Ok(GateResult {
+            name: gate_name.to_string(),
+            passed: false,
+            skipped: false,
+            duration_ms: proposed.duration_ms.saturating_add(baseline.duration_ms),
+            log_excerpt: Some(format!(
+                "differential FAIL: the proposed pin failed this gate while the baseline passed,                  and no comparable failure signature was extractable from its output                  ({} signature(s) seen). Treating a non-zero exit as a regression rather than                  inferring from the log.\nproposed_log_tail: {}",
+                proposed_fails.len(),
+                proposed.log_excerpt.as_deref().unwrap_or("")
+                    .chars().rev().take(400).collect::<String>().chars().rev().collect::<String>()
+            )),
+        });
+    }
 
     if proposed_fails.is_subset_of(&baseline_fails) {
         // Pre-existing failures only — the proposed pin didn't make
@@ -445,6 +502,42 @@ fn tail_utf8(bytes: &[u8], max: usize) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    /// ── ★ A GATE THAT NEVER RAN MUST NOT REPORT PASSED ──────────────────
+    /// The differential verdict compared extracted failure SIGNATURES and
+    /// threw away the child's exit status. `FailureSet::extract` only
+    /// recognises `error:`-style lines, so a failure that emits none —
+    /// killed process, OOM, diagnostics on stdout, a new nix error prefix —
+    /// extracts to the empty set. The empty set is a subset of every set,
+    /// so the gate reported `passed: true` and the pin went to main.
+    ///
+    /// Red run: replace the body with `false` and the silent-failure case
+    /// below returns "not a regression" for a gate that exited non-zero.
+    #[test]
+    fn a_silent_nonzero_failure_is_a_regression() {
+        let empty = FailureSet::extract("");
+        assert!(
+            is_silent_regression(false, true, &empty),
+            "proposed failed, baseline passed, nothing extractable — regression"
+        );
+    }
+
+    #[test]
+    fn a_baseline_that_also_failed_is_not_a_regression() {
+        let empty = FailureSet::extract("");
+        assert!(
+            !is_silent_regression(false, false, &empty),
+            "both failed — pre-existing, and the subset comparison handles it"
+        );
+    }
+
+    #[test]
+    fn a_passing_proposed_run_is_never_a_regression() {
+        let empty = FailureSet::extract("");
+        assert!(!is_silent_regression(true, true, &empty));
+        assert!(!is_silent_regression(true, false, &empty));
+    }
+
     use super::*;
 
     #[tokio::test]
