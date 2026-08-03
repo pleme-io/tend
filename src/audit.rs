@@ -223,7 +223,18 @@ impl AuditLog {
                 "total_repos": total,
                 "passing_repos": passing,
                 "total_findings": findings,
-                "compliance_ratio": if total > 0 { passing as f64 / total as f64 } else { 1.0 },
+                // ── ★ NO DENOMINATOR MEANS NO RATIO ──────────────────
+                // This emitted 1.0 — "100% compliant" — when ZERO repos
+                // were measured. An audit that ran against nothing, or
+                // whose child process died before producing output, logged
+                // the same number as a fleet that genuinely passed
+                // everything. `null` is the honest answer, and it is
+                // distinguishable downstream in a way that 1.0 is not.
+                "compliance_ratio": if total > 0 {
+                    serde_json::json!(passing as f64 / total as f64)
+                } else {
+                    serde_json::Value::Null
+                },
             }),
         );
     }
@@ -535,10 +546,19 @@ mod tests {
         let content = std::fs::read_to_string(&path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
         assert_eq!(parsed["event"], "nix_audit_completed");
-        let ratio = parsed["compliance_ratio"].as_f64().unwrap();
+        // ── ★ FLIPPED 2026-08-03: THIS PINNED THE DEFECT ─────────────────
+        // It asserted "zero repos should yield ratio=1.0", i.e. an audit
+        // that measured NOTHING logged the same 100%-compliant number as a
+        // fleet that genuinely passed everything. An audit run against an
+        // empty set, or one whose child died before emitting output, was
+        // indistinguishable from success.
+        //
+        // `null` is the honest answer and, unlike 1.0, a consumer can tell
+        // it apart from a real result.
         assert!(
-            (ratio - 1.0).abs() < f64::EPSILON,
-            "zero repos should yield ratio=1.0"
+            parsed["compliance_ratio"].is_null(),
+            "zero repos measured means NO ratio, not a perfect one: {}",
+            parsed["compliance_ratio"]
         );
         let _ = std::fs::remove_file(&path);
     }

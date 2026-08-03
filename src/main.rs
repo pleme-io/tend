@@ -868,7 +868,7 @@ async fn main() -> Result<()> {
             refresh,
         } => {
             let cfg = load_config(config_path.as_deref())?;
-            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+            for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
                 let repos = sync::resolve_repos(ws, refresh).await?;
                 let (cloned, present, failed) = sync::sync_repos(ws, &repos, quiet).await?;
                 if !quiet || cloned > 0 {
@@ -884,7 +884,7 @@ async fn main() -> Result<()> {
             refresh,
         } => {
             let cfg = load_config(config_path.as_deref())?;
-            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+            for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
                 let repos = sync::resolve_repos(ws, refresh).await?;
                 let summary = sync::pull_repos(ws, &repos, quiet).await?;
                 display::print_pull_summary(&ws.name, &summary);
@@ -898,7 +898,7 @@ async fn main() -> Result<()> {
             use crate::nixpkgs_align::{align_one_repo, substrate_canonical_rev, AlignOutcome};
             let cfg = load_config(config_path.as_deref())?;
             let git = crate::git::SystemGitOps;
-            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+            for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
                 let base_dir = ws.resolved_base_dir()?;
                 let Some(canonical) = substrate_canonical_rev(&base_dir.join("substrate")) else {
                     eprintln!(
@@ -1214,7 +1214,7 @@ async fn main() -> Result<()> {
                 .path()
                 .parent()
                 .map(|p| p.join("scheduler-transitions.jsonl"));
-            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+            for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
                 let repos = sync::resolve_repos(ws, refresh).await?;
                 let receipt = reconcile::reconcile_workspace_pull(
                     ws,
@@ -1247,7 +1247,7 @@ async fn main() -> Result<()> {
             // rediscovered, so the reap can only ever touch a repo tend
             // already manages.
             let mut seen_repos: Vec<std::path::PathBuf> = Vec::new();
-            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+            for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
                 let repos = sync::resolve_repos(ws, refresh).await?;
                 let entries = sync::check_status(ws, &repos).await?;
                 let base_dir = ws.resolved_base_dir()?;
@@ -1360,7 +1360,7 @@ async fn main() -> Result<()> {
             refresh,
         } => {
             let cfg = load_config(config_path.as_deref())?;
-            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+            for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
                 let repos = sync::resolve_repos(ws, refresh).await?;
                 display::print_repo_list(&ws.name, &repos);
             }
@@ -1406,7 +1406,7 @@ async fn main() -> Result<()> {
             let audit_log = audit::AuditLog::default_path();
             let mut summary = flake::ExecSummary::default();
 
-            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+            for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
                 if ws.flake_deps.is_empty() {
                     continue;
                 }
@@ -1682,7 +1682,7 @@ async fn main() -> Result<()> {
         } => {
             let cfg = load_config(config_path.as_deref())?;
             let audit_log = audit::AuditLog::default_path();
-            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+            for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
                 if let Some(ref watch_cfg) = ws.watch {
                     if watch_cfg.enable {
                         let gh = github::HttpGitHubClient::new()?;
@@ -1842,7 +1842,7 @@ async fn main() -> Result<()> {
             let cfg = load_config(config_path.as_deref())?;
             let audit_log = audit::AuditLog::default_path();
             let mut total_eligible = 0usize;
-            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+            for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
                 let swarm_cfg = match ws.watch.as_ref().and_then(|w| w.release_swarm.as_ref()) {
                     Some(s) if s.enable => s,
                     _ => continue,
@@ -1913,7 +1913,7 @@ async fn main() -> Result<()> {
                 render_rust_tool_release_workflow_yaml(repo_name, repo_cfg)
             };
 
-            for ws in filter_workspaces(&cfg.workspaces, ws_filter.as_deref()) {
+            for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
                 let swarm_cfg = match ws.watch.as_ref().and_then(|w| w.release_swarm.as_ref()) {
                     Some(s) if s.enable => s,
                     _ => continue,
@@ -2107,7 +2107,7 @@ async fn run_flake_update_cycle(
     let upstream = head_cache::CachedGitHubHead::new(&github_client);
 
     let mut summary = flake::ExecSummary::default();
-    for ws in filter_workspaces(&cfg.workspaces, ws_filter) {
+    for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter)? {
         if ws.flake_deps.is_empty() {
             continue;
         }
@@ -2395,6 +2395,39 @@ pub(crate) fn filter_workspaces<'a>(
     }
 }
 
+/// `filter_workspaces`, but a name that matches nothing is an ERROR.
+///
+/// ── ★ A TYPO MUST NOT BE A SUCCESSFUL NO-OP ─────────────────────────
+/// `filter_workspaces` returns an empty Vec when an explicit `--workspace`
+/// name matches no configured workspace, and all eleven subcommands then
+/// iterate zero workspaces, print nothing, and exit 0. `tend sync
+/// --workspace plemeio` (missing hyphen) reports success having done
+/// nothing at all — and so does the daemon, forever, on a stale name.
+///
+/// The empty-filter case is untouched: no `--workspace` legitimately means
+/// all of them.
+pub(crate) fn filter_workspaces_checked<'a>(
+    workspaces: &'a [config::Workspace],
+    filter: Option<&str>,
+) -> anyhow::Result<Vec<&'a config::Workspace>> {
+    let selected = filter_workspaces(workspaces, filter);
+    if let Some(name) = filter {
+        if selected.is_empty() {
+            let known: Vec<&str> = workspaces.iter().map(|w| w.name.as_str()).collect();
+            anyhow::bail!(
+                "no workspace named `{name}` — known workspaces: {}. \
+                 (An unmatched filter used to be a silent, successful no-op.)",
+                if known.is_empty() {
+                    "<none configured>".to_owned()
+                } else {
+                    known.join(", ")
+                }
+            );
+        }
+    }
+    Ok(selected)
+}
+
 /// Local stub renderer for the canonical rust-tool-public-release
 /// workflow. Upstream source of truth is
 /// `arch-synthesizer/src/rust_tool_release/render.rs`
@@ -2505,6 +2538,8 @@ mod tests {
         assert_eq!(filtered[0].name, "ws-b");
     }
 
+    /// The RAW filter still returns empty for an unmatched name — that is
+    /// its contract and other callers rely on it.
     #[test]
     fn test_filter_workspaces_with_nonexistent_name() {
         let workspaces = vec![
@@ -2513,6 +2548,48 @@ mod tests {
         ];
         let filtered = filter_workspaces(&workspaces, Some("ws-z"));
         assert!(filtered.is_empty());
+    }
+
+    /// ── ★ BUT AN UNMATCHED --workspace IS AN ERROR AT THE CLI ───────────
+    /// Every subcommand used the raw filter, so `tend sync --workspace
+    /// plemeio` (missing hyphen) iterated zero workspaces, printed nothing
+    /// and exited 0 — a typo reported as success. The daemon did the same,
+    /// forever, on a stale name.
+    ///
+    /// Red run: point the call sites back at `filter_workspaces` and a
+    /// misspelled workspace is a clean exit again.
+    #[test]
+    fn an_unmatched_workspace_name_is_an_error_not_an_empty_success() {
+        let workspaces = vec![
+            config::Workspace::test_default("ws-a"),
+            config::Workspace::test_default("ws-b"),
+        ];
+        let err = filter_workspaces_checked(&workspaces, Some("ws-z"))
+            .expect_err("an unmatched explicit name must not succeed");
+        let msg = err.to_string();
+        assert!(msg.contains("ws-z"), "names the bad filter: {msg}");
+        // Naming the alternatives is the difference between an error and a
+        // useful one — the operator almost always mistyped a real name.
+        assert!(
+            msg.contains("ws-a") && msg.contains("ws-b"),
+            "lists known: {msg}"
+        );
+    }
+
+    /// No filter still means all of them — the fix must not turn "run
+    /// everywhere" into an error.
+    #[test]
+    fn no_filter_is_still_every_workspace() {
+        let workspaces = vec![
+            config::Workspace::test_default("ws-a"),
+            config::Workspace::test_default("ws-b"),
+        ];
+        assert_eq!(
+            filter_workspaces_checked(&workspaces, None)
+                .expect("no filter is valid")
+                .len(),
+            2
+        );
     }
 
     #[test]

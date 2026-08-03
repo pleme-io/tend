@@ -7,7 +7,7 @@ use std::time::Duration;
 use crate::kanshou_state::TendDaemonState;
 use crate::planner::{ExecutionPlan, WorkItem, WorkKind};
 use crate::{
-    display, filter_workspaces, git, github, load_config, planner, reconcile, sync, watch,
+    display, filter_workspaces_checked, git, github, load_config, planner, reconcile, sync, watch,
     watch_cache,
 };
 
@@ -154,7 +154,7 @@ pub(crate) async fn run_with_kanshou(
             }
         };
 
-        let workspaces = filter_workspaces(&cfg.workspaces, opts.workspace.as_deref());
+        let workspaces = filter_workspaces_checked(&cfg.workspaces, opts.workspace.as_deref())?;
         let ws_count = workspaces.len();
 
         // Build the DAG of configured work BEFORE touching repos or the network.
