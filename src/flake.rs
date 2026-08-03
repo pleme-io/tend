@@ -580,7 +580,11 @@ pub(crate) fn execute_update_chain(
         // deadline and no log line saying which repo it was stuck on.
         let mut c = Command::new("nix");
         c.args(&args).current_dir(&repo_path);
-        let output = run_bounded_sync(c, SUBPROCESS_DEADLINE_SECS, "nix flake update")
+        // A dependency-union repo like blackmatter (every sub-flake's
+        // transitive inputs, ~24k lock nodes) needs more than one cycle to
+        // refetch its changed inputs — but still a finite rope. The daemon
+        // gives its own nested `tend flake-update` the same 3x allowance.
+        let output = run_bounded_sync(c, SUBPROCESS_DEADLINE_SECS * 3, "nix flake update")
             .with_context(|| format!("running nix flake update in {}", step.repo))?;
 
         if !output.status.success() {
