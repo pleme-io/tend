@@ -84,6 +84,24 @@ struct GraphQLRef {
 struct GraphQLRepository {
     #[serde(rename = "ref")]
     ref_: Option<GraphQLRef>,
+    /// Populated for inputs with no explicit ref, which query
+    /// `defaultBranchRef` instead of a fabricated `refs/heads/HEAD`.
+    /// Exactly one of these two is ever present per alias — the query
+    /// selects one or the other, never both.
+    #[serde(rename = "defaultBranchRef")]
+    default_branch_ref: Option<GraphQLRef>,
+}
+
+impl GraphQLRepository {
+    /// The resolved ref, whichever selection produced it.
+    ///
+    /// Written as one accessor so a caller cannot read `ref_` alone and
+    /// silently miss every default-branch input — which is precisely the
+    /// shape of the bug this replaced: a value that was never populated,
+    /// read as "no head found".
+    fn resolved(&self) -> Option<&GraphQLRef> {
+        self.ref_.as_ref().or(self.default_branch_ref.as_ref())
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -426,19 +444,38 @@ impl ReqwestHeadResolver {
         let mut query = String::from("query {\n");
         for (alias_n, (_, id)) in targets.iter().enumerate() {
             let (owner, repo) = id.key.split_once('/').unwrap_or((id.key.as_str(), ""));
-            let qualified_ref = if id.r#ref == "HEAD" || id.r#ref.is_empty() {
-                "refs/heads/HEAD".to_string()
-            } else if id.r#ref.starts_with("refs/") {
-                id.r#ref.clone()
-            } else if looks_like_tag(&id.r#ref) {
-                format!("refs/tags/{}", id.r#ref)
+            // ── ★ THERE IS NO SUCH REF AS refs/heads/HEAD ────────────────
+            // `ExtendedNode::tracking_ref` returns the literal "HEAD" for
+            // any input with no explicit ref — i.e. the ordinary
+            // `github:owner/repo` form, which is most of the fleet. This
+            // path fabricated `refs/heads/HEAD`, GitHub resolved it to
+            // null, and every such input came back with no head.
+            //
+            // The REST path got this right (`/commits/HEAD`), so the
+            // GraphQL batch — which is the DEFAULT — was silently failing
+            // to probe exactly the inputs it was built to probe, while the
+            // fallback it was meant to replace worked.
+            //
+            // `defaultBranchRef` is the query form that actually has a
+            // default branch; it is a different selection, not a different
+            // string, which is why a string-building fix could not work.
+            let selection = if id.r#ref == "HEAD" || id.r#ref.is_empty() {
+                "defaultBranchRef { target { ... on Commit { oid committedDate } } }".to_string()
             } else {
-                format!("refs/heads/{}", id.r#ref)
+                let qualified_ref = if id.r#ref.starts_with("refs/") {
+                    id.r#ref.clone()
+                } else if looks_like_tag(&id.r#ref) {
+                    format!("refs/tags/{}", id.r#ref)
+                } else {
+                    format!("refs/heads/{}", id.r#ref)
+                };
+                format!(
+                    "ref(qualifiedName: \"{qualified_ref}\") {{ \
+                     target {{ ... on Commit {{ oid committedDate }} }} }}"
+                )
             };
             query.push_str(&format!(
-                "  r{alias_n}: repository(owner: \"{owner}\", name: \"{repo}\") {{\
-                 ref(qualifiedName: \"{qualified_ref}\") {{ \
-                 target {{ ... on Commit {{ oid committedDate }} }} }} }}\n"
+                "  r{alias_n}: repository(owner: \"{owner}\", name: \"{repo}\") {{ {selection} }}\n"
             ));
         }
         query.push('}');
@@ -492,7 +529,7 @@ impl ReqwestHeadResolver {
         for (alias_n, (_, id)) in targets.iter().enumerate() {
             let alias_key = format!("r{alias_n}");
             let outcome = match data.aliases.get(&alias_key) {
-                Some(Some(repo)) => match &repo.ref_ {
+                Some(Some(repo)) => match repo.resolved() {
                     Some(GraphQLRef { target: Some(t) }) => {
                         let upstream_modified = t
                             .committed_date
@@ -695,6 +732,63 @@ pub async fn discover_advances_filtered<R: RegistryClient + ?Sized>(
 
 #[cfg(test)]
 mod tests {
+
+    /// ── ★ refs/heads/HEAD IS NOT A REF ──────────────────────────────────
+    /// `tracking_ref()` returns the literal "HEAD" for any input with no
+    /// explicit ref — the ordinary `github:owner/repo` form, which is most
+    /// of the fleet. The GraphQL batch (the DEFAULT path) fabricated
+    /// `refs/heads/HEAD`; GitHub resolves that to null, so every such input
+    /// came back with no head while the REST fallback it replaced worked
+    /// fine.
+    ///
+    /// A response carrying `defaultBranchRef` must therefore resolve, and a
+    /// reader that only looked at `ref` would silently miss all of them —
+    /// which is why `resolved()` exists rather than two call sites.
+    #[test]
+    fn a_default_branch_response_resolves() {
+        let json = r#"{
+            "defaultBranchRef": {
+                "target": { "oid": "abc123", "committedDate": "2026-08-03T00:00:00Z" }
+            }
+        }"#;
+        let repo: super::GraphQLRepository = serde_json::from_str(json).expect("deserializes");
+        let r = repo
+            .resolved()
+            .expect("a defaultBranchRef response must resolve");
+        assert_eq!(
+            r.target.as_ref().expect("target").oid,
+            "abc123",
+            "the default-branch selection carries the head"
+        );
+    }
+
+    /// The explicit-ref path still works — the fix must not trade one
+    /// broken selection for another.
+    #[test]
+    fn an_explicit_ref_response_still_resolves() {
+        let json = r#"{
+            "ref": { "target": { "oid": "def456", "committedDate": "2026-08-03T00:00:00Z" } }
+        }"#;
+        let repo: super::GraphQLRepository = serde_json::from_str(json).expect("deserializes");
+        assert_eq!(
+            repo.resolved()
+                .expect("resolves")
+                .target
+                .as_ref()
+                .expect("target")
+                .oid,
+            "def456"
+        );
+    }
+
+    /// A repo with neither selection populated is genuinely unresolved —
+    /// distinct from the bug, where a populated repo READ as unresolved.
+    #[test]
+    fn a_repo_with_no_ref_at_all_is_unresolved() {
+        let repo: super::GraphQLRepository = serde_json::from_str("{}").expect("deserializes");
+        assert!(repo.resolved().is_none());
+    }
+
     use super::*;
     use std::collections::HashMap as Map;
     use std::sync::Mutex;
