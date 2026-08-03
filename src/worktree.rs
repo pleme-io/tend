@@ -304,7 +304,8 @@ mod tests {
         assert!(!s.is_empty(), "a minted slug must never be empty");
         assert!(s.len() <= SLUG_LEN, "must fit the slug budget: {s}");
         assert!(
-            s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'),
+            s.chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'),
             "must be path- and ref-safe: {s}"
         );
         // Idempotent under the sanitiser — a minted slug is already legal, so

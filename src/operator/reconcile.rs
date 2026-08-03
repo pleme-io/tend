@@ -690,7 +690,11 @@ pub async fn reconcile_proposal(
                 // prometheus 0.14 tightened `with_label_values` to
                 // `&[&String]`; `outcome` is a `&'static str`, so it is
                 // owned here rather than the label type being widened.
-                let outcome = if r.passed { "passed".to_owned() } else { "failed".to_owned() };
+                let outcome = if r.passed {
+                    "passed".to_owned()
+                } else {
+                    "failed".to_owned()
+                };
                 metrics()
                     .gates_total
                     .with_label_values(&[&r.name, &outcome])

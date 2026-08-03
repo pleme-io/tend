@@ -7,6 +7,7 @@ use crate::config::Workspace;
 use crate::display;
 use crate::flake_lock::FlakeLock;
 use crate::head_cache::{self, UpstreamHead};
+use crate::watch::{run_bounded_sync, SUBPROCESS_DEADLINE_SECS};
 
 /// Options that govern execution of an update chain.
 #[derive(Debug, Clone, Copy, Default)]
@@ -85,11 +86,10 @@ pub(crate) enum StepOutcome {
 /// would be more thorough and too slow to run per repo per cycle, and the
 /// gate that is too slow to run is the gate that gets skipped.
 pub(crate) fn verify_flake_evaluates(repo_path: &std::path::Path) -> Option<String> {
-    match Command::new("nix")
-        .args(["flake", "check", "--no-build", "--no-warn-dirty"])
-        .current_dir(repo_path)
-        .output()
-    {
+    let mut c = Command::new("nix");
+    c.args(["flake", "check", "--no-build", "--no-warn-dirty"])
+        .current_dir(repo_path);
+    match run_bounded_sync(c, SUBPROCESS_DEADLINE_SECS, "nix flake check") {
         Ok(o) if o.status.success() => None,
         Ok(o) => Some(
             String::from_utf8_lossy(&o.stderr)
@@ -506,10 +506,13 @@ pub(crate) fn execute_update_chain(
             args.push(input);
         }
 
-        let output = Command::new("nix")
-            .args(&args)
-            .current_dir(&repo_path)
-            .output()
+        // THE network call of this whole chain, and the last one that was
+        // unbounded. `nix flake update` reaches every input's upstream; one
+        // unreachable host used to hang the daemon indefinitely with no
+        // deadline and no log line saying which repo it was stuck on.
+        let mut c = Command::new("nix");
+        c.args(&args).current_dir(&repo_path);
+        let output = run_bounded_sync(c, SUBPROCESS_DEADLINE_SECS, "nix flake update")
             .with_context(|| format!("running nix flake update in {}", step.repo))?;
 
         if !output.status.success() {
@@ -764,10 +767,9 @@ pub(crate) fn execute_cargo_update(
         }
 
         // Run cargo update
-        let output = Command::new("cargo")
-            .args(["update"])
-            .current_dir(&repo_path)
-            .output()
+        let mut c = Command::new("cargo");
+        c.args(["update"]).current_dir(&repo_path);
+        let output = run_bounded_sync(c, SUBPROCESS_DEADLINE_SECS, "cargo update")
             .with_context(|| format!("running cargo update in {}", step.repo))?;
 
         if !output.status.success() {
@@ -831,13 +833,17 @@ pub(crate) fn execute_cargo_update(
                         step.repo
                     );
                 }
-                let regen = Command::new("nix")
-                    .args(["run", ".#regenerate-cargo-nix"])
-                    .current_dir(&repo_path)
-                    .output()
-                    .with_context(|| {
-                        format!("running nix run .#regenerate-cargo-nix in {}", step.repo)
-                    })?;
+                let mut c = Command::new("nix");
+                c.args(["run", ".#regenerate-cargo-nix"])
+                    .current_dir(&repo_path);
+                let regen = run_bounded_sync(
+                    c,
+                    SUBPROCESS_DEADLINE_SECS,
+                    "nix run .#regenerate-cargo-nix",
+                )
+                .with_context(|| {
+                    format!("running nix run .#regenerate-cargo-nix in {}", step.repo)
+                })?;
                 if regen.status.success() {
                     // Stage the regen outputs so the commit captures them
                     // alongside Cargo.lock.
@@ -1021,10 +1027,9 @@ fn invalidate_head_cache_after_push(workspace: &Workspace, repo: &str, repo_path
 }
 
 fn push_with_retry(repo_path: &Path, repo: &str, opts: ExecOptions) -> Result<()> {
-    let first = Command::new("git")
-        .args(["push"])
-        .current_dir(repo_path)
-        .output()
+    let mut c = Command::new("git");
+    c.args(["push"]).current_dir(repo_path);
+    let first = run_bounded_sync(c, SUBPROCESS_DEADLINE_SECS, "git push")
         .with_context(|| format!("git push in {repo}"))?;
     if first.status.success() {
         return Ok(());
@@ -1039,19 +1044,18 @@ fn push_with_retry(repo_path: &Path, repo: &str, opts: ExecOptions) -> Result<()
     if !opts.quiet {
         println!("    push rejected; rebasing on origin and retrying");
     }
-    let pull = Command::new("git")
-        .args(["pull", "--rebase", "--autostash", "origin"])
-        .current_dir(repo_path)
-        .output()
+    let mut c = Command::new("git");
+    c.args(["pull", "--rebase", "--autostash", "origin"])
+        .current_dir(repo_path);
+    let pull = run_bounded_sync(c, SUBPROCESS_DEADLINE_SECS, "git pull --rebase")
         .with_context(|| format!("git pull --rebase in {repo}"))?;
     if !pull.status.success() {
         let stderr = String::from_utf8_lossy(&pull.stderr);
         bail!("git pull --rebase failed in {repo}: {}", stderr.trim());
     }
-    let second = Command::new("git")
-        .args(["push"])
-        .current_dir(repo_path)
-        .output()
+    let mut c = Command::new("git");
+    c.args(["push"]).current_dir(repo_path);
+    let second = run_bounded_sync(c, SUBPROCESS_DEADLINE_SECS, "git push retry")
         .with_context(|| format!("git push retry in {repo}"))?;
     if !second.status.success() {
         let stderr = String::from_utf8_lossy(&second.stderr);
@@ -1068,9 +1072,9 @@ fn clone_repo(workspace: &Workspace, repo: &str, base_dir: &Path, quiet: bool) -
     if !quiet {
         println!("    cloning {url} → {}", target.display());
     }
-    let output = Command::new("git")
-        .args(["clone", &url, &target.to_string_lossy()])
-        .output()
+    let mut c = Command::new("git");
+    c.args(["clone", &url, &target.to_string_lossy()]);
+    let output = run_bounded_sync(c, SUBPROCESS_DEADLINE_SECS, "git clone")
         .with_context(|| format!("git clone {url}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1101,10 +1105,10 @@ pub(crate) fn git_pull_ff(repo_path: &Path, repo: &str, quiet: bool) -> Result<(
         return Ok(());
     }
 
-    let output = Command::new("git")
-        .args(["pull", "--ff-only", "--quiet", "origin", &branch])
-        .current_dir(repo_path)
-        .output()
+    let mut c = Command::new("git");
+    c.args(["pull", "--ff-only", "--quiet", "origin", &branch])
+        .current_dir(repo_path);
+    let output = run_bounded_sync(c, SUBPROCESS_DEADLINE_SECS, "git pull --ff-only")
         .with_context(|| format!("git pull --ff-only origin {branch} in {repo}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1817,5 +1821,65 @@ mod tests {
         for step in &chain {
             assert_ne!(step.repo, "lib-x");
         }
+    }
+}
+
+#[cfg(test)]
+mod unbounded_network_gate {
+    //! ── ★ NO NETWORK SUBPROCESS IN THIS CHAIN RUNS UNBOUNDED ─────────────
+    //! `flake.rs` is the update chain a DAEMON drives: `nix flake update`,
+    //! `nix flake check`, `git pull`, `git push`, `git clone`, `cargo
+    //! update`. Every one reaches the network, and all nine ran with a
+    //! plain `.output()` — no deadline, no kill. One unreachable host hung
+    //! the reconciler indefinitely, with no log line naming which repo it
+    //! was stuck on.
+    //!
+    //! `watch.rs` — the loop that CALLS this chain — already bounded 12 of
+    //! its 15 invocations. So the fleet had the helper, used it in the
+    //! caller, and left the callee unbounded: the mechanics were present
+    //! and unreached, which is this repo's recurring shape.
+    //!
+    //! Source-level because the defect is syntactic — the absence of a
+    //! deadline — and a behavioural test would need a hanging remote.
+
+    /// Argv tokens that mean "this call leaves the machine".
+    const NETWORK_VERBS: &[&str] = &[
+        "\"push\"",
+        "\"pull\"",
+        "\"clone\"",
+        "\"fetch\"",
+        "\"ls-remote\"",
+        "\"flake\", \"check\"",
+        "\"flake\", \"update\"",
+    ];
+
+    #[test]
+    fn every_network_subprocess_goes_through_run_bounded_sync() {
+        let src = include_str!("flake.rs");
+        let mut offenders = Vec::new();
+        // A `Command::new(...)` chain is the lines from it up to the first
+        // `;`. Cheap and sufficient: this file writes them as one chain.
+        for (i, line) in src.lines().enumerate() {
+            if !line.contains(concat!("Command", "::new(")) {
+                continue;
+            }
+            let rest: String = src.lines().skip(i).take(8).collect::<Vec<_>>().join("\n");
+            let chain = rest.split_once(';').map_or(rest.as_str(), |(a, _)| a);
+            let is_network = NETWORK_VERBS.iter().any(|v| chain.contains(v));
+            // `.output()` inside the chain = unbounded; the bounded form
+            // hands the Command to run_bounded_sync instead.
+            let unbounded = chain.contains(".output()");
+            if is_network && unbounded {
+                offenders.push(format!("flake.rs:{}: {}", i + 1, line.trim()));
+            }
+        }
+        assert!(
+            offenders.is_empty(),
+            "these network subprocesses have no deadline, so an unreachable \
+             host hangs the reconciler with no indication which repo it is \
+             stuck on. Build the Command, then call \
+             `run_bounded_sync(cmd, SUBPROCESS_DEADLINE_SECS, \"<what>\")`:\n  {}",
+            offenders.join("\n  ")
+        );
     }
 }

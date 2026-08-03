@@ -128,13 +128,15 @@ impl Thresholds {
     /// percentage dominates a small one.
     #[must_use]
     pub fn halt_floor_gib(&self, total_gib: f64) -> f64 {
-        self.disk_halt_gib.min(total_gib * self.disk_halt_pct / 100.0)
+        self.disk_halt_gib
+            .min(total_gib * self.disk_halt_pct / 100.0)
     }
 
     /// Effective throttle floor, GiB. See [`Thresholds::halt_floor_gib`].
     #[must_use]
     pub fn throttle_floor_gib(&self, total_gib: f64) -> f64 {
-        self.disk_throttle_gib.min(total_gib * self.disk_throttle_pct / 100.0)
+        self.disk_throttle_gib
+            .min(total_gib * self.disk_throttle_pct / 100.0)
     }
 }
 
@@ -279,8 +281,14 @@ fn disk_reading(path: &std::path::Path) -> Result<(f64, f64)> {
     // how the band ended up mis-set.
     let row = text.lines().nth(1).context("df has no data row")?;
     let f: Vec<&str> = row.split_whitespace().collect();
-    let total_k: f64 = f.get(1).and_then(|v| v.parse().ok()).context("parse df total")?;
-    let avail_k: f64 = f.get(3).and_then(|v| v.parse().ok()).context("parse df available")?;
+    let total_k: f64 = f
+        .get(1)
+        .and_then(|v| v.parse().ok())
+        .context("parse df total")?;
+    let avail_k: f64 = f
+        .get(3)
+        .and_then(|v| v.parse().ok())
+        .context("parse df available")?;
     let to_gib = |k: f64| k / 1024.0 / 1024.0;
     Ok((to_gib(avail_k), to_gib(total_k)))
 }
@@ -349,14 +357,16 @@ mod tests {
     fn an_unavailable_fd_axis_neither_halts_nor_passes_silently() {
         let t = super::Thresholds::default();
         let unread = super::Reading {
-            disk_free_gib: 500.0, disk_total_gib: 1000.0,
+            disk_free_gib: 500.0,
+            disk_total_gib: 1000.0,
             fd_ratio: None,
         };
         // Skipped, not passed: the verdict must come from the disk axis
         // alone, and must not claim the fd axis was fine.
         let v = super::assess(unread, t, 8);
         let saturated = super::Reading {
-            disk_free_gib: 500.0, disk_total_gib: 1000.0,
+            disk_free_gib: 500.0,
+            disk_total_gib: 1000.0,
             fd_ratio: Some(0.99),
         };
         assert_ne!(
@@ -372,11 +382,13 @@ mod tests {
     fn a_measured_fd_axis_still_trips_its_bands() {
         let t = super::Thresholds::default();
         let calm = super::Reading {
-            disk_free_gib: 500.0, disk_total_gib: 1000.0,
+            disk_free_gib: 500.0,
+            disk_total_gib: 1000.0,
             fd_ratio: Some(0.10),
         };
         let hot = super::Reading {
-            disk_free_gib: 500.0, disk_total_gib: 1000.0,
+            disk_free_gib: 500.0,
+            disk_total_gib: 1000.0,
             fd_ratio: Some(0.99),
         };
         assert_ne!(
@@ -390,7 +402,8 @@ mod tests {
 
     fn healthy() -> Reading {
         Reading {
-            disk_free_gib: 600.0, disk_total_gib: 1000.0,
+            disk_free_gib: 600.0,
+            disk_total_gib: 1000.0,
             fd_ratio: Some(0.10),
         }
     }
@@ -411,7 +424,8 @@ mod tests {
     fn low_disk_halts_because_continuing_makes_it_worse() {
         let v = assess(
             Reading {
-                disk_free_gib: 5.0, disk_total_gib: 1000.0,
+                disk_free_gib: 5.0,
+                disk_total_gib: 1000.0,
                 ..healthy()
             },
             Thresholds::default(),
@@ -429,7 +443,8 @@ mod tests {
         // entirely at the first sign of load never catches up.
         let v = assess(
             Reading {
-                disk_free_gib: 30.0, disk_total_gib: 1000.0,
+                disk_free_gib: 30.0,
+                disk_total_gib: 1000.0,
                 ..healthy()
             },
             Thresholds::default(),
@@ -484,7 +499,8 @@ mod tests {
         // the problem that will not fix itself.
         let v = assess(
             Reading {
-                disk_free_gib: 10.0, disk_total_gib: 1000.0,
+                disk_free_gib: 10.0,
+                disk_total_gib: 1000.0,
                 fd_ratio: Some(0.99),
             },
             Thresholds::default(),
@@ -499,7 +515,8 @@ mod tests {
         // indistinguishable from one that has crashed.
         for r in [
             Reading {
-                disk_free_gib: 10.0, disk_total_gib: 1000.0,
+                disk_free_gib: 10.0,
+                disk_total_gib: 1000.0,
                 ..healthy()
             },
             Reading {
@@ -507,7 +524,8 @@ mod tests {
                 ..healthy()
             },
             Reading {
-                disk_free_gib: 30.0, disk_total_gib: 1000.0,
+                disk_free_gib: 30.0,
+                disk_total_gib: 1000.0,
                 ..healthy()
             },
             Reading {
@@ -528,17 +546,33 @@ mod tests {
         // fire at 139 GiB free and run the reconciler at a quarter speed to
         // protect against nothing. With min(absolute, pct) the effective floor is
         // 50 GiB, so 192 GiB free proceeds at full concurrency.
-        let cid = Reading { disk_free_gib: 192.0, disk_total_gib: 926.0, fd_ratio: Some(0.0003) };
+        let cid = Reading {
+            disk_free_gib: 192.0,
+            disk_total_gib: 926.0,
+            fd_ratio: Some(0.0003),
+        };
         assert_eq!(assess(cid, Thresholds::default(), 8), Verdict::Proceed);
 
         let t = Thresholds::default();
-        assert_eq!(t.throttle_floor_gib(926.0), 50.0, "absolute must dominate a large disk");
+        assert_eq!(
+            t.throttle_floor_gib(926.0),
+            50.0,
+            "absolute must dominate a large disk"
+        );
         assert_eq!(t.halt_floor_gib(926.0), 20.0);
 
         // And it still throttles when the ABSOLUTE space is genuinely low, even
         // though the percentage looks fine on a huge volume.
-        let squeezed = Reading { disk_free_gib: 30.0, disk_total_gib: 4000.0, fd_ratio: Some(0.0) };
-        assert_eq!(assess(squeezed, t, 8).inflight(8), Some(1), "0.75% free must throttle");
+        let squeezed = Reading {
+            disk_free_gib: 30.0,
+            disk_total_gib: 4000.0,
+            fd_ratio: Some(0.0),
+        };
+        assert_eq!(
+            assess(squeezed, t, 8).inflight(8),
+            Some(1),
+            "0.75% free must throttle"
+        );
     }
 
     #[test]
@@ -550,11 +584,26 @@ mod tests {
         assert_eq!(t.throttle_floor_gib(40.0), 6.0, "15% of 40 GiB");
         assert_eq!(t.halt_floor_gib(40.0), 2.0, "5% of 40 GiB");
 
-        let small_ok = Reading { disk_free_gib: 12.0, disk_total_gib: 40.0, fd_ratio: Some(0.0) };
-        assert_eq!(assess(small_ok, t, 4), Verdict::Proceed, "30% free on a small disk is fine");
+        let small_ok = Reading {
+            disk_free_gib: 12.0,
+            disk_total_gib: 40.0,
+            fd_ratio: Some(0.0),
+        };
+        assert_eq!(
+            assess(small_ok, t, 4),
+            Verdict::Proceed,
+            "30% free on a small disk is fine"
+        );
 
-        let small_tight = Reading { disk_free_gib: 1.0, disk_total_gib: 40.0, fd_ratio: Some(0.0) };
-        assert!(assess(small_tight, t, 4).inflight(4).is_none(), "2.5% free must stop");
+        let small_tight = Reading {
+            disk_free_gib: 1.0,
+            disk_total_gib: 40.0,
+            fd_ratio: Some(0.0),
+        };
+        assert!(
+            assess(small_tight, t, 4).inflight(4).is_none(),
+            "2.5% free must stop"
+        );
     }
 
     #[test]
@@ -562,8 +611,14 @@ mod tests {
         // The property that makes min() correct rather than merely tuned.
         let t = Thresholds::default();
         for total in [1.0, 10.0, 40.0, 100.0, 926.0, 4000.0] {
-            assert!(t.halt_floor_gib(total) <= total, "halt floor exceeds a {total} GiB volume");
-            assert!(t.throttle_floor_gib(total) <= total, "throttle floor exceeds {total} GiB");
+            assert!(
+                t.halt_floor_gib(total) <= total,
+                "halt floor exceeds a {total} GiB volume"
+            );
+            assert!(
+                t.throttle_floor_gib(total) <= total,
+                "throttle floor exceeds {total} GiB"
+            );
             assert!(
                 t.halt_floor_gib(total) <= t.throttle_floor_gib(total),
                 "stopping must be the tighter floor at {total} GiB"
@@ -573,10 +628,22 @@ mod tests {
 
     #[test]
     fn derived_percentage_is_reported_and_safe_on_a_zero_sized_volume() {
-        let r = Reading { disk_free_gib: 192.0, disk_total_gib: 926.0, fd_ratio: None };
-        assert!((r.disk_free_pct() - 20.7).abs() < 0.1, "got {}", r.disk_free_pct());
+        let r = Reading {
+            disk_free_gib: 192.0,
+            disk_total_gib: 926.0,
+            fd_ratio: None,
+        };
+        assert!(
+            (r.disk_free_pct() - 20.7).abs() < 0.1,
+            "got {}",
+            r.disk_free_pct()
+        );
         // A df row that parsed to zero must not divide by zero.
-        let zero = Reading { disk_free_gib: 0.0, disk_total_gib: 0.0, fd_ratio: None };
+        let zero = Reading {
+            disk_free_gib: 0.0,
+            disk_total_gib: 0.0,
+            fd_ratio: None,
+        };
         assert_eq!(zero.disk_free_pct(), 0.0);
     }
 
