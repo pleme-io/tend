@@ -152,6 +152,20 @@ pub(crate) fn align_one_repo(
             )));
         }
     }
+    // ── ★ EVALUATE BEFORE PUSHING A flake.nix REWRITE ────────────────────
+    // This path REGEX-REWRITES flake.nix and then pushed straight to the
+    // checked-out branch. `nix flake update`/`lock` resolves inputs without
+    // evaluating `outputs`, so a rewrite that produces a flake nix cannot
+    // evaluate passed every check here and reached main — the same shape
+    // that stopped every reconciler in the fleet on 2026-08-03.
+    //
+    // Same gate the flake.lock path uses (`flake::verify_flake_evaluates`),
+    // deliberately shared rather than re-implemented: this path was missing
+    // it precisely because the rule lived inline in the other one.
+    if let Some(reason) = crate::flake::verify_flake_evaluates(repo) {
+        let _ = restore();
+        return Ok(AlignOutcome::Failed(format!("does-not-evaluate:{reason}")));
+    }
     git.add(repo, flake_rel)?;
     git.add(repo, lock_rel)?;
     if !git.has_staged_changes(repo)? {

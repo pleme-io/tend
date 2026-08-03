@@ -1129,6 +1129,32 @@ pub async fn run_watch_cycle(
                     }
                 }
 
+                // ── ★ VERIFY BEFORE STAGING ──────────────────────────────
+                // This path had NO verification at all — it ran the update,
+                // staged, committed and pushed. `auto_commit` also defaults
+                // true, so a config saying only `flake_refresh: {enable:
+                // true}` gets an unguarded writer to main. Same gate as
+                // flake.rs and nixpkgs_align, shared not copied.
+                if let Some(reason) = crate::flake::verify_flake_evaluates(&repo_dir) {
+                    // Restore the lock: leaving a non-evaluating update in
+                    // the tree makes the next cycle see a dirty repo and
+                    // skip it for a reason that is ours, not the operator's.
+                    let _ = std::process::Command::new("git")
+                        .args(["checkout", "--", "flake.lock"])
+                        .current_dir(&repo_dir)
+                        .status();
+                    if !quiet {
+                        display::print_flake_refresh_error(
+                            repo_name,
+                            &format!(
+                                "updated lock does not evaluate — reverted, not pushed: {reason}"
+                            ),
+                        );
+                    }
+                    errors += 1;
+                    continue;
+                }
+
                 // Stage flake.lock and check if anything changed
                 let flake_lock = repo_dir.join("flake.lock");
                 if let Err(e) = git_ops.add(&repo_dir, &flake_lock) {

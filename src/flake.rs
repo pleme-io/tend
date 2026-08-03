@@ -63,6 +63,50 @@ pub(crate) enum StepOutcome {
     Blocked,
 }
 
+/// Does this repo's flake still EVALUATE? `None` = yes, `Some(reason)` = no.
+///
+/// ── ★ ONE GATE, THREE WRITERS ────────────────────────────────────────
+/// Three separate paths in tend commit and push a flake change:
+/// `execute_update_chain` (flake.lock), `nixpkgs_align` (a regex rewrite
+/// of flake.nix), and the watch loop's `flake_refresh`. Only the first
+/// had a verification step, and an exhaustive review found the other two
+/// pushing unevaluated changes straight to main — the same shape that let
+/// a withdrawn `gh-stack` reach HEAD and stop every reconciler in the
+/// fleet on 2026-08-03.
+///
+/// Extracted so the rule has ONE definition. Three copies of a safety
+/// check is three chances for one of them to be the stale one, and the
+/// two that were missing were missing precisely because the rule lived
+/// inline in the path that happened to get attention.
+///
+/// `--no-build` is deliberate: it evaluates without realising
+/// derivations, which catches the whole class (missing attribute, bad
+/// follows, a module that no longer type-checks) in seconds. A full build
+/// would be more thorough and too slow to run per repo per cycle, and the
+/// gate that is too slow to run is the gate that gets skipped.
+pub(crate) fn verify_flake_evaluates(repo_path: &std::path::Path) -> Option<String> {
+    match Command::new("nix")
+        .args(["flake", "check", "--no-build", "--no-warn-dirty"])
+        .current_dir(repo_path)
+        .output()
+    {
+        Ok(o) if o.status.success() => None,
+        Ok(o) => Some(
+            String::from_utf8_lossy(&o.stderr)
+                .lines()
+                .filter(|l| l.contains("error"))
+                .last()
+                .unwrap_or("nix flake check failed")
+                .trim()
+                .to_owned(),
+        ),
+        // nix absent or unrunnable is not evidence the flake is bad, but it
+        // is not evidence it is good either — and this gate exists to stop
+        // unverified pushes, so "cannot verify" blocks like "failed".
+        Err(e) => Some(e.to_string()),
+    }
+}
+
 /// Record a step as blocked and move on.
 ///
 /// A macro-free helper so every failure arm in the loop is IDENTICAL. The
@@ -505,26 +549,7 @@ pub(crate) fn execute_update_chain(
         // the dirty-tree note above): one input's bad bump must not stop
         // every other repo from updating.
         if !opts.skip_verify {
-            let check = Command::new("nix")
-                .args(["flake", "check", "--no-build", "--no-warn-dirty"])
-                .current_dir(&repo_path)
-                .output();
-            let bad = match check {
-                Ok(o) if o.status.success() => None,
-                Ok(o) => Some(
-                    String::from_utf8_lossy(&o.stderr)
-                        .lines()
-                        .filter(|l| l.contains("error"))
-                        .last()
-                        .unwrap_or("nix flake check failed")
-                        .trim()
-                        .to_owned(),
-                ),
-                // nix absent or unrunnable is not evidence the lock is bad,
-                // but it is also not evidence it is good — say so and let
-                // the operator decide rather than silently pushing.
-                Err(e) => Some(e.to_string()),
-            };
+            let bad = verify_flake_evaluates(&repo_path);
             if let Some(reason) = bad {
                 // Revert the lock we just wrote: leaving a broken update in
                 // the tree would make the NEXT run see a dirty repo and
@@ -1193,6 +1218,61 @@ pub(crate) fn find_cargo_lock_repos(workspace: &Workspace) -> Result<Vec<String>
 
 #[cfg(test)]
 mod tests {
+
+    /// ── ★ EVERY FLAKE WRITER GOES THROUGH THE ONE GATE ──────────────────
+    /// Three paths in tend commit-and-push a flake change: this file's
+    /// update chain, `nixpkgs_align` (rewrites flake.nix), and the watch
+    /// loop's `flake_refresh`. Only the first was verified; the review
+    /// found the other two pushing unevaluated changes to main — the shape
+    /// that stopped every reconciler in the fleet on 2026-08-03.
+    ///
+    /// Asserted against source, because the defect is a MISSING call. A
+    /// test that exercised the gate itself would have passed all along.
+    #[test]
+    fn every_flake_writer_calls_the_verification_gate() {
+        for (name, src) in [
+            ("nixpkgs_align", include_str!("nixpkgs_align.rs")),
+            ("watch(flake_refresh)", include_str!("watch.rs")),
+        ] {
+            assert!(
+                src.contains("verify_flake_evaluates"),
+                "{name} commits and pushes a flake change without calling \
+                 flake::verify_flake_evaluates — three copies of a safety rule \
+                 is three chances for one to be the stale one, which is exactly \
+                 how these two were missed"
+            );
+        }
+    }
+
+    /// A write flag that defaults ON is a write nobody chose. `auto_commit`
+    /// defaulted true, so the minimal `flake_refresh: {enable: true}` config
+    /// turned on commit+push to main through the unverified path.
+    #[test]
+    fn flake_refresh_auto_commit_is_opt_in() {
+        let cfg = include_str!("config.rs");
+        // Anchor on the STRUCT DEFINITION, not the first textual match —
+        // `FlakeRefreshConfig` also appears as a field type earlier in the
+        // file, and a window measured from there contains a DIFFERENT
+        // struct's fields. My first version of this test did exactly that
+        // and reported a pass over the wrong bytes.
+        let i = cfg
+            .find("pub struct FlakeRefreshConfig")
+            .expect("struct definition exists");
+        let end = cfg[i..].find("\n}").map_or(cfg.len(), |e| i + e);
+        let seg = &cfg[i..end];
+        let decl = seg
+            .find("pub auto_commit")
+            .expect("field exists in the struct");
+        let before = &seg[..decl];
+        assert!(
+            !before
+                .rsplit("///")
+                .next()
+                .unwrap_or("")
+                .contains("default_true"),
+            "auto_commit must be opt-in — every other write flag in WatchConfig is"
+        );
+    }
 
     // ── ★ COUNTING A THING AND NOT READING IT ───────────────────────────
     // `StepOutcome::Blocked` and `had_blocked()` shipped with ZERO

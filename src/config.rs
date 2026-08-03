@@ -421,7 +421,11 @@ impl Default for FlakeRefreshConfig {
             update_command: default_update_command(),
             update_timeout: default_update_timeout(),
             commit_message: default_commit_message(),
-            auto_commit: true,
+            // Opt-in, matching the serde default above. Both had to change:
+            // serde governs a config file that omits the key, this governs
+            // a programmatically-constructed config, and leaving either at
+            // `true` keeps an unverified writer on by default.
+            auto_commit: false,
             auto_propagate: false,
             include: Vec::new(),
             exclude: Vec::new(),
@@ -458,8 +462,16 @@ pub struct FlakeRefreshConfig {
     /// Commit message template — supports $REPO placeholder (default: "chore: update flake.lock")
     #[serde(default = "default_commit_message")]
     pub commit_message: String,
-    /// Commit and push after a successful update (default: true)
-    #[serde(default = "default_true")]
+    /// Commit and push after a successful update.
+    ///
+    /// ── ★ OPT-IN. A WRITE FLAG THAT DEFAULTS ON IS A WRITE NOBODY CHOSE ──
+    /// This defaulted to true, so the minimal config anyone would write —
+    /// `flake_refresh: {enable: true}` — silently enabled commit+push to
+    /// main, through the one refresh path that had no verification gate at
+    /// all. Every other write flag in WatchConfig (`auto_certify`,
+    /// WatchConfig's own `auto_commit`) is `#[serde(default)]`; this was
+    /// the outlier, and the asymmetry is what kept it invisible.
+    #[serde(default)]
     pub auto_commit: bool,
     /// Trigger `tend flake-update --changed <repo>` after each committed repo
     #[serde(default)]
@@ -1122,7 +1134,11 @@ workspaces:
         assert_eq!(fr.update_command, "nix flake update");
         assert_eq!(fr.update_timeout, 600);
         assert_eq!(fr.commit_message, "chore: update flake.lock");
-        assert!(fr.auto_commit);
+        // Deliberately flipped 2026-08-03: `auto_commit` defaulting true
+        // meant `flake_refresh: {enable: true}` silently enabled
+        // commit+push to main through the one refresh path with no
+        // verification gate. This assertion previously pinned that.
+        assert!(!fr.auto_commit, "a write flag must be opt-in");
         assert!(!fr.auto_propagate);
         assert!(fr.staleness_check);
     }
@@ -1164,7 +1180,10 @@ workspaces:
         assert_eq!(fr.update_command, "nix flake update");
         assert_eq!(fr.update_timeout, 600);
         assert_eq!(fr.commit_message, "chore: update flake.lock");
-        assert!(fr.auto_commit);
+        // Flipped with the serde default and the Default impl — all three
+        // pinned the same unsafe default, and fixing one at a time is how
+        // two of them survived the first pass.
+        assert!(!fr.auto_commit, "a write flag must be opt-in");
         assert!(!fr.auto_propagate);
         assert!(fr.include.is_empty());
         assert!(fr.exclude.is_empty());
