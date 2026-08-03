@@ -339,7 +339,7 @@ pub async fn run_watch_cycle(
                     eprintln!("  [>>] running akeyless-matrix certify...");
                 }
                 let certify_start = std::time::Instant::now();
-                match run_certify(matrix_file) {
+                match run_certify(matrix_file).await {
                     Ok(()) => {
                         let duration_ms = certify_start.elapsed().as_millis() as u64;
                         audit.certify_complete(&last_repo, &last_version, "verified", duration_ms);
@@ -421,7 +421,7 @@ pub async fn run_watch_cycle(
                 if !quiet {
                     eprintln!("  [>>] propagating flake update for {repo_name}...");
                 }
-                if let Err(e) = run_flake_propagate(repo_name, ws) {
+                if let Err(e) = run_flake_propagate(repo_name, ws).await {
                     if !quiet {
                         eprintln!("  warning: auto-propagate failed: {e}");
                     }
@@ -844,7 +844,7 @@ pub async fn run_watch_cycle(
                     fiw.input, fiw.repo
                 );
             }
-            match run_nix_flake_update(&repo_dir, &fiw.input) {
+            match run_nix_flake_update(&repo_dir, &fiw.input).await {
                 Ok(()) => {
                     if !quiet {
                         eprintln!("  [{}] flake input {} updated", "ok".green(), fiw.input);
@@ -890,7 +890,7 @@ pub async fn run_watch_cycle(
                 if !quiet {
                     eprintln!("  [>>] propagating flake update for {propagate_repo}...");
                 }
-                if let Err(e) = run_flake_propagate(propagate_repo, ws) {
+                if let Err(e) = run_flake_propagate(propagate_repo, ws).await {
                     if !quiet {
                         eprintln!("  warning: auto-propagate failed: {e}");
                     }
@@ -1082,11 +1082,16 @@ pub async fn run_watch_cycle(
                 }
 
                 // Run update command via sh -c
+                // kill_on_drop: dropping a timed-out future ABANDONS the
+                // child, it does not kill it. Without this an orphaned
+                // update keeps running and keeps writing into a repo the
+                // next cycle then skips as "dirty" — no error counted.
                 let update_result = tokio::time::timeout(
                     std::time::Duration::from_secs(refresh_cfg.update_timeout),
                     tokio::process::Command::new("sh")
                         .args(["-c", &refresh_cfg.update_command])
                         .current_dir(&repo_dir)
+                        .kill_on_drop(true)
                         .output(),
                 )
                 .await;
@@ -1139,10 +1144,11 @@ pub async fn run_watch_cycle(
                     // Restore the lock: leaving a non-evaluating update in
                     // the tree makes the next cycle see a dirty repo and
                     // skip it for a reason that is ours, not the operator's.
-                    let _ = std::process::Command::new("git")
+                    let mut revert = std::process::Command::new("git");
+                    revert
                         .args(["checkout", "--", "flake.lock"])
-                        .current_dir(&repo_dir)
-                        .status();
+                        .current_dir(&repo_dir);
+                    let _ = run_bounded_sync(revert, 30, "git checkout -- flake.lock");
                     if !quiet {
                         display::print_flake_refresh_error(
                             repo_name,
@@ -1219,7 +1225,7 @@ pub async fn run_watch_cycle(
 
                     // Auto-propagate
                     if refresh_cfg.auto_propagate {
-                        if let Err(e) = run_flake_propagate(repo_name, ws) {
+                        if let Err(e) = run_flake_propagate(repo_name, ws).await {
                             if !quiet {
                                 eprintln!("  warning: auto-propagate failed for {repo_name}: {e}");
                             }
@@ -1380,11 +1386,104 @@ async fn run_post_hooks(
 }
 
 /// Run `akeyless-matrix certify` on the matrix file.
-fn run_certify(matrix_file: &Path) -> Result<()> {
-    let output = std::process::Command::new("akeyless-matrix")
-        .args(["certify", "--matrix", &matrix_file.to_string_lossy()])
-        .output()
-        .context("running akeyless-matrix certify")?;
+/// Sync sibling of [`run_bounded`] for call sites that are not async.
+///
+/// Spawns, polls for the deadline, and KILLS on expiry. `git ls-remote` is
+/// the one that matters: it is a NETWORK call, and a 75-second hang on it
+/// is already on record elsewhere in this fleet. A local `rev-parse` gets
+/// the same treatment because "local" is not a guarantee — a wedged NFS
+/// mount or a stuck index lock hangs it just as well.
+pub(crate) fn run_bounded_sync(
+    mut cmd: std::process::Command,
+    secs: u64,
+    what: &str,
+) -> Result<std::process::Output> {
+    use std::io::Read as _;
+    let mut child = cmd
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .with_context(|| format!("spawning {what}"))?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(secs);
+    loop {
+        match child
+            .try_wait()
+            .with_context(|| format!("waiting on {what}"))?
+        {
+            Some(status) => {
+                let mut stdout = Vec::new();
+                let mut stderr = Vec::new();
+                if let Some(mut o) = child.stdout.take() {
+                    let _ = o.read_to_end(&mut stdout);
+                }
+                if let Some(mut e) = child.stderr.take() {
+                    let _ = e.read_to_end(&mut stderr);
+                }
+                return Ok(std::process::Output {
+                    status,
+                    stdout,
+                    stderr,
+                });
+            }
+            None => {
+                if std::time::Instant::now() >= deadline {
+                    // Kill, not abandon: an orphan keeps holding whatever
+                    // lock or socket made it hang in the first place.
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    anyhow::bail!("{what} exceeded its {secs}s deadline and was killed");
+                }
+                std::thread::sleep(std::time::Duration::from_millis(25));
+            }
+        }
+    }
+}
+
+/// Default wall-clock ceiling for a watch-cycle subprocess.
+///
+/// Ten minutes is generous for `nix flake update` on a cold cache and far
+/// short of forever, which is what these had.
+pub(crate) const SUBPROCESS_DEADLINE_SECS: u64 = 600;
+
+/// Run a command with a hard deadline, and KILL it if the deadline passes.
+///
+/// ── ★ AN UNBOUNDED SUBPROCESS WEDGES AN ALWAYS-ON DAEMON ─────────────
+/// `run_certify`, `run_nix_flake_update` and `run_flake_propagate` used
+/// bare `Command::output()` with no timeout at all. A `nix flake update`
+/// that hangs on an unreachable substituter, or a `certify` blocked on a
+/// credential prompt, stops the ENTIRE watch loop — every workspace,
+/// forever — and the only symptom is a kanshou tick that stops advancing.
+/// Nothing errors, nothing retries, nothing logs.
+///
+/// ── ★ AND `timeout()` ALONE LEAKS THE CHILD ──────────────────────────
+/// The one path that did have a timeout wrapped `Command::output()` in
+/// `tokio::time::timeout` and dropped the future on expiry. Dropping the
+/// future abandons the child, it does NOT kill it — so an orphaned
+/// `nix flake update` keeps running and keeps writing into a repo the
+/// next cycle then skips as "dirty", without counting an error. The
+/// timeout made the symptom quieter, not the process shorter.
+///
+/// `kill_on_drop(true)` is the load-bearing line: it is what turns
+/// "stopped waiting" into "stopped running".
+pub(crate) async fn run_bounded(
+    mut cmd: tokio::process::Command,
+    secs: u64,
+    what: &str,
+) -> Result<std::process::Output> {
+    cmd.kill_on_drop(true);
+    match tokio::time::timeout(std::time::Duration::from_secs(secs), cmd.output()).await {
+        Ok(r) => r.with_context(|| format!("running {what}")),
+        Err(_) => anyhow::bail!(
+            "{what} exceeded its {secs}s deadline and was killed — \
+             an unbounded subprocess would have wedged the watch loop indefinitely"
+        ),
+    }
+}
+
+async fn run_certify(matrix_file: &Path) -> Result<()> {
+    let mut cmd = tokio::process::Command::new("akeyless-matrix");
+    cmd.args(["certify", "--matrix", &matrix_file.to_string_lossy()]);
+    let output = run_bounded(cmd, SUBPROCESS_DEADLINE_SECS, "akeyless-matrix certify").await?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1547,13 +1646,15 @@ fn check_flake_staleness(
         let local_repo = base_dir.join(&input.repo);
         let upstream_rev = if local_repo.join(".git").exists() {
             // Check local remote ref (already fresh from git fetch)
-            let output = std::process::Command::new("git")
-                .args([
-                    "rev-parse",
-                    &format!("refs/remotes/origin/{default_branch}"),
-                ])
-                .current_dir(&local_repo)
-                .output();
+            let mut rp = std::process::Command::new("git");
+            rp.args([
+                "rev-parse",
+                &format!("refs/remotes/origin/{default_branch}"),
+            ])
+            .current_dir(&local_repo);
+            // "Local" is not a guarantee of fast: a wedged NFS mount or a
+            // stuck index lock hangs rev-parse just as well as a network call.
+            let output = run_bounded_sync(rp, 30, "git rev-parse");
 
             match output {
                 Ok(o) if o.status.success() => {
@@ -1564,9 +1665,10 @@ fn check_flake_staleness(
         } else {
             // External repo — use git ls-remote (1 network call)
             let url = format!("https://github.com/{}/{}", input.owner, input.repo);
-            let output = std::process::Command::new("git")
-                .args(["ls-remote", "--heads", &url, default_branch])
-                .output();
+            let mut lsr = std::process::Command::new("git");
+            lsr.args(["ls-remote", "--heads", &url, default_branch]);
+            // Network. A hang here stalls the whole staleness sweep.
+            let output = run_bounded_sync(lsr, 60, "git ls-remote").map_err(std::io::Error::other);
 
             match output {
                 Ok(o) if o.status.success() => {
@@ -1598,12 +1700,11 @@ fn adaptive_interval(base_interval: u64, max_interval: u64, misses: u32) -> u64 
 }
 
 /// Run `nix flake update <input>` in a repo directory.
-fn run_nix_flake_update(repo_dir: &Path, input_name: &str) -> Result<()> {
-    let output = std::process::Command::new("nix")
-        .args(["flake", "update", input_name])
-        .current_dir(repo_dir)
-        .output()
-        .context("running nix flake update")?;
+async fn run_nix_flake_update(repo_dir: &Path, input_name: &str) -> Result<()> {
+    let mut cmd = tokio::process::Command::new("nix");
+    cmd.args(["flake", "update", input_name])
+        .current_dir(repo_dir);
+    let output = run_bounded(cmd, SUBPROCESS_DEADLINE_SECS, "nix flake update").await?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1633,8 +1734,8 @@ fn auto_commit_flake_input(
 }
 
 /// Run `tend flake-update --changed <repo>` to propagate to dependent flakes.
-fn run_flake_propagate(changed_repo: &str, ws: &Workspace) -> Result<()> {
-    let mut cmd = std::process::Command::new("tend");
+async fn run_flake_propagate(changed_repo: &str, ws: &Workspace) -> Result<()> {
+    let mut cmd = tokio::process::Command::new("tend");
     cmd.args([
         "flake-update",
         "--changed",
@@ -1643,7 +1744,9 @@ fn run_flake_propagate(changed_repo: &str, ws: &Workspace) -> Result<()> {
         &ws.name,
     ]);
 
-    let output = cmd.output().context("running tend flake-update")?;
+    // A nested `tend flake-update` runs a whole dependency chain, so it
+    // gets a longer rope than a single command — but still a finite one.
+    let output = run_bounded(cmd, SUBPROCESS_DEADLINE_SECS * 3, "tend flake-update").await?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1785,6 +1888,65 @@ fn auto_commit_matrix(matrix_file: &Path, git_ops: &dyn GitOps) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+
+    /// ── ★ NO UNBOUNDED SUBPROCESS IN THE WATCH LOOP ─────────────────────
+    /// `run_certify`, `run_nix_flake_update` and `run_flake_propagate` used
+    /// bare `Command::output()` with no deadline. A `nix flake update`
+    /// hanging on an unreachable substituter, or a `certify` blocked on a
+    /// credential prompt, stops the ENTIRE watch loop — every workspace,
+    /// forever — and the only symptom is a kanshou tick that stops
+    /// advancing. Nothing errors, nothing retries, nothing logs.
+    ///
+    /// Source-level because the defect is an ABSENT call: a test that
+    /// exercised `run_bounded` would have passed the whole time.
+    #[test]
+    fn no_watch_subprocess_runs_without_a_deadline() {
+        let src = include_str!("watch.rs");
+        // A COUNT cannot express this: removing a bounded call lowers both
+        // sides and the inequality still holds — my first version of this
+        // gate was vacuous, and its red run passed. The precise signal is a
+        // std Command that EXECUTES ITSELF; `run_bounded_sync` spawns
+        // internally, so a bounded site never chains `.output()`/`.status()`
+        // onto the Command it built.
+        let ctor = ["std::process::", "Command::new"].concat();
+        let lines: Vec<&str> = src.lines().collect();
+        let mut unbounded = Vec::new();
+        for (n, line) in lines.iter().enumerate() {
+            if line.trim_start().starts_with("//") || !line.contains(&ctor) {
+                continue;
+            }
+            // Scan the chain this construction starts, until it ends.
+            let tail = lines[n..(n + 8).min(lines.len())].join("\n");
+            let chain_end = tail.find(';').map_or(tail.len(), |e| e + 1);
+            let chain = &tail[..chain_end];
+            if chain.contains(".output()") || chain.contains(".status()") {
+                unbounded.push(format!("line {}: {}", n + 1, line.trim()));
+            }
+        }
+        assert!(
+            unbounded.is_empty(),
+            "std Command executing without a deadline — route it through \
+             run_bounded_sync, or a hang wedges the watch loop indefinitely \
+             with no symptom but a kanshou tick that stops: {unbounded:?}"
+        );
+    }
+
+    /// A timed-out child must be KILLED, not merely stopped-waiting-on.
+    /// Dropping a `tokio::time::timeout` future abandons the child; without
+    /// `kill_on_drop` an orphaned update keeps writing into a repo the next
+    /// cycle then skips as "dirty", with no error counted.
+    #[test]
+    fn every_timed_child_is_killed_on_drop() {
+        let src = include_str!("watch.rs");
+        let spawns = src.matches("tokio::process::Command::new").count();
+        let kills = src.matches("kill_on_drop(true)").count();
+        assert!(
+            kills >= 1 && spawns >= kills,
+            "{spawns} tokio spawns but only {kills} kill_on_drop — a timeout \
+             without it leaks the child"
+        );
+    }
+
     use super::*;
     use crate::config::{CloneMethod, WatchConfig, Workspace};
     use crate::watch_cache::{RepoState, WatchState};
