@@ -711,7 +711,7 @@ fn is_git_worktree(path: &Path) -> bool {
 
 fn is_dirty(repo_path: &Path) -> Result<bool> {
     let output = Command::new("git")
-        .args(["status", "--porcelain"])
+        .args(["--no-optional-locks", "status", "--porcelain"])
         .current_dir(repo_path)
         .output()
         .with_context(|| format!("checking git status in {}", repo_path.display()))?;

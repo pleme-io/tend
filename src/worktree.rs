@@ -180,9 +180,7 @@ pub fn default_root(repo: &Path) -> PathBuf {
 /// could not express the way sessions are actually started.
 #[must_use]
 pub fn is_claude_args(command: &[String]) -> bool {
-    command
-        .first()
-        .is_none_or(|first| first.starts_with('-'))
+    command.first().is_none_or(|first| first.starts_with('-'))
 }
 
 /// Claude Code's project-state directory for a given working directory.
@@ -506,7 +504,7 @@ fn link_project_memory(repo: &Path, worktree: &Path) {
 /// (left in place for a human to resolve IN the worktree, which is exactly what
 /// the worktree is for).
 pub fn land(worktree: &Path, base: &str) -> Result<String> {
-    if !git(worktree, &["status", "--porcelain"])?.is_empty() {
+    if !git(worktree, &["--no-optional-locks", "status", "--porcelain"])?.is_empty() {
         bail!("REFUSED: uncommitted changes — commit or discard them before landing");
     }
     git(worktree, &["fetch", "origin"])?;
@@ -565,7 +563,7 @@ pub fn list(repo: &Path) -> Result<Vec<Entry>> {
                 // Skip the main checkout — it is not session-owned and must
                 // never be offered to a removal path.
                 if p != repo && branch.starts_with(BRANCH_PREFIX) {
-                    let clean = git(&p, &["status", "--porcelain"])
+                    let clean = git(&p, &["--no-optional-locks", "status", "--porcelain"])
                         .map(|s| s.is_empty())
                         .unwrap_or(false);
                     let ahead = git(&p, &["rev-list", "--count", "@{upstream}..HEAD"])

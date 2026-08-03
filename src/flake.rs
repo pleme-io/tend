@@ -1128,11 +1128,25 @@ pub(crate) fn git_pull_ff(repo_path: &Path, repo: &str, quiet: bool) -> Result<(
 
 fn ensure_clean(repo_path: &Path) -> Result<()> {
     let output = Command::new("git")
-        .args(["status", "--porcelain"])
+        .args(["--no-optional-locks", "status", "--porcelain"])
         .current_dir(repo_path)
         .output()
         .with_context(|| format!("checking git status in {}", repo_path.display()))?;
 
+    // ── ★ A FAILED STATUS IS NOT A CLEAN TREE ────────────────────────────
+    // Only stdout was read. A `git status` that FAILS — dubious ownership
+    // under a daemon uid, a corrupt index, not-a-repo, a stranded
+    // index.lock — exits non-zero with EMPTY stdout, which read as "no
+    // changes". The updater then proceeded to overwrite an operator's
+    // uncommitted flake.lock, on the strength of a question that was never
+    // answered.
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!(
+            "could not determine cleanliness: git status failed: {}",
+            stderr.trim()
+        );
+    }
     if !output.stdout.is_empty() {
         bail!("working tree is dirty");
     }
@@ -1141,11 +1155,17 @@ fn ensure_clean(repo_path: &Path) -> Result<()> {
 
 fn check_repo_dirty(repo_path: &Path) -> Result<bool> {
     let output = Command::new("git")
-        .args(["status", "--porcelain"])
+        .args(["--no-optional-locks", "status", "--porcelain"])
         .current_dir(repo_path)
         .output()
         .with_context(|| format!("checking git status in {}", repo_path.display()))?;
 
+    // Same rule as `ensure_clean`: an unanswerable question is not a "no".
+    // Reported as DIRTY rather than clean, because the caller uses this to
+    // decide whether it is safe to write.
+    if !output.status.success() {
+        return Ok(true);
+    }
     let changes = String::from_utf8_lossy(&output.stdout);
     // Filter out build artifacts (target/, node_modules/, etc.)
     let has_real_changes = changes.lines().any(|line| {
@@ -1218,6 +1238,61 @@ pub(crate) fn find_cargo_lock_repos(workspace: &Workspace) -> Result<Vec<String>
 
 #[cfg(test)]
 mod tests {
+
+    /// ── ★ tend MUST NOT STRAND THE LOCK IT THEN BLAMES ──────────────────
+    /// Six `git status --porcelain` call sites ran WITHOUT
+    /// `--no-optional-locks`, so tend's own read-only sweep across every
+    /// repo took `.git/index.lock` — and `host_health.rs` separately
+    /// documents the resulting wedges while explicitly declining to
+    /// attribute them, describing exactly this sweep's shape. A tool
+    /// mitigating a wedge it creates.
+    ///
+    /// Red run: drop the flag from any one site and this names the file.
+    #[test]
+    fn every_git_status_declines_the_optional_lock() {
+        for (name, src) in [
+            ("flake.rs", include_str!("flake.rs")),
+            ("git.rs", include_str!("git.rs")),
+            ("sync.rs", include_str!("sync.rs")),
+            ("worktree.rs", include_str!("worktree.rs")),
+        ] {
+            for line in src
+                .lines()
+                .filter(|l| !l.trim_start().starts_with("//"))
+                .filter(|l| l.contains("\"status\", \"--porcelain\""))
+            {
+                assert!(
+                    line.contains("--no-optional-locks"),
+                    "{name}: a read-only status must not take index.lock: {}",
+                    line.trim()
+                );
+            }
+        }
+    }
+
+    /// A `git status` that FAILS exits non-zero with empty stdout, which
+    /// the old code read as "no changes". The updater then overwrote an
+    /// operator's uncommitted flake.lock on the strength of a question
+    /// that was never answered.
+    #[test]
+    fn a_failed_status_is_never_read_as_clean() {
+        let src = include_str!("flake.rs");
+        let f = src
+            .split("fn ensure_clean")
+            .nth(1)
+            .expect("ensure_clean exists");
+        let body = &f[..f.find("\n}").unwrap_or(f.len())];
+        let code: String = body
+            .lines()
+            .filter(|l| !l.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            code.contains("output.status.success()"),
+            "ensure_clean must consult the exit status — empty stdout from a \
+             FAILED status is not an empty diff"
+        );
+    }
 
     /// ── ★ EVERY FLAKE WRITER GOES THROUGH THE ONE GATE ──────────────────
     /// Three paths in tend commit-and-push a flake change: this file's

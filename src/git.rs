@@ -197,7 +197,7 @@ impl GitOps for SystemGitOps {
 
     fn is_clean(&self, repo_dir: &Path) -> Result<bool> {
         let output = Command::new("git")
-            .args(["status", "--porcelain"])
+            .args(["--no-optional-locks", "status", "--porcelain"])
             .current_dir(repo_dir)
             .output()
             .context("running git status --porcelain")?;
