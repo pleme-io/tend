@@ -3295,8 +3295,8 @@ dependencies = [
 
 [[package]]
 name = "shikumi"
-version = "0.1.482"
-source = "git+https://github.com/pleme-io/shikumi#e33fc72f62a6fc95820ae81cd07e67d0ca6a8603"
+version = "0.1.483"
+source = "git+https://github.com/pleme-io/shikumi#f499f44aee33556be66285e8de022f7bf7cbb144"
 dependencies = [
  "arc-swap",
  "async-trait",
