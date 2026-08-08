@@ -185,7 +185,7 @@ dependencies = [
  "serde_json",
  "serde_nanos",
  "serde_repr",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "time",
  "tokio",
  "tokio-rustls",
@@ -221,9 +221,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.91"
+version = "0.1.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae36dc4177970ef04fde5178d3e2429882def40e57a451f919c098f72baa6cec"
+checksum = "82f6aeea286b8eb4dd3431a1be1b59d290ace00f5bfd8e2a159bc2a05e2c1667"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -347,9 +347,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.4.0"
+version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5add81bb678e6cb321aff7fa0dc7689ad82b112dbc032cea19f91d6b8e3582b9"
+checksum = "5d262e149917187838d5b42777c8253bcb64500067342904e7d429499a6f277e"
 dependencies = [
  "find-msvc-tools",
  "shlex",
@@ -394,9 +394,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.6.5"
+version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "301b56658598e48f3648647ac6fc887be7e7108eddfa4e9b63fcf3ec58c0cadf"
+checksum = "473c7e07f409a8d772161724aa8db6a765a2532a70f9667eeb7b49d3d02fbdca"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -404,9 +404,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.6.5"
+version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94a65403d1a1bd28f7dc68eb8506e8874808ee5eecb59298de588e2e1407a078"
+checksum = "7b48fea5a88e9ae728a2dcbedbfc0e730f7d60da42e1cb049a83c9fb8b789889"
 dependencies = [
  "anstream",
  "anstyle",
@@ -899,9 +899,9 @@ dependencies = [
 
 [[package]]
 name = "find-msvc-tools"
-version = "0.1.9"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
+checksum = "26b73573e6edcd2af0cdf47bd6cb58f0b3839491263c314eaad1ccf24430e1de"
 
 [[package]]
 name = "fixedbitset"
@@ -1049,40 +1049,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "gen-macros"
-version = "0.1.34"
-source = "git+https://github.com/pleme-io/gen#c2f80f9adb7bef183527872e9aced10ad07a6072"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
 name = "gen-platform"
 version = "0.1.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "340242b11b413b24644f55a9dd7ffd05e371910a738ab52981a03a6ffedf6783"
 dependencies = [
- "gen-macros 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",
- "gen-types 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gen-macros",
+ "gen-types",
  "inventory",
  "serde",
  "serde_json",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "gen-platform"
-version = "0.1.34"
-source = "git+https://github.com/pleme-io/gen#c2f80f9adb7bef183527872e9aced10ad07a6072"
-dependencies = [
- "gen-macros 0.1.34 (git+https://github.com/pleme-io/gen)",
- "gen-types 0.1.34 (git+https://github.com/pleme-io/gen)",
- "inventory",
- "serde",
- "serde_json",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -1097,21 +1074,7 @@ dependencies = [
  "inventory",
  "serde",
  "serde_json",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "gen-types"
-version = "0.1.34"
-source = "git+https://github.com/pleme-io/gen#c2f80f9adb7bef183527872e9aced10ad07a6072"
-dependencies = [
- "blake3",
- "chrono",
- "indexmap",
- "inventory",
- "serde",
- "serde_json",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -1612,9 +1575,9 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "js-sys"
-version = "0.3.103"
+version = "0.3.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53b44bfcdb3f8d5837a46dae1ca9660a837176eee74a28b229bc626816589102"
+checksum = "0e0c1080212aad755ea003d18543e8768dd432c48819efd73a7bf1e39b7a5a3a"
 dependencies = [
  "cfg-if",
  "futures-util",
@@ -1643,7 +1606,7 @@ dependencies = [
  "pest_derive",
  "regex",
  "serde_json",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -1677,7 +1640,7 @@ dependencies = [
  "kanshou-derive",
  "serde",
  "serde_json",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tracing",
 ]
@@ -1755,7 +1718,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tokio-util",
  "tower",
@@ -1778,7 +1741,7 @@ dependencies = [
  "serde",
  "serde-value",
  "serde_json",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -1817,7 +1780,7 @@ dependencies = [
  "pin-project",
  "serde",
  "serde_json",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tokio-util",
  "tracing",
@@ -2255,7 +2218,7 @@ dependencies = [
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.12"
+version = "0.3.13"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -2300,7 +2263,7 @@ dependencies = [
  "shigoto-types",
  "shikumi",
  "tempfile",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "todoku",
  "tokio",
  "toml",
@@ -2375,7 +2338,7 @@ dependencies = [
  "memchr",
  "parking_lot",
  "protobuf",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -2428,7 +2391,7 @@ dependencies = [
  "rustc-hash 2.1.3",
  "rustls",
  "socket2",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tracing",
  "web-time",
@@ -2450,7 +2413,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "slab",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tinyvec",
  "tracing",
  "web-time",
@@ -2593,7 +2556,7 @@ checksum = "a4e608c6638b9c18977b00b475ac1f28d14e84b27d8d42f70e0bf1e3dec127ac"
 dependencies = [
  "getrandom 0.2.17",
  "libredox",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -2720,7 +2683,7 @@ dependencies = [
  "schemars 1.2.2",
  "serde",
  "serde_json",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tokio-util",
  "tracing",
@@ -2903,7 +2866,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml_ng",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -3206,29 +3169,29 @@ dependencies = [
 
 [[package]]
 name = "shigoto-budget"
-version = "0.1.14"
-source = "git+https://github.com/pleme-io/shigoto#adb37daf549f7b874fc1d0a032fabb9c75f7525e"
+version = "0.1.15"
+source = "git+https://github.com/pleme-io/shigoto#d2cce119951154798ac995d14e6c0c11a95ec89c"
 dependencies = [
  "serde",
  "shigoto-types",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
 name = "shigoto-dag"
-version = "0.1.14"
-source = "git+https://github.com/pleme-io/shigoto#adb37daf549f7b874fc1d0a032fabb9c75f7525e"
+version = "0.1.15"
+source = "git+https://github.com/pleme-io/shigoto#d2cce119951154798ac995d14e6c0c11a95ec89c"
 dependencies = [
  "petgraph",
  "serde",
  "shigoto-types",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
 name = "shigoto-emit"
-version = "0.1.14"
-source = "git+https://github.com/pleme-io/shigoto#adb37daf549f7b874fc1d0a032fabb9c75f7525e"
+version = "0.1.15"
+source = "git+https://github.com/pleme-io/shigoto#d2cce119951154798ac995d14e6c0c11a95ec89c"
 dependencies = [
  "async-trait",
  "serde",
@@ -3239,8 +3202,8 @@ dependencies = [
 
 [[package]]
 name = "shigoto-gate"
-version = "0.1.14"
-source = "git+https://github.com/pleme-io/shigoto#adb37daf549f7b874fc1d0a032fabb9c75f7525e"
+version = "0.1.15"
+source = "git+https://github.com/pleme-io/shigoto#d2cce119951154798ac995d14e6c0c11a95ec89c"
 dependencies = [
  "shigoto-dag",
  "shigoto-types",
@@ -3248,8 +3211,8 @@ dependencies = [
 
 [[package]]
 name = "shigoto-retry"
-version = "0.1.14"
-source = "git+https://github.com/pleme-io/shigoto#adb37daf549f7b874fc1d0a032fabb9c75f7525e"
+version = "0.1.15"
+source = "git+https://github.com/pleme-io/shigoto#d2cce119951154798ac995d14e6c0c11a95ec89c"
 dependencies = [
  "serde",
  "shigoto-types",
@@ -3257,8 +3220,8 @@ dependencies = [
 
 [[package]]
 name = "shigoto-scheduler"
-version = "0.1.14"
-source = "git+https://github.com/pleme-io/shigoto#adb37daf549f7b874fc1d0a032fabb9c75f7525e"
+version = "0.1.15"
+source = "git+https://github.com/pleme-io/shigoto#d2cce119951154798ac995d14e6c0c11a95ec89c"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3271,44 +3234,44 @@ dependencies = [
  "shigoto-gate",
  "shigoto-retry",
  "shigoto-types",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tracing",
 ]
 
 [[package]]
 name = "shigoto-types"
-version = "0.1.14"
-source = "git+https://github.com/pleme-io/shigoto#adb37daf549f7b874fc1d0a032fabb9c75f7525e"
+version = "0.1.15"
+source = "git+https://github.com/pleme-io/shigoto#d2cce119951154798ac995d14e6c0c11a95ec89c"
 dependencies = [
  "async-trait",
  "blake3",
  "chrono",
- "gen-platform 0.1.34 (git+https://github.com/pleme-io/gen)",
- "gen-types 0.1.34 (git+https://github.com/pleme-io/gen)",
+ "gen-platform",
+ "gen-types",
  "hex",
  "schemars 0.8.22",
  "serde",
  "serde_json",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
 name = "shikumi"
-version = "0.1.483"
-source = "git+https://github.com/pleme-io/shikumi#f499f44aee33556be66285e8de022f7bf7cbb144"
+version = "0.1.496"
+source = "git+https://github.com/pleme-io/shikumi#d2d30b8d6611005e173304547e543ba72e504368"
 dependencies = [
  "arc-swap",
  "async-trait",
  "clap",
  "figment",
- "gen-platform 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",
- "gen-types 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gen-platform",
+ "gen-types",
  "notify",
  "serde",
  "serde_json",
  "serde_yaml",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tracing",
 ]
 
@@ -3505,11 +3468,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.19"
+version = "2.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09a43598840e33d5b0331f38c5e30d13bb11c11210a4b58f0d9b18a5a5eefcd9"
+checksum = "ec86235f5fcc2a73650310756d2ac5b138a5780bbbdfae3eeccec992c435ba4f"
 dependencies = [
- "thiserror-impl 2.0.19",
+ "thiserror-impl 2.0.20",
 ]
 
 [[package]]
@@ -3525,9 +3488,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.19"
+version = "2.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43cbfe0cf76104d42a574802844187e84a305e531ed54455f11fbde0f10541cd"
+checksum = "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3607,7 +3570,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tracing",
  "url",
@@ -3887,14 +3850,14 @@ dependencies = [
 
 [[package]]
 name = "tsunagu"
-version = "0.1.5"
-source = "git+https://github.com/pleme-io/tsunagu#d069a1abf1c3b89c7ffb227594d368c4188a6cd8"
+version = "0.1.6"
+source = "git+https://github.com/pleme-io/tsunagu#9e2c4494a3b82fa65e91646d2a48ceadc8d1f156"
 dependencies = [
  "dirs",
  "rustix 0.38.44",
  "serde",
  "serde_json",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tracing",
 ]
@@ -4037,9 +4000,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.126"
+version = "0.2.127"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b067c0c11094aef6b7a801c1e34a26affafdf3d051dba08456b868789aaf9a4"
+checksum = "1b70935747edd64d89de3efa29d73789b806c15798f8e7dca4d8ac356b50ce70"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -4050,9 +4013,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-futures"
-version = "0.4.76"
+version = "0.4.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c62df1340f32221cb9c54d6a27b030e3dba64361d4a95bed55f9aacb44da291d"
+checksum = "6b7777d5cc23d0e91404e53ce2d5e8ec7acae3026b16233dba62cd3246457950"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
@@ -4060,9 +4023,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.126"
+version = "0.2.127"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "167ce5e579f6bcf889c4f7175a8a5a585de84e8ff93976ce393efa5f2837aab1"
+checksum = "77775f8f3f7217702089053b94958f8f54061a3f663417df76e19cbdcca29bc1"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -4070,9 +4033,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.126"
+version = "0.2.127"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3997c7839262f4ef12cf90b818d6340c18e80f263f1a94bf157d0ec4420380e"
+checksum = "e11d33f857dc2fb11b8bc75aee111aa9cbeb12cd9f25efd3d4c2a3dd4e235284"
 dependencies = [
  "bumpalo",
  "proc-macro2",
@@ -4083,18 +4046,18 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.126"
+version = "0.2.127"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc1b4cb0cc549fcf58d7dfc081778139b3d283a081644e833e84682ad71cea24"
+checksum = "7ef64dbcc55df09c7e5a46182d181c2cfa3e925f3da937ea764728b4bbb9dcbf"
 dependencies = [
  "unicode-ident",
 ]
 
 [[package]]
 name = "web-sys"
-version = "0.3.103"
+version = "0.3.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8622dcb61c0bcc9fffa6938bed81210af2da9a7e4a1a834b2e37a59b6dfb6141"
+checksum = "c435338968042f4f59a557f690a253676d47ce13ceb55d70100e7facf6620a30"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
@@ -4433,18 +4396,18 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.8.55"
+version = "0.8.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5a105cd7b140f6eeec8acff2ea38135d3cab283ada58540f629fe51e46696eb"
+checksum = "556764e583adb45a9f8d413c2a147fa7e8d821e48e12b14fd560b607998b75eb"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.8.55"
+version = "0.8.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fe976fb70c78cd64cccfe3a6fc142244e8a77b70959b30faf9d0ac37ee228eb"
+checksum = "f2ab42fc20575779bd240faa45f94a74256f755c0fa9e89f0ede20d91d0cdfc1"
 dependencies = [
  "proc-macro2",
  "quote",
