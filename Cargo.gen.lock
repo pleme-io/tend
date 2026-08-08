@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "1e4d624ce609bc80108424a51a688c5a07ed326d00225396bfc1af32c3e4ca26",
+  "cargo_lock_sha256": "6543436db8f0c18891b09650df77ebc55ed264a97f60449186253422f4a1b5a1",
   "manifest_sha256": {
-    "Cargo.toml": "35a85d8ff61f9fe6e08c92d7e939014d2e57a11330d21389119bba990d01f68c"
+    "Cargo.toml": "c473208a81119806bfc630b332a7733e04687bca3debe10d114c29031cddf418"
   },
   "target_resolves": {
     "base": {
@@ -3302,6 +3302,22 @@
           "sys_rng",
           "wasm_js"
         ]
+      },
+      "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686": {
+        "runtime_dependencies": [
+          {
+            "name": "synthesizer_core",
+            "package_key": "synthesizer-core-0.1.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
       },
       "h2-0.4.15": {
         "runtime_dependencies": [
@@ -6953,6 +6969,16 @@
             "features": [],
             "uses_default_features": true,
             "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "graphql_synthesizer",
+            "package_key": "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
             "target": null,
             "tree": "target"
           },
@@ -11413,6 +11439,11 @@
           "default",
           "proc-macro"
         ]
+      },
+      "synthesizer-core-0.1.1": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
       },
       "tempfile-3.27.0": {
         "runtime_dependencies": [
@@ -19515,6 +19546,9 @@
       "edition": "2024",
       "build_script": "build.rs"
     },
+    "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686": {
+      "edition": "2024"
+    },
     "h2-0.4.15": {
       "edition": "2021"
     },
@@ -20200,6 +20234,9 @@
     "synstructure-0.13.2": {
       "edition": "2018"
     },
+    "synthesizer-core-0.1.1": {
+      "edition": "2024"
+    },
     "system-configuration-0.7.0": {
       "edition": "2021"
     },
@@ -20442,6 +20479,7 @@
     }
   },
   "git_nar_sha256": {
+    "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686": "sha256-B/Zlbtl+tNdhX1Br9NkFq8oAl8nZJRjphCpoF+QivVA=",
     "kanshou-0.1.3-678b920bc143eee735cc70ed470104026f0ff83e": "sha256-u9//iByKnB6QE5elZxslzw1XIoE35sWTL4QIupNJqXE=",
     "kanshou-derive-0.1.3-678b920bc143eee735cc70ed470104026f0ff83e": "sha256-u9//iByKnB6QE5elZxslzw1XIoE35sWTL4QIupNJqXE=",
     "opencode-zen-0.1.2-0abd4bf91588e718f8ddd091b19cece1b6441a33": "sha256-OAu76kxVI4+uCR5V9qDueBff5nwNDqC5HqEHuXpi0hY=",

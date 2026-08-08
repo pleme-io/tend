@@ -1127,6 +1127,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "graphql-synthesizer"
+version = "0.1.1"
+source = "git+https://github.com/pleme-io/graphql-synthesizer#00094cb0bb0f863a330a4a2c398d4a0ea090c686"
+dependencies = [
+ "synthesizer-core",
+]
+
+[[package]]
 name = "h2"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2230,6 +2238,7 @@ dependencies = [
  "cron",
  "dirs",
  "futures",
+ "graphql-synthesizer",
  "http-body-util",
  "hyper",
  "hyper-util",
@@ -3416,6 +3425,12 @@ dependencies = [
  "quote",
  "syn 2.0.119",
 ]
+
+[[package]]
+name = "synthesizer-core"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d61c6a42add42ba68340770985043123fa594ad86b0a02b613bd9c0de62bf2f"
 
 [[package]]
 name = "system-configuration"
