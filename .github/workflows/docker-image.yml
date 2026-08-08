@@ -31,7 +31,11 @@ on:
 jobs:
   build-and-push:
     name: Build + push ghcr.io/pleme-io/tend (linux/amd64)
-    runs-on: ubuntu-24.04
+    # Private repo -> Camelot self-hosted; public -> free GitHub-hosted.
+    # A metered GitHub-hosted runner on a private repo exhausted the
+    # org's Actions spending limit on 2026-08-08 and blocked every
+    # private pleme-io repo. See pleme-io/actions/runner-resolve.
+    runs-on: ${{ github.event.repository.private && 'camelot-builder-pleme-eks' || 'ubuntu-latest' }}
     permissions:
       contents: read
       packages: write
