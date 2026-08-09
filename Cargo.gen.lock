@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "f12319d01c82e89d091932b1076a95c2639c63b007c5014cdd549aed11353577",
+  "cargo_lock_sha256": "da497acc81b1d962e4846dc54f4edcf6f5687e9b3f91e975af085f799a9d70a1",
   "manifest_sha256": {
-    "Cargo.toml": "564759d5e8a6b60b9ea274c8e068eadee8de5a10e67601bed5082b25d0454f68"
+    "Cargo.toml": "76048fc7d6bc946e02bf427a9c8175568bcd9c395ac82edefc581e9895aa8ea0"
   },
   "target_resolves": {
     "base": {
@@ -1297,7 +1297,7 @@
           "std"
         ]
       },
-      "cookie-0.18.1": {
+      "cookie-0.18.2": {
         "runtime_dependencies": [
           {
             "name": "percent_encoding",
@@ -1346,7 +1346,7 @@
         "runtime_dependencies": [
           {
             "name": "cookie",
-            "package_key": "cookie-0.18.1",
+            "package_key": "cookie-0.18.2",
             "kind": "normal",
             "features": [
               "percent-encode"
@@ -6866,7 +6866,7 @@
           "std"
         ]
       },
-      "pleme-tend-0.3.14": {
+      "pleme-tend-0.3.15": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -8531,7 +8531,7 @@
           },
           {
             "name": "cookie_crate",
-            "package_key": "cookie-0.18.1",
+            "package_key": "cookie-0.18.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -19330,7 +19330,7 @@
     "constant_time_eq-0.4.2": {
       "edition": "2024"
     },
-    "cookie-0.18.1": {
+    "cookie-0.18.2": {
       "edition": "2018",
       "build_script": "build.rs"
     },
@@ -19873,7 +19873,7 @@
     "pkcs8-0.10.2": {
       "edition": "2021"
     },
-    "pleme-tend-0.3.14": {
+    "pleme-tend-0.3.15": {
       "edition": "2021",
       "binaries": [
         {
