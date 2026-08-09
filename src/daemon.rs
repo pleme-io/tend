@@ -7,8 +7,8 @@ use std::time::Duration;
 use crate::kanshou_state::TendDaemonState;
 use crate::planner::{ExecutionPlan, WorkItem, WorkKind};
 use crate::{
-    display, filter_workspaces_checked, git, github, load_config, planner, reconcile, sync, watch,
-    watch_cache,
+    audit, display, filter_workspaces_checked, git, github, host_health, load_config, planner,
+    reconcile, sync, watch, watch_cache,
 };
 
 /// Options for the daemon command.
@@ -156,6 +156,56 @@ pub(crate) async fn run_with_kanshou(
 
         let workspaces = filter_workspaces_checked(&cfg.workspaces, opts.workspace.as_deref())?;
         let ws_count = workspaces.len();
+
+        // ── Reap orphaned `.git/index.lock`s before pulling anything ──
+        //
+        // **A stale lock wedges this loop for the repo that holds one, and
+        // nothing else clears it.** `reap_stale_index_locks` existed before
+        // this call site did, but it ran only from `tend status` — a command a
+        // human types. So a git process dying mid-write left a lock that
+        // survived until somebody noticed, and every cycle in between reported
+        // a healthy `proceed` while pulling nothing for that repo.
+        //
+        // Measured 2026-08-09: `pleme-io/nix` sat behind for 2h15m on a
+        // zero-byte lock from a crashed process, with `tend_pressure` returning
+        // `proceed` throughout. The node was not fresh and nothing said so.
+        //
+        // Safe to run unattended because the gate is already conservative:
+        // `find_stale_index_locks` returns empty while ANY git process is
+        // running, and a lock must exceed `stale_lock_min_age_secs` (default
+        // 120s, ~3 orders of magnitude over a real git operation). Reaping a
+        // live lock corrupts an index; waiting one more cycle costs nothing.
+        if cfg.host_health.fix {
+            let repos = daemon_repo_paths(&workspaces);
+            let host_audit = audit::AuditLog::default_path();
+            let stale = host_health::find_stale_index_locks(
+                &host_health::SystemLockProbe,
+                &repos,
+                cfg.host_health.stale_lock_min_age_secs,
+            )
+            .unwrap_or_default();
+            for l in &stale {
+                host_audit.stale_index_lock_detected(
+                    &l.repo.display().to_string(),
+                    l.age_secs,
+                    l.size_bytes,
+                );
+            }
+            if !stale.is_empty() {
+                let reaped = host_health::reap_stale_index_locks(
+                    &host_health::SystemLockProbe,
+                    &stale,
+                    &host_audit,
+                )
+                .unwrap_or_default();
+                if !opts.quiet {
+                    eprintln!(
+                        "  unwedged {} repo(s) holding a stale index.lock",
+                        reaped.len()
+                    );
+                }
+            }
+        }
 
         // Build the DAG of configured work BEFORE touching repos or the network.
         // Empty plan → nothing's wired up this cycle → silent sleep.
@@ -521,6 +571,30 @@ async fn run_nix_audit_cycle(
 /// Each configured concern becomes a WorkItem. The planner stages them
 /// by dependency. An empty plan means no workspace has any concern
 /// enabled — the daemon then sleeps silently until the next tick.
+/// Every repo directory the daemon manages this cycle, for the stale-lock
+/// sweep.
+///
+/// One level under each workspace's `base_dir` — the same shape `tend status`
+/// walks. A path that is not a git repo is harmless: `find_stale_index_locks`
+/// only looks for `<repo>/.git/index.lock` and skips what has none.
+fn daemon_repo_paths(workspaces: &[&crate::config::Workspace]) -> Vec<PathBuf> {
+    let mut repos = Vec::new();
+    for ws in workspaces {
+        let Ok(base) = ws.resolved_base_dir() else {
+            continue;
+        };
+        let Ok(entries) = std::fs::read_dir(&base) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            if e.file_type().is_ok_and(|t| t.is_dir()) {
+                repos.push(e.path());
+            }
+        }
+    }
+    repos
+}
+
 fn build_plan(workspaces: &[&crate::config::Workspace], pull: bool, fetch: bool) -> ExecutionPlan {
     let mut items: Vec<WorkItem> = Vec::new();
     for ws in workspaces {
@@ -577,6 +651,49 @@ fn now_unix_ms() -> u64 {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    /// **The daemon must SEE the repos it manages, or the stale-lock sweep it
+    /// now runs has nothing to sweep.**
+    ///
+    /// This is the half that would fail silently: `find_stale_index_locks`
+    /// returns `Ok(vec![])` for an empty repo list, so a `daemon_repo_paths`
+    /// that found nothing would leave the reap a no-op forever and every
+    /// cycle would still report healthy. The bug it guards against is
+    /// therefore invisible by construction — which is exactly why it is
+    /// asserted rather than assumed.
+    #[test]
+    fn the_daemon_enumerates_the_repos_under_each_workspace() {
+        let base = tempfile::tempdir().expect("temp dir");
+        std::fs::create_dir_all(base.path().join("repo-a")).unwrap();
+        std::fs::create_dir_all(base.path().join("repo-b")).unwrap();
+        // A stray FILE beside them must not be reported as a repo.
+        std::fs::write(base.path().join("README.md"), "x").unwrap();
+
+        let mut ws = crate::config::Workspace::test_default("probe");
+        ws.base_dir = base.path().to_string_lossy().into_owned();
+        let mut found = daemon_repo_paths(&[&ws]);
+        found.sort();
+
+        let names: Vec<String> = found
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            names,
+            vec!["repo-a".to_string(), "repo-b".to_string()],
+            "both repo dirs, and the loose file is not one",
+        );
+    }
+
+    /// A workspace whose `base_dir` does not exist must not abort the sweep —
+    /// a daemon that panicked on an unconfigured workspace would stop pulling
+    /// every OTHER workspace too.
+    #[test]
+    fn a_missing_base_dir_is_skipped_rather_than_fatal() {
+        let mut ws = crate::config::Workspace::test_default("probe");
+        ws.base_dir = "/nonexistent/path/that/is/not/there".to_string();
+        assert!(daemon_repo_paths(&[&ws]).is_empty());
+    }
 
     #[test]
     fn read_token_file_trims_whitespace_and_newline() {

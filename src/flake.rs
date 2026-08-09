@@ -157,10 +157,7 @@ fn failure_reason(stderr: &str, mode: &str) -> Option<String> {
 /// Run `nix flake check --no-build`, optionally `--impure`, bounded by the
 /// subprocess deadline. Shares one argument list so the pure and impure
 /// arms of `verify_flake_evaluates` cannot drift.
-fn run_flake_check(
-    repo_path: &std::path::Path,
-    impure: bool,
-) -> Result<std::process::Output> {
+fn run_flake_check(repo_path: &std::path::Path, impure: bool) -> Result<std::process::Output> {
     let mut args = vec!["flake", "check", "--no-build", "--no-warn-dirty"];
     if impure {
         args.push("--impure");
