@@ -51,6 +51,11 @@ name = "tend"
 path = "src/main.rs"
 
 [dependencies]
+# okiba (置き場) — XDG tier resolution where a RELATIVE override is ignored
+# per spec rather than resolved against the cwd. Replaced a hand-rolled
+# resolver that was copied byte-identically into three repos; tend WRITES
+# this cache and codesearch/zoekt-mcp READ it, so they must agree.
+okiba = "0.1"
 regex = "1"
 clap = { version = "4.5", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }

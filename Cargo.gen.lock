@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "da497acc81b1d962e4846dc54f4edcf6f5687e9b3f91e975af085f799a9d70a1",
+  "cargo_lock_sha256": "779841bd8a2c0f6928042c50be6879ccad25f0dd9b9f910a4c562d9ab9ad5664",
   "manifest_sha256": {
-    "Cargo.toml": "76048fc7d6bc946e02bf427a9c8175568bcd9c395ac82edefc581e9895aa8ea0"
+    "Cargo.toml": "711d27ba1e22e9d86238b1d5fc93f2717c672fc30fbf3b9569d7c96dcd1d564a"
   },
   "target_resolves": {
     "base": {
@@ -6294,6 +6294,11 @@
           "xcoff"
         ]
       },
+      "okiba-0.1.1": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
       "once_cell-1.21.4": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -7066,6 +7071,16 @@
           {
             "name": "object",
             "package_key": "object-0.36.7",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "okiba",
+            "package_key": "okiba-0.1.1",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -19798,6 +19813,9 @@
     "object-0.36.7": {
       "edition": "2018",
       "build_script": "build.rs"
+    },
+    "okiba-0.1.1": {
+      "edition": "2024"
     },
     "once_cell-1.21.4": {
       "edition": "2021"
