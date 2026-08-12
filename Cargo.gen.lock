@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "779841bd8a2c0f6928042c50be6879ccad25f0dd9b9f910a4c562d9ab9ad5664",
+  "cargo_lock_sha256": "6d52adb9133b78ab53a8566cea778fa57189c57c0c3e1f8d9217b61ba371fb48",
   "manifest_sha256": {
-    "Cargo.toml": "711d27ba1e22e9d86238b1d5fc93f2717c672fc30fbf3b9569d7c96dcd1d564a"
+    "Cargo.toml": "84150f911e6b054fd7211f4c2962704a4ccb8ece44d17a458f1fb0ce728d5f6a"
   },
   "target_resolves": {
     "base": {
@@ -284,7 +284,7 @@
           },
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -382,7 +382,7 @@
           },
           {
             "name": "futures_util",
-            "package_key": "futures-util-0.3.33",
+            "package_key": "futures-util-0.3.34",
             "kind": "normal",
             "features": [
               "sink",
@@ -435,7 +435,7 @@
           },
           {
             "name": "portable_atomic",
-            "package_key": "portable-atomic-1.14.0",
+            "package_key": "portable-atomic-1.15.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -495,7 +495,7 @@
           },
           {
             "name": "rustls_webpki",
-            "package_key": "rustls-webpki-0.103.13",
+            "package_key": "rustls-webpki-0.103.14",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -695,7 +695,7 @@
           },
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -2503,11 +2503,11 @@
           "std"
         ]
       },
-      "futures-0.3.33": {
+      "futures-0.3.34": {
         "runtime_dependencies": [
           {
             "name": "futures_channel",
-            "package_key": "futures-channel-0.3.33",
+            "package_key": "futures-channel-0.3.34",
             "kind": "normal",
             "features": [
               "sink"
@@ -2519,7 +2519,7 @@
           },
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -2529,7 +2529,7 @@
           },
           {
             "name": "futures_executor",
-            "package_key": "futures-executor-0.3.33",
+            "package_key": "futures-executor-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -2539,7 +2539,7 @@
           },
           {
             "name": "futures_io",
-            "package_key": "futures-io-0.3.33",
+            "package_key": "futures-io-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -2549,7 +2549,7 @@
           },
           {
             "name": "futures_sink",
-            "package_key": "futures-sink-0.3.33",
+            "package_key": "futures-sink-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -2559,7 +2559,7 @@
           },
           {
             "name": "futures_task",
-            "package_key": "futures-task-0.3.33",
+            "package_key": "futures-task-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -2569,7 +2569,7 @@
           },
           {
             "name": "futures_util",
-            "package_key": "futures-util-0.3.33",
+            "package_key": "futures-util-0.3.34",
             "kind": "normal",
             "features": [
               "sink"
@@ -2590,11 +2590,11 @@
           "std"
         ]
       },
-      "futures-channel-0.3.33": {
+      "futures-channel-0.3.34": {
         "runtime_dependencies": [
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -2604,7 +2604,7 @@
           },
           {
             "name": "futures_sink",
-            "package_key": "futures-sink-0.3.33",
+            "package_key": "futures-sink-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -2622,7 +2622,7 @@
           "std"
         ]
       },
-      "futures-core-0.3.33": {
+      "futures-core-0.3.34": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": [
@@ -2631,11 +2631,11 @@
           "std"
         ]
       },
-      "futures-executor-0.3.33": {
+      "futures-executor-0.3.34": {
         "runtime_dependencies": [
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -2645,7 +2645,7 @@
           },
           {
             "name": "futures_task",
-            "package_key": "futures-task-0.3.33",
+            "package_key": "futures-task-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -2655,7 +2655,7 @@
           },
           {
             "name": "futures_util",
-            "package_key": "futures-util-0.3.33",
+            "package_key": "futures-util-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -2669,14 +2669,14 @@
           "std"
         ]
       },
-      "futures-io-0.3.33": {
+      "futures-io-0.3.34": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": [
           "std"
         ]
       },
-      "futures-macro-0.3.33": {
+      "futures-macro-0.3.34": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -2700,7 +2700,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-2.0.119",
+            "package_key": "syn-3.0.3",
             "kind": "normal",
             "features": [
               "full"
@@ -2714,7 +2714,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "futures-sink-0.3.33": {
+      "futures-sink-0.3.34": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": [
@@ -2723,7 +2723,7 @@
           "std"
         ]
       },
-      "futures-task-0.3.33": {
+      "futures-task-0.3.34": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": [
@@ -2731,11 +2731,11 @@
           "std"
         ]
       },
-      "futures-util-0.3.33": {
+      "futures-util-0.3.34": {
         "runtime_dependencies": [
           {
             "name": "futures_channel",
-            "package_key": "futures-channel-0.3.33",
+            "package_key": "futures-channel-0.3.34",
             "kind": "normal",
             "features": [
               "std"
@@ -2747,7 +2747,7 @@
           },
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -2757,7 +2757,7 @@
           },
           {
             "name": "futures_io",
-            "package_key": "futures-io-0.3.33",
+            "package_key": "futures-io-0.3.34",
             "kind": "normal",
             "features": [
               "std"
@@ -2769,7 +2769,7 @@
           },
           {
             "name": "futures_macro",
-            "package_key": "futures-macro-0.3.33",
+            "package_key": "futures-macro-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -2779,7 +2779,7 @@
           },
           {
             "name": "futures_sink",
-            "package_key": "futures-sink-0.3.33",
+            "package_key": "futures-sink-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -2789,7 +2789,7 @@
           },
           {
             "name": "futures_task",
-            "package_key": "futures-task-0.3.33",
+            "package_key": "futures-task-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -3353,7 +3353,7 @@
           },
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -3363,7 +3363,7 @@
           },
           {
             "name": "futures_sink",
-            "package_key": "futures-sink-0.3.33",
+            "package_key": "futures-sink-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -3695,7 +3695,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "http-body-util-0.1.4": {
+      "http-body-util-0.1.5": {
         "runtime_dependencies": [
           {
             "name": "bytes",
@@ -3709,7 +3709,7 @@
           },
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -3790,7 +3790,7 @@
           },
           {
             "name": "futures_channel",
-            "package_key": "futures-channel-0.3.33",
+            "package_key": "futures-channel-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3800,7 +3800,7 @@
           },
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3923,7 +3923,7 @@
           "server"
         ]
       },
-      "hyper-http-proxy-1.1.1": {
+      "hyper-http-proxy-1.2.0": {
         "runtime_dependencies": [
           {
             "name": "bytes",
@@ -3937,7 +3937,7 @@
           },
           {
             "name": "futures_util",
-            "package_key": "futures-util-0.3.33",
+            "package_key": "futures-util-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -4964,11 +4964,11 @@
           "v1_31"
         ]
       },
-      "kanshou-0.1.3-678b920bc143eee735cc70ed470104026f0ff83e": {
+      "kanshou-0.1.4-f128ba0414870ef286df872af95dc0edf04dadc9": {
         "runtime_dependencies": [
           {
             "name": "kanshou_derive",
-            "package_key": "kanshou-derive-0.1.3-678b920bc143eee735cc70ed470104026f0ff83e",
+            "package_key": "kanshou-derive-0.1.4-f128ba0414870ef286df872af95dc0edf04dadc9",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5042,7 +5042,7 @@
           "derive"
         ]
       },
-      "kanshou-derive-0.1.3-678b920bc143eee735cc70ed470104026f0ff83e": {
+      "kanshou-derive-0.1.4-f128ba0414870ef286df872af95dc0edf04dadc9": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -5190,7 +5190,7 @@
           },
           {
             "name": "futures",
-            "package_key": "futures-0.3.33",
+            "package_key": "futures-0.3.34",
             "kind": "normal",
             "features": [
               "std"
@@ -5232,7 +5232,7 @@
           },
           {
             "name": "http_body_util",
-            "package_key": "http-body-util-0.1.4",
+            "package_key": "http-body-util-0.1.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5747,7 +5747,7 @@
           },
           {
             "name": "futures",
-            "package_key": "futures-0.3.33",
+            "package_key": "futures-0.3.34",
             "kind": "normal",
             "features": [
               "async-await"
@@ -6871,7 +6871,7 @@
           "std"
         ]
       },
-      "pleme-tend-0.3.15": {
+      "pleme-tend-0.3.16": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -6969,7 +6969,7 @@
           },
           {
             "name": "futures",
-            "package_key": "futures-0.3.33",
+            "package_key": "futures-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6989,7 +6989,7 @@
           },
           {
             "name": "http_body_util",
-            "package_key": "http-body-util-0.1.4",
+            "package_key": "http-body-util-0.1.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7036,7 +7036,7 @@
           },
           {
             "name": "kanshou",
-            "package_key": "kanshou-0.1.3-678b920bc143eee735cc70ed470104026f0ff83e",
+            "package_key": "kanshou-0.1.4-f128ba0414870ef286df872af95dc0edf04dadc9",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7330,7 +7330,7 @@
           },
           {
             "name": "shikumi",
-            "package_key": "shikumi-0.1.497-7a1de4c4efeeb16fe3e7cb9c0d400e8086e09846",
+            "package_key": "shikumi-0.1.513-311b238257712eb8c2cd06037af03b3fca5efc2d",
             "kind": "normal",
             "features": [
               "cli"
@@ -7416,7 +7416,7 @@
           },
           {
             "name": "tsunagu",
-            "package_key": "tsunagu-0.1.6-9e2c4494a3b82fa65e91646d2a48ceadc8d1f156",
+            "package_key": "tsunagu-0.1.7-da81e503e093b05ead64f127b121cd7b06f06a3a",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7443,7 +7443,7 @@
           "operator"
         ]
       },
-      "portable-atomic-1.14.0": {
+      "portable-atomic-1.15.0": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": [
@@ -8576,7 +8576,7 @@
           },
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -8586,7 +8586,7 @@
           },
           {
             "name": "futures_util",
-            "package_key": "futures-util-0.3.33",
+            "package_key": "futures-util-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -8626,7 +8626,7 @@
           },
           {
             "name": "http_body_util",
-            "package_key": "http-body-util-0.1.4",
+            "package_key": "http-body-util-0.1.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8957,7 +8957,7 @@
           },
           {
             "name": "futures",
-            "package_key": "futures-0.3.33",
+            "package_key": "futures-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -9299,7 +9299,7 @@
           },
           {
             "name": "webpki",
-            "package_key": "rustls-webpki-0.103.13",
+            "package_key": "rustls-webpki-0.103.14",
             "kind": "normal",
             "features": [
               "alloc"
@@ -9380,7 +9380,7 @@
           "web-time"
         ]
       },
-      "rustls-webpki-0.103.13": {
+      "rustls-webpki-0.103.14": {
         "runtime_dependencies": [
           {
             "name": "ring",
@@ -9484,7 +9484,7 @@
           },
           {
             "name": "futures",
-            "package_key": "futures-0.3.33",
+            "package_key": "futures-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -9494,7 +9494,7 @@
           },
           {
             "name": "http_body_util",
-            "package_key": "http-body-util-0.1.4",
+            "package_key": "http-body-util-0.1.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10961,7 +10961,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shikumi-0.1.497-7a1de4c4efeeb16fe3e7cb9c0d400e8086e09846": {
+      "shikumi-0.1.513-311b238257712eb8c2cd06037af03b3fca5efc2d": {
         "runtime_dependencies": [
           {
             "name": "arc_swap",
@@ -11394,7 +11394,7 @@
         "runtime_dependencies": [
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -12125,7 +12125,7 @@
         "runtime_dependencies": [
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12176,7 +12176,7 @@
           },
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12186,7 +12186,7 @@
           },
           {
             "name": "futures_sink",
-            "package_key": "futures-sink-0.3.33",
+            "package_key": "futures-sink-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12271,7 +12271,7 @@
           },
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12281,7 +12281,7 @@
           },
           {
             "name": "futures_sink",
-            "package_key": "futures-sink-0.3.33",
+            "package_key": "futures-sink-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12558,7 +12558,7 @@
         "runtime_dependencies": [
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12568,7 +12568,7 @@
           },
           {
             "name": "futures_util",
-            "package_key": "futures-util-0.3.33",
+            "package_key": "futures-util-0.3.34",
             "kind": "normal",
             "features": [
               "alloc"
@@ -12713,7 +12713,7 @@
           },
           {
             "name": "futures_core",
-            "package_key": "futures-core-0.3.33",
+            "package_key": "futures-core-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -12723,7 +12723,7 @@
           },
           {
             "name": "futures_util",
-            "package_key": "futures-util-0.3.33",
+            "package_key": "futures-util-0.3.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -12753,7 +12753,7 @@
           },
           {
             "name": "http_body_util",
-            "package_key": "http-body-util-0.1.4",
+            "package_key": "http-body-util-0.1.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -13262,7 +13262,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "tsunagu-0.1.6-9e2c4494a3b82fa65e91646d2a48ceadc8d1f156": {
+      "tsunagu-0.1.7-da81e503e093b05ead64f127b121cd7b06f06a3a": {
         "runtime_dependencies": [
           {
             "name": "dirs",
@@ -14193,7 +14193,7 @@
               },
               {
                 "name": "futures_channel",
-                "package_key": "futures-channel-0.3.33",
+                "package_key": "futures-channel-0.3.34",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -14203,7 +14203,7 @@
               },
               {
                 "name": "futures_util",
-                "package_key": "futures-util-0.3.33",
+                "package_key": "futures-util-0.3.34",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": false,
@@ -15041,7 +15041,7 @@
               },
               {
                 "name": "futures_channel",
-                "package_key": "futures-channel-0.3.33",
+                "package_key": "futures-channel-0.3.34",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15051,7 +15051,7 @@
               },
               {
                 "name": "futures_util",
-                "package_key": "futures-util-0.3.33",
+                "package_key": "futures-util-0.3.34",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": false,
@@ -15875,7 +15875,7 @@
               },
               {
                 "name": "futures_channel",
-                "package_key": "futures-channel-0.3.33",
+                "package_key": "futures-channel-0.3.34",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15885,7 +15885,7 @@
               },
               {
                 "name": "futures_util",
-                "package_key": "futures-util-0.3.33",
+                "package_key": "futures-util-0.3.34",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": false,
@@ -16833,7 +16833,7 @@
               },
               {
                 "name": "futures_channel",
-                "package_key": "futures-channel-0.3.33",
+                "package_key": "futures-channel-0.3.34",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16843,7 +16843,7 @@
               },
               {
                 "name": "futures_util",
-                "package_key": "futures-util-0.3.33",
+                "package_key": "futures-util-0.3.34",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": false,
@@ -17703,7 +17703,7 @@
               },
               {
                 "name": "futures_channel",
-                "package_key": "futures-channel-0.3.33",
+                "package_key": "futures-channel-0.3.34",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17713,7 +17713,7 @@
               },
               {
                 "name": "futures_util",
-                "package_key": "futures-util-0.3.33",
+                "package_key": "futures-util-0.3.34",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": false,
@@ -18559,7 +18559,7 @@
               },
               {
                 "name": "futures_channel",
-                "package_key": "futures-channel-0.3.33",
+                "package_key": "futures-channel-0.3.34",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18569,7 +18569,7 @@
               },
               {
                 "name": "futures_util",
-                "package_key": "futures-util-0.3.33",
+                "package_key": "futures-util-0.3.34",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": false,
@@ -19508,32 +19508,32 @@
     "fsevent-sys-4.1.0": {
       "edition": "2018"
     },
-    "futures-0.3.33": {
+    "futures-0.3.34": {
       "edition": "2018"
     },
-    "futures-channel-0.3.33": {
+    "futures-channel-0.3.34": {
       "edition": "2018"
     },
-    "futures-core-0.3.33": {
+    "futures-core-0.3.34": {
       "edition": "2018"
     },
-    "futures-executor-0.3.33": {
+    "futures-executor-0.3.34": {
       "edition": "2018"
     },
-    "futures-io-0.3.33": {
+    "futures-io-0.3.34": {
       "edition": "2018"
     },
-    "futures-macro-0.3.33": {
+    "futures-macro-0.3.34": {
       "edition": "2018",
       "proc_macro": true
     },
-    "futures-sink-0.3.33": {
+    "futures-sink-0.3.34": {
       "edition": "2018"
     },
-    "futures-task-0.3.33": {
+    "futures-task-0.3.34": {
       "edition": "2018"
     },
-    "futures-util-0.3.33": {
+    "futures-util-0.3.34": {
       "edition": "2018"
     },
     "gen-macros-0.1.34": {
@@ -19600,7 +19600,7 @@
     "http-body-1.1.0": {
       "edition": "2018"
     },
-    "http-body-util-0.1.4": {
+    "http-body-util-0.1.5": {
       "edition": "2018"
     },
     "httparse-1.10.1": {
@@ -19613,7 +19613,7 @@
     "hyper-1.11.0": {
       "edition": "2021"
     },
-    "hyper-http-proxy-1.1.1": {
+    "hyper-http-proxy-1.2.0": {
       "edition": "2021"
     },
     "hyper-rustls-0.27.9": {
@@ -19702,10 +19702,10 @@
       "build_script": "build.rs",
       "links": "k8s-openapi-0.24.0"
     },
-    "kanshou-0.1.3-678b920bc143eee735cc70ed470104026f0ff83e": {
+    "kanshou-0.1.4-f128ba0414870ef286df872af95dc0edf04dadc9": {
       "edition": "2024"
     },
-    "kanshou-derive-0.1.3-678b920bc143eee735cc70ed470104026f0ff83e": {
+    "kanshou-derive-0.1.4-f128ba0414870ef286df872af95dc0edf04dadc9": {
       "edition": "2024",
       "proc_macro": true
     },
@@ -19891,7 +19891,7 @@
     "pkcs8-0.10.2": {
       "edition": "2021"
     },
-    "pleme-tend-0.3.15": {
+    "pleme-tend-0.3.16": {
       "edition": "2021",
       "binaries": [
         {
@@ -19900,7 +19900,7 @@
         }
       ]
     },
-    "portable-atomic-1.14.0": {
+    "portable-atomic-1.15.0": {
       "edition": "2018",
       "build_script": "build.rs"
     },
@@ -20049,7 +20049,7 @@
     "rustls-pki-types-1.15.1": {
       "edition": "2021"
     },
-    "rustls-webpki-0.103.13": {
+    "rustls-webpki-0.103.14": {
       "edition": "2021",
       "lib_target": {
         "name": "webpki",
@@ -20198,7 +20198,7 @@
     "shigoto-types-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": {
       "edition": "2024"
     },
-    "shikumi-0.1.497-7a1de4c4efeeb16fe3e7cb9c0d400e8086e09846": {
+    "shikumi-0.1.513-311b238257712eb8c2cd06037af03b3fca5efc2d": {
       "edition": "2024"
     },
     "shlex-2.0.1": {
@@ -20377,7 +20377,7 @@
     "tryhard-0.5.2": {
       "edition": "2018"
     },
-    "tsunagu-0.1.6-9e2c4494a3b82fa65e91646d2a48ceadc8d1f156": {
+    "tsunagu-0.1.7-da81e503e093b05ead64f127b121cd7b06f06a3a": {
       "edition": "2024"
     },
     "twox-hash-1.6.3": {
@@ -20498,8 +20498,8 @@
   },
   "git_nar_sha256": {
     "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686": "sha256-B/Zlbtl+tNdhX1Br9NkFq8oAl8nZJRjphCpoF+QivVA=",
-    "kanshou-0.1.3-678b920bc143eee735cc70ed470104026f0ff83e": "sha256-u9//iByKnB6QE5elZxslzw1XIoE35sWTL4QIupNJqXE=",
-    "kanshou-derive-0.1.3-678b920bc143eee735cc70ed470104026f0ff83e": "sha256-u9//iByKnB6QE5elZxslzw1XIoE35sWTL4QIupNJqXE=",
+    "kanshou-0.1.4-f128ba0414870ef286df872af95dc0edf04dadc9": "sha256-zNMLJDAjU7ToCdDSyiy/MXiRt4603Wiq3bfxbZYIW+w=",
+    "kanshou-derive-0.1.4-f128ba0414870ef286df872af95dc0edf04dadc9": "sha256-zNMLJDAjU7ToCdDSyiy/MXiRt4603Wiq3bfxbZYIW+w=",
     "opencode-zen-0.1.2-0abd4bf91588e718f8ddd091b19cece1b6441a33": "sha256-OAu76kxVI4+uCR5V9qDueBff5nwNDqC5HqEHuXpi0hY=",
     "samba-0.1.4-be96e88607fb2b41b04cf95356c1a2b00748a27e": "sha256-SoUxWD1ljzc78Ch4vbM4kBeShS86Ohrh99GvPwNW39g=",
     "shigoto-budget-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
@@ -20509,9 +20509,9 @@
     "shigoto-retry-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
     "shigoto-scheduler-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
     "shigoto-types-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
-    "shikumi-0.1.497-7a1de4c4efeeb16fe3e7cb9c0d400e8086e09846": "sha256-9wdaTvgglCAjoYqh02S7M6n91sgOOZxthKjjJvqBiyY=",
+    "shikumi-0.1.513-311b238257712eb8c2cd06037af03b3fca5efc2d": "sha256-qGu1UW0bosCndDhO8RlXqzLB4OB80elyQH/vTCyPSTk=",
     "todoku-0.1.1-6fd4bab4fb048c84571ffcb31b2b81b9b6a2ba8f": "sha256-qtsSwBKWn9b1qFpCKlGDA0WbMye48yRmh+wINLqgT04=",
-    "tsunagu-0.1.6-9e2c4494a3b82fa65e91646d2a48ceadc8d1f156": "sha256-M/V1Lqa+OXHouX2QmbxRgJP1v1hJXAju2e+H2u7DnP8="
+    "tsunagu-0.1.7-da81e503e093b05ead64f127b121cd7b06f06a3a": "sha256-K8dr02FWdGTe5HI84cDXitrBB4S6fO/+AvLvUB+4l3I="
   },
   "flake_metadata": {}
 }

@@ -35,7 +35,7 @@ resolver = "3"
 # it moving under us.
 rust-version = "1.97.0"
 name = "pleme-tend"
-version = "0.3.15"
+version = "0.3.16"
 edition = "2021"
 description = "Workspace repository manager — keeps your repos in sync"
 license = "MIT"
