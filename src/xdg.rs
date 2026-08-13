@@ -22,17 +22,56 @@
 /// from here.
 pub(crate) fn resolver() -> okiba::Okiba {
     okiba::Okiba::from_env("tend", |k| match k {
-        "HOME" => std::env::var("HOME")
-            .ok()
-            .or_else(|| dirs::home_dir().map(|p| p.to_string_lossy().into_owned())),
+        "HOME" => home_or_passwd(
+            std::env::var("HOME").ok(),
+            dirs::home_dir().map(|p| p.to_string_lossy().into_owned()),
+        ),
         other => std::env::var(other).ok(),
     })
+}
+
+/// `$HOME`, falling back to the passwd entry — treating an EMPTY `$HOME` as
+/// unset rather than as a value.
+///
+/// The `!is_empty()` filter is load-bearing and was missing. `env::var` returns
+/// `Ok("")` for a set-but-empty variable, so `.ok()` gave `Some("")` and the
+/// `or_else` never fired. `dirs::home_dir()` treats empty as unset and recovers
+/// via `getpwuid`, so dropping through to it is the pre-existing behaviour;
+/// without the filter, `HOME=""` instead fell all the way past okiba's own
+/// absolute check to `/etc/xdg`, silently relocating the config.
+///
+/// Still absolute either way, so this is not the masked-branch class — it is
+/// an unintended behaviour change that arrived WITH the fix for it, which is
+/// the kind of thing only an adversarial read catches.
+fn home_or_passwd(env_home: Option<String>, passwd_home: Option<String>) -> Option<String> {
+    env_home.filter(|s| !s.is_empty()).or(passwd_home)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    /// An EMPTY $HOME must fall through to the passwd entry, not be taken as a
+    /// value. Pure, so it needs no env mutation and cannot race.
+    #[test]
+    fn an_empty_home_falls_through_to_passwd() {
+        assert_eq!(
+            home_or_passwd(Some(String::new()), Some("/home/op".into())),
+            Some("/home/op".to_string())
+        );
+        assert_eq!(
+            home_or_passwd(None, Some("/home/op".into())),
+            Some("/home/op".to_string())
+        );
+        // a real value still wins over passwd
+        assert_eq!(
+            home_or_passwd(Some("/custom".into()), Some("/home/op".into())),
+            Some("/custom".to_string())
+        );
+        // and with neither, there is nothing to offer
+        assert_eq!(home_or_passwd(Some(String::new()), None), None);
+    }
 
     /// The invariant the whole module exists for, pinned against okiba's own
     /// `from_env` seam so it runs with no process environment and cannot race
