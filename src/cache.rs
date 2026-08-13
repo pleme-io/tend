@@ -23,8 +23,12 @@ pub(crate) fn tend_cache_root() -> PathBuf {
     // `from_env` and not `for_app`.
     crate::xdg::resolver()
         .base(okiba::Tier::Cache)
-        .unwrap_or_else(|_| std::env::temp_dir())
+        .unwrap_or_else(|_| {
+            okiba::AbsPath::new(std::env::temp_dir())
+                .expect("std::env::temp_dir is absolute on every supported platform")
+        })
         .join("tend")
+        .into_path_buf()
 }
 
 fn cache_dir() -> PathBuf {

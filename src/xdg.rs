@@ -85,13 +85,13 @@ mod tests {
                 _ => None,
             });
             assert_eq!(
-                o.base(okiba::Tier::Config).unwrap(),
-                PathBuf::from("/home/u/.config"),
+                o.base(okiba::Tier::Config).unwrap().as_path(),
+                std::path::Path::new("/home/u/.config"),
                 "XDG_CONFIG_HOME={bogus:?} must fall through to $HOME, not be joined"
             );
             assert_eq!(
-                o.base(okiba::Tier::Cache).unwrap(),
-                PathBuf::from("/home/u/.cache"),
+                o.base(okiba::Tier::Cache).unwrap().as_path(),
+                std::path::Path::new("/home/u/.cache"),
                 "XDG_CACHE_HOME={bogus:?} must fall through to $HOME, not be joined"
             );
         }

@@ -820,7 +820,11 @@ impl Config {
             // fall back to the spec's SYSTEM-wide config location, which is
             // at least absolute and stable. A `tend init` there fails loudly
             // on permissions rather than silently seeding a per-cwd config.
-            .unwrap_or_else(|_| PathBuf::from("/etc/xdg/tend/config.yaml"))
+            .unwrap_or_else(|_| {
+                okiba::AbsPath::new("/etc/xdg/tend/config.yaml")
+                    .expect("the spec's system-wide config location is absolute")
+            })
+            .into_path_buf()
     }
 
     /// Generate a starter config file.

@@ -1646,7 +1646,7 @@ version = "0.1.6"
 source = "git+https://github.com/pleme-io/kanshou#de575403d5cbbb4e9126e09448345f3e8a84e2bd"
 dependencies = [
  "kanshou-derive",
- "okiba",
+ "okiba 0.2.1",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
@@ -2016,6 +2016,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb7f9cb9982c5086e786c73b7c5dcca67937ffede389cc9c92928a7ab5b01148"
 
 [[package]]
+name = "okiba"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2745781cfe55f34a9721f4e6b2ea5b154b06d7ba6b7f910a666ffedfad510cfc"
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2254,7 +2260,7 @@ dependencies = [
  "kube",
  "notify",
  "object",
- "okiba",
+ "okiba 0.3.1",
  "opencode-zen",
  "parking_lot",
  "petgraph",
@@ -3877,7 +3883,7 @@ version = "0.1.8"
 source = "git+https://github.com/pleme-io/tsunagu#b3124d92f3c5c239ef236eabe91e0aafdb53e000"
 dependencies = [
  "dirs",
- "okiba",
+ "okiba 0.2.1",
  "rustix 0.38.44",
  "serde",
  "serde_json",

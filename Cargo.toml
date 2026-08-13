@@ -55,7 +55,7 @@ path = "src/main.rs"
 # per spec rather than resolved against the cwd. Replaced a hand-rolled
 # resolver that was copied byte-identically into three repos; tend WRITES
 # this cache and codesearch/zoekt-mcp READ it, so they must agree.
-okiba = "0.2"
+okiba = "0.3"
 regex = "1"
 clap = { version = "4.5", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
