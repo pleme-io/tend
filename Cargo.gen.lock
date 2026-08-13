@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "e792d10e92001d212b327f8416c4624d996f63ed13062d12bab45eaa780ed031",
+  "cargo_lock_sha256": "221e2b5accc267c673a205433b2df687a0a6be45ed071fa967b40ef50fa2d124",
   "manifest_sha256": {
-    "Cargo.toml": "aa54dc062b6fb4f08efd4bee45550aa128e00250a170a7da429fab7f872b86c1"
+    "Cargo.toml": "42c3b1ec2895dc0443c7f8f21b826f4e47561ddfb284eccdde9cfdd384ff7584"
   },
   "target_resolves": {
     "base": {
@@ -6881,7 +6881,7 @@
           "std"
         ]
       },
-      "pleme-tend-0.3.18": {
+      "pleme-tend-0.3.19": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -7340,7 +7340,7 @@
           },
           {
             "name": "shikumi",
-            "package_key": "shikumi-0.1.523-447582d473542936c450b6a168739548c3a48b17",
+            "package_key": "shikumi-0.1.524-ee0b7aac4fad3168c2d5a3d6888112354c07a98b",
             "kind": "normal",
             "features": [
               "cli"
@@ -10971,7 +10971,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shikumi-0.1.523-447582d473542936c450b6a168739548c3a48b17": {
+      "shikumi-0.1.524-ee0b7aac4fad3168c2d5a3d6888112354c07a98b": {
         "runtime_dependencies": [
           {
             "name": "arc_swap",
@@ -19911,7 +19911,7 @@
     "pkcs8-0.10.2": {
       "edition": "2021"
     },
-    "pleme-tend-0.3.18": {
+    "pleme-tend-0.3.19": {
       "edition": "2021",
       "binaries": [
         {
@@ -20218,7 +20218,7 @@
     "shigoto-types-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": {
       "edition": "2024"
     },
-    "shikumi-0.1.523-447582d473542936c450b6a168739548c3a48b17": {
+    "shikumi-0.1.524-ee0b7aac4fad3168c2d5a3d6888112354c07a98b": {
       "edition": "2024"
     },
     "shlex-2.0.1": {
@@ -20529,7 +20529,7 @@
     "shigoto-retry-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
     "shigoto-scheduler-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
     "shigoto-types-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
-    "shikumi-0.1.523-447582d473542936c450b6a168739548c3a48b17": "sha256-YZs+C1qsOKahWNN7RuUqrlqj2fxHGCFMccAe1GWyxLk=",
+    "shikumi-0.1.524-ee0b7aac4fad3168c2d5a3d6888112354c07a98b": "sha256-jZ8IO1FHIPVGzpCYZGd3lGX1126bKZUscojQFVWRbEY=",
     "todoku-0.1.1-6fd4bab4fb048c84571ffcb31b2b81b9b6a2ba8f": "sha256-qtsSwBKWn9b1qFpCKlGDA0WbMye48yRmh+wINLqgT04=",
     "tsunagu-0.1.8-b3124d92f3c5c239ef236eabe91e0aafdb53e000": "sha256-KHa5IjTV7CbvTcCtb5MZq/z23OdJJlDEiyZ+I+5od44="
   },

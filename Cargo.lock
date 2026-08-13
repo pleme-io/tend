@@ -2233,7 +2233,7 @@ dependencies = [
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.18"
+version = "0.3.19"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3275,8 +3275,8 @@ dependencies = [
 
 [[package]]
 name = "shikumi"
-version = "0.1.523"
-source = "git+https://github.com/pleme-io/shikumi#447582d473542936c450b6a168739548c3a48b17"
+version = "0.1.524"
+source = "git+https://github.com/pleme-io/shikumi#ee0b7aac4fad3168c2d5a3d6888112354c07a98b"
 dependencies = [
  "arc-swap",
  "async-trait",
