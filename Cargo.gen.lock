@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "ea16d5af15012e199dcf305330542703afd3a695b97cefb8aded59f8202a5e18",
+  "cargo_lock_sha256": "e792d10e92001d212b327f8416c4624d996f63ed13062d12bab45eaa780ed031",
   "manifest_sha256": {
-    "Cargo.toml": "180b1baa76de40b6871c78ddc7bf880a106df139558ac9a082114f988fe8ae15"
+    "Cargo.toml": "aa54dc062b6fb4f08efd4bee45550aa128e00250a170a7da429fab7f872b86c1"
   },
   "target_resolves": {
     "base": {
@@ -6881,7 +6881,7 @@
           "std"
         ]
       },
-      "pleme-tend-0.3.17": {
+      "pleme-tend-0.3.18": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -7340,7 +7340,7 @@
           },
           {
             "name": "shikumi",
-            "package_key": "shikumi-0.1.521-111f0854aefe2c6634831b11334107b13a367dd1",
+            "package_key": "shikumi-0.1.523-447582d473542936c450b6a168739548c3a48b17",
             "kind": "normal",
             "features": [
               "cli"
@@ -7426,7 +7426,7 @@
           },
           {
             "name": "tsunagu",
-            "package_key": "tsunagu-0.1.7-da81e503e093b05ead64f127b121cd7b06f06a3a",
+            "package_key": "tsunagu-0.1.8-b3124d92f3c5c239ef236eabe91e0aafdb53e000",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10971,7 +10971,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shikumi-0.1.521-111f0854aefe2c6634831b11334107b13a367dd1": {
+      "shikumi-0.1.523-447582d473542936c450b6a168739548c3a48b17": {
         "runtime_dependencies": [
           {
             "name": "arc_swap",
@@ -13272,11 +13272,21 @@
         "build_dependencies": [],
         "features": []
       },
-      "tsunagu-0.1.7-da81e503e093b05ead64f127b121cd7b06f06a3a": {
+      "tsunagu-0.1.8-b3124d92f3c5c239ef236eabe91e0aafdb53e000": {
         "runtime_dependencies": [
           {
             "name": "dirs",
             "package_key": "dirs-6.0.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "okiba",
+            "package_key": "okiba-0.2.1",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -19901,7 +19911,7 @@
     "pkcs8-0.10.2": {
       "edition": "2021"
     },
-    "pleme-tend-0.3.17": {
+    "pleme-tend-0.3.18": {
       "edition": "2021",
       "binaries": [
         {
@@ -20208,7 +20218,7 @@
     "shigoto-types-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": {
       "edition": "2024"
     },
-    "shikumi-0.1.521-111f0854aefe2c6634831b11334107b13a367dd1": {
+    "shikumi-0.1.523-447582d473542936c450b6a168739548c3a48b17": {
       "edition": "2024"
     },
     "shlex-2.0.1": {
@@ -20387,7 +20397,7 @@
     "tryhard-0.5.2": {
       "edition": "2018"
     },
-    "tsunagu-0.1.7-da81e503e093b05ead64f127b121cd7b06f06a3a": {
+    "tsunagu-0.1.8-b3124d92f3c5c239ef236eabe91e0aafdb53e000": {
       "edition": "2024"
     },
     "twox-hash-1.6.3": {
@@ -20519,9 +20529,9 @@
     "shigoto-retry-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
     "shigoto-scheduler-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
     "shigoto-types-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
-    "shikumi-0.1.521-111f0854aefe2c6634831b11334107b13a367dd1": "sha256-SKLR6y1Sb/OCguA5qTb9ep3fJPHtIZWqPqVFdV6ta6g=",
+    "shikumi-0.1.523-447582d473542936c450b6a168739548c3a48b17": "sha256-YZs+C1qsOKahWNN7RuUqrlqj2fxHGCFMccAe1GWyxLk=",
     "todoku-0.1.1-6fd4bab4fb048c84571ffcb31b2b81b9b6a2ba8f": "sha256-qtsSwBKWn9b1qFpCKlGDA0WbMye48yRmh+wINLqgT04=",
-    "tsunagu-0.1.7-da81e503e093b05ead64f127b121cd7b06f06a3a": "sha256-K8dr02FWdGTe5HI84cDXitrBB4S6fO/+AvLvUB+4l3I="
+    "tsunagu-0.1.8-b3124d92f3c5c239ef236eabe91e0aafdb53e000": "sha256-KHa5IjTV7CbvTcCtb5MZq/z23OdJJlDEiyZ+I+5od44="
   },
   "flake_metadata": {}
 }

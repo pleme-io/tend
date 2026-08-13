@@ -2233,7 +2233,7 @@ dependencies = [
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.17"
+version = "0.3.18"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3275,8 +3275,8 @@ dependencies = [
 
 [[package]]
 name = "shikumi"
-version = "0.1.521"
-source = "git+https://github.com/pleme-io/shikumi#111f0854aefe2c6634831b11334107b13a367dd1"
+version = "0.1.523"
+source = "git+https://github.com/pleme-io/shikumi#447582d473542936c450b6a168739548c3a48b17"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -3873,10 +3873,11 @@ dependencies = [
 
 [[package]]
 name = "tsunagu"
-version = "0.1.7"
-source = "git+https://github.com/pleme-io/tsunagu#da81e503e093b05ead64f127b121cd7b06f06a3a"
+version = "0.1.8"
+source = "git+https://github.com/pleme-io/tsunagu#b3124d92f3c5c239ef236eabe91e0aafdb53e000"
 dependencies = [
  "dirs",
+ "okiba",
  "rustix 0.38.44",
  "serde",
  "serde_json",
