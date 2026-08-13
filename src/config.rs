@@ -793,14 +793,34 @@ impl Config {
         }
 
         // Legacy fallback: tend/config.yaml (pre-shikumi convention)
-        let config_dir = std::env::var("XDG_CONFIG_HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| {
-                dirs::home_dir()
-                    .unwrap_or_else(|| PathBuf::from("."))
-                    .join(".config")
-            });
-        config_dir.join("tend").join("config.yaml")
+        Self::legacy_default_path(&crate::xdg::resolver())
+    }
+
+    /// The pre-shikumi `<config>/tend/config.yaml` location, resolved through
+    /// an explicit okiba so the invariant below is testable without mutating
+    /// `std::env` (which races under parallel test execution).
+    ///
+    /// **Every arm of the old chain could yield a RELATIVE path** — the
+    /// masked-branch class of `theory/MASKED-BRANCH.md`. `$XDG_CONFIG_HOME`
+    /// was taken verbatim by `PathBuf::from`, so `XDG_CONFIG_HOME=""`
+    /// resolved to a bare `tend/config.yaml` and `XDG_CONFIG_HOME=rel` to
+    /// `rel/tend/config.yaml`; the home arm's own
+    /// `unwrap_or_else(|| PathBuf::from("."))` produced
+    /// `./.config/tend/config.yaml` for the same reason. That is not cosmetic
+    /// here: `tend init` calls `create_dir_all(path.parent())` and writes, so
+    /// a relative resolution scatters a config into whatever directory the
+    /// operator happened to be standing in — a different one each time.
+    ///
+    /// okiba resolves this tier to the identical place for every valid
+    /// configuration (`$XDG_CONFIG_HOME/tend` or `~/.config/tend`) and
+    /// ignores a relative override instead of joining it.
+    fn legacy_default_path(x: &okiba::Okiba) -> PathBuf {
+        x.try_path(okiba::Tier::Config, "config.yaml")
+            // No absolute `$XDG_CONFIG_HOME` and no usable `$HOME` at all:
+            // fall back to the spec's SYSTEM-wide config location, which is
+            // at least absolute and stable. A `tend init` there fails loudly
+            // on permissions rather than silently seeding a per-cwd config.
+            .unwrap_or_else(|_| PathBuf::from("/etc/xdg/tend/config.yaml"))
     }
 
     /// Generate a starter config file.
@@ -877,6 +897,70 @@ pub(crate) fn generate_starter_config() -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Build an okiba over an explicit environment — no `std::env` mutation,
+    /// so this runs safely alongside every other test.
+    fn okiba_with(xdg_config_home: Option<&str>, home: Option<&str>) -> okiba::Okiba {
+        let x = xdg_config_home.map(str::to_string);
+        let h = home.map(str::to_string);
+        okiba::Okiba::from_env("tend", move |k| match k {
+            "XDG_CONFIG_HOME" => x.clone(),
+            "HOME" => h.clone(),
+            _ => None,
+        })
+    }
+
+    /// ── ★ THE MASKED BRANCH (theory/MASKED-BRANCH.md) ───────────────────
+    /// The `$XDG_CONFIG_HOME` arm was taken verbatim while the `$HOME` arm
+    /// went through `dirs::home_dir()`, so *unsetting* the variable behaved
+    /// correctly and *emptying* it did not — and unsetting is what anyone
+    /// testing this would do. `tend init` writes to this path, so a relative
+    /// result seeds a config into the current working directory.
+    ///
+    /// Red run: restore `std::env::var("XDG_CONFIG_HOME").map(PathBuf::from)`
+    /// and the empty/relative rows below yield `tend/config.yaml` and
+    /// `rel/x/tend/config.yaml`.
+    #[test]
+    fn no_environment_yields_a_relative_config_path() {
+        for bogus in ["", "rel/x", "./x", "..", "x"] {
+            let p = Config::legacy_default_path(&okiba_with(Some(bogus), Some("/home/u")));
+            assert!(
+                p.is_absolute(),
+                "XDG_CONFIG_HOME={bogus:?} resolved to the relative {p:?}"
+            );
+            assert_eq!(
+                p,
+                PathBuf::from("/home/u/.config/tend/config.yaml"),
+                "a rejected override must fall through to $HOME, not be joined"
+            );
+        }
+
+        // The home arm's own `unwrap_or_else(|| PathBuf::from("."))` was the
+        // second unguarded arm: no usable $HOME used to give
+        // `./.config/tend/config.yaml`.
+        for home in [None, Some(""), Some("rel/home")] {
+            let p = Config::legacy_default_path(&okiba_with(None, home));
+            assert!(
+                p.is_absolute(),
+                "HOME={home:?} resolved to the relative {p:?}"
+            );
+        }
+    }
+
+    /// The other half of the rule: a *valid* configuration must land exactly
+    /// where it landed before, or the fix has quietly orphaned every existing
+    /// config file.
+    #[test]
+    fn a_valid_configuration_resolves_where_it_always_did() {
+        assert_eq!(
+            Config::legacy_default_path(&okiba_with(Some("/x"), Some("/home/u"))),
+            PathBuf::from("/x/tend/config.yaml"),
+        );
+        assert_eq!(
+            Config::legacy_default_path(&okiba_with(None, Some("/home/u"))),
+            PathBuf::from("/home/u/.config/tend/config.yaml"),
+        );
+    }
 
     #[test]
     fn test_config_load_valid_yaml() {

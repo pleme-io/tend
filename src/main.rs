@@ -14,6 +14,7 @@ mod kanshou_state;
 mod mcp;
 mod pressure;
 mod worktree;
+mod xdg;
 // Typed failure classification for a reconcile cycle. See src/failure.rs --
 // it exists because a String reason produced three contradictory readings of
 // one log on 2026-07-28, and because "the host was asleep" must not count as

@@ -11,7 +11,7 @@
 //! `<workspace.base_dir>/<repo>` — the operator does not clone.
 
 use anyhow::Result;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 use tokio::process::Command;
 
@@ -434,8 +434,7 @@ async fn dispatch_nix_flake_check(repo_dir: &Path, ctx: &GateContext) -> Result<
 ///      git fetcher reads ~/.config/nix/nix.conf access-tokens for
 ///      tarball URLs and netrc for raw git URLs. Future-proofing.
 pub fn nix_env(cmd: &mut Command) {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/home/tend".to_string());
-    let cache = std::env::var("XDG_CACHE_HOME").unwrap_or_else(|_| format!("{home}/.cache"));
+    let (home, cache) = nix_home_and_cache(|k| std::env::var_os(k));
     let mut nix_config = String::from(
         "experimental-features = nix-command flakes\n\
          accept-flake-config = true",
@@ -453,6 +452,36 @@ pub fn nix_env(cmd: &mut Command) {
         .env("USER", "tend")
         .env("LOGNAME", "tend")
         .env("NIX_CONFIG", nix_config);
+}
+
+/// Resolve the `HOME` / `XDG_CACHE_HOME` pair handed to a child `nix`.
+///
+/// **Both env arms are filtered for ABSOLUTE, not merely non-empty** — the
+/// masked-branch class of `theory/MASKED-BRANCH.md`. The literal fallbacks
+/// are the guarded arm and cannot be relative, which is precisely what made
+/// the raw arms read as safe. `HOME=""` made nix abort ("cannot determine
+/// user's home directory") *and* silently produced `XDG_CACHE_HOME=/.cache`;
+/// a relative `HOME` or `XDG_CACHE_HOME` is worse than either, because these
+/// commands run with `current_dir(repo_dir)` and nix would then write its
+/// eval cache into the very repository being gated.
+///
+/// okiba is deliberately NOT used here: the fallback is the pod's literal
+/// `/home/tend`, not `dirs::home_dir()`, and routing it through okiba would
+/// relocate the cache of a valid distroless-pod configuration (where HOME is
+/// unset by design and no getpwuid answer exists).
+///
+/// `lookup` is explicit so the invariant is testable without mutating
+/// `std::env`, which races under parallel test execution.
+fn nix_home_and_cache(lookup: impl Fn(&str) -> Option<std::ffi::OsString>) -> (PathBuf, PathBuf) {
+    let home = lookup("HOME")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .unwrap_or_else(|| PathBuf::from("/home/tend"));
+    let cache = lookup("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .unwrap_or_else(|| home.join(".cache"));
+    (home, cache)
 }
 
 async fn dispatch_forge_ci(repo_dir: &Path) -> Result<GateOutcome> {
@@ -502,6 +531,56 @@ fn tail_utf8(bytes: &[u8], max: usize) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    /// ── ★ THE MASKED BRANCH (theory/MASKED-BRANCH.md) ───────────────────
+    /// `nix_env`'s literal fallbacks (`/home/tend`, `<home>/.cache`) cannot
+    /// be relative, so the function read as safe while both env arms took
+    /// their variable verbatim. These gates run with
+    /// `current_dir(repo_dir)`, so a relative `HOME` / `XDG_CACHE_HOME`
+    /// pointed nix's eval cache at the repository under gate, and an empty
+    /// `HOME` produced the nonsense `XDG_CACHE_HOME=/.cache` on the way to
+    /// nix aborting outright.
+    ///
+    /// Red run: drop either `.filter(|p| p.is_absolute())` and the empty and
+    /// relative rows below come back as `""` / `rel` and `/.cache` / `rel/…`.
+    #[test]
+    fn no_environment_value_yields_a_relative_nix_env() {
+        for bogus in ["", "rel", "./rel", "..", "cache"] {
+            let b = std::ffi::OsString::from(bogus);
+            let (home, cache) = super::nix_home_and_cache(|_| Some(b.clone()));
+            assert!(home.is_absolute(), "HOME={bogus:?} gave nix {home:?}");
+            assert!(
+                cache.is_absolute(),
+                "XDG_CACHE_HOME={bogus:?} gave nix {cache:?}"
+            );
+            assert_eq!(home, std::path::PathBuf::from("/home/tend"));
+            assert_eq!(cache, std::path::PathBuf::from("/home/tend/.cache"));
+        }
+    }
+
+    /// A valid pod/workstation environment must resolve exactly where it did
+    /// before — including the unset case the distroless image relies on.
+    #[test]
+    fn a_valid_environment_resolves_where_it_always_did() {
+        let (home, cache) = super::nix_home_and_cache(|_| None);
+        assert_eq!(home, std::path::PathBuf::from("/home/tend"));
+        assert_eq!(cache, std::path::PathBuf::from("/home/tend/.cache"));
+
+        let (home, cache) = super::nix_home_and_cache(|k| match k {
+            "HOME" => Some("/home/u".into()),
+            _ => None,
+        });
+        assert_eq!(home, std::path::PathBuf::from("/home/u"));
+        assert_eq!(cache, std::path::PathBuf::from("/home/u/.cache"));
+
+        let (home, cache) = super::nix_home_and_cache(|k| match k {
+            "HOME" => Some("/home/u".into()),
+            "XDG_CACHE_HOME" => Some("/fast/cache".into()),
+            _ => None,
+        });
+        assert_eq!(home, std::path::PathBuf::from("/home/u"));
+        assert_eq!(cache, std::path::PathBuf::from("/fast/cache"));
+    }
 
     /// ── ★ A GATE THAT NEVER RAN MUST NOT REPORT PASSED ──────────────────
     /// The differential verdict compared extracted failure SIGNATURES and
