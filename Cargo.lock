@@ -1642,10 +1642,11 @@ dependencies = [
 
 [[package]]
 name = "kanshou"
-version = "0.1.4"
-source = "git+https://github.com/pleme-io/kanshou#f128ba0414870ef286df872af95dc0edf04dadc9"
+version = "0.1.6"
+source = "git+https://github.com/pleme-io/kanshou#de575403d5cbbb4e9126e09448345f3e8a84e2bd"
 dependencies = [
  "kanshou-derive",
+ "okiba",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
@@ -1655,8 +1656,8 @@ dependencies = [
 
 [[package]]
 name = "kanshou-derive"
-version = "0.1.4"
-source = "git+https://github.com/pleme-io/kanshou#f128ba0414870ef286df872af95dc0edf04dadc9"
+version = "0.1.6"
+source = "git+https://github.com/pleme-io/kanshou#de575403d5cbbb4e9126e09448345f3e8a84e2bd"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2232,7 +2233,7 @@ dependencies = [
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.16"
+version = "0.3.17"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3274,8 +3275,8 @@ dependencies = [
 
 [[package]]
 name = "shikumi"
-version = "0.1.513"
-source = "git+https://github.com/pleme-io/shikumi#311b238257712eb8c2cd06037af03b3fca5efc2d"
+version = "0.1.521"
+source = "git+https://github.com/pleme-io/shikumi#111f0854aefe2c6634831b11334107b13a367dd1"
 dependencies = [
  "arc-swap",
  "async-trait",
