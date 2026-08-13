@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "4f3f7d135e5e6d43e6b5ec6f5f260942f87edf227caa02b0c47d54329070676d",
+  "cargo_lock_sha256": "7d5b4bdf4273b2e3c95f2955afbe1d62fdd012c811571d4df93a7e92477c2d8b",
   "manifest_sha256": {
-    "Cargo.toml": "01732b72d57a8dcddb468c2fb5f04447f441c113bb1506219f30a2e202598c0c"
+    "Cargo.toml": "d11228db2e449239f3b8cfb465b5316a88ffa938164b9758c94556490e316bb9"
   },
   "target_resolves": {
     "base": {
@@ -6886,7 +6886,7 @@
           "std"
         ]
       },
-      "pleme-tend-0.3.19": {
+      "pleme-tend-0.3.20": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -7345,7 +7345,7 @@
           },
           {
             "name": "shikumi",
-            "package_key": "shikumi-0.1.524-ee0b7aac4fad3168c2d5a3d6888112354c07a98b",
+            "package_key": "shikumi-0.1.526-92113e3195a0274645b70319d31deceb941063ce",
             "kind": "normal",
             "features": [
               "cli"
@@ -7431,7 +7431,7 @@
           },
           {
             "name": "tsunagu",
-            "package_key": "tsunagu-0.1.8-b3124d92f3c5c239ef236eabe91e0aafdb53e000",
+            "package_key": "tsunagu-0.1.9-3642fd081ede3eb064474577316f521abd1c51d7",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10976,7 +10976,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shikumi-0.1.524-ee0b7aac4fad3168c2d5a3d6888112354c07a98b": {
+      "shikumi-0.1.526-92113e3195a0274645b70319d31deceb941063ce": {
         "runtime_dependencies": [
           {
             "name": "arc_swap",
@@ -13277,7 +13277,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "tsunagu-0.1.8-b3124d92f3c5c239ef236eabe91e0aafdb53e000": {
+      "tsunagu-0.1.9-3642fd081ede3eb064474577316f521abd1c51d7": {
         "runtime_dependencies": [
           {
             "name": "dirs",
@@ -13291,7 +13291,7 @@
           },
           {
             "name": "okiba",
-            "package_key": "okiba-0.2.1",
+            "package_key": "okiba-0.3.1",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -19919,7 +19919,7 @@
     "pkcs8-0.10.2": {
       "edition": "2021"
     },
-    "pleme-tend-0.3.19": {
+    "pleme-tend-0.3.20": {
       "edition": "2021",
       "binaries": [
         {
@@ -20226,7 +20226,7 @@
     "shigoto-types-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": {
       "edition": "2024"
     },
-    "shikumi-0.1.524-ee0b7aac4fad3168c2d5a3d6888112354c07a98b": {
+    "shikumi-0.1.526-92113e3195a0274645b70319d31deceb941063ce": {
       "edition": "2024"
     },
     "shlex-2.0.1": {
@@ -20405,7 +20405,7 @@
     "tryhard-0.5.2": {
       "edition": "2018"
     },
-    "tsunagu-0.1.8-b3124d92f3c5c239ef236eabe91e0aafdb53e000": {
+    "tsunagu-0.1.9-3642fd081ede3eb064474577316f521abd1c51d7": {
       "edition": "2024"
     },
     "twox-hash-1.6.3": {
@@ -20537,9 +20537,9 @@
     "shigoto-retry-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
     "shigoto-scheduler-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
     "shigoto-types-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
-    "shikumi-0.1.524-ee0b7aac4fad3168c2d5a3d6888112354c07a98b": "sha256-jZ8IO1FHIPVGzpCYZGd3lGX1126bKZUscojQFVWRbEY=",
+    "shikumi-0.1.526-92113e3195a0274645b70319d31deceb941063ce": "sha256-b8Np5i02dAps5F+d9p9/6ZWBG9uqksfWjEgGr/1Dm5k=",
     "todoku-0.1.1-6fd4bab4fb048c84571ffcb31b2b81b9b6a2ba8f": "sha256-qtsSwBKWn9b1qFpCKlGDA0WbMye48yRmh+wINLqgT04=",
-    "tsunagu-0.1.8-b3124d92f3c5c239ef236eabe91e0aafdb53e000": "sha256-KHa5IjTV7CbvTcCtb5MZq/z23OdJJlDEiyZ+I+5od44="
+    "tsunagu-0.1.9-3642fd081ede3eb064474577316f521abd1c51d7": "sha256-SFWdZ+lFfI7a0JbdoGB9HKJhD/I/MyzaUeHo4WuP7lA="
   },
   "flake_metadata": {}
 }
