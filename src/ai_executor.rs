@@ -1,11 +1,17 @@
 //! AI Flow Executor - plan/apply/destroy semantics like Terraform
 //!
-//! Uses reqwest for HTTP calls to opencode-zen API directly.
+//! Calls the OpenCode Zen API through the typed `opencode-zen` SDK. It used to
+//! say "uses reqwest for HTTP calls to opencode-zen API directly", which was
+//! an accurate description of a hand-rolled duplicate of a dependency this
+//! crate already declared.
 
 use crate::ai_flow::{AiFlowPlan, AiStep, AiTaskRef, RetryPolicy};
 use crate::ai_models::ModelRegistry;
 use crate::ai_planner::PlannedFlow;
 use anyhow::Result;
+use opencode_zen::apis::configuration::Configuration;
+use opencode_zen::apis::default_api::{self, CreateChatCompletionParams};
+use opencode_zen::models::{chat_message::Role, ChatMessage, CreateChatCompletionRequest};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -186,65 +192,53 @@ impl AiExecutor {
             AiTaskRef::Reference(_) => return Err(anyhow::anyhow!("Reference not supported")),
         };
 
-        #[derive(Serialize)]
-        struct ChatMessage {
-            role: String,
-            content: String,
-        }
+        // Through the typed SDK, not a hand-rolled request. This function used
+        // to declare ChatMessage / ChatRequest / ChatResponse / Choice /
+        // Message inline and POST a hardcoded URL with reqwest, while
+        // `opencode-zen` — a declared dependency of this crate — already had
+        // every one of those types generated from the API's own schema.
+        //
+        // The hand-roll was not laziness: the SDK's create_chat_completion
+        // never applied `bearer_access_token`, so the typed path 401'd and the
+        // reachable workaround was to bypass it. That is fixed upstream now
+        // (opencode-zen, 2026-08-17), which is what makes this swap possible.
+        //
+        // Two things improve by construction rather than by care: `role` is a
+        // Role enum, so an invalid role is unrepresentable instead of a runtime
+        // 400; and the response's optionality is now in the types, so the old
+        // `choices[0]`-shaped assumption cannot come back.
+        let mut config = Configuration::new();
+        // base_path defaults to the Zen endpoint; only the credential is ours.
+        config.bearer_access_token = Some(self.api_key.clone());
+        config.client = self.client.clone();
 
-        #[derive(Serialize)]
-        struct ChatRequest {
-            model: String,
-            messages: Vec<ChatMessage>,
-            temperature: f64,
-            max_tokens: i32,
-        }
-
-        let request = ChatRequest {
+        let request = CreateChatCompletionRequest {
             model: model.to_string(),
             messages: vec![ChatMessage {
-                role: "user".to_string(),
+                role: Role::User,
                 content: prompt,
             }],
-            temperature: 0.7,
-            max_tokens: 4096,
+            temperature: Some(0.7),
+            max_tokens: Some(4096),
+            ..Default::default()
         };
 
-        let resp = self
-            .client
-            .post("https://opencode.ai/zen/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&request)
-            .send()
-            .await?;
-
-        if !resp.status().is_success() {
-            return Err(anyhow::anyhow!("API error: {}", resp.status()));
-        }
-
-        #[derive(Deserialize)]
-        struct ChatResponse {
-            choices: Vec<Choice>,
-        }
-
-        #[derive(Deserialize)]
-        struct Choice {
-            message: Message,
-        }
-
-        #[derive(Deserialize)]
-        struct Message {
-            content: String,
-        }
-
-        let response: ChatResponse = resp.json().await?;
+        let response = default_api::create_chat_completion(
+            &config,
+            CreateChatCompletionParams {
+                create_chat_completion_request: request,
+            },
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("opencode-zen chat completion failed: {e}"))?;
 
         Ok(response
             .choices
+            .unwrap_or_default()
             .into_iter()
             .next()
-            .map(|c| c.message.content)
+            .and_then(|c| c.message)
+            .map(|m| m.content)
             .unwrap_or_default())
     }
 

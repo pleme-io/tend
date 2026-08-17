@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "7d5b4bdf4273b2e3c95f2955afbe1d62fdd012c811571d4df93a7e92477c2d8b",
+  "cargo_lock_sha256": "9e534a5755bd40d6269b965fe85163cf7cb7112572f21d54a7af4e95c64d7064",
   "manifest_sha256": {
     "Cargo.toml": "d11228db2e449239f3b8cfb465b5316a88ffa938164b9758c94556490e316bb9"
   },
@@ -6324,7 +6324,7 @@
           "std"
         ]
       },
-      "opencode-zen-0.1.2-0abd4bf91588e718f8ddd091b19cece1b6441a33": {
+      "opencode-zen-0.1.2-b445df5f08f55841d08951879ad40e2aa19abaef": {
         "runtime_dependencies": [
           {
             "name": "reqwest",
@@ -7105,7 +7105,7 @@
           },
           {
             "name": "opencode_zen",
-            "package_key": "opencode-zen-0.1.2-0abd4bf91588e718f8ddd091b19cece1b6441a33",
+            "package_key": "opencode-zen-0.1.2-b445df5f08f55841d08951879ad40e2aa19abaef",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11489,7 +11489,7 @@
           },
           {
             "name": "getrandom",
-            "package_key": "getrandom-0.4.3",
+            "package_key": "getrandom-0.3.4",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -19848,7 +19848,7 @@
     "once_cell-1.21.4": {
       "edition": "2021"
     },
-    "opencode-zen-0.1.2-0abd4bf91588e718f8ddd091b19cece1b6441a33": {
+    "opencode-zen-0.1.2-b445df5f08f55841d08951879ad40e2aa19abaef": {
       "edition": "2021"
     },
     "openssl-probe-0.2.1": {
@@ -20528,7 +20528,7 @@
     "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686": "sha256-B/Zlbtl+tNdhX1Br9NkFq8oAl8nZJRjphCpoF+QivVA=",
     "kanshou-0.1.6-de575403d5cbbb4e9126e09448345f3e8a84e2bd": "sha256-57b2hG6WY9n+wQExGqjHZyEga2/g6d+KnWw/6/w8nNo=",
     "kanshou-derive-0.1.6-de575403d5cbbb4e9126e09448345f3e8a84e2bd": "sha256-57b2hG6WY9n+wQExGqjHZyEga2/g6d+KnWw/6/w8nNo=",
-    "opencode-zen-0.1.2-0abd4bf91588e718f8ddd091b19cece1b6441a33": "sha256-OAu76kxVI4+uCR5V9qDueBff5nwNDqC5HqEHuXpi0hY=",
+    "opencode-zen-0.1.2-b445df5f08f55841d08951879ad40e2aa19abaef": "sha256-EU+5qVRnyHSFzVx39d/N3ALExKzeMMMraBPkwAoDILA=",
     "samba-0.1.4-be96e88607fb2b41b04cf95356c1a2b00748a27e": "sha256-SoUxWD1ljzc78Ch4vbM4kBeShS86Ohrh99GvPwNW39g=",
     "shigoto-budget-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
     "shigoto-dag-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
