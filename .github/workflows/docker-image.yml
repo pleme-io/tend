@@ -1,5 +1,12 @@
 name: docker-image
 
+# skip-shell-budget: parked Pillar-8 violation with no consumer — this file's
+# own retirement note (below) records both reasons, and porting 26 lines of
+# Dockerfile heredoc to the Nix image path would build an artifact that the
+# same note says nothing pulls. Waived rather than counted so the fleet shell
+# ratchet can reach zero honestly; DELETE THIS WAIVER, not the reasons, if the
+# image ever acquires a consumer.
+
 # PUSH TRIGGER RETIRED 2026-07-31 — still runnable on demand, never on merge.
 #
 # Three independent reasons, any one sufficient:
