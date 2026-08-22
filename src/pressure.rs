@@ -43,6 +43,28 @@ pub struct Reading {
     /// Total size of the work filesystem, GiB — needed for the percentage guard
     /// that protects volumes smaller than the absolute floor.
     pub disk_total_gib: f64,
+    /// 1-minute load average divided by CPU count, or `None` when either could
+    /// not be READ (same `Option` discipline as `fd_ratio` below — an
+    /// unreadable axis is reported unread, never as 0.0 "no pressure").
+    ///
+    /// ── ★ WHY THIS AXIS EXISTS ──────────────────────────────────────
+    /// Added 2026-08-21 after the daemon made the operator's workstation
+    /// unusable and this gate said `proceed` throughout. Measured on cid:
+    /// **load average 52.89** while `tend daemon --interval 300 --pull true`
+    /// fanned `git pull` across ~1189 repos every 5 minutes. Disk was fine
+    /// (122 GiB free against a 50 GiB floor) and fds were fine, so both
+    /// existing axes were green — and they were green *correctly*, because
+    /// neither measures the thing that was wrong.
+    ///
+    /// PER-CPU, not raw: a load of 16 is saturation on a 4-core box and
+    /// healthy on a 32-core one, so the raw number is not comparable across
+    /// the fleet. Dividing by CPU count makes one pair of thresholds correct
+    /// everywhere — the same reasoning `halt_floor_gib` uses for disk.
+    ///
+    /// Note this axis is DELIBERATELY not a halt: unlike a full disk, load
+    /// recovers on its own, and a machine that is merely busy should converge
+    /// slowly rather than not at all.
+    pub load_per_cpu: Option<f64>,
     /// System-wide file descriptors in use, as a ratio of the ceiling
     /// (0.0–1.0), or `None` when the axis could not be READ.
     ///
@@ -88,6 +110,8 @@ pub struct Thresholds {
     pub fd_throttle_ratio: f64,
     /// Above this fd ratio, do nothing.
     pub fd_halt_ratio: f64,
+    /// Above this 1-min load average PER CPU, reduce concurrency.
+    pub load_throttle_per_cpu: f64,
 }
 
 impl Default for Thresholds {
@@ -107,6 +131,11 @@ impl Default for Thresholds {
             // raises to 2^24; 0.8 of that is genuinely abnormal.
             fd_throttle_ratio: 0.80,
             fd_halt_ratio: 0.95,
+            // 1.5x the core count. Below 1.0 the box has idle CPU and tend's
+            // work is mostly network-blocked anyway; above ~1.5 the operator
+            // feels it in the UI, which is the failure this band exists to
+            // prevent. Not a halt — see `Reading::load_per_cpu`.
+            load_throttle_per_cpu: 1.5,
         }
     }
 }
@@ -226,6 +255,19 @@ pub fn assess(reading: Reading, t: Thresholds, configured_inflight: u32) -> Verd
             why,
         };
     }
+    if reading
+        .load_per_cpu
+        .is_some_and(|l| l > t.load_throttle_per_cpu)
+    {
+        let mut why = String::from("load average is ");
+        why.push_str(&pct(reading.load_per_cpu.unwrap_or(0.0) * 100.0));
+        why.push_str("% of the core count — the host is busy, reducing concurrency");
+        let reduced = std::cmp::max(1, configured_inflight / 4);
+        return Verdict::Throttle {
+            max_inflight: reduced,
+            why,
+        };
+    }
     if reading.fd_ratio.is_some_and(|r| r > t.fd_throttle_ratio) {
         let mut why = String::from("file descriptors at ");
         why.push_str(&pct(reading.fd_ratio.unwrap_or(0.0) * 100.0));
@@ -265,6 +307,8 @@ impl PressureReader for SystemPressureReader {
             // `.ok()`, not `.unwrap_or(0.0)`: an unreadable axis is
             // reported as unread, and the disk guard still applies.
             fd_ratio: fd_ratio().ok(),
+            // Same best-effort + `.ok()` discipline as fd_ratio.
+            load_per_cpu: load_per_cpu().ok(),
         })
     }
 }
@@ -301,6 +345,24 @@ fn fd_ratio() -> Result<f64> {
     let used = read("kern.num_files")?;
     let max = read("kern.maxfiles")?;
     Ok(if max == 0.0 { 0.0 } else { used / max })
+}
+
+/// 1-minute load average / CPU count.
+///
+/// `sysctl -n vm.loadavg` prints `{ 1.23 4.56 7.89 }` on darwin and a bare
+/// triple on linux; taking the first float-parsable token handles both without
+/// branching on the platform.
+fn load_per_cpu() -> Result<f64> {
+    let out = Command::new("sysctl").args(["-n", "vm.loadavg"]).output()?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let one_min: f64 = text
+        .split_whitespace()
+        .find_map(|tok| tok.parse::<f64>().ok())
+        .context("no float in vm.loadavg")?;
+    let cpus = std::thread::available_parallelism()
+        .context("cpu count")?
+        .get() as f64;
+    Ok(if cpus <= 0.0 { one_min } else { one_min / cpus })
 }
 
 #[cfg(test)]
@@ -350,6 +412,107 @@ mod tests {
     /// was permanently inert while `tend pressure` printed 0.0 as a
     /// measurement.
     ///
+    /// ★ THE INCIDENT THIS AXIS EXISTS FOR (cid, 2026-08-21).
+    ///
+    /// `tend daemon --interval 300 --pull true` fanned `git pull` across ~1189
+    /// repos every 5 minutes and made the operator's workstation unusable —
+    /// load average **52.89**. Disk was fine (122 GiB free vs a 50 GiB floor)
+    /// and fds were fine, so both existing axes were green, CORRECTLY, because
+    /// neither measures load. `tend pressure` reported `verdict: proceed` with
+    /// `max_inflight: 8` throughout.
+    #[test]
+    fn a_saturated_host_no_longer_reports_proceed() {
+        let t = super::Thresholds::default();
+        // The measured reading: healthy disk, healthy fds, load 52.89 on a
+        // 16-core box = 3.3 per CPU.
+        let cid = super::Reading {
+            disk_free_gib: 122.7,
+            disk_total_gib: 926.4,
+            fd_ratio: Some(0.000_214),
+            load_per_cpu: Some(52.89 / 16.0),
+        };
+        match super::assess(cid, t, 8) {
+            super::Verdict::Throttle { max_inflight, why } => {
+                assert!(max_inflight < 8, "concurrency must actually drop");
+                assert!(why.contains("load"), "the reason must name load: {why}");
+            }
+            other => panic!("a host at load 52.89 must not proceed, got {other:?}"),
+        }
+    }
+
+    /// Load is NOT a halt: unlike a full disk, a busy host recovers on its own,
+    /// and tend must converge slowly rather than stop forever.
+    #[test]
+    fn load_throttles_but_never_halts() {
+        let t = super::Thresholds::default();
+        let absurd = super::Reading {
+            disk_free_gib: 500.0,
+            disk_total_gib: 1000.0,
+            fd_ratio: Some(0.1),
+            load_per_cpu: Some(999.0),
+        };
+        assert!(
+            matches!(super::assess(absurd, t, 8), super::Verdict::Throttle { .. }),
+            "load must never produce Halt at any magnitude"
+        );
+    }
+
+    /// PER-CPU is the whole point: the same raw load is saturation on a small
+    /// box and healthy on a large one, so a raw threshold cannot be shared.
+    #[test]
+    fn the_band_is_per_cpu_not_raw_load() {
+        let t = super::Thresholds::default();
+        let mk = |load_per_cpu| super::Reading {
+            disk_free_gib: 500.0,
+            disk_total_gib: 1000.0,
+            fd_ratio: Some(0.1),
+            load_per_cpu: Some(load_per_cpu),
+        };
+        // raw load 16: saturating on 4 cores, comfortable on 32.
+        assert!(matches!(
+            super::assess(mk(16.0 / 4.0), t, 8),
+            super::Verdict::Throttle { .. }
+        ));
+        assert_eq!(
+            super::assess(mk(16.0 / 32.0), t, 8),
+            super::Verdict::Proceed
+        );
+    }
+
+    /// The same anti-vacuity rule the fd axis had to learn: an axis that cannot
+    /// be READ must not read as "no pressure". `.ok()`, never `unwrap_or(0.0)`.
+    ///
+    /// Red run: change `load_per_cpu: load_per_cpu().ok()` in the reader to
+    /// `Some(load_per_cpu().unwrap_or(0.0))` and a host whose sysctl is
+    /// unreadable starts reporting a healthy load axis it never measured.
+    #[test]
+    fn an_unreadable_load_axis_is_skipped_not_passed() {
+        let t = super::Thresholds::default();
+        let unread = super::Reading {
+            disk_free_gib: 500.0,
+            disk_total_gib: 1000.0,
+            fd_ratio: Some(0.1),
+            load_per_cpu: None,
+        };
+        let busy = super::Reading {
+            load_per_cpu: Some(9.0),
+            ..unread
+        };
+        assert_eq!(super::assess(unread, t, 8), super::Verdict::Proceed);
+        assert_ne!(
+            format!("{:?}", super::assess(unread, t, 8)),
+            format!("{:?}", super::assess(busy, t, 8)),
+            "an unread load axis must not produce the same verdict as a busy one"
+        );
+        // And the reader must keep using `.ok()` — the source-level guard the
+        // fd axis needed, applied to its sibling.
+        let code = include_str!("pressure.rs");
+        assert!(
+            code.contains("load_per_cpu: load_per_cpu().ok()"),
+            "the reader must report an unreadable load axis as unread, not 0.0"
+        );
+    }
+
     /// Red run: change `fd_ratio: fd_ratio().ok()` back to
     /// `Some(fd_ratio().unwrap_or(0.0))` and the unavailable case below
     /// starts reporting a healthy fd axis on a host that has none.
@@ -357,6 +520,7 @@ mod tests {
     fn an_unavailable_fd_axis_neither_halts_nor_passes_silently() {
         let t = super::Thresholds::default();
         let unread = super::Reading {
+            load_per_cpu: None,
             disk_free_gib: 500.0,
             disk_total_gib: 1000.0,
             fd_ratio: None,
@@ -365,6 +529,7 @@ mod tests {
         // alone, and must not claim the fd axis was fine.
         let v = super::assess(unread, t, 8);
         let saturated = super::Reading {
+            load_per_cpu: None,
             disk_free_gib: 500.0,
             disk_total_gib: 1000.0,
             fd_ratio: Some(0.99),
@@ -382,11 +547,13 @@ mod tests {
     fn a_measured_fd_axis_still_trips_its_bands() {
         let t = super::Thresholds::default();
         let calm = super::Reading {
+            load_per_cpu: None,
             disk_free_gib: 500.0,
             disk_total_gib: 1000.0,
             fd_ratio: Some(0.10),
         };
         let hot = super::Reading {
+            load_per_cpu: None,
             disk_free_gib: 500.0,
             disk_total_gib: 1000.0,
             fd_ratio: Some(0.99),
@@ -402,6 +569,7 @@ mod tests {
 
     fn healthy() -> Reading {
         Reading {
+            load_per_cpu: None,
             disk_free_gib: 600.0,
             disk_total_gib: 1000.0,
             fd_ratio: Some(0.10),
@@ -499,6 +667,7 @@ mod tests {
         // the problem that will not fix itself.
         let v = assess(
             Reading {
+                load_per_cpu: None,
                 disk_free_gib: 10.0,
                 disk_total_gib: 1000.0,
                 fd_ratio: Some(0.99),
@@ -547,6 +716,7 @@ mod tests {
         // protect against nothing. With min(absolute, pct) the effective floor is
         // 50 GiB, so 192 GiB free proceeds at full concurrency.
         let cid = Reading {
+            load_per_cpu: None,
             disk_free_gib: 192.0,
             disk_total_gib: 926.0,
             fd_ratio: Some(0.0003),
@@ -564,6 +734,7 @@ mod tests {
         // And it still throttles when the ABSOLUTE space is genuinely low, even
         // though the percentage looks fine on a huge volume.
         let squeezed = Reading {
+            load_per_cpu: None,
             disk_free_gib: 30.0,
             disk_total_gib: 4000.0,
             fd_ratio: Some(0.0),
@@ -585,6 +756,7 @@ mod tests {
         assert_eq!(t.halt_floor_gib(40.0), 2.0, "5% of 40 GiB");
 
         let small_ok = Reading {
+            load_per_cpu: None,
             disk_free_gib: 12.0,
             disk_total_gib: 40.0,
             fd_ratio: Some(0.0),
@@ -596,6 +768,7 @@ mod tests {
         );
 
         let small_tight = Reading {
+            load_per_cpu: None,
             disk_free_gib: 1.0,
             disk_total_gib: 40.0,
             fd_ratio: Some(0.0),
@@ -629,6 +802,7 @@ mod tests {
     #[test]
     fn derived_percentage_is_reported_and_safe_on_a_zero_sized_volume() {
         let r = Reading {
+            load_per_cpu: None,
             disk_free_gib: 192.0,
             disk_total_gib: 926.0,
             fd_ratio: None,
@@ -640,6 +814,7 @@ mod tests {
         );
         // A df row that parsed to zero must not divide by zero.
         let zero = Reading {
+            load_per_cpu: None,
             disk_free_gib: 0.0,
             disk_total_gib: 0.0,
             fd_ratio: None,
