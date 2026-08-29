@@ -1586,10 +1586,13 @@ mod tests {
         // distinct destinations; key on cache_name and the second is
         // silently dropped.
         let env = MockCacheFillEnv::new();
+        // Spelled once, asserted from the same binding below: a restated
+        // literal is free to disagree with the target it exists to pin.
+        let in_cluster_sui = "http://sui.build-cache.svc";
         let targets = vec![
             usable_cache("nexus"),
             usable_sui("http://127.0.0.1:5000"),
-            usable_sui("http://sui.camelot-build.svc"),
+            usable_sui(in_cluster_sui),
         ];
         let dedup = Mutex::new(ClosureDedup::new());
         let n = prebuild_cache::push_path_to_caches(&env, &targets, "/nix/store/p", &dedup);
@@ -1598,7 +1601,7 @@ mod tests {
         let keys: Vec<String> = env.pushes().iter().map(|(k, _)| k.clone()).collect();
         assert!(keys.contains(&"nexus".to_string()));
         assert!(keys.contains(&"http://127.0.0.1:5000".to_string()));
-        assert!(keys.contains(&"http://sui.camelot-build.svc".to_string()));
+        assert!(keys.contains(&in_cluster_sui.to_string()));
 
         // Same path again → dedup blocks every backend equally.
         let n2 = prebuild_cache::push_path_to_caches(&env, &targets, "/nix/store/p", &dedup);

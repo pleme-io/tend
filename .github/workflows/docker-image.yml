@@ -23,8 +23,8 @@ name: docker-image
 #   3. IT IS METERED. `runs-on: ubuntu-24.04` is hardcoded, so on a PRIVATE repo
 #      it burns GitHub-hosted minutes. The fleet pattern is a 5-line shim over
 #      `pleme-io/substrate/.github/workflows/image-push.yml`, whose own
-#      `runs-on` ternary routes private repos to camelot's unmetered
-#      `camelot-builder-pleme-eks` pool. `auto-release.yml` in this same repo
+#      `runs-on` ternary routes private repos to the org's unmetered
+#      self-hosted builder pool. `auto-release.yml` in this same repo
 #      already does the right thing via `cargo-auto-release.yml`.
 #
 # MODULARIZE, DON'T DELETE: `workflow_dispatch` stays, so this is one manual run
@@ -38,11 +38,11 @@ on:
 jobs:
   build-and-push:
     name: Build + push ghcr.io/pleme-io/tend (linux/amd64)
-    # Private repo -> Camelot self-hosted; public -> free GitHub-hosted.
+    # Private repo -> an org self-hosted pool; public -> free GitHub-hosted.
     # A metered GitHub-hosted runner on a private repo exhausted the
     # org's Actions spending limit on 2026-08-08 and blocked every
     # private pleme-io repo. See pleme-io/actions/runner-resolve.
-    runs-on: ${{ github.event.repository.private && 'camelot-builder-pleme-eks' || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.repository.private && (vars.PRIVATE_BUILDER_RUNNER || 'ubuntu-latest') || 'ubuntu-latest' }}
     permissions:
       contents: read
       packages: write

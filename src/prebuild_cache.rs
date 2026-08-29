@@ -1429,7 +1429,7 @@ mod tests {
         // dedup on cache_name would collide them and silently drop every
         // push after the first.
         let a = sui_target("http://127.0.0.1:5000");
-        let b = sui_target("http://sui.camelot-build.svc");
+        let b = sui_target("http://sui.build-cache.svc");
         assert_ne!(a.dedup_key(), b.dedup_key());
         assert_eq!(a.dedup_key(), "http://127.0.0.1:5000");
         // Attic still keys on its cache name.
@@ -1467,10 +1467,13 @@ mod tests {
 
     #[test]
     fn wire_format_accepts_a_url_only_sui_target() {
-        let json = r#"[{"backend":"sui","url":"http://sui.camelot-build.svc"}]"#;
-        let parsed = parse_caches_json(json).expect("sui target must parse");
+        // The fixture URL is spelled once and the round-trip is asserted
+        // against that same binding, so the two cannot drift apart.
+        const URL: &str = "http://sui.build-cache.svc";
+        let json = format!(r#"[{{"backend":"sui","url":"{URL}"}}]"#);
+        let parsed = parse_caches_json(&json).expect("sui target must parse");
         assert_eq!(parsed[0].backend, CacheBackend::Sui);
-        assert_eq!(parsed[0].server_url, "http://sui.camelot-build.svc");
+        assert_eq!(parsed[0].server_url, URL);
         assert!(parsed[0].is_usable(), "no name/alias/token required");
     }
 
