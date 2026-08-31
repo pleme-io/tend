@@ -1178,26 +1178,31 @@ pub async fn run_watch_cycle(
                     continue;
                 }
 
-                // Stage flake.lock and check if anything changed
+                // ── ★ DETECT WITHOUT STAGING ─────────────────────────────
+                // `git add` used to run HERE, unconditionally, before
+                // anything decided whether to commit. With `auto_commit`
+                // off that left the lock STAGED and uncommitted, so the
+                // next cycle's `is_clean` check saw a dirty tree and
+                // skipped the repo — permanently. The feature updated each
+                // repo exactly once and then went quiet, which is
+                // indistinguishable from "everything is fresh".
+                //
+                // It also wrote to the index of a checkout that concurrent
+                // sessions share, where a stray staged entry rides along on
+                // the next `git add -A` in some other session.
+                //
+                // The tree was verified clean at the `is_clean` gate above
+                // and the only thing that has run since is the update, so
+                // re-asking the same question is a precise change test and
+                // needs no index write.
                 let flake_lock = repo_dir.join("flake.lock");
-                if let Err(e) = git_ops.add(&repo_dir, &flake_lock) {
-                    if !quiet {
-                        display::print_flake_refresh_error(
-                            repo_name,
-                            &format!("git add failed: {e}"),
-                        );
-                    }
-                    errors += 1;
-                    continue;
-                }
-
-                let has_changes = match git_ops.has_staged_changes(&repo_dir) {
-                    Ok(c) => c,
+                let has_changes = match git_ops.is_clean(&repo_dir) {
+                    Ok(clean) => !clean,
                     Err(e) => {
                         if !quiet {
                             display::print_flake_refresh_error(
                                 repo_name,
-                                &format!("failed to check staged changes: {e}"),
+                                &format!("failed to check for changes: {e}"),
                             );
                         }
                         errors += 1;
@@ -1207,7 +1212,21 @@ pub async fn run_watch_cycle(
 
                 let duration_ms = refresh_start.elapsed().as_millis() as u64;
 
-                if has_changes && refresh_cfg.auto_commit {
+                let action = refresh_action(has_changes, refresh_cfg.auto_commit);
+                if action == RefreshAction::Commit {
+                    // Stage only now that committing is decided — see the
+                    // DETECT WITHOUT STAGING note above.
+                    if let Err(e) = git_ops.add(&repo_dir, &flake_lock) {
+                        if !quiet {
+                            display::print_flake_refresh_error(
+                                repo_name,
+                                &format!("git add failed: {e}"),
+                            );
+                        }
+                        errors += 1;
+                        continue;
+                    }
+
                     let msg = refresh_cfg.commit_message.replace("$REPO", repo_name);
                     if let Err(e) = git_ops.commit(&repo_dir, &msg) {
                         if !quiet {
@@ -1259,11 +1278,32 @@ pub async fn run_watch_cycle(
                         .or_insert(0);
                     *miss_count = miss_count.saturating_add(1);
 
-                    if !quiet && has_changes {
-                        display::print_flake_refresh_skip(
-                            repo_name,
-                            "changes detected but auto_commit disabled",
-                        );
+                    if action == RefreshAction::RevertAndReport {
+                        // ★ Leave the tree as we found it. Without this the
+                        // modified lock sits in the working tree and the next
+                        // cycle skips this repo as dirty, so "auto_commit
+                        // off" silently degraded into "checked once, then
+                        // never again". Reverting keeps the repo checkable
+                        // every cycle: the operator gets a standing staleness
+                        // report instead of one report and silence.
+                        if let Err(e) = git_ops.restore(&repo_dir, &[flake_lock.as_path()]) {
+                            if !quiet {
+                                display::print_flake_refresh_error(
+                                    repo_name,
+                                    &format!(
+                                        "auto_commit is off and reverting the lock failed, so \
+                                         the tree is left dirty and this repo will be skipped \
+                                         as dirty next cycle: {e}"
+                                    ),
+                                );
+                            }
+                            errors += 1;
+                        } else if !quiet {
+                            display::print_flake_refresh_skip(
+                                repo_name,
+                                "lock is STALE — updated then reverted (auto_commit disabled)",
+                            );
+                        }
                     } else if !quiet {
                         display::print_flake_refresh_no_changes(repo_name);
                     }
@@ -1968,8 +2008,78 @@ fn auto_commit_matrix(matrix_file: &Path, git_ops: &dyn GitOps) -> Result<()> {
     Ok(())
 }
 
+/// What to do once a refresh has run and we know whether the lock moved.
+///
+/// Pure so the mapping is assertable: the real path shells out to
+/// `nix flake update`, so the only way to guard this decision without invoking
+/// nix is to separate the decision from the doing.
+///
+/// The arm that matters is `RevertAndReport`. `git add` used to run before
+/// anything decided whether to commit, so with `auto_commit` off the lock was
+/// left STAGED and uncommitted — the next cycle's clean-tree gate then saw a
+/// dirty repo and skipped it, permanently. The feature updated each repo once
+/// and went silent, which is indistinguishable from "everything is fresh".
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum RefreshAction {
+    /// The lock moved and we are authorized to write: stage, commit, push.
+    Commit,
+    /// The lock moved but we may not write: put it back and report staleness,
+    /// so the repo stays checkable on every later cycle.
+    RevertAndReport,
+    /// The lock did not move.
+    ReportNoChanges,
+}
+
+/// Classify the post-refresh state. See [`RefreshAction`].
+const fn refresh_action(has_changes: bool, auto_commit: bool) -> RefreshAction {
+    match (has_changes, auto_commit) {
+        (true, true) => RefreshAction::Commit,
+        (true, false) => RefreshAction::RevertAndReport,
+        (false, _) => RefreshAction::ReportNoChanges,
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
+
+    /// The classifier that decides what happens after a refresh.
+    ///
+    /// `(true, false)` — the lock moved but auto_commit is off — is the case
+    /// this exists for. It used to stage the lock and abandon it, leaving a
+    /// dirty tree that the next cycle's clean gate skipped, so the repo was
+    /// checked exactly once and then silently never again. It must revert.
+    #[test]
+    fn a_refresh_we_may_not_commit_reverts_rather_than_leaving_the_tree_dirty() {
+        assert_eq!(
+            refresh_action(true, true),
+            RefreshAction::Commit,
+            "changes + authorization means write"
+        );
+        assert_eq!(
+            refresh_action(true, false),
+            RefreshAction::RevertAndReport,
+            "changes WITHOUT authorization must put the lock back — staging it \
+             and walking away is what made the next cycle skip this repo as \
+             dirty, permanently"
+        );
+        assert_eq!(
+            refresh_action(false, true),
+            RefreshAction::ReportNoChanges,
+            "no changes is never a write, authorized or not"
+        );
+        assert_eq!(refresh_action(false, false), RefreshAction::ReportNoChanges);
+
+        // The property that matters, stated independently of the table above:
+        // an unauthorized refresh NEVER lands on the committing arm.
+        for has_changes in [true, false] {
+            assert_ne!(
+                refresh_action(has_changes, false),
+                RefreshAction::Commit,
+                "auto_commit=false must never reach Commit (has_changes={has_changes})"
+            );
+        }
+    }
 
     /// ── ★ "ALL INPUTS FRESH" NEEDS A DENOMINATOR ────────────────────────
     /// `check_flake_staleness` `continue`s past any input it cannot
