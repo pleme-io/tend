@@ -412,7 +412,16 @@ pub(crate) fn derive_from_receipt(receipt: &ReconcileReceipt) -> Vec<DriftEvent>
                 &repo_name,
                 stderr,
             )),
-            PullOutcome::Updated | PullOutcome::UpToDate | PullOutcome::MissingSkipped => {}
+            // EmptySkipped is deliberately NOT drift. Nothing has diverged
+            // and nothing is actionable: the repo is declared, cloned, and
+            // has no first commit on either side. It stays visible through
+            // the summary's `empty` count, which is where a finding belongs
+            // — emitting a drift event would put it in the queue of things
+            // to remediate, and there is no remediation to run.
+            PullOutcome::Updated
+            | PullOutcome::UpToDate
+            | PullOutcome::MissingSkipped
+            | PullOutcome::EmptySkipped => {}
         }
     }
 

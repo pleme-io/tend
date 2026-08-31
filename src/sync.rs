@@ -483,6 +483,7 @@ pub(crate) struct PullSummary {
     pub dirty_skipped: usize,
     pub missing_skipped: usize,
     pub no_remote_skipped: usize,
+    pub empty_skipped: usize,
     pub failed: usize,
 }
 
@@ -516,6 +517,26 @@ pub(crate) enum PullOutcome {
     /// place that has the path (here) rather than to infer it from a
     /// message that does not contain it.
     NoRemoteSkipped,
+    /// The repo has a remote but **no commits on either side** — an empty
+    /// upstream cloned into an unborn checkout. There is nothing to pull,
+    /// so the pull was skipped without running git.
+    ///
+    /// Same shape as [`PullOutcome::NoRemoteSkipped`] one step over, and it
+    /// exists for the same reason: git's message cannot carry the
+    /// distinction. An unborn HEAD emits the byte-identical
+    /// `There is no tracking information for the current branch.` that a
+    /// remote-less repo does, so a pure function of stderr classifies this
+    /// as a fixable no-upstream case — and its documented remedy,
+    /// `git branch --set-upstream-to=origin/<branch>`, is *impossible*
+    /// when `origin/<branch>` does not exist because the remote is empty.
+    ///
+    /// Measured 2026-08-31 on the pleme-io workspace: seven declared repos
+    /// (genkan, macos-settings, oras-go, pleme-discriminant-derive,
+    /// saber-web, shiken, tazuna) were empty on both sides and were counted
+    /// as `failed` on every 300-second cycle, writing the same warning
+    /// forever. An empty repo is a FINDING, not a failure: nothing is
+    /// broken and nothing is actionable until someone pushes a first commit.
+    EmptySkipped,
     /// `git pull` exited non-zero. Carries the trimmed stderr for surfacing.
     Failed { stderr: String },
 }
@@ -529,9 +550,29 @@ impl PullOutcome {
             PullOutcome::DirtySkipped => summary.dirty_skipped += 1,
             PullOutcome::MissingSkipped => summary.missing_skipped += 1,
             PullOutcome::NoRemoteSkipped => summary.no_remote_skipped += 1,
+            PullOutcome::EmptySkipped => summary.empty_skipped += 1,
             PullOutcome::Failed { .. } => summary.failed += 1,
         }
     }
+}
+
+/// True when the checkout has no commits AND no remote-tracking refs — an
+/// empty upstream cloned into an unborn branch.
+///
+/// Local-only and cheap: the daemon fetches before it pulls, so the absence
+/// of `refs/remotes/*` after a fetch means the remote had nothing to offer.
+/// An unborn HEAD whose remote DOES carry refs is deliberately not matched —
+/// that one is genuinely actionable (it needs a checkout) and stays visible.
+fn is_unborn_with_empty_remote(repo_path: &Path) -> Result<bool> {
+    if head_sha(repo_path).is_some() {
+        return Ok(false);
+    }
+    let out = Command::new("git")
+        .args(["for-each-ref", "--count=1", "--format=%(refname)", "refs/remotes"])
+        .current_dir(repo_path)
+        .output()
+        .with_context(|| format!("listing remote refs in {}", repo_path.display()))?;
+    Ok(out.status.success() && out.stdout.iter().all(u8::is_ascii_whitespace))
 }
 
 /// Capture HEAD's commit hash for before/after comparison. Returns
@@ -579,6 +620,15 @@ pub(crate) fn pull_one_repo(
             println!("  no remote (skipped): {repo_label}");
         }
         return Ok(PullOutcome::NoRemoteSkipped);
+    }
+
+    // Observe the subject one step further: a remote that exists but has
+    // nothing in it (see `PullOutcome::EmptySkipped`).
+    if is_unborn_with_empty_remote(repo_path)? {
+        if !quiet {
+            println!("  empty on both sides (skipped): {repo_label}");
+        }
+        return Ok(PullOutcome::EmptySkipped);
     }
 
     if is_dirty(repo_path)? {
@@ -757,6 +807,93 @@ fn is_stuck(repo_path: &Path) -> Result<bool> {
 
 #[cfg(test)]
 mod tests {
+
+    /// An empty repo must NOT be counted as a failure. This is the whole
+    /// point of `EmptySkipped`: seven pleme-io repos that were empty on both
+    /// sides were folded into `failed` on every 300-second cycle, so the
+    /// summary reported seven broken repos where nothing was broken and
+    /// nothing was actionable.
+    #[test]
+    fn an_empty_repo_is_a_finding_not_a_failure() {
+        let mut sum = PullSummary::default();
+        PullOutcome::EmptySkipped.fold_into(&mut sum);
+        assert_eq!(sum.empty_skipped, 1, "it must land in its own bucket");
+        assert_eq!(
+            sum.failed, 0,
+            "an empty repo counted as failed is the defect this variant fixes"
+        );
+
+        // And every skip variant stays out of `failed`, so a future variant
+        // added to the enum cannot quietly re-inflate the failure count.
+        let mut sum = PullSummary::default();
+        for o in [
+            PullOutcome::EmptySkipped,
+            PullOutcome::NoRemoteSkipped,
+            PullOutcome::DirtySkipped,
+            PullOutcome::MissingSkipped,
+        ] {
+            o.fold_into(&mut sum);
+        }
+        assert_eq!(sum.failed, 0, "no skip variant may count as a failure");
+        assert_eq!(sum.empty_skipped + sum.no_remote_skipped + sum.dirty_skipped + sum.missing_skipped, 4);
+    }
+
+    /// The subject is OBSERVED, not inferred from git's stderr — which is the
+    /// reasoning `NoRemoteSkipped` already records. Three real repos:
+    /// unborn+no-refs is empty, a repo with a commit is not, and unborn WITH
+    /// remote refs is deliberately not matched because it is actionable.
+    #[test]
+    fn empty_is_observed_from_the_repo_not_from_a_message() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+
+        let unborn = tmp.path().join("unborn");
+        std::fs::create_dir(&unborn).unwrap();
+        run_git(&unborn, &["init", "--quiet"]);
+        run_git(&unborn, &["remote", "add", "origin", "https://example.invalid/x.git"]);
+        assert!(
+            is_unborn_with_empty_remote(&unborn).unwrap(),
+            "no commits and no remote-tracking refs is the empty case"
+        );
+
+        let withcommit = tmp.path().join("withcommit");
+        std::fs::create_dir(&withcommit).unwrap();
+        run_git(&withcommit, &["init", "--quiet"]);
+        std::fs::write(withcommit.join("f"), b"x").unwrap();
+        run_git(&withcommit, &["add", "f"]);
+        run_git(&withcommit, &["-c", "user.email=t@t", "-c", "user.name=t",
+                               "commit", "--quiet", "--no-verify", "-m", "fixture: one commit"]);
+        assert!(
+            !is_unborn_with_empty_remote(&withcommit).unwrap(),
+            "a repo with a commit is never the empty case"
+        );
+
+        // Unborn HEAD but the remote HAS refs: actionable, must stay visible.
+        //
+        // The ref has to be REAL. A first attempt wrote a loose ref holding
+        // the all-zeros sha, and `git for-each-ref` silently omits it as a
+        // broken ref — so the fixture proved nothing and the assertion
+        // failed against correct code. Fetching from a real repo is the only
+        // fixture git agrees is a ref.
+        let unborn_with_refs = tmp.path().join("unborn-with-refs");
+        std::fs::create_dir(&unborn_with_refs).unwrap();
+        run_git(&unborn_with_refs, &["init", "--quiet"]);
+        run_git(&unborn_with_refs, &["remote", "add", "origin", withcommit.to_str().unwrap()]);
+        run_git(&unborn_with_refs, &["fetch", "--quiet", "origin"]);
+        assert!(
+            head_sha(&unborn_with_refs).is_none(),
+            "fixture precondition: HEAD must still be unborn after the fetch"
+        );
+        assert!(
+            !is_unborn_with_empty_remote(&unborn_with_refs).unwrap(),
+            "an unborn checkout whose remote carries refs needs a CHECKOUT — \
+             classifying it as empty would hide real, fixable work"
+        );
+    }
+
+    fn run_git(dir: &std::path::Path, args: &[&str]) {
+        let out = Command::new("git").args(args).current_dir(dir).output().expect("git");
+        assert!(out.status.success(), "git {args:?} failed: {}", String::from_utf8_lossy(&out.stderr));
+    }
 
     /// ── ★ EVERY OUTCOME LANDS IN A BUCKET ───────────────────────────────
     /// `SyncOutcome::Failed` used to count toward NEITHER `cloned` nor
