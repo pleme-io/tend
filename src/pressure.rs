@@ -100,8 +100,9 @@ impl Reading {
 pub struct Thresholds {
     /// Absolute floor below which NOTHING runs, GiB. Primary — see the impl note.
     pub disk_halt_gib: f64,
-    /// Absolute floor below which one job runs at a time, GiB. Primary.
-    pub disk_throttle_gib: f64,
+    /// Disk one job is budgeted to add to the store, GiB. The throttle floor is
+    /// DERIVED from this and the concurrency — see [`Thresholds::throttle_floor_gib`].
+    pub job_disk_budget_gib: f64,
     /// Small-volume guard for the halt floor (percent).
     pub disk_halt_pct: f64,
     /// Below this much free disk, run one job at a time (percent).
@@ -121,10 +122,56 @@ impl Default for Thresholds {
             // the point of halting rather than continuing until 0.
             // 20 GiB is room to recover in — a nix-collect-garbage plus a
             // rebuild — and far below where the percentage band would fire.
+            //
+            // ★ ALSO UNMEASURED, and now load-bearing twice: it is the BASE of the
+            // derived throttle floor below, so it sets how much headroom any
+            // concurrency can use. A GC frees space rather than needing it, and a
+            // rebuild's delta is single-GiB, so this looks generous — but a safety
+            // stop is not something to loosen while chasing a throttle verdict.
+            // Left exactly as it was, deliberately.
+            // `pending-pressure: halt-floor-measurement`
             disk_halt_gib: 20.0,
-            // 50 GiB covers the largest single build seen on the fleet with
-            // headroom, so dropping under it is a real signal rather than noise.
-            disk_throttle_gib: 50.0,
+            // ★ MEASURED 2026-09-01 on ryn, and the measurement FALSIFIED the
+            // constant this replaces.
+            //
+            // This was `disk_throttle_gib: 50.0`, justified in a comment as "the
+            // largest single build seen on the fleet with headroom". Counted over
+            // the whole nix store — 38,218 paths, 51.0 GiB total — the size
+            // distribution is:
+            //
+            //     median  ~0.00 MiB     p99      16.67 MiB
+            //     p95      1.97 MiB     p99.9   257.38 MiB
+            //     max   5514.30 MiB  (swift-toolchain, a substituted artifact)
+            //
+            // So the floor was set ABOVE THE SIZE OF THE ENTIRE STORE it
+            // protects, and at ~9.3x the largest single artifact its own comment
+            // claimed to cover. Zero paths exceed 50 GiB. On a 460 GiB volume
+            // with 29.5 GiB free it throttled a host with room for dozens of
+            // sub-GiB jobs down to one at a time.
+            //
+            // 1 GiB is ~4x the p99.9 single path, so a job realizing a handful of
+            // paths fits with headroom.
+            //
+            // ★ THE HONEST LIMIT, stated because it is the reason this number is a
+            // judgement and not a derivation. What is NOT measured anywhere is the
+            // distribution of a tend JOB's store delta — a job realizes a closure,
+            // which is a SUM of paths, and no job records its delta today. The
+            // path distribution above is a proxy, not that measurement.
+            //
+            // So the pathological case is real: N jobs each pulling a toolchain-
+            // sized artifact overruns N GiB of budget, and the halt floor does NOT
+            // catch it mid-cycle — pressure is read BETWEEN cycles, so halt bounds
+            // the damage to one cycle rather than preventing it. That trade is
+            // taken deliberately: the cost of overrun is a cycle that ends with a
+            // tight disk which halt then refuses to make worse, while the cost of
+            // pricing the worst case here is throttling a host that had room for
+            // dozens of sub-GiB jobs — which is the defect being fixed. Pricing
+            // the worst case in BOTH bands is the double-conservatism that
+            // produced the 50.
+            //
+            // `pending-pressure: job-delta-measurement` — record each job's actual
+            // store delta, then set this from the observed p99 instead of a proxy.
+            job_disk_budget_gib: 1.0,
             disk_halt_pct: 5.0,
             disk_throttle_pct: 15.0,
             // fd pressure is measured against kern.maxfiles, which the fleet
@@ -161,11 +208,37 @@ impl Thresholds {
             .min(total_gib * self.disk_halt_pct / 100.0)
     }
 
-    /// Effective throttle floor, GiB. See [`Thresholds::halt_floor_gib`].
+    /// Effective throttle floor, GiB: the recovery room the halt floor reserves,
+    /// plus room for the jobs we would actually run in parallel.
+    ///
+    /// ★ IT TAKES `inflight` BECAUSE IT ANSWERS A CONCURRENCY QUESTION. The
+    /// previous version was a flat constant, which answered "does ONE job fit?"
+    /// and then used the answer to decide HOW MANY jobs to run — a unit error, and
+    /// the reason it read as arbitrary: the number could not move when the
+    /// concurrency did.
+    ///
+    /// The percentage band still guards small volumes (see
+    /// [`Thresholds::halt_floor_gib`]), and the floor is never allowed below the
+    /// halt floor — stopping must stay the tighter of the two.
     #[must_use]
-    pub fn throttle_floor_gib(&self, total_gib: f64) -> f64 {
-        self.disk_throttle_gib
-            .min(total_gib * self.disk_throttle_pct / 100.0)
+    pub fn throttle_floor_gib(&self, total_gib: f64, inflight: u32) -> f64 {
+        let halt = self.halt_floor_gib(total_gib);
+        let want = halt + f64::from(inflight) * self.job_disk_budget_gib;
+        want.min(total_gib * self.disk_throttle_pct / 100.0).max(halt)
+    }
+
+    /// How many jobs the free space affords above the recovery floor, capped at
+    /// the configured concurrency and never below one.
+    ///
+    /// Degrading gracefully is the other half of the fix. Slamming to a single
+    /// job when the measurement says three fit is the same arbitrariness as the
+    /// flat floor, one layer down.
+    #[must_use]
+    pub fn affordable_inflight(&self, reading: &Reading, configured: u32) -> u32 {
+        let usable = reading.disk_free_gib - self.halt_floor_gib(reading.disk_total_gib);
+        let fits = (usable / self.job_disk_budget_gib).floor();
+        // `clamp` on a NaN-free positive budget; the cast is saturating in Rust.
+        fits.clamp(1.0, f64::from(configured)) as u32
     }
 }
 
@@ -228,7 +301,7 @@ fn gib(v: f64) -> String {
 #[must_use]
 pub fn assess(reading: Reading, t: Thresholds, configured_inflight: u32) -> Verdict {
     let halt_floor = t.halt_floor_gib(reading.disk_total_gib);
-    let throttle_floor = t.throttle_floor_gib(reading.disk_total_gib);
+    let throttle_floor = t.throttle_floor_gib(reading.disk_total_gib, configured_inflight);
 
     if reading.disk_free_gib < halt_floor {
         let mut why = String::from("disk free ");
@@ -245,15 +318,16 @@ pub fn assess(reading: Reading, t: Thresholds, configured_inflight: u32) -> Verd
         return Verdict::Halt { why };
     }
     if reading.disk_free_gib < throttle_floor {
+        // How many jobs the space genuinely affords, not a flat one.
+        let max_inflight = t.affordable_inflight(&reading, configured_inflight);
         let mut why = String::from("disk free ");
         why.push_str(&gib(reading.disk_free_gib));
         why.push_str(" GiB is under the throttle floor ");
         why.push_str(&gib(throttle_floor));
-        why.push_str(" GiB — one job at a time");
-        return Verdict::Throttle {
-            max_inflight: 1,
-            why,
-        };
+        why.push_str(" GiB — room for ");
+        why.push_str(&gib(f64::from(max_inflight)));
+        why.push_str(" job(s) above the recovery floor");
+        return Verdict::Throttle { max_inflight, why };
     }
     if reading
         .load_per_cpu
@@ -609,9 +683,14 @@ mod tests {
     fn squeezed_disk_throttles_to_one_rather_than_stopping() {
         // Breathability: keep converging, slowly. A reconciler that stops
         // entirely at the first sign of load never catches up.
+        //
+        // 21 GiB free sits 1 GiB above the 20 GiB recovery floor, so exactly one
+        // job fits. It used to read 30 GiB, which the derived floor now correctly
+        // calls healthy — the reading was renumbered to stay genuinely squeezed
+        // rather than the property being dropped.
         let v = assess(
             Reading {
-                disk_free_gib: 30.0,
+                disk_free_gib: 21.0,
                 disk_total_gib: 1000.0,
                 ..healthy()
             },
@@ -619,6 +698,8 @@ mod tests {
             8,
         );
         assert_eq!(v.inflight(8), Some(1), "got {v:?}");
+        // And it is a THROTTLE, not a halt — the distinction this test owns.
+        assert!(matches!(v, Verdict::Throttle { .. }), "got {v:?}");
     }
 
     #[test]
@@ -692,8 +773,10 @@ mod tests {
                 fd_ratio: Some(0.99),
                 ..healthy()
             },
+            // 24 GiB is 4 above the recovery floor: a real disk throttle under
+            // the derived band (30 GiB no longer is, and must not be, one).
             Reading {
-                disk_free_gib: 30.0,
+                disk_free_gib: 24.0,
                 disk_total_gib: 1000.0,
                 ..healthy()
             },
@@ -713,8 +796,12 @@ mod tests {
         // THE EFFICIENCY PROPERTY, and the reason this rework exists. cid:
         // 926 GiB volume, 192 GiB free = 20.7%. A percentage-only 15% band would
         // fire at 139 GiB free and run the reconciler at a quarter speed to
-        // protect against nothing. With min(absolute, pct) the effective floor is
-        // 50 GiB, so 192 GiB free proceeds at full concurrency.
+        // protect against nothing. The min(absolute, pct) pair fixed that.
+        //
+        // ★ AND THEN THE ABSOLUTE BAND BECAME THE ARBITRARY ONE — same defect,
+        // other operand, found on ryn 2026-09-01 (460 GiB volume, 29.5 GiB free,
+        // throttled to one job). The floor is now DERIVED from the halt floor plus
+        // the concurrency, so both operands answer the question they are asked.
         let cid = Reading {
             load_per_cpu: None,
             disk_free_gib: 192.0,
@@ -724,25 +811,44 @@ mod tests {
         assert_eq!(assess(cid, Thresholds::default(), 8), Verdict::Proceed);
 
         let t = Thresholds::default();
-        assert_eq!(
-            t.throttle_floor_gib(926.0),
-            50.0,
-            "absolute must dominate a large disk"
-        );
         assert_eq!(t.halt_floor_gib(926.0), 20.0);
+        assert_eq!(
+            t.throttle_floor_gib(926.0, 8),
+            28.0,
+            "recovery room (20) + 8 jobs x 1 GiB — derived, not asserted"
+        );
+        // The floor MOVES WITH THE CONCURRENCY. That is the property the flat
+        // constant could not have: it answered a one-job question and then used
+        // the answer to decide how many jobs to run.
+        assert_eq!(t.throttle_floor_gib(926.0, 1), 21.0);
+        assert_eq!(t.throttle_floor_gib(926.0, 32), 52.0);
 
-        // And it still throttles when the ABSOLUTE space is genuinely low, even
-        // though the percentage looks fine on a huge volume.
-        let squeezed = Reading {
+        // ★ THE ryn CASE, which used to throttle to one job: 29.5 GiB free is
+        // 9.5 GiB above the recovery floor, and 8 sub-GiB jobs fit in that.
+        let ryn = Reading {
             load_per_cpu: None,
-            disk_free_gib: 30.0,
+            disk_free_gib: 29.5,
+            disk_total_gib: 460.4,
+            fd_ratio: Some(0.0004),
+        };
+        assert_eq!(
+            assess(ryn, t, 8),
+            Verdict::Proceed,
+            "a host with room for 9 jobs must not be cut to one"
+        );
+
+        // It still throttles when the space genuinely only affords a few jobs,
+        // and it says HOW MANY rather than slamming to one.
+        let tight = Reading {
+            load_per_cpu: None,
+            disk_free_gib: 23.0,
             disk_total_gib: 4000.0,
             fd_ratio: Some(0.0),
         };
         assert_eq!(
-            assess(squeezed, t, 8).inflight(8),
-            Some(1),
-            "0.75% free must throttle"
+            assess(tight, t, 8).inflight(8),
+            Some(3),
+            "3 GiB above the recovery floor affords 3 jobs, not 1 and not 8"
         );
     }
 
@@ -752,7 +858,11 @@ mod tests {
         // never have 50 GiB free, so every cycle would stop forever. The
         // percentage guard is what keeps the pair usable on small volumes.
         let t = Thresholds::default();
-        assert_eq!(t.throttle_floor_gib(40.0), 6.0, "15% of 40 GiB");
+        assert_eq!(
+            t.throttle_floor_gib(40.0, 4),
+            6.0,
+            "15% of 40 GiB — the percentage still dominates a small volume"
+        );
         assert_eq!(t.halt_floor_gib(40.0), 2.0, "5% of 40 GiB");
 
         let small_ok = Reading {
@@ -788,14 +898,17 @@ mod tests {
                 t.halt_floor_gib(total) <= total,
                 "halt floor exceeds a {total} GiB volume"
             );
-            assert!(
-                t.throttle_floor_gib(total) <= total,
-                "throttle floor exceeds {total} GiB"
-            );
-            assert!(
-                t.halt_floor_gib(total) <= t.throttle_floor_gib(total),
-                "stopping must be the tighter floor at {total} GiB"
-            );
+            // Now swept across concurrency too, since the floor depends on it.
+            for inflight in [1u32, 4, 8, 32, 128] {
+                assert!(
+                    t.throttle_floor_gib(total, inflight) <= total,
+                    "throttle floor exceeds {total} GiB at {inflight}-way"
+                );
+                assert!(
+                    t.halt_floor_gib(total) <= t.throttle_floor_gib(total, inflight),
+                    "stopping must be the tighter floor at {total} GiB, {inflight}-way"
+                );
+            }
         }
     }
 
