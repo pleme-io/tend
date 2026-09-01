@@ -284,6 +284,15 @@ fn pct(v: f64) -> String {
     s
 }
 
+/// A whole count. A job count is not a one-decimal measurement — rendering it
+/// through [`gib`] printed "5.0 job(s)". Same typed-emission rule as [`pct`].
+fn count(v: u32) -> String {
+    use std::fmt::Write as _;
+    let mut s = String::new();
+    let _ = write!(s, "{v}");
+    s
+}
+
 /// One-decimal GiB. `write!` into a String, same typed-emission rule as [`pct`].
 fn gib(v: f64) -> String {
     use std::fmt::Write as _;
@@ -325,8 +334,9 @@ pub fn assess(reading: Reading, t: Thresholds, configured_inflight: u32) -> Verd
         why.push_str(" GiB is under the throttle floor ");
         why.push_str(&gib(throttle_floor));
         why.push_str(" GiB — room for ");
-        why.push_str(&gib(f64::from(max_inflight)));
-        why.push_str(" job(s) above the recovery floor");
+        why.push_str(&count(max_inflight));
+        why.push_str(if max_inflight == 1 { " job" } else { " jobs" });
+        why.push_str(" above the recovery floor");
         return Verdict::Throttle { max_inflight, why };
     }
     if reading
