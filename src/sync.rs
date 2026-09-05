@@ -4,6 +4,7 @@ use std::process::Command;
 
 use crate::config::Workspace;
 use crate::provider;
+use crate::reach::{DiscoveryAnswer, Freshness};
 use crate::secret::{GitConfigEnv, Secret};
 
 /// Proof that a repo's remote set was **observed** and found non-empty.
@@ -178,6 +179,86 @@ pub(crate) struct RepoEntry {
 /// Resolve the full list of repos for a workspace (discover + extras - excludes).
 /// When `refresh` is true, the discovery cache is bypassed and the GitHub API is always called.
 pub(crate) async fn resolve_repos(workspace: &Workspace, refresh: bool) -> Result<Vec<String>> {
+    resolve_repos_answered(workspace, refresh)
+        .await
+        .into_result()
+}
+
+/// `resolve_repos`, but the discovery outcome survives to the caller.
+///
+/// ── ★ WHY BOTH EXIST ────────────────────────────────────────────────────
+/// [`resolve_repos`] is kept as-is so the many call sites that genuinely
+/// only want a repo list keep compiling and keep failing loudly. The CLI
+/// surfaces that must *degrade instead of abort* call this one and match on
+/// the answer.
+///
+/// The key property: a workspace whose org could not be listed yields
+/// `Refused`/`Blind` here, never a short `Ok(vec![])`. A caller therefore
+/// cannot mistake "we could not look" for "there is nothing to do" — the
+/// mistake that would turn a credential failure into a silent all-clear.
+pub(crate) async fn resolve_repos_answered(
+    workspace: &Workspace,
+    refresh: bool,
+) -> DiscoveryAnswer<Vec<String>> {
+    let mut repos = Vec::new();
+
+    if workspace.discover {
+        let org = workspace.org.as_deref().unwrap_or(&workspace.name);
+        match provider::discover_answered(org, refresh).await {
+            DiscoveryAnswer::Found { value, freshness } => {
+                repos.extend(value);
+                // Carry freshness through the extras/exclude folding below
+                // by reconstructing at the end; a stale discovery does not
+                // become live just because we added `extra_repos` to it.
+                return finish(workspace, repos, freshness);
+            }
+            // An org that genuinely holds nothing is not a failure: the
+            // workspace may still have `extra_repos` worth reporting, so we
+            // fall through with an empty discovered set.
+            DiscoveryAnswer::Empty { .. } => {}
+            // Could not look. Do NOT continue with a partial list — the
+            // caller must be able to tell this apart from a real result.
+            denial @ (DiscoveryAnswer::Refused { .. } | DiscoveryAnswer::Blind { .. }) => {
+                return denial;
+            }
+        }
+    }
+
+    finish(workspace, repos, Freshness::Live)
+}
+
+/// Fold in `extra_repos`, apply `exclude`, sort and dedup.
+fn finish(
+    workspace: &Workspace,
+    mut repos: Vec<String>,
+    freshness: Freshness,
+) -> DiscoveryAnswer<Vec<String>> {
+    for extra in &workspace.extra_repos {
+        if !repos.contains(extra) {
+            repos.push(extra.clone());
+        }
+    }
+
+    repos.retain(|r| !workspace.exclude.contains(r));
+    repos.sort();
+    repos.dedup();
+
+    if repos.is_empty() {
+        DiscoveryAnswer::Empty {
+            of: format!("workspace `{}` — no repos after exclusions", workspace.name),
+        }
+    } else {
+        DiscoveryAnswer::Found {
+            value: repos,
+            freshness,
+        }
+    }
+}
+
+/// Legacy shim: the pre-taxonomy body, kept so `resolve_repos` behaves
+/// exactly as before for every caller that has not opted in.
+#[allow(dead_code)]
+async fn resolve_repos_legacy(workspace: &Workspace, refresh: bool) -> Result<Vec<String>> {
     let mut repos = Vec::new();
 
     if workspace.discover {
@@ -568,7 +649,12 @@ fn is_unborn_with_empty_remote(repo_path: &Path) -> Result<bool> {
         return Ok(false);
     }
     let out = Command::new("git")
-        .args(["for-each-ref", "--count=1", "--format=%(refname)", "refs/remotes"])
+        .args([
+            "for-each-ref",
+            "--count=1",
+            "--format=%(refname)",
+            "refs/remotes",
+        ])
         .current_dir(repo_path)
         .output()
         .with_context(|| format!("listing remote refs in {}", repo_path.display()))?;
@@ -588,11 +674,7 @@ fn head_sha(repo_path: &Path) -> Option<String> {
         return None;
     }
     let sha = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if sha.is_empty() {
-        None
-    } else {
-        Some(sha)
-    }
+    if sha.is_empty() { None } else { Some(sha) }
 }
 
 /// Pull one repo. The unit shared by the batch driver and the
@@ -835,7 +917,10 @@ mod tests {
             o.fold_into(&mut sum);
         }
         assert_eq!(sum.failed, 0, "no skip variant may count as a failure");
-        assert_eq!(sum.empty_skipped + sum.no_remote_skipped + sum.dirty_skipped + sum.missing_skipped, 4);
+        assert_eq!(
+            sum.empty_skipped + sum.no_remote_skipped + sum.dirty_skipped + sum.missing_skipped,
+            4
+        );
     }
 
     /// The subject is OBSERVED, not inferred from git's stderr — which is the
@@ -849,7 +934,10 @@ mod tests {
         let unborn = tmp.path().join("unborn");
         std::fs::create_dir(&unborn).unwrap();
         run_git(&unborn, &["init", "--quiet"]);
-        run_git(&unborn, &["remote", "add", "origin", "https://example.invalid/x.git"]);
+        run_git(
+            &unborn,
+            &["remote", "add", "origin", "https://example.invalid/x.git"],
+        );
         assert!(
             is_unborn_with_empty_remote(&unborn).unwrap(),
             "no commits and no remote-tracking refs is the empty case"
@@ -860,8 +948,20 @@ mod tests {
         run_git(&withcommit, &["init", "--quiet"]);
         std::fs::write(withcommit.join("f"), b"x").unwrap();
         run_git(&withcommit, &["add", "f"]);
-        run_git(&withcommit, &["-c", "user.email=t@t", "-c", "user.name=t",
-                               "commit", "--quiet", "--no-verify", "-m", "fixture: one commit"]);
+        run_git(
+            &withcommit,
+            &[
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "--quiet",
+                "--no-verify",
+                "-m",
+                "fixture: one commit",
+            ],
+        );
         assert!(
             !is_unborn_with_empty_remote(&withcommit).unwrap(),
             "a repo with a commit is never the empty case"
@@ -877,7 +977,10 @@ mod tests {
         let unborn_with_refs = tmp.path().join("unborn-with-refs");
         std::fs::create_dir(&unborn_with_refs).unwrap();
         run_git(&unborn_with_refs, &["init", "--quiet"]);
-        run_git(&unborn_with_refs, &["remote", "add", "origin", withcommit.to_str().unwrap()]);
+        run_git(
+            &unborn_with_refs,
+            &["remote", "add", "origin", withcommit.to_str().unwrap()],
+        );
         run_git(&unborn_with_refs, &["fetch", "--quiet", "origin"]);
         assert!(
             head_sha(&unborn_with_refs).is_none(),
@@ -891,8 +994,16 @@ mod tests {
     }
 
     fn run_git(dir: &std::path::Path, args: &[&str]) {
-        let out = Command::new("git").args(args).current_dir(dir).output().expect("git");
-        assert!(out.status.success(), "git {args:?} failed: {}", String::from_utf8_lossy(&out.stderr));
+        let out = Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .output()
+            .expect("git");
+        assert!(
+            out.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
     }
 
     /// ── ★ EVERY OUTCOME LANDS IN A BUCKET ───────────────────────────────

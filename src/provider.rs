@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::cache;
+use crate::reach::{Denial, DiscoveryAnswer, Freshness};
 use crate::secret::Secret;
 
 /// Cached wrapper around `discover_github_repos`.
@@ -17,6 +18,119 @@ pub async fn discover_github_repos_cached(org: &str, refresh: bool) -> Result<Ve
     let repos = discover_github_repos(org).await?;
     let _ = cache::write(org, &repos); // best-effort cache write
     Ok(repos)
+}
+
+/// Discovery that answers instead of throwing, with cache-backed recovery.
+///
+/// ── ★ THE SHAPE, AND WHY IT IS NOT A `Result` ───────────────────────────
+/// [`discover_github_repos_cached`] returns `Result<Vec<String>>`, so every
+/// failure — a revoked credential, a throttle, DNS down, an org that does
+/// not exist — arrives as one opaque `anyhow::Error`, and the six CLI call
+/// sites turn it into an abort. That is how one unreadable org took down
+/// discovery for four readable ones.
+///
+/// This returns a [`DiscoveryAnswer`], which forces the caller to
+/// distinguish *nothing there* from *could not look*. See `reach`'s module
+/// docs for why blindness is represented rather than swallowed or thrown.
+///
+/// ── ★ RECOVERY POLICY ───────────────────────────────────────────────────
+/// On a **transient** denial (5xx, 429, timeout, transport) we fall back to
+/// the discovery cache *past its TTL* and return `Found` marked
+/// [`Freshness::Stale`] with a measured age. On a **non-transient** one
+/// (401/403-permission) we do not: a revoked credential is a state change,
+/// and quietly serving yesterday's list would hide it behind an answer that
+/// looks fine. `Denial::is_transient` is that gate and it is unit-tested.
+///
+/// No retry loop here — todoku already retries 429/5xx honouring
+/// `Retry-After`, so wrapping it would quadruple our request rate against
+/// a forge that is already throttling us.
+pub async fn discover_answered(org: &str, refresh: bool) -> DiscoveryAnswer<Vec<String>> {
+    if !refresh {
+        if let Some(repos) = cache::read(org) {
+            return DiscoveryAnswer::Found {
+                value: repos,
+                freshness: Freshness::Live,
+            };
+        }
+    }
+
+    match discover_github_repos_classified(org).await {
+        Ok(names) => {
+            let _ = cache::write(org, &names); // best-effort
+            if names.is_empty() {
+                // A real, observed absence — the org exists and holds no
+                // non-archived repos. A finding, not a failure.
+                DiscoveryAnswer::Empty {
+                    of: format!("`{org}` — no non-archived repositories"),
+                }
+            } else {
+                DiscoveryAnswer::Found {
+                    value: names,
+                    freshness: Freshness::Live,
+                }
+            }
+        }
+        Err(denial) => {
+            if denial.is_transient() {
+                if let Some((repos, age_secs)) = cache::read_stale(org) {
+                    let because = denial
+                        .clone()
+                        .into_answer::<()>()
+                        .because()
+                        .unwrap_or("unknown")
+                        .to_owned();
+                    return DiscoveryAnswer::Found {
+                        value: repos,
+                        freshness: Freshness::Stale { age_secs, because },
+                    };
+                }
+            }
+            denial.into_answer()
+        }
+    }
+}
+
+/// `discover_github_repos` with its error taxonomy intact.
+///
+/// Identical logic to [`discover_github_repos`] — org endpoint, then user
+/// endpoint on 404 — but every failure is classified by
+/// [`crate::reach::classify`] instead of being flattened into `anyhow`.
+async fn discover_github_repos_classified(org: &str) -> Result<Vec<String>, Denial> {
+    use todoku::{GitHubApi, OwnerType};
+
+    let token = github_token();
+    let client = todoku::GitHubClient::new(token.as_ref().map(Secret::expose)).map_err(|e| {
+        // Building the client failed, so we never asked anything.
+        crate::reach::classify(org, &e)
+    })?;
+
+    match client.list_repos(org, OwnerType::Org).await {
+        Ok(repos) => return Ok(live_names(repos)),
+        Err(todoku::TodokuError::Http { status: 404, .. }) => {
+            // Not an org. Fall through and try the user endpoint — a 404
+            // here is not yet evidence of absence.
+        }
+        Err(e) => return Err(crate::reach::classify(org, &e)),
+    }
+
+    match client.list_repos(org, OwnerType::User).await {
+        Ok(repos) => Ok(live_names(repos)),
+        // Both endpoints 404: now it is genuinely absent, and `classify`
+        // maps that to `Empty` rather than to a failure.
+        Err(e) => Err(crate::reach::classify(org, &e)),
+    }
+}
+
+/// Non-archived repo names, sorted. Shared by both endpoint arms so the
+/// two cannot drift in what they filter.
+fn live_names(repos: Vec<todoku::GitHubRepo>) -> Vec<String> {
+    let mut names: Vec<String> = repos
+        .into_iter()
+        .filter(|r| !r.archived)
+        .map(|r| r.name)
+        .collect();
+    names.sort();
+    names
 }
 
 /// Per-repo extended state. M4 surface: extends the name-only

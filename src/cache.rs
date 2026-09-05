@@ -60,6 +60,46 @@ impl DiscoveryCache {
         Some(entry.repos)
     }
 
+    /// Read an entry **regardless of TTL**, paired with its measured age
+    /// in seconds.
+    ///
+    /// ── ★ WHY THIS EXISTS ALONGSIDE [`read`](Self::read) ────────────────
+    /// `read` collapses "expired" into `None`, so an expired entry is
+    /// indistinguishable from no entry at all and its age is discarded
+    /// before any caller can see it. That is the right shape for the happy
+    /// path — a stale list must never be served as if it were live.
+    ///
+    /// It is the wrong shape for *recovery*. When the forge is unreachable,
+    /// yesterday's list is far better than nothing, provided the caller is
+    /// forced to say it is old. This returns the age so
+    /// [`crate::reach::Freshness::Stale`] can carry a **measured** number
+    /// rather than an estimate.
+    ///
+    /// No on-disk format change: every entry has always carried a
+    /// unix-epoch `timestamp`. Only the reader was throwing it away.
+    ///
+    /// **Callers must gate on transience.** Serving stale data through a
+    /// network blip is honest; serving it because a credential was revoked
+    /// hides a state change. `reach::Denial::is_transient` is that gate,
+    /// and it is asserted in `reach`'s tests rather than left to a comment.
+    #[must_use]
+    pub fn read_stale(org: &str) -> Option<(Vec<String>, u64)> {
+        let path = cache_path(org);
+        let content = std::fs::read_to_string(&path).ok()?;
+        let entry: CacheEntry = serde_json::from_str(&content).ok()?;
+
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .ok()?
+            .as_secs();
+
+        // `saturating_sub`, matching `read`: a clock that moved backwards
+        // yields age 0 — "suspiciously fresh" — rather than a huge number
+        // that would read as ancient. Neither is truthful, but only the
+        // second one invents alarming evidence.
+        Some((entry.repos, now.saturating_sub(entry.timestamp)))
+    }
+
     pub fn write(org: &str, repos: &[String]) -> Result<()> {
         let dir = cache_dir();
         std::fs::create_dir_all(&dir)?;
@@ -156,6 +196,12 @@ pub(crate) fn read(org: &str) -> Option<Vec<String>> {
 /// Convenience wrapper — calls [`DiscoveryCache::write`].
 pub(crate) fn write(org: &str, repos: &[String]) -> Result<()> {
     DiscoveryCache::write(org, repos)
+}
+
+/// Convenience wrapper — calls [`DiscoveryCache::read_stale`].
+#[must_use]
+pub(crate) fn read_stale(org: &str) -> Option<(Vec<String>, u64)> {
+    DiscoveryCache::read_stale(org)
 }
 
 #[cfg(test)]

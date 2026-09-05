@@ -36,6 +36,7 @@ mod planner;
 mod prebuild;
 mod prebuild_cache;
 mod provider;
+mod reach;
 mod reconcile;
 mod release_swarm;
 mod release_swarm_http;
