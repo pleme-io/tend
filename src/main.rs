@@ -920,12 +920,24 @@ async fn main() -> Result<()> {
             refresh,
         } => {
             let cfg = load_config(config_path.as_deref())?;
+            let mut degraded = reach::Degradations::default();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
-                let repos = sync::resolve_repos(ws, refresh).await?;
+                let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await
+                else {
+                    continue;
+                };
                 let (cloned, present, failed) = sync::sync_repos(ws, &repos, quiet).await?;
                 if !quiet || cloned > 0 {
                     display::print_sync_summary(&ws.name, cloned, present, failed);
                 }
+            }
+            // No in-band channel on this surface, so the exit code carries it.
+            // Silence plus exit 0 would read as "nothing to do", which is the
+            // confidently-wrong direction: the workspaces we could not see may
+            // have held all the work. See reach::Degradations.
+            degraded.report();
+            if degraded.should_fail_exit() {
+                std::process::exit(1);
             }
         }
 
@@ -936,10 +948,22 @@ async fn main() -> Result<()> {
             refresh,
         } => {
             let cfg = load_config(config_path.as_deref())?;
+            let mut degraded = reach::Degradations::default();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
-                let repos = sync::resolve_repos(ws, refresh).await?;
+                let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await
+                else {
+                    continue;
+                };
                 let summary = sync::pull_repos(ws, &repos, quiet).await?;
                 display::print_pull_summary(&ws.name, &summary);
+            }
+            // No in-band channel on this surface, so the exit code carries it.
+            // Silence plus exit 0 would read as "nothing to do", which is the
+            // confidently-wrong direction: the workspaces we could not see may
+            // have held all the work. See reach::Degradations.
+            degraded.report();
+            if degraded.should_fail_exit() {
+                std::process::exit(1);
             }
         }
 
@@ -950,6 +974,7 @@ async fn main() -> Result<()> {
             use crate::nixpkgs_align::{align_one_repo, substrate_canonical_rev, AlignOutcome};
             let cfg = load_config(config_path.as_deref())?;
             let git = crate::git::SystemGitOps;
+            let mut degraded = reach::Degradations::default();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
                 let base_dir = ws.resolved_base_dir()?;
                 let Some(canonical) = substrate_canonical_rev(&base_dir.join("substrate")) else {
@@ -960,7 +985,10 @@ async fn main() -> Result<()> {
                     );
                     continue;
                 };
-                let repos = sync::resolve_repos(ws, false).await?;
+                let Some(repos) = sync::resolve_or_degrade(ws, false, &mut degraded).await
+                else {
+                    continue;
+                };
                 let (mut aligned, mut skipped, mut failed) = (0u32, 0u32, 0u32);
                 for repo in &repos {
                     let repo_path = base_dir.join(repo);
@@ -993,6 +1021,14 @@ async fn main() -> Result<()> {
                     "[{}] nixpkgs-align -> {canonical}: aligned={aligned} skipped={skipped} failed={failed}",
                     ws.name
                 );
+            }
+            // No in-band channel on this surface, so the exit code carries it.
+            // Silence plus exit 0 would read as "nothing to do", which is the
+            // confidently-wrong direction: the workspaces we could not see may
+            // have held all the work. See reach::Degradations.
+            degraded.report();
+            if degraded.should_fail_exit() {
+                std::process::exit(1);
             }
         }
 
@@ -1266,8 +1302,12 @@ async fn main() -> Result<()> {
                 .path()
                 .parent()
                 .map(|p| p.join("scheduler-transitions.jsonl"));
+            let mut degraded = reach::Degradations::default();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
-                let repos = sync::resolve_repos(ws, refresh).await?;
+                let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await
+                else {
+                    continue;
+                };
                 let receipt = reconcile::reconcile_workspace_pull(
                     ws,
                     &repos,
@@ -1279,6 +1319,14 @@ async fn main() -> Result<()> {
                 if !receipt.all_clean() {
                     any_failed = true;
                 }
+            }
+            // No in-band channel on this surface, so the exit code carries it.
+            // Silence plus exit 0 would read as "nothing to do", which is the
+            // confidently-wrong direction: the workspaces we could not see may
+            // have held all the work. See reach::Degradations.
+            degraded.report();
+            if degraded.should_fail_exit() {
+                std::process::exit(1);
             }
             if any_failed {
                 std::process::exit(1);
@@ -1299,8 +1347,12 @@ async fn main() -> Result<()> {
             // rediscovered, so the reap can only ever touch a repo tend
             // already manages.
             let mut seen_repos: Vec<std::path::PathBuf> = Vec::new();
+            let mut degraded = reach::Degradations::default();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
-                let repos = sync::resolve_repos(ws, refresh).await?;
+                let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await
+                else {
+                    continue;
+                };
                 let entries = sync::check_status(ws, &repos).await?;
                 let base_dir = ws.resolved_base_dir()?;
                 seen_repos.extend(
@@ -1320,8 +1372,28 @@ async fn main() -> Result<()> {
                 }
             }
             if json {
+                // ── ★ BLINDNESS GOES IN THE ARRAY, NOT IN THE EXIT CODE ──
+                // This is the one surface with an in-band channel for it: one
+                // synthetic row per workspace we could not see, so a short
+                // array can never be mistaken for "those repos are all fine".
+                // izumi ranks an unrecognised state High, so it surfaces at
+                // the top of the board rather than sinking.
+                //
+                // Exit stays 0 deliberately. izumi treats a non-zero `tend`
+                // as Unavailable and would DISCARD the partial data — which
+                // is strictly worse than showing four workspaces plus a loud
+                // row saying the fifth is unreadable.
+                rows.extend(
+                    degraded
+                        .iter()
+                        .map(|(ws, answer)| display::StatusJsonRow::unreachable(ws, answer)),
+                );
                 println!("{}", serde_json::to_string(&rows)?);
             } else {
+                // The human table has no row for a whole missing workspace,
+                // so it gets the summary instead — with its denominator, so
+                // "3 workspaces" is never read without "of 5".
+                degraded.report();
                 let host_audit = audit::AuditLog::default_path();
                 let report = host_health::run_host_health_check(
                     &host_health::SystemProcessLister,
@@ -1412,9 +1484,21 @@ async fn main() -> Result<()> {
             refresh,
         } => {
             let cfg = load_config(config_path.as_deref())?;
+            let mut degraded = reach::Degradations::default();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
-                let repos = sync::resolve_repos(ws, refresh).await?;
+                let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await
+                else {
+                    continue;
+                };
                 display::print_repo_list(&ws.name, &repos);
+            }
+            // No in-band channel on this surface, so the exit code carries it.
+            // Silence plus exit 0 would read as "nothing to do", which is the
+            // confidently-wrong direction: the workspaces we could not see may
+            // have held all the work. See reach::Degradations.
+            degraded.report();
+            if degraded.should_fail_exit() {
+                std::process::exit(1);
             }
         }
 

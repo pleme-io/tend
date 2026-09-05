@@ -208,6 +208,27 @@ impl<T> DiscoveryAnswer<T> {
         }
     }
 
+    /// Drop the payload, keeping only which kind of answer this was.
+    ///
+    /// Used by [`Degradations`] so a ledger of what went wrong does not have
+    /// to carry every repo list it failed to get.
+    pub(crate) fn erased(&self) -> DiscoveryAnswer<()> {
+        match self {
+            Self::Found { freshness, .. } => DiscoveryAnswer::Found {
+                value: (),
+                freshness: freshness.clone(),
+            },
+            Self::Empty { of } => DiscoveryAnswer::Empty { of: of.clone() },
+            Self::Refused { because, legal } => DiscoveryAnswer::Refused {
+                because: because.clone(),
+                legal: legal.clone(),
+            },
+            Self::Blind { because } => DiscoveryAnswer::Blind {
+                because: because.clone(),
+            },
+        }
+    }
+
     /// The payload if we observed one, else the failure as an error.
     ///
     /// ── ★ THIS IS THE BACKWARD-COMPATIBILITY SEAM ───────────────────────
@@ -249,6 +270,111 @@ impl<T> DiscoveryAnswer<T> {
             Self::Empty { .. } => None,
             Self::Refused { because, .. } | Self::Blind { because } => Some(because),
         }
+    }
+}
+
+/// Every workspace this run could not see, and what it costs the answer.
+///
+/// ── ★ WHY A LEDGER AND NOT JUST A WARNING ───────────────────────────────
+/// Containing an error per workspace is the easy half. The hard half is that
+/// a run which skipped two of five workspaces must not *finish* looking like
+/// a run that saw all five — a warning scrolls past, a summary line does not,
+/// and an exit code survives being piped into something.
+///
+/// So every skipped workspace lands here, and the command decides at the end
+/// how to make that visible. Two shapes, and which one applies is a real
+/// distinction rather than taste:
+///
+///   * A surface with an IN-BAND channel for blindness — `tend status
+///     --json`, which emits a row per workspace — represents it in the data
+///     and exits 0. izumi's `TendRepoState::Unrecognized` ranks an unknown
+///     state `High`, so an `unreachable` row surfaces at the TOP of the
+///     board. Exiting non-zero there would make izumi discard the partial
+///     data it could have shown.
+///
+///   * A surface with NO such channel — `sync`, `pull`, `reconcile`,
+///     `align`, `list` — has only the exit code, so it uses it. Silence plus
+///     exit 0 would read as "nothing to do", which is the confidently-wrong
+///     direction.
+///
+/// ── ★ WARNINGS ARE NOT SILENCED BY `--quiet` ────────────────────────────
+/// House style elsewhere gates warnings on `!quiet`. These deliberately are
+/// not: `--quiet` means "don't narrate the work", not "don't tell me you
+/// went blind". A suppressed blindness warning is the same failure as a
+/// swallowed error, one layer up.
+#[derive(Debug, Default)]
+pub(crate) struct Degradations {
+    entries: Vec<(String, DiscoveryAnswer<()>)>,
+    /// Workspaces this run DID resolve. Tracked here rather than recomputed
+    /// by each call site, so the denominator cannot disagree between the
+    /// summary line and the run that produced it.
+    covered: usize,
+}
+
+impl Degradations {
+    /// Record that `workspace` could not be resolved, and say so on stderr
+    /// immediately — stderr so it never contaminates `--json` on stdout.
+    pub(crate) fn record(&mut self, workspace: &str, answer: DiscoveryAnswer<()>) {
+        let because = answer.because().unwrap_or("no reason given");
+        eprintln!("  warning: skipping workspace `{workspace}` — {because}");
+        if let DiscoveryAnswer::Refused { legal, .. } = &answer {
+            for l in legal {
+                eprintln!("      try: {l}");
+            }
+        }
+        self.entries.push((workspace.to_owned(), answer));
+    }
+
+    /// Record that a workspace resolved successfully.
+    pub(crate) fn covered(&mut self) {
+        self.covered += 1;
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// The workspaces skipped, in the order they were hit.
+    pub(crate) fn names(&self) -> Vec<&str> {
+        self.entries.iter().map(|(n, _)| n.as_str()).collect()
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&str, &DiscoveryAnswer<()>)> {
+        self.entries.iter().map(|(n, a)| (n.as_str(), a))
+    }
+
+    /// Print the closing summary for a surface that has no in-band channel.
+    ///
+    /// Deliberately says how many workspaces the run DID cover, because a
+    /// count of failures without its denominator is the coverage claim this
+    /// fleet's docs warn rots downward.
+    pub(crate) fn report(&self) {
+        if self.is_empty() {
+            return;
+        }
+        eprintln!();
+        eprintln!(
+            "  {} of {} workspaces were not visible this run — results above cover {} of them:",
+            self.entries.len(),
+            self.covered + self.entries.len(),
+            self.covered,
+        );
+        for (name, answer) in self.iter() {
+            eprintln!(
+                "    {name}: {} — {}",
+                answer.outcome(),
+                answer.because().unwrap_or("no reason given")
+            );
+        }
+    }
+
+    /// True when the process should exit non-zero.
+    ///
+    /// Any degradation counts. A `Refused` will never resolve without an
+    /// operator, and a `Blind` may have hidden real work — neither is a
+    /// success, and a caller piping this into a script deserves to know.
+    pub(crate) fn should_fail_exit(&self) -> bool {
+        !self.is_empty()
     }
 }
 
@@ -648,6 +774,79 @@ mod tests {
                 .expect("empty is a finding, not an error"),
             Vec::<String>::new()
         );
+    }
+
+    // ── The ledger ──────────────────────────────────────────────────────
+
+    fn blind_answer() -> DiscoveryAnswer<()> {
+        DiscoveryAnswer::Blind {
+            because: "net down".into(),
+        }
+    }
+
+    #[test]
+    fn a_clean_run_records_nothing_and_exits_zero() {
+        let mut d = Degradations::default();
+        d.covered();
+        d.covered();
+        assert!(d.is_empty());
+        assert!(!d.should_fail_exit(), "a clean run must not fail the exit");
+    }
+
+    #[test]
+    fn a_degraded_run_cannot_exit_successfully_by_default() {
+        // The property that stops "silence reads as success": once anything
+        // was skipped, the surfaces without an in-band channel fail.
+        let mut d = Degradations::default();
+        d.covered();
+        d.record("akeylesslabs", blind_answer());
+        assert!(!d.is_empty());
+        assert!(d.should_fail_exit());
+        assert_eq!(d.names(), vec!["akeylesslabs"]);
+    }
+
+    #[test]
+    fn the_ledger_keeps_its_own_denominator() {
+        // A count of failures without its denominator is the coverage claim
+        // this fleet's docs warn rots downward, so `covered` lives here and
+        // is never recomputed by a call site that could disagree.
+        let mut d = Degradations::default();
+        d.covered();
+        d.covered();
+        d.covered();
+        d.record("a", blind_answer());
+        assert_eq!(d.names().len(), 1);
+        // 3 covered + 1 skipped == the 4 workspaces the run was given.
+        assert_eq!(d.iter().count(), 1);
+    }
+
+    #[test]
+    fn a_refusal_survives_erasure_with_its_remedy() {
+        // `erased()` drops the repo list, never the reason or the remedy —
+        // the ledger must still be able to tell an operator what to do.
+        let full: DiscoveryAnswer<Vec<String>> = DiscoveryAnswer::Refused {
+            because: "403".into(),
+            legal: vec!["a scoped token".into()],
+        };
+        let erased = full.erased();
+        assert_eq!(erased.outcome(), "refused");
+        assert_eq!(erased.because(), Some("403"));
+        assert!(erased.needs_operator());
+    }
+
+    #[test]
+    fn erasure_preserves_staleness() {
+        let full: DiscoveryAnswer<Vec<String>> = DiscoveryAnswer::Found {
+            value: vec!["r".into()],
+            freshness: Freshness::Stale {
+                age_secs: 7200,
+                because: "503".into(),
+            },
+        };
+        match full.erased() {
+            DiscoveryAnswer::Found { freshness, .. } => assert!(freshness.is_stale()),
+            other => panic!("expected Found, got {other:?}"),
+        }
     }
 
     #[test]

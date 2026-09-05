@@ -1,5 +1,6 @@
 use colored::Colorize;
 
+use crate::reach::DiscoveryAnswer;
 use crate::sync::{PullSummary, RepoEntry, RepoStatus};
 use crate::watch;
 
@@ -19,9 +20,49 @@ pub(crate) struct StatusJsonRow {
     /// clean relative to*. `state: "no-remote"` is the case this exists
     /// to make visible.
     pub clean_against_remote: Option<String>,
+    /// Why a whole workspace is missing from this listing, on the synthetic
+    /// row that stands for it. `None` on every real repo row.
+    ///
+    /// ADDITIVE and `Option`, deliberately: izumi parses this array and its
+    /// `RepoRow` fields are `#[serde(default)]`, so a new optional field is
+    /// invisible to the existing consumer while a renamed or removed one
+    /// would silently blank every row. Add fields here; never change them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unreachable_because: Option<String>,
 }
 
 impl StatusJsonRow {
+    /// A row standing for a whole workspace we could not see.
+    ///
+    /// ── ★ WHY A SYNTHETIC ROW AND NOT A SHORTER ARRAY ───────────────────
+    /// `tend status --json` is a FLAT array, so a workspace that fails
+    /// discovery would otherwise contribute nothing and the output would be
+    /// silently short — indistinguishable from that workspace having no
+    /// repos. izumi's `tend_repos.rs` states the contract this would break:
+    /// "a failed/absent tend run is Unavailable(Error) … so a tooling blip
+    /// never reads as 'every repo clean'". Going quiet here would flip a live
+    /// board from honestly-unavailable to confidently-wrong.
+    ///
+    /// A row makes the blindness DATA. And it lands loudly with no change to
+    /// izumi: its `TendRepoState` parses any unrecognised state to
+    /// `Unrecognized`, which ranks `High` and "announces itself at the top of
+    /// the board instead of sinking into the quiet bucket" — a vocabulary it
+    /// grew for exactly this situation.
+    ///
+    /// `state` is the kotae outcome word (`refused` / `blind`), so the JSON
+    /// and the human table cannot disagree about what happened. `path` is
+    /// empty because there is no directory to land in, matching the existing
+    /// convention for `missing`.
+    pub(crate) fn unreachable(workspace: &str, answer: &DiscoveryAnswer<()>) -> Self {
+        Self {
+            name: format!("{workspace} (workspace)"),
+            path: String::new(),
+            state: answer.outcome().to_owned(),
+            clean_against_remote: None,
+            unreachable_because: answer.because().map(ToOwned::to_owned),
+        }
+    }
+
     pub(crate) fn new(entry: &RepoEntry, base_dir: &std::path::Path) -> Self {
         let path = if matches!(entry.status, RepoStatus::Missing) {
             String::new()
@@ -37,6 +78,7 @@ impl StatusJsonRow {
             path,
             state: entry.status.to_string(),
             clean_against_remote,
+            unreachable_because: None,
         }
     }
 }

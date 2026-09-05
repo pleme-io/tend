@@ -4,7 +4,7 @@ use std::process::Command;
 
 use crate::config::Workspace;
 use crate::provider;
-use crate::reach::{DiscoveryAnswer, Freshness};
+use crate::reach::{Degradations, DiscoveryAnswer, Freshness};
 use crate::secret::{GitConfigEnv, Secret};
 
 /// Proof that a repo's remote set was **observed** and found non-empty.
@@ -225,6 +225,51 @@ pub(crate) async fn resolve_repos_answered(
     }
 
     finish(workspace, repos, Freshness::Live)
+}
+
+/// Resolve a workspace's repos, or record why we could not and return `None`.
+///
+/// ── ★ THIS IS THE ONE CONTAINMENT SHAPE ─────────────────────────────────
+/// Six CLI commands resolve repos in a `for ws in …` loop and every one of
+/// them used a bare `?`, so any single unreadable org aborted the whole run.
+/// Writing six `match` blocks would fix that and immediately create the
+/// thing it fixed: six hand-maintained copies free to disagree about what
+/// counts as fatal. There is one helper, and the call sites read:
+///
+///     let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut deg).await
+///     else { continue };
+///
+/// `Empty` returns `Some(vec![])` rather than `None`, because an org with no
+/// repos is a *finding* — the loop body should run and report zero, not be
+/// skipped as if we had failed to look.
+pub(crate) async fn resolve_or_degrade(
+    workspace: &Workspace,
+    refresh: bool,
+    degradations: &mut Degradations,
+) -> Option<Vec<String>> {
+    let answer = resolve_repos_answered(workspace, refresh).await;
+    match &answer {
+        DiscoveryAnswer::Found { value, freshness } => {
+            if freshness.is_stale() {
+                // Serving a cached list through an outage is honest only if
+                // we say so. Never let a recovered answer pass as a live one.
+                eprintln!(
+                    "  note: workspace `{}` resolved from cache ({freshness})",
+                    workspace.name
+                );
+            }
+            degradations.covered();
+            Some(value.clone())
+        }
+        DiscoveryAnswer::Empty { .. } => {
+            degradations.covered();
+            Some(Vec::new())
+        }
+        DiscoveryAnswer::Refused { .. } | DiscoveryAnswer::Blind { .. } => {
+            degradations.record(&workspace.name, answer.erased());
+            None
+        }
+    }
 }
 
 /// Fold in `extra_repos`, apply `exclude`, sort and dedup.
