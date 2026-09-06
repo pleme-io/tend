@@ -850,6 +850,32 @@ mod tests {
     }
 
     #[test]
+    fn an_untracked_workspace_answers_empty_not_found() {
+        // `track_repos = false` must yield `Empty`, never `Found(vec![])`.
+        // Both hand the caller an empty list; only one of them says WHY it is
+        // empty. A `found: []` would leave a reader guessing between "the org
+        // has nothing" and "we were told not to look" — the same collapse
+        // this module exists to prevent, one level up from discovery.
+        let untracked: DiscoveryAnswer<Vec<String>> = DiscoveryAnswer::Empty {
+            of: "workspace `akeylesslabs` — repo tracking is off".into(),
+        };
+        assert_eq!(untracked.outcome(), "empty");
+        assert!(
+            untracked.is_about_the_world(),
+            "a deliberate opt-out is a finding, not a blindness"
+        );
+        assert!(
+            !untracked.needs_operator(),
+            "an intentional setting must not read as something to fix"
+        );
+        // And it must NOT be mistaken for a failure by the degradation path.
+        let mut d = Degradations::default();
+        d.covered();
+        assert!(d.is_empty(), "an untracked workspace is not a degradation");
+        assert!(!d.should_fail_exit());
+    }
+
+    #[test]
     fn every_outcome_word_is_distinct() {
         let words = [
             DiscoveryAnswer::<()>::Found {

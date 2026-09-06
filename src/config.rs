@@ -105,6 +105,36 @@ pub struct Workspace {
     pub clone_method: CloneMethod,
     #[serde(default)]
     pub discover: bool,
+    /// Whether tend tracks REPOSITORIES in this workspace at all.
+    ///
+    /// ── ★ WHY THIS IS NOT `discover = false` ────────────────────────────
+    /// `discover` only turns off the forge API call. A workspace with
+    /// `discover = false` and no `extra_repos` still gets its `base_dir`
+    /// scanned, and every directory found there is reported `unknown` —
+    /// which is correct behaviour (that is drift: a repo on disk that
+    /// config does not declare) and completely wrong as an ANSWER when the
+    /// operator's intent is "this org is not mine to track".
+    ///
+    /// Measured 2026-09-05: `akeylesslabs` holds 138 directories on the
+    /// operator's disk. Turning discovery off there traded one 403 warning
+    /// for 138 `unknown` rows in every `tend status` — noise for noise, and
+    /// the second kind is worse because it is indistinguishable from real
+    /// drift in the workspaces that ARE ours.
+    ///
+    /// This is the workspace-level opt-out tend did not have: the only
+    /// selection available was the CLI's `--workspace <name>`, which is a
+    /// per-invocation filter and cannot express a standing intent.
+    ///
+    /// ── ★ WHAT IT DOES *NOT* TURN OFF ───────────────────────────────────
+    /// The `watch` config keeps running. That distinction is the whole
+    /// reason this is a flag rather than deleting the workspace entry:
+    /// `akeylesslabs` carries the `akeyless-openapi-spec` file-watch that
+    /// feeds `iac-forge`, and that is load-bearing. "Do not track its
+    /// repos" and "do not watch its files" are different intents, and
+    /// collapsing them would force an operator to give up a working
+    /// pipeline to silence a listing.
+    #[serde(default = "default_track_repos")]
+    pub track_repos: bool,
     #[serde(default)]
     pub org: Option<String>,
     #[serde(default)]
@@ -567,6 +597,12 @@ fn default_clone_method() -> CloneMethod {
     CloneMethod::Ssh
 }
 
+/// Tracking repos is the default: every workspace that existed before this
+/// flag was added meant to be tracked, so absence must keep meaning yes.
+const fn default_track_repos() -> bool {
+    true
+}
+
 // ── shikumi::TieredConfig — prime directive ────────────────
 //
 // Every public tend Config struct impls TieredConfig so operators
@@ -603,6 +639,9 @@ impl shikumi::TieredConfig for Workspace {
             base_dir: String::new(),
             clone_method: CloneMethod::default(),
             discover: false,
+            // `bare` is the "nothing was declared" tier, so this mirrors
+            // `discover`'s false rather than the prescribed default.
+            track_repos: false,
             org: None,
             exclude: Vec::new(),
             extra_repos: Vec::new(),
@@ -619,6 +658,9 @@ impl shikumi::TieredConfig for Workspace {
             base_dir: String::new(),
             clone_method: default_clone_method(),
             discover: false,
+            // Prescribed = what a workspace means when the operator writes
+            // one and says nothing further: track it.
+            track_repos: default_track_repos(),
             org: None,
             exclude: Vec::new(),
             extra_repos: Vec::new(),
@@ -843,6 +885,7 @@ impl Config {
                 base_dir: "~/code/github/my-org".to_string(),
                 clone_method: CloneMethod::Ssh,
                 discover: true,
+                track_repos: true,
                 org: Some("my-org".to_string()),
                 exclude: vec![".github".to_string()],
                 extra_repos: vec![],
@@ -866,6 +909,10 @@ impl Workspace {
             base_dir: "/tmp".to_string(),
             clone_method: CloneMethod::Ssh,
             discover: false,
+            // Tracked, matching the prescribed default: a test workspace that
+            // silently skipped its on-disk scan would make every status test
+            // pass vacuously.
+            track_repos: true,
             org: None,
             exclude: vec![],
             extra_repos: vec![],
@@ -1619,8 +1666,10 @@ mod tiered_tests {
             <FlakeRefreshConfig as TieredConfig>::resolve_tier(ConfigTier::Default).interval,
             3600
         );
-        assert!(<Config as TieredConfig>::resolve_tier(ConfigTier::Bare)
-            .workspaces
-            .is_empty());
+        assert!(
+            <Config as TieredConfig>::resolve_tier(ConfigTier::Bare)
+                .workspaces
+                .is_empty()
+        );
     }
 }

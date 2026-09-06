@@ -200,6 +200,18 @@ pub(crate) async fn resolve_repos_answered(
     workspace: &Workspace,
     refresh: bool,
 ) -> DiscoveryAnswer<Vec<String>> {
+    // ── ★ NOT TRACKED IS AN ANSWER, NOT AN ABSENCE ──────────────────────
+    // `Empty` rather than `Found(vec![])`, deliberately: both would give the
+    // caller an empty list, but only `Empty` says WHY it is empty. A future
+    // reader of a `found: []` would have to guess between "we looked and the
+    // org has nothing" and "we were told not to look" — the exact collapse
+    // this module exists to prevent, one level up from the discovery call.
+    if !workspace.track_repos {
+        return DiscoveryAnswer::Empty {
+            of: format!("workspace `{}` — repo tracking is off", workspace.name),
+        };
+    }
+
     let mut repos = Vec::new();
 
     if workspace.discover {
@@ -472,6 +484,18 @@ pub(crate) async fn check_status(
             name: repo_name.clone(),
             status,
         });
+    }
+
+    // ── ★ THE HALF THAT `discover = false` COULD NEVER REACH ────────────
+    // This scan is what turns an untracked workspace into 138 `unknown`
+    // rows: it reports every directory config does not declare, which is
+    // exactly right as drift detection and exactly wrong when the operator
+    // has said the workspace is not ours to track. Skipping the scan is
+    // therefore part of the same intent, not a separate option — and it is
+    // the reason `track_repos` had to exist at all, since no combination of
+    // `discover`/`exclude`/`extra_repos` suppresses it.
+    if !workspace.track_repos {
+        return Ok(entries);
     }
 
     // Check for unknown repos on disk
