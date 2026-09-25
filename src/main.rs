@@ -1017,6 +1017,9 @@ async fn main() -> Result<()> {
                 for repo in &report.would_align {
                     println!("  PLAN  {repo}");
                 }
+                for (repo, rev) in &report.stale {
+                    println!("  STALE {repo}: follows substrate/nixpkgs, locked to {rev}");
+                }
                 for repo in &report.dirty {
                     println!("  DIRTY {repo} (WIP untouched)");
                 }
@@ -1026,13 +1029,20 @@ async fn main() -> Result<()> {
                 for (repo, why) in &report.failed {
                     println!("  FAIL  {repo}: {why}");
                 }
+                let by_design = report
+                    .by_design
+                    .iter()
+                    .map(|(why, n)| [*why, "=", n.to_string().as_str()].concat())
+                    .collect::<Vec<_>>()
+                    .join(" ");
                 println!(
-                    "[{}] nixpkgs-align ({mode}) -> {canonical}: aligned={} would-align={} converged={} by-design={} dirty={} blind={} failed={} not-a-flake={} not-cloned={absent}",
+                    "[{}] nixpkgs-align ({mode}) -> {canonical}: aligned={} would-align={} converged={} stale={} by-design={} ({by_design}) dirty={} blind={} failed={} not-a-flake={} not-cloned={absent}",
                     ws.name,
                     report.aligned.len(),
                     report.would_align.len(),
                     report.converged,
-                    report.by_design,
+                    report.stale.len(),
+                    report.by_design.values().sum::<usize>(),
                     report.dirty.len(),
                     report.blind.len(),
                     report.failed.len(),

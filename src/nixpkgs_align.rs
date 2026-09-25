@@ -52,6 +52,21 @@ pub(crate) enum Eligibility {
     NotGithubNixpkgs(String),
 }
 
+impl Eligibility {
+    /// The reason without its payload, for tallying.
+    pub(crate) fn kind(&self) -> &'static str {
+        match self {
+            Self::Movable => "movable",
+            Self::FollowsSubstrate => "follows-substrate",
+            Self::FollowsOther(_) => "follows-other",
+            Self::PinnedCommit => "pinned",
+            Self::NoSubstrateInput => "no-substrate",
+            Self::NoNixpkgsInput => "no-nixpkgs",
+            Self::NotGithubNixpkgs(_) => "not-github",
+        }
+    }
+}
+
 impl fmt::Display for Eligibility {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -212,12 +227,31 @@ pub(crate) fn substrate_canonical_rev(substrate_dir: &Path) -> Option<String> {
     locked_nixpkgs_rev(substrate_dir)
 }
 
+/// A repo that follows substrate/nixpkgs is converged only when its lock
+/// resolves to the canonical rev. The declaration can be right while a lock
+/// pinning an older substrate builds against that substrate's older nixpkgs.
+fn converged_or_stale(lock: &ExtendedLockFile, canonical_rev: &str) -> AlignOutcome {
+    let locked = lock
+        .root_input("nixpkgs")
+        .and_then(|n| n.locked.as_ref())
+        .and_then(|l| l.rev.clone())
+        .unwrap_or_default();
+    if !canonical_rev.is_empty() && locked.starts_with(canonical_rev) {
+        AlignOutcome::Skipped(Skip::Ineligible(Eligibility::FollowsSubstrate))
+    } else {
+        AlignOutcome::StaleLock(locked)
+    }
+}
+
 /// What aligning one repo did, or in plan mode would do.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum AlignOutcome {
     Aligned,
     /// Plan mode: convertible, nothing written.
     WouldAlign,
+    /// Follows substrate/nixpkgs, but the lock resolves to this other rev:
+    /// a `nix flake update substrate` away from the canonical one.
+    StaleLock(String),
     Skipped(Skip),
     /// Movable, but its flake.nix has a shape the rewriter cannot edit.
     Unrewritable(RewriteRefusal),
@@ -257,6 +291,7 @@ pub(crate) fn align_one_repo(
     };
     match classify(&lock) {
         Eligibility::Movable => {}
+        Eligibility::FollowsSubstrate => return Ok(converged_or_stale(&lock, canonical_rev)),
         other => return Ok(AlignOutcome::Skipped(Skip::Ineligible(other))),
     }
     let converted = match rewrite_flake(&std::fs::read_to_string(&flake)?) {
@@ -327,9 +362,13 @@ pub(crate) fn align_one_repo(
 pub(crate) struct AlignReport {
     pub aligned: Vec<String>,
     pub would_align: Vec<String>,
+    /// Follows substrate/nixpkgs AND resolves to the canonical rev.
     pub converged: usize,
-    /// Ineligible by design (pinned, follows another input, no substrate, …).
-    pub by_design: usize,
+    /// Follows substrate/nixpkgs, locked to another rev: (repo, locked rev).
+    pub stale: Vec<(String, String)>,
+    /// Ineligible by design, tallied per reason (pinned, follows another
+    /// input, no substrate, …).
+    pub by_design: std::collections::BTreeMap<&'static str, usize>,
     pub dirty: Vec<String>,
     /// Could not be classified or rewritten: the aligner's blind spots.
     pub blind: Vec<(String, String)>,
@@ -345,7 +384,10 @@ impl AlignReport {
             Ok(AlignOutcome::WouldAlign) => self.would_align.push(name),
             Ok(AlignOutcome::Skipped(Skip::Ineligible(Eligibility::FollowsSubstrate)))
             | Ok(AlignOutcome::Skipped(Skip::NoOp)) => self.converged += 1,
-            Ok(AlignOutcome::Skipped(Skip::Ineligible(_))) => self.by_design += 1,
+            Ok(AlignOutcome::StaleLock(rev)) => self.stale.push((name, rev)),
+            Ok(AlignOutcome::Skipped(Skip::Ineligible(why))) => {
+                *self.by_design.entry(why.kind()).or_default() += 1;
+            }
             Ok(AlignOutcome::Skipped(Skip::Dirty)) => self.dirty.push(name),
             Ok(AlignOutcome::Skipped(Skip::NoFlake)) => self.not_flakes += 1,
             Ok(AlignOutcome::Skipped(Skip::NoLock)) => {
@@ -487,6 +529,20 @@ mod tests {
             report.blind.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(),
             ["a", "b"]
         );
-        assert_eq!((report.by_design, report.converged), (1, 1));
+        assert_eq!(report.by_design.get("pinned"), Some(&1));
+        assert_eq!(report.converged, 1);
+    }
+
+    #[test]
+    fn following_substrate_is_converged_only_at_the_canonical_rev() {
+        // The root follows substrate/nixpkgs; substrate's lock resolves to "t".
+        let follows = lock(r#"["substrate", "nixpkgs"]"#, BRANCH, true);
+        assert_eq!(
+            converged_or_stale(&follows, "t"),
+            AlignOutcome::Skipped(Skip::Ineligible(Eligibility::FollowsSubstrate))
+        );
+        assert_eq!(converged_or_stale(&follows, "canonical"), AlignOutcome::StaleLock("t".into()));
+        // An empty canonical rev proves nothing, so it never reads as converged.
+        assert_eq!(converged_or_stale(&follows, ""), AlignOutcome::StaleLock("t".into()));
     }
 }
