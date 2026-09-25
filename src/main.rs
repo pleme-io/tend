@@ -144,7 +144,8 @@ enum Commands {
     /// one true version) so identical software builds once and is a cache hit
     /// fleet-wide. Converts flake.nix to `nixpkgs.follows = "substrate/nixpkgs"`,
     /// pulls the pinned substrate, commits + pushes. Idempotent; never touches a
-    /// dirty repo. The standing enforcement of the substrate-anchored nixpkgs.
+    /// dirty repo. Plans by default: every repo is classified from its lock and
+    /// reported, and nothing is written without `--apply`.
     NixpkgsAlign {
         /// Path to config file
         #[arg(long)]
@@ -153,6 +154,14 @@ enum Commands {
         /// Only align a specific workspace by name
         #[arg(long)]
         workspace: Option<String>,
+
+        /// Only these repos (repeatable). Default: every repo in the workspace.
+        #[arg(long = "repo")]
+        repos: Vec<String>,
+
+        /// Write, commit and push. Without it the run is a plan.
+        #[arg(long)]
+        apply: bool,
     },
 
     /// Mark or unmark a directory as a tend placeholder. Marked
@@ -970,8 +979,10 @@ async fn main() -> Result<()> {
         Commands::NixpkgsAlign {
             config: config_path,
             workspace: ws_filter,
+            repos: only,
+            apply,
         } => {
-            use crate::nixpkgs_align::{align_one_repo, substrate_canonical_rev, AlignOutcome};
+            use crate::nixpkgs_align::{align_one_repo, substrate_canonical_rev, AlignReport};
             let cfg = load_config(config_path.as_deref())?;
             let git = crate::git::SystemGitOps;
             let mut degraded = reach::Degradations::default();
@@ -989,37 +1000,43 @@ async fn main() -> Result<()> {
                 else {
                     continue;
                 };
-                let (mut aligned, mut skipped, mut failed) = (0u32, 0u32, 0u32);
-                for repo in &repos {
+                let mut report = AlignReport::default();
+                let mut absent = 0u32;
+                for repo in repos.iter().filter(|r| only.is_empty() || only.contains(r)) {
                     let repo_path = base_dir.join(repo);
                     if !repo_path.join(".git").exists() {
-                        skipped += 1;
+                        absent += 1;
                         continue;
                     }
-                    match align_one_repo(&repo_path, &canonical, &git) {
-                        Ok(AlignOutcome::Aligned) => {
-                            aligned += 1;
-                            println!("  OK   {repo}");
-                        }
-                        Ok(AlignOutcome::Skipped(reason)) => {
-                            skipped += 1;
-                            if reason == "dirty" {
-                                println!("  skip {repo}: dirty (WIP untouched)");
-                            }
-                        }
-                        Ok(AlignOutcome::Failed(reason)) => {
-                            failed += 1;
-                            println!("  FAIL {repo}: {reason}");
-                        }
-                        Err(e) => {
-                            failed += 1;
-                            println!("  FAIL {repo}: {e}");
-                        }
-                    }
+                    report.record(repo, align_one_repo(&repo_path, &canonical, &git, apply));
+                }
+                let mode = if apply { "apply" } else { "plan" };
+                for repo in &report.aligned {
+                    println!("  OK    {repo}");
+                }
+                for repo in &report.would_align {
+                    println!("  PLAN  {repo}");
+                }
+                for repo in &report.dirty {
+                    println!("  DIRTY {repo} (WIP untouched)");
+                }
+                for (repo, why) in &report.blind {
+                    println!("  BLIND {repo}: {why}");
+                }
+                for (repo, why) in &report.failed {
+                    println!("  FAIL  {repo}: {why}");
                 }
                 println!(
-                    "[{}] nixpkgs-align -> {canonical}: aligned={aligned} skipped={skipped} failed={failed}",
-                    ws.name
+                    "[{}] nixpkgs-align ({mode}) -> {canonical}: aligned={} would-align={} converged={} by-design={} dirty={} blind={} failed={} not-a-flake={} not-cloned={absent}",
+                    ws.name,
+                    report.aligned.len(),
+                    report.would_align.len(),
+                    report.converged,
+                    report.by_design,
+                    report.dirty.len(),
+                    report.blind.len(),
+                    report.failed.len(),
+                    report.not_flakes,
                 );
             }
             // No in-band channel on this surface, so the exit code carries it.

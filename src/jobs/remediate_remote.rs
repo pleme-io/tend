@@ -212,9 +212,11 @@ mod tests {
             .unwrap();
     }
 
+    /// The STORED url, which is what the job rewrites (see
+    /// `a_url_rewrite_rule_does_not_hide_the_stored_remote`).
     fn origin_url(dir: &std::path::Path) -> String {
         let out = Command::new("git")
-            .args(["remote", "get-url", "origin"])
+            .args(["config", "--get", "remote.origin.url"])
             .current_dir(dir)
             .output()
             .unwrap();
@@ -270,6 +272,30 @@ mod tests {
 
         remediate_one(tmp.path(), &CloneMethod::Ssh).unwrap();
         assert_eq!(origin_url(tmp.path()), "git@github.com:pleme-io/tend.git");
+    }
+
+    /// A `url.<base>.insteadOf` rule changes the URL git USES, not the one
+    /// stored in `.git/config` — and the stored line is what this job
+    /// rewrites. Reading the effective URL made a stored https remote look
+    /// like SSH to an operator whose global config rewrites github https to
+    /// SSH (this workstation, 2026-09-25), so a declared-https repo was
+    /// "remediated" again on every cycle. The rule is set on the repo here so
+    /// the test holds on any machine.
+    #[test]
+    fn a_url_rewrite_rule_does_not_hide_the_stored_remote() {
+        let tmp = TempDir::new().unwrap();
+        repo_with_remote(tmp.path(), "https://github.com/pleme-io/tend.git");
+        Command::new("git")
+            .args(["config", "url.git@github.com:.insteadOf", "https://github.com/"])
+            .current_dir(tmp.path())
+            .status()
+            .unwrap();
+
+        assert_eq!(
+            remediate_one(tmp.path(), &CloneMethod::Https).unwrap(),
+            RemediateRemoteOutcome::AlreadyConforming
+        );
+        assert_eq!(origin_url(tmp.path()), "https://github.com/pleme-io/tend.git");
     }
 
     #[test]

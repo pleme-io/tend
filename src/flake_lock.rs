@@ -8,36 +8,19 @@
 //! Unsupported input types (git+, tarball, path, etc.) are surfaced as `None`
 //! from `locked_input()` — callers should treat them as "can't prove converged"
 //! and fall back to running `nix flake update`.
+//!
+//! ★ An INPUT name is not a NODE name. Nix names lock nodes in the order it
+//! walks the graph, so a transitive dependency can take the plain name
+//! (`nixpkgs`) while the root's own input lands on a suffixed node
+//! (`nixpkgs_15`). Measured 2026-09-25 in a real lock: node `nixpkgs` was
+//! crate2nix's 2025-12-08 pin, the root's `nixpkgs` was `nixpkgs_15`. So a
+//! lookup by input name resolves through the root node's `inputs` map
+//! (following `follows` chains), never by node key.
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
-
-#[derive(Debug, Deserialize)]
-struct LockFileRaw {
-    nodes: HashMap<String, NodeRaw>,
-}
-
-#[derive(Debug, Deserialize)]
-struct NodeRaw {
-    #[serde(default)]
-    locked: Option<LockedRaw>,
-}
-
-#[derive(Debug, Deserialize)]
-struct LockedRaw {
-    #[serde(rename = "type", default)]
-    kind: Option<String>,
-    #[serde(default)]
-    owner: Option<String>,
-    #[serde(default)]
-    repo: Option<String>,
-    #[serde(default)]
-    rev: Option<String>,
-    #[serde(rename = "ref", default)]
-    r#ref: Option<String>,
-}
 
 /// A resolved GitHub-hosted input entry from a flake.lock.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,13 +28,14 @@ pub struct LockedInput {
     pub owner: String,
     pub repo: String,
     pub rev: String,
-    /// Branch or tag the input tracks (e.g. "main"). Defaults to "main" when absent.
+    /// Branch or tag the input tracks, as declared (`original.ref`; nix never
+    /// records a ref in `locked` for a github input). "main" when undeclared.
     pub tracked_ref: String,
 }
 
-/// In-memory view of a parsed flake.lock.
+/// In-memory view of a parsed flake.lock: the ROOT's inputs, by input name.
 pub struct FlakeLock {
-    nodes: HashMap<String, LockedInput>,
+    inputs: HashMap<String, LockedInput>,
 }
 
 impl FlakeLock {
@@ -64,41 +48,56 @@ impl FlakeLock {
 
     /// Parse a flake.lock from a JSON string.
     pub fn parse(content: &str) -> Result<Self> {
-        let raw: LockFileRaw =
-            serde_json::from_str(content).context("parsing flake.lock as JSON")?;
-        let mut nodes = HashMap::new();
-        for (name, node) in raw.nodes {
-            let Some(locked) = node.locked else { continue };
-            if locked.kind.as_deref() != Some("github") {
+        Ok(Self::from_extended(&ExtendedLockFile::parse(content)?))
+    }
+
+    /// The narrow view over the one typed parse: each root input resolved to
+    /// the node it locks to, kept when that node is a github input.
+    fn from_extended(lock: &ExtendedLockFile) -> Self {
+        let mut inputs = HashMap::new();
+        for name in lock.root_input_names() {
+            let Some(node) = lock.root_input(&name) else {
+                continue;
+            };
+            let Some(locked) = &node.locked else { continue };
+            if locked.kind != "github" {
                 continue;
             }
-            let (Some(owner), Some(repo), Some(rev)) = (locked.owner, locked.repo, locked.rev)
+            let (Some(owner), Some(repo), Some(rev)) =
+                (locked.owner.clone(), locked.repo.clone(), locked.rev.clone())
             else {
                 continue;
             };
-            nodes.insert(
+            let tracked_ref = node
+                .original
+                .as_ref()
+                .and_then(|o| o.r#ref.clone())
+                .or_else(|| locked.r#ref.clone())
+                .unwrap_or_else(|| "main".to_string());
+            inputs.insert(
                 name,
                 LockedInput {
                     owner,
                     repo,
                     rev,
-                    tracked_ref: locked.r#ref.unwrap_or_else(|| "main".to_string()),
+                    tracked_ref,
                 },
             );
         }
-        Ok(Self { nodes })
+        Self { inputs }
     }
 
-    /// Look up a GitHub-hosted input by its flake input name.
-    /// Returns `None` if the input doesn't exist or isn't a github-type input.
+    /// Look up a GitHub-hosted input by its flake input name (a key of the
+    /// root's `inputs`, `follows` resolved). Returns `None` if the root
+    /// declares no such input or it isn't a github-type input.
     #[must_use]
     pub fn locked_input(&self, input_name: &str) -> Option<&LockedInput> {
-        self.nodes.get(input_name)
+        self.inputs.get(input_name)
     }
 
     /// Iterate over all GitHub-hosted inputs as `(input_name, LockedInput)` pairs.
     pub fn iter(&self) -> impl Iterator<Item = (&String, &LockedInput)> {
-        self.nodes.iter()
+        self.inputs.iter()
     }
 }
 
@@ -157,6 +156,10 @@ pub struct ExtendedOriginal {
 
     #[serde(rename = "ref", default, skip_serializing_if = "Option::is_none")]
     pub r#ref: Option<String>,
+
+    /// A commit the declaration pins (`github:o/r/<sha>` or `?rev=<sha>`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rev: Option<String>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
@@ -286,19 +289,45 @@ impl ExtendedLockFile {
         out
     }
 
+    /// Every input the root declares, `follows` ones included.
+    #[must_use]
+    pub fn root_input_names(&self) -> Vec<String> {
+        self.nodes
+            .get(&self.root)
+            .map(|root| root.inputs.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// How the root declares input `name`: a node, or a `follows` path.
+    #[must_use]
+    pub fn root_input_ref(&self, name: &str) -> Option<&ExtendedInputRef> {
+        self.nodes.get(&self.root)?.inputs.get(name)
+    }
+
+    /// The node root input `name` locks to, `follows` chains resolved.
+    #[must_use]
+    pub fn root_input(&self, name: &str) -> Option<&ExtendedNode> {
+        let node = self.resolve_ref(self.root_input_ref(name)?)?;
+        self.nodes.get(&node)
+    }
+
     /// Resolve an `inputs[*]` ref to the target node name.
     fn resolve_ref(&self, r: &ExtendedInputRef) -> Option<String> {
+        self.resolve_bounded(r, self.nodes.len())
+    }
+
+    /// A `follows` path is walked from the root, and a hop may itself be a
+    /// `follows` (a follow of a follow). `budget` bounds the walk so a cyclic
+    /// lock resolves to `None` instead of looping.
+    fn resolve_bounded(&self, r: &ExtendedInputRef, budget: usize) -> Option<String> {
         match r {
             ExtendedInputRef::Direct(name) => Some(name.clone()),
             ExtendedInputRef::Follows(chain) => {
+                let budget = budget.checked_sub(1)?;
                 let mut current = self.root.clone();
                 for hop in chain {
-                    let node = self.nodes.get(&current)?;
-                    let next = node.inputs.get(hop)?;
-                    current = match next {
-                        ExtendedInputRef::Direct(n) => n.clone(),
-                        ExtendedInputRef::Follows(_) => return None,
-                    };
+                    let next = self.nodes.get(&current)?.inputs.get(hop)?;
+                    current = self.resolve_bounded(next, budget)?;
                 }
                 Some(current)
             }
@@ -337,7 +366,11 @@ mod tests {
           }
         },
         "root": {
-          "inputs": {}
+          "inputs": {
+            "blackmatter-shell": "blackmatter-shell",
+            "compass-nvim": "compass-nvim",
+            "some-git-input": "some-git-input"
+          }
         },
         "some-git-input": {
           "locked": {
@@ -396,5 +429,73 @@ mod tests {
     #[test]
     fn parse_rejects_non_json() {
         assert!(FlakeLock::parse("not json").is_err());
+    }
+
+    /// The shape of a real lock (nupastel, 2026-09-25): a transitive
+    /// dependency holds the plain node name `nixpkgs`, the root's own input
+    /// is `nixpkgs_2`, and a third input follows through `substrate`.
+    const SHADOWED: &str = r#"{
+      "nodes": {
+        "crate2nix": { "inputs": { "nixpkgs": "nixpkgs" },
+          "locked": { "type": "github", "owner": "nix-community", "repo": "crate2nix", "rev": "c2n" } },
+        "nixpkgs": {
+          "locked": { "type": "github", "owner": "NixOS", "repo": "nixpkgs", "rev": "old-transitive" },
+          "original": { "type": "github", "owner": "NixOS", "ref": "nixos-unstable", "repo": "nixpkgs" } },
+        "nixpkgs_2": {
+          "locked": { "type": "github", "owner": "nixos", "repo": "nixpkgs", "rev": "root-own" },
+          "original": { "type": "github", "owner": "nixos", "ref": "nixos-25.11", "repo": "nixpkgs" } },
+        "nixpkgs_3": {
+          "locked": { "type": "github", "owner": "NixOS", "repo": "nixpkgs", "rev": "substrate-pin" },
+          "original": { "type": "github", "owner": "NixOS", "repo": "nixpkgs", "rev": "substrate-pin" } },
+        "substrate": { "inputs": { "nixpkgs": "nixpkgs_3" },
+          "locked": { "type": "github", "owner": "pleme-io", "repo": "substrate", "rev": "sub" } },
+        "blue": { "inputs": { "nixpkgs": ["substrate", "nixpkgs"], "crate2nix": "crate2nix" },
+          "locked": { "type": "github", "owner": "pleme-io", "repo": "blue", "rev": "b" } },
+        "root": { "inputs": {
+          "crate2nix": "crate2nix",
+          "nixpkgs": "nixpkgs_2",
+          "substrate": "substrate",
+          "blue": "blue",
+          "pkgs-via-blue": ["blue", "nixpkgs"],
+          "pkgs-via-substrate": ["substrate", "nixpkgs"]
+        } }
+      },
+      "root": "root",
+      "version": 7
+    }"#;
+
+    #[test]
+    fn an_input_name_resolves_through_the_root_not_the_node_key() {
+        let lock = FlakeLock::parse(SHADOWED).unwrap();
+        let np = lock.locked_input("nixpkgs").unwrap();
+        assert_eq!(np.rev, "root-own", "read the transitive node that holds the plain name");
+        assert_eq!(np.tracked_ref, "nixos-25.11", "the declared branch lives in `original`");
+    }
+
+    #[test]
+    fn a_follows_input_resolves_to_the_node_it_follows() {
+        let lock = FlakeLock::parse(SHADOWED).unwrap();
+        assert_eq!(lock.locked_input("pkgs-via-substrate").unwrap().rev, "substrate-pin");
+        // A follow of a follow: blue's nixpkgs itself follows substrate/nixpkgs.
+        assert_eq!(lock.locked_input("pkgs-via-blue").unwrap().rev, "substrate-pin");
+    }
+
+    #[test]
+    fn a_cyclic_follows_resolves_to_nothing() {
+        let cyclic = r#"{ "nodes": {
+            "a": { "inputs": { "x": ["b", "x"] } },
+            "b": { "inputs": { "x": ["a", "x"] } },
+            "root": { "inputs": { "a": "a", "b": "b", "x": ["a", "x"] } } },
+          "root": "root", "version": 7 }"#;
+        let lock = ExtendedLockFile::parse(cyclic).unwrap();
+        assert!(lock.root_input("x").is_none());
+        assert!(FlakeLock::parse(cyclic).unwrap().locked_input("x").is_none());
+    }
+
+    #[test]
+    fn a_pinned_commit_is_recorded_in_original() {
+        let lock = ExtendedLockFile::parse(SHADOWED).unwrap();
+        let sub = lock.root_input("pkgs-via-substrate").unwrap();
+        assert_eq!(sub.original.as_ref().unwrap().rev.as_deref(), Some("substrate-pin"));
     }
 }

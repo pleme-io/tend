@@ -75,8 +75,14 @@ impl RemoteWitness {
         // relative to, so it collapses to the same `None` verdict as
         // having no remote at all rather than yielding a witness whose
         // URL is a lie.
+        //
+        // The STORED url, never `git remote get-url`: that one applies
+        // `url.<base>.insteadOf`, so an operator whose global config rewrites
+        // github https to SSH saw every stored https remote as SSH — the
+        // remediation job then rewrote a declared-https remote on every cycle
+        // and never converged a declared-SSH one that stored https.
         let url_out = Command::new("git")
-            .args(["remote", "get-url", remote])
+            .args(["config", "--get", &["remote.", remote, ".url"].concat()])
             .current_dir(repo_path)
             .output()
             .with_context(|| format!("reading {remote} url in {}", repo_path.display()))?;
