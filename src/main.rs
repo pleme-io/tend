@@ -6,6 +6,7 @@ mod ai_models;
 mod ai_planner;
 mod audit;
 mod cache;
+mod cargo_target;
 mod ci_trim;
 mod config;
 mod daemon;
@@ -89,6 +90,17 @@ enum Commands {
         /// Concurrency the daemon is configured for, to show the throttled value.
         #[arg(long, default_value_t = 8)]
         max_inflight: u32,
+    },
+
+    /// Cargo `target/` directories in the workspace repos: size, idle days,
+    /// and the verdict the configured `cargo_target:` policy reaches.
+    ///
+    /// `report` never deletes. `apply` removes what the policy says to, unless
+    /// `--dry-run` or the config's `dry_run` holds it back. Only directories
+    /// carrying cargo's `CACHEDIR.TAG` are ever candidates.
+    CargoTarget {
+        #[command(subcommand)]
+        action: CargoTargetAction,
     },
 
     /// Per-session git worktrees — real isolation for concurrent agents.
@@ -681,6 +693,32 @@ enum Commands {
 }
 
 #[derive(Subcommand)]
+enum CargoTargetAction {
+    /// Show every target dir with its size, idle days and verdict. Deletes nothing.
+    Report {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long)]
+        workspace: Option<String>,
+        /// Emit the report as JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Remove the directories the policy selects.
+    Apply {
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long)]
+        workspace: Option<String>,
+        /// Decide and report without deleting.
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
 enum WorktreeAction {
     /// Create (or reuse) this session's worktree and print its path.
     ///
@@ -793,6 +831,54 @@ async fn main() -> Result<()> {
                 Some(n) if n == max_inflight => println!("verdict       proceed at {n}"),
                 Some(n) => println!("verdict       throttle to {n} — {}", verdict.why()),
                 None => println!("verdict       run nothing — {}", verdict.why()),
+            }
+        }
+
+        Commands::CargoTarget { action } => {
+            let (config_path, ws_filter, mode, json) = match action {
+                CargoTargetAction::Report {
+                    config,
+                    workspace,
+                    json,
+                } => (config, workspace, cargo_target::Mode::DryRun, json),
+                CargoTargetAction::Apply {
+                    config,
+                    workspace,
+                    dry_run,
+                    json,
+                } => (
+                    config,
+                    workspace,
+                    if dry_run {
+                        cargo_target::Mode::DryRun
+                    } else {
+                        cargo_target::Mode::Apply
+                    },
+                    json,
+                ),
+            };
+            let cfg = load_config(config_path.as_deref())?;
+            let workspaces = filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())?;
+            let repos = daemon::daemon_repo_paths(&workspaces);
+            let probe = workspaces
+                .first()
+                .and_then(|w| w.resolved_base_dir().ok())
+                .unwrap_or(std::env::current_dir()?);
+            let pressured = cargo_target::disk_pressured_at(&probe, 8);
+            let report = cargo_target::sweep(
+                &cfg.cargo_target,
+                &repos,
+                pressured,
+                mode,
+                std::time::SystemTime::now(),
+            );
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                cargo_target::print_report(&report, &cfg.cargo_target);
+            }
+            if report.entries.iter().any(|e| e.removed == Some(false)) {
+                std::process::exit(1);
             }
         }
 

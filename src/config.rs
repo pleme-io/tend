@@ -33,6 +33,10 @@ pub struct Config {
     pub workspaces: Vec<Workspace>,
     #[serde(default)]
     pub host_health: HostHealthConfig,
+    /// Bounds on local cargo `target/` directories -- see
+    /// `src/cargo_target.rs`. Absent means disabled.
+    #[serde(default)]
+    pub cargo_target: crate::cargo_target::CargoTargetConfig,
 }
 
 /// Host-level (not per-workspace) resource-hygiene knobs read by
@@ -621,12 +625,14 @@ impl shikumi::TieredConfig for Config {
         Self {
             workspaces: Vec::new(),
             host_health: HostHealthConfig::default(),
+            cargo_target: crate::cargo_target::CargoTargetConfig::default(),
         }
     }
     fn prescribed_default() -> Self {
         Self {
             workspaces: Vec::new(),
             host_health: HostHealthConfig::default(),
+            cargo_target: crate::cargo_target::CargoTargetConfig::default(),
         }
     }
 }
@@ -879,6 +885,7 @@ impl Config {
     pub fn generate_starter() -> Result<String> {
         let config = Config {
             host_health: HostHealthConfig::default(),
+            cargo_target: crate::cargo_target::CargoTargetConfig::default(),
             workspaces: vec![Workspace {
                 name: "my-org".to_string(),
                 provider: "github".to_string(),

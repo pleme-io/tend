@@ -1815,6 +1815,7 @@ mod tests {
         Config {
             workspaces,
             host_health: Default::default(),
+            cargo_target: Default::default(),
         }
     }
 
@@ -1871,6 +1872,7 @@ mod tests {
                 Workspace::test_default("ws1"),
             ],
             host_health: Default::default(),
+            cargo_target: Default::default(),
         };
         let cli = PrebuildOptions {
             caches: vec![usable_cache("cli-cache")],

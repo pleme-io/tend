@@ -43,6 +43,7 @@ and automates version certification pipelines.
 | `daemon` | Persistent loop: sync + fetch + watch (300s default) |
 | `flake-update` | Propagate nix flake updates through dependency chain |
 | `init` | Generate starter config |
+| `cargo-target report\|apply` | Size, idle days and verdict for every cargo `target/` dir; `apply` removes what the policy selects |
 
 ## Architecture
 
@@ -161,6 +162,37 @@ Post-hook `args` support these placeholders:
 - `$PREVIOUS_FILE` -- previous downloaded file path (file watches)
 - `$CURRENT_FILE` -- newly downloaded file path (file watches)
 - `$FILE_SHA` -- new file SHA (file watches)
+
+## Cargo target dirs (`src/cargo_target.rs`)
+
+Local `cargo`/rust-analyzer output under the workspace repos is unmanaged by
+nix and only grows (86.7 GiB across 35 dirs on the operator's Mac,
+2026-09-29). The daemon bounds it when `cargo_target.enable` is set.
+
+```yaml
+cargo_target:
+  enable: false          # daemon sweep; `tend cargo-target report` works regardless
+  max_idle_days: 14      # newest mtime older than this -> removed whole
+  budget_gib: 50         # total ceiling; least-recently-used removed first
+  pressure_budget_gib: 10  # ceiling while pressure.rs reports disk pressure
+  active_minutes: 60     # written this recently -> in use, never removed
+  interval_minutes: 60   # minimum time between daemon sweeps
+  search_depth: 2        # <repo>/target and <repo>/<dir>/target
+  dry_run: false         # decide + report, delete nothing
+```
+
+- **Safety invariant:** only a `CargoTargetDir` can be removed, and
+  `CargoTargetDir::recognize` is its only constructor: name exactly `target`,
+  a real directory (not a symlink), holding a `CACHEDIR.TAG` with the cachedir
+  signature AND cargo's "created by cargo" line. `remove` re-recognizes before
+  deleting.
+- **In use:** a held cargo build lock (`<target>/<profile>/.cargo-lock`,
+  probed with a non-blocking shared `flock`) or a write within
+  `active_minutes`. Removal holds every cargo lock exclusively while it
+  deletes.
+- The sweep runs BEFORE the pressure gate, since it frees disk. Each sweep
+  logs a `cargo_target_sweep` audit event. MCP: `tend_cargo_targets`
+  (read-only dry run).
 
 ## Post-Hooks
 

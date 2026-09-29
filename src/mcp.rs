@@ -81,6 +81,13 @@ pub const TOOLS: &[Tool] = &[
         mutating: false,
     },
     Tool {
+        name: "tend_cargo_targets",
+        description: "Cargo target/ directories in the workspace repos: size, idle \
+                      days and the verdict the cargo_target policy reaches. A dry \
+                      run — never deletes.",
+        mutating: false,
+    },
+    Tool {
         name: "tend_worktree_prune",
         description: "Remove session worktrees that hold no work. Refuses on \
                       uncommitted or unpushed changes. Requires mutate authority.",
@@ -284,6 +291,40 @@ impl TendMcp {
                     Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
                 }
             }
+            Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
+        }
+    }
+
+    #[tool(
+        description = "Cargo target/ directories across the configured workspace repos, as a DRY RUN of the cargo_target policy: per directory the size, idle days and verdict (in-use / keep / remove-idle / remove-over-budget), plus totals, the budget in force (tighter under disk pressure) and any `target` dirs refused for lacking cargo's CACHEDIR.TAG. Never deletes; `tend cargo-target apply` does."
+    )]
+    async fn tend_cargo_targets(&self) -> String {
+        let loaded = crate::config::Config::load(std::path::Path::new(&shellexpand_home(
+            "~/.config/tend/config.yaml",
+        )));
+        let cfg = match loaded {
+            Ok(c) => c,
+            Err(e) => return json!({"ok": false, "error": e.to_string()}).to_string(),
+        };
+        let swept = tokio::task::spawn_blocking(move || {
+            let workspaces: Vec<&crate::config::Workspace> = cfg.workspaces.iter().collect();
+            let repos = crate::daemon::daemon_repo_paths(&workspaces);
+            let probe = workspaces
+                .first()
+                .and_then(|w| w.resolved_base_dir().ok())
+                .unwrap_or_else(|| std::path::PathBuf::from("."));
+            let pressured = crate::cargo_target::disk_pressured_at(&probe, 8);
+            crate::cargo_target::sweep(
+                &cfg.cargo_target,
+                &repos,
+                pressured,
+                crate::cargo_target::Mode::DryRun,
+                std::time::SystemTime::now(),
+            )
+        })
+        .await;
+        match swept {
+            Ok(report) => json!({"ok": true, "report": report}).to_string(),
             Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
         }
     }
@@ -498,6 +539,7 @@ mod tests {
             config: crate::config::Config {
                 workspaces: vec![],
                 host_health: Default::default(),
+                cargo_target: Default::default(),
             },
             authority: Authority::Observe,
         };

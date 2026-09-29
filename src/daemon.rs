@@ -69,6 +69,8 @@ pub(crate) async fn run_with_kanshou(
     kanshou_state: Arc<TendDaemonState>,
 ) -> Result<()> {
     let mut cycle = 0u64;
+    // When the cargo target-dir sweep last ran; `None` = on the first cycle.
+    let mut last_cargo_sweep: Option<std::time::Instant> = None;
 
     // Single drain coordinator for the whole loop — handles SIGTERM and
     // SIGINT. `tokio::signal::ctrl_c` alone misses SIGTERM from launchd.
@@ -204,6 +206,79 @@ pub(crate) async fn run_with_kanshou(
                         reaped.len()
                     );
                 }
+            }
+        }
+
+        // ── Bound the cargo `target/` dirs (src/cargo_target.rs) ──
+        //
+        // BEFORE the pressure gate, deliberately: this sweep FREES disk, and
+        // a gate that halts on low disk must not also stop the one step that
+        // relieves it. Rate-limited by `interval_minutes`, because measuring
+        // stats every file in every target dir. Off unless configured.
+        if cfg.cargo_target.enable
+            && last_cargo_sweep
+                .is_none_or(|t: std::time::Instant| t.elapsed() >= cfg.cargo_target.interval())
+        {
+            last_cargo_sweep = Some(std::time::Instant::now());
+            let ct = cfg.cargo_target.clone();
+            let repos = daemon_repo_paths(&workspaces);
+            let probe = workspaces
+                .first()
+                .and_then(|w| w.resolved_base_dir().ok())
+                .unwrap_or_else(|| PathBuf::from("."));
+            let inflight = opts.max_inflight;
+            let swept = tokio::task::spawn_blocking(move || {
+                let pressured = crate::cargo_target::disk_pressured_at(&probe, inflight);
+                crate::cargo_target::sweep(
+                    &ct,
+                    &repos,
+                    pressured,
+                    crate::cargo_target::Mode::Apply,
+                    std::time::SystemTime::now(),
+                )
+            })
+            .await;
+            match swept {
+                Ok(report) => {
+                    let removed: Vec<&str> = report
+                        .entries
+                        .iter()
+                        .filter(|e| e.removed == Some(true))
+                        .map(|e| e.path.as_str())
+                        .collect();
+                    audit::AuditLog::default_path().log(
+                        "cargo_target_sweep",
+                        serde_json::json!({
+                            "mode": report.mode,
+                            "pressured": report.pressured,
+                            "count": report.count,
+                            "total_gib": report.total_gib,
+                            "reclaim_gib": report.reclaim_gib,
+                            "freed_gib": report.freed_gib,
+                            "budget_unreachable": report.budget_unreachable,
+                            "removed": removed,
+                        }),
+                    );
+                    if !opts.quiet || !removed.is_empty() {
+                        eprintln!(
+                            "  cargo target dirs: {} holding {:.1} GiB; {} {:.1} GiB ({} removed)",
+                            report.count,
+                            report.total_gib,
+                            if report.mode == crate::cargo_target::Mode::DryRun {
+                                "would free"
+                            } else {
+                                "freed"
+                            },
+                            if report.mode == crate::cargo_target::Mode::DryRun {
+                                report.reclaim_gib
+                            } else {
+                                report.freed_gib
+                            },
+                            removed.len()
+                        );
+                    }
+                }
+                Err(e) => eprintln!("daemon: cargo target sweep panicked: {e}"),
             }
         }
 
@@ -577,7 +652,7 @@ async fn run_nix_audit_cycle(
 /// One level under each workspace's `base_dir` — the same shape `tend status`
 /// walks. A path that is not a git repo is harmless: `find_stale_index_locks`
 /// only looks for `<repo>/.git/index.lock` and skips what has none.
-fn daemon_repo_paths(workspaces: &[&crate::config::Workspace]) -> Vec<PathBuf> {
+pub(crate) fn daemon_repo_paths(workspaces: &[&crate::config::Workspace]) -> Vec<PathBuf> {
     let mut repos = Vec::new();
     for ws in workspaces {
         let Ok(base) = ws.resolved_base_dir() else {

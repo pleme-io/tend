@@ -227,6 +227,19 @@ impl Thresholds {
         want.min(total_gib * self.disk_throttle_pct / 100.0).max(halt)
     }
 
+    /// True when free disk is under the throttle floor — the DISK axis of
+    /// [`assess`], without its fd and load axes.
+    ///
+    /// For a caller that frees disk rather than consumes it (the cargo
+    /// target-dir sweep, `crate::cargo_target`): it needs to know "is disk
+    /// tight", not "should jobs run", and a busy CPU is no reason to delete
+    /// build caches. One definition of "disk is tight", so the sweep and the
+    /// gate cannot disagree about it.
+    #[must_use]
+    pub fn disk_pressured(&self, reading: &Reading, inflight: u32) -> bool {
+        reading.disk_free_gib < self.throttle_floor_gib(reading.disk_total_gib, inflight)
+    }
+
     /// How many jobs the free space affords above the recovery floor, capped at
     /// the configured concurrency and never below one.
     ///
@@ -326,7 +339,7 @@ pub fn assess(reading: Reading, t: Thresholds, configured_inflight: u32) -> Verd
         why.push_str("% of the ceiling — nothing runs until that clears");
         return Verdict::Halt { why };
     }
-    if reading.disk_free_gib < throttle_floor {
+    if t.disk_pressured(&reading, configured_inflight) {
         // How many jobs the space genuinely affords, not a flat one.
         let max_inflight = t.affordable_inflight(&reading, configured_inflight);
         let mut why = String::from("disk free ");
@@ -522,6 +535,28 @@ mod tests {
             }
             other => panic!("a host at load 52.89 must not proceed, got {other:?}"),
         }
+    }
+
+    /// `disk_pressured` is the disk axis of `assess` alone: it agrees with
+    /// the gate on disk, and ignores load (a busy CPU is no reason for the
+    /// cargo target sweep to tighten its budget).
+    #[test]
+    fn disk_pressured_is_the_gates_disk_axis() {
+        let t = super::Thresholds::default();
+        let mk = |free, load| super::Reading {
+            disk_free_gib: free,
+            disk_total_gib: 460.0,
+            fd_ratio: Some(0.1),
+            load_per_cpu: Some(load),
+        };
+        // Measured on the operator's Mac 2026-09-29: ~57 GiB free of 460.
+        assert!(!t.disk_pressured(&mk(57.0, 0.2), 8));
+        assert!(t.disk_pressured(&mk(25.0, 0.2), 8));
+        assert!(!t.disk_pressured(&mk(57.0, 99.0), 8), "load is not disk");
+        assert!(matches!(
+            super::assess(mk(25.0, 0.2), t, 8),
+            super::Verdict::Throttle { .. }
+        ));
     }
 
     /// Load is NOT a halt: unlike a full disk, a busy host recovers on its own,
