@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "28f8aae45e1b156361d5e11998664d76386c67a3438c135ecf50533462cdd8ea",
+  "cargo_lock_sha256": "7956df2c85eddb143c0b327e38be1904c22887fcf308ee7334bd0aef0e6d8aab",
   "manifest_sha256": {
     "Cargo.toml": "b39d003d881aa1c9e7b84e8154b41ec5c8c0f25c8ab6536e7bf70b9e319ebb8b"
   },
@@ -4979,11 +4979,11 @@
           "v1_31"
         ]
       },
-      "kanshou-0.1.6-de575403d5cbbb4e9126e09448345f3e8a84e2bd": {
+      "kanshou-0.1.9-4743a3e573163163bc510bb73b197dd21ce15550": {
         "runtime_dependencies": [
           {
             "name": "kanshou_derive",
-            "package_key": "kanshou-derive-0.1.6-de575403d5cbbb4e9126e09448345f3e8a84e2bd",
+            "package_key": "kanshou-derive-0.1.9-4743a3e573163163bc510bb73b197dd21ce15550",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5067,7 +5067,7 @@
           "derive"
         ]
       },
-      "kanshou-derive-0.1.6-de575403d5cbbb4e9126e09448345f3e8a84e2bd": {
+      "kanshou-derive-0.1.9-4743a3e573163163bc510bb73b197dd21ce15550": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -7066,7 +7066,7 @@
           },
           {
             "name": "kanshou",
-            "package_key": "kanshou-0.1.6-de575403d5cbbb4e9126e09448345f3e8a84e2bd",
+            "package_key": "kanshou-0.1.9-4743a3e573163163bc510bb73b197dd21ce15550",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -19756,10 +19756,10 @@
       "build_script": "build.rs",
       "links": "k8s-openapi-0.24.0"
     },
-    "kanshou-0.1.6-de575403d5cbbb4e9126e09448345f3e8a84e2bd": {
+    "kanshou-0.1.9-4743a3e573163163bc510bb73b197dd21ce15550": {
       "edition": "2024"
     },
-    "kanshou-derive-0.1.6-de575403d5cbbb4e9126e09448345f3e8a84e2bd": {
+    "kanshou-derive-0.1.9-4743a3e573163163bc510bb73b197dd21ce15550": {
       "edition": "2024",
       "proc_macro": true
     },
@@ -20555,8 +20555,8 @@
   },
   "git_nar_sha256": {
     "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686": "sha256-B/Zlbtl+tNdhX1Br9NkFq8oAl8nZJRjphCpoF+QivVA=",
-    "kanshou-0.1.6-de575403d5cbbb4e9126e09448345f3e8a84e2bd": "sha256-57b2hG6WY9n+wQExGqjHZyEga2/g6d+KnWw/6/w8nNo=",
-    "kanshou-derive-0.1.6-de575403d5cbbb4e9126e09448345f3e8a84e2bd": "sha256-57b2hG6WY9n+wQExGqjHZyEga2/g6d+KnWw/6/w8nNo=",
+    "kanshou-0.1.9-4743a3e573163163bc510bb73b197dd21ce15550": "sha256-jXKcQPKBcjCKf14+GMBDrLWESFN38hOoBmGihqqaYf4=",
+    "kanshou-derive-0.1.9-4743a3e573163163bc510bb73b197dd21ce15550": "sha256-jXKcQPKBcjCKf14+GMBDrLWESFN38hOoBmGihqqaYf4=",
     "opencode-zen-0.1.2-771b10ab14a8f0210856849903f7713261d5fe3f": "sha256-OpClJuaybNnU5DBZmtHYfudZ2pplsd366J7xqKoGWMo=",
     "samba-0.1.4-597a11701688847326ac4486f80f381fe7dc4c59": "sha256-upLrqR1oHMukAD5S9zd9tvYd2R7JjiGL/GpbHJZ0ia4=",
     "shigoto-budget-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
