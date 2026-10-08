@@ -540,6 +540,7 @@ mod tests {
                 workspaces: vec![],
                 host_health: Default::default(),
                 cargo_target: Default::default(),
+                status_snapshot: Default::default(),
             },
             authority: Authority::Observe,
         };

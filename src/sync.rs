@@ -160,19 +160,320 @@ pub(crate) enum RepoStatus {
     Missing,
     /// Repo exists on disk but not in config.
     Unknown,
+    Ahead,
+    NoUpstream,
+    Behind,
+    Unborn,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum StateWord {
+    Clean,
+    Dirty,
+    Stuck,
+    NoRemote,
+    Missing,
+    Unknown,
+    Ahead,
+    NoUpstream,
+    Behind,
+    Unborn,
+}
+
+impl StateWord {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Clean => "clean",
+            Self::Dirty => "dirty",
+            Self::Stuck => "stuck",
+            Self::NoRemote => "no-remote",
+            Self::Missing => "missing",
+            Self::Unknown => "unknown",
+            Self::Ahead => "ahead",
+            Self::NoUpstream => "no-upstream",
+            Self::Behind => "behind",
+            Self::Unborn => "unborn",
+        }
+    }
+
+    pub(crate) const fn is_quiet(self) -> bool {
+        matches!(self, Self::Clean | Self::Unborn)
+    }
+
+    pub(crate) const fn problem_rank(self) -> Option<u8> {
+        match self {
+            Self::Stuck => Some(0),
+            Self::Dirty => Some(1),
+            Self::Ahead => Some(2),
+            Self::NoUpstream => Some(3),
+            Self::NoRemote => Some(4),
+            Self::Behind => Some(5),
+            Self::Clean | Self::Missing | Self::Unknown | Self::Unborn => None,
+        }
+    }
+}
+
+impl std::fmt::Display for StateWord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl RepoStatus {
+    pub(crate) const fn word(&self) -> StateWord {
+        match self {
+            Self::Clean(_) => StateWord::Clean,
+            Self::Dirty => StateWord::Dirty,
+            Self::Stuck => StateWord::Stuck,
+            Self::NoRemote => StateWord::NoRemote,
+            Self::Missing => StateWord::Missing,
+            Self::Unknown => StateWord::Unknown,
+            Self::Ahead => StateWord::Ahead,
+            Self::NoUpstream => StateWord::NoUpstream,
+            Self::Behind => StateWord::Behind,
+            Self::Unborn => StateWord::Unborn,
+        }
+    }
 }
 
 impl std::fmt::Display for RepoStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Clean(_) => f.write_str("clean"),
-            Self::Dirty => f.write_str("dirty"),
-            Self::Stuck => f.write_str("stuck"),
-            Self::NoRemote => f.write_str("no-remote"),
-            Self::Missing => f.write_str("missing"),
-            Self::Unknown => f.write_str("unknown"),
+        f.write_str(self.word().as_str())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct RepoFacts {
+    pub branch: Option<String>,
+    pub ahead: Option<u32>,
+    pub behind: Option<u32>,
+    pub dirty_count: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Head {
+    Unborn,
+    Branch(String),
+    Detached,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Tracking {
+    Untracked,
+    Gone,
+    Compared { ahead: u32, behind: u32 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BranchStatus {
+    pub head: Head,
+    pub tracking: Tracking,
+    pub dirty: usize,
+}
+
+impl BranchStatus {
+    pub(crate) fn parse(porcelain_v2: &str) -> Self {
+        let mut initial = false;
+        let mut head_name: Option<&str> = None;
+        let mut upstream = false;
+        let mut ab: Option<(u32, u32)> = None;
+        let mut dirty = 0usize;
+        for line in porcelain_v2.lines() {
+            if let Some(header) = line.strip_prefix("# ") {
+                if let Some(oid) = header.strip_prefix("branch.oid ") {
+                    initial = oid.trim() == "(initial)";
+                } else if let Some(name) = header.strip_prefix("branch.head ") {
+                    head_name = Some(name.trim());
+                } else if header.starts_with("branch.upstream ") {
+                    upstream = true;
+                } else if let Some(counts) = header.strip_prefix("branch.ab ") {
+                    ab = parse_ab(counts);
+                }
+            } else if !line.trim().is_empty() {
+                dirty += 1;
+            }
+        }
+        let head = match (initial, head_name) {
+            (true, _) => Head::Unborn,
+            (false, Some(name)) if name != "(detached)" => Head::Branch(name.to_string()),
+            (false, _) => Head::Detached,
+        };
+        let tracking = match (upstream, ab) {
+            (false, _) => Tracking::Untracked,
+            (true, None) => Tracking::Gone,
+            (true, Some((ahead, behind))) => Tracking::Compared { ahead, behind },
+        };
+        Self {
+            head,
+            tracking,
+            dirty,
         }
     }
+}
+
+fn parse_ab(counts: &str) -> Option<(u32, u32)> {
+    let mut parts = counts.split_whitespace();
+    let ahead = parts.next()?.strip_prefix('+')?.parse().ok()?;
+    let behind = parts.next()?.strip_prefix('-')?.parse().ok()?;
+    Some((ahead, behind))
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct RepoObservation {
+    witness: Option<RemoteWitness>,
+    stuck: bool,
+    branch: BranchStatus,
+    off_remote: Option<u32>,
+}
+
+impl RepoObservation {
+    pub(crate) fn observe(repo_path: &Path) -> Result<Option<Self>> {
+        if !is_git_worktree(repo_path) {
+            return Ok(None);
+        }
+        let branch = branch_status(repo_path)?;
+        Self::complete(repo_path, branch).map(Some)
+    }
+
+    fn complete(repo_path: &Path, branch: BranchStatus) -> Result<Self> {
+        let witness = RemoteWitness::observe(repo_path)?;
+        let stuck = is_stuck(repo_path)?;
+        let unbacked_tip = matches!(
+            (&branch.head, &branch.tracking),
+            (Head::Detached, _) | (Head::Branch(_), Tracking::Untracked | Tracking::Gone)
+        );
+        let off_remote = if witness.is_some() && unbacked_tip {
+            Some(count_off_remote(repo_path)?)
+        } else {
+            None
+        };
+        Ok(Self {
+            witness,
+            stuck,
+            branch,
+            off_remote,
+        })
+    }
+
+    pub(crate) fn branch(&self) -> &BranchStatus {
+        &self.branch
+    }
+
+    pub(crate) fn status(&self) -> RepoStatus {
+        let Some(witness) = &self.witness else {
+            return RepoStatus::NoRemote;
+        };
+        if self.stuck {
+            return RepoStatus::Stuck;
+        }
+        if self.branch.dirty > 0 {
+            return RepoStatus::Dirty;
+        }
+        match (&self.branch.head, self.branch.tracking) {
+            (Head::Unborn, _) => RepoStatus::Unborn,
+            (Head::Detached, _) if self.off_remote.unwrap_or(0) > 0 => RepoStatus::Ahead,
+            (Head::Detached, _) => RepoStatus::Clean(witness.clone()),
+            (Head::Branch(_), Tracking::Compared { ahead, .. }) if ahead > 0 => RepoStatus::Ahead,
+            (Head::Branch(_), Tracking::Untracked | Tracking::Gone) => RepoStatus::NoUpstream,
+            (Head::Branch(_), Tracking::Compared { behind, .. }) if behind > 0 => {
+                RepoStatus::Behind
+            }
+            (Head::Branch(_), Tracking::Compared { .. }) => RepoStatus::Clean(witness.clone()),
+        }
+    }
+
+    pub(crate) fn facts(&self) -> RepoFacts {
+        let branch = match &self.branch.head {
+            Head::Branch(name) => Some(name.clone()),
+            Head::Unborn | Head::Detached => None,
+        };
+        let (ahead, behind) = match (&self.branch.head, self.branch.tracking) {
+            (Head::Branch(_), Tracking::Compared { ahead, behind }) => (Some(ahead), Some(behind)),
+            _ => (self.off_remote, None),
+        };
+        RepoFacts {
+            branch,
+            ahead,
+            behind,
+            dirty_count: Some(self.branch.dirty),
+        }
+    }
+}
+
+fn branch_status(repo_path: &Path) -> Result<BranchStatus> {
+    let output = Command::new("git")
+        .args([
+            "--no-optional-locks",
+            "status",
+            "--porcelain=v2",
+            "--branch",
+        ])
+        .current_dir(repo_path)
+        .output()
+        .with_context(|| format!("running git status in {}", repo_path.display()))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        anyhow::bail!("git status failed in {}: {stderr}", repo_path.display());
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    Ok(BranchStatus::parse(&text))
+}
+
+fn count_off_remote(repo_path: &Path) -> Result<u32> {
+    let output = Command::new("git")
+        .args(["rev-list", "--count", "HEAD", "--not", "--remotes"])
+        .current_dir(repo_path)
+        .output()
+        .with_context(|| format!("counting unpushed commits in {}", repo_path.display()))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        anyhow::bail!("git rev-list failed in {}: {stderr}", repo_path.display());
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .parse()
+        .with_context(|| format!("parsing rev-list count in {}", repo_path.display()))
+}
+
+pub(crate) fn git_dir(repo_path: &Path) -> Option<std::path::PathBuf> {
+    let dot = repo_path.join(".git");
+    let meta = std::fs::metadata(&dot).ok()?;
+    if meta.is_dir() {
+        return Some(dot);
+    }
+    let pointer = std::fs::read_to_string(&dot).ok()?;
+    let target = pointer
+        .lines()
+        .find_map(|l| l.strip_prefix("gitdir:"))?
+        .trim();
+    let target = Path::new(target);
+    Some(if target.is_absolute() {
+        target.to_path_buf()
+    } else {
+        repo_path.join(target)
+    })
+}
+
+pub(crate) fn common_dir(git_dir: &Path) -> std::path::PathBuf {
+    match std::fs::read_to_string(git_dir.join("commondir")) {
+        Ok(text) if !text.trim().is_empty() => {
+            let target = Path::new(text.trim());
+            if target.is_absolute() {
+                target.to_path_buf()
+            } else {
+                git_dir.join(target)
+            }
+        }
+        _ => git_dir.to_path_buf(),
+    }
+}
+
+pub(crate) fn head_branch(git_dir: &Path) -> Option<String> {
+    let head = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
+    head.trim()
+        .strip_prefix("ref: refs/heads/")
+        .map(ToOwned::to_owned)
 }
 
 /// A repo name paired with its status.
@@ -180,6 +481,7 @@ impl std::fmt::Display for RepoStatus {
 pub(crate) struct RepoEntry {
     pub name: String,
     pub status: RepoStatus,
+    pub facts: RepoFacts,
 }
 
 /// Resolve the full list of repos for a workspace (discover + extras - excludes).
@@ -485,10 +787,11 @@ pub(crate) async fn check_status(
     // Check expected repos
     for repo_name in repos {
         let repo_path = base_dir.join(repo_name);
-        let status = check_one_repo_status(&repo_path)?;
+        let (status, facts) = observe_one_repo(&repo_path)?;
         entries.push(RepoEntry {
             name: repo_name.clone(),
             status,
+            facts,
         });
     }
 
@@ -557,7 +860,11 @@ pub(crate) async fn check_status(
                     Ok(Some(_)) | Err(_) => RepoStatus::Unknown,
                 }
             };
-            entries.push(RepoEntry { name, status });
+            entries.push(RepoEntry {
+                name,
+                status,
+                facts: RepoFacts::default(),
+            });
         }
     }
 
@@ -889,20 +1196,26 @@ pub(crate) async fn pull_repos(
 /// 2. The `RemoteWitness` this produces is what makes the `Clean` arm
 ///    constructible at all. There is no code path that reaches `Clean`
 ///    without it.
-pub(crate) fn check_one_repo_status(repo_path: &Path) -> Result<RepoStatus> {
+pub(crate) fn observe_one_repo(repo_path: &Path) -> Result<(RepoStatus, RepoFacts)> {
+    Ok(match RepoObservation::observe(repo_path)? {
+        Some(observation) => (observation.status(), observation.facts()),
+        None => (RepoStatus::Missing, RepoFacts::default()),
+    })
+}
+
+pub(crate) fn observe_unsettled(repo_path: &Path) -> Result<Option<(RepoStatus, RepoFacts)>> {
     if !is_git_worktree(repo_path) {
-        return Ok(RepoStatus::Missing);
+        return Ok(None);
     }
-    let Some(witness) = RemoteWitness::observe(repo_path)? else {
-        return Ok(RepoStatus::NoRemote);
-    };
-    if is_stuck(repo_path)? {
-        Ok(RepoStatus::Stuck)
-    } else if is_dirty(repo_path)? {
-        Ok(RepoStatus::Dirty)
-    } else {
-        Ok(RepoStatus::Clean(witness))
+    let branch = branch_status(repo_path)?;
+    let settled = branch.dirty == 0
+        && matches!(branch.tracking, Tracking::Compared { ahead: 0, .. })
+        && matches!(branch.head, Head::Branch(_));
+    if settled && !is_stuck(repo_path)? {
+        return Ok(None);
     }
+    let observation = RepoObservation::complete(repo_path, branch)?;
+    Ok(Some((observation.status(), observation.facts())))
 }
 
 /// Returns true iff `path` is an existing directory containing a `.git`
@@ -928,7 +1241,8 @@ fn is_dirty(repo_path: &Path) -> Result<bool> {
 
 /// Returns true iff `repo_path` is mid rebase, merge, or cherry-pick.
 ///
-/// Resolves the real git-dir via `git rev-parse --git-dir` rather than
+/// Resolves the real git-dir via [`git_dir`] (the `gitdir:` pointer, read
+/// without spawning git) rather than
 /// assuming `<repo_path>/.git` is a directory — for a worktree, `.git` is a
 /// file pointing at `<main-repo>/.git/worktrees/<name>/`, which is where
 /// the marker files actually live. A repo mid-rebase/merge/cherry-pick can
@@ -937,22 +1251,8 @@ fn is_dirty(repo_path: &Path) -> Result<bool> {
 /// routine drift — see `feedback_git_hygiene_stuck_rebase_detection` for
 /// the incident this guards against.
 fn is_stuck(repo_path: &Path) -> Result<bool> {
-    let output = Command::new("git")
-        .args(["rev-parse", "--git-dir"])
-        .current_dir(repo_path)
-        .output()
-        .with_context(|| format!("resolving git-dir in {}", repo_path.display()))?;
-
-    if !output.status.success() {
+    let Some(git_dir) = git_dir(repo_path) else {
         return Ok(false);
-    }
-
-    let git_dir_raw = String::from_utf8_lossy(&output.stdout);
-    let git_dir = git_dir_raw.trim();
-    let git_dir = if Path::new(git_dir).is_absolute() {
-        std::path::PathBuf::from(git_dir)
-    } else {
-        repo_path.join(git_dir)
     };
 
     Ok(git_dir.join("rebase-merge").is_dir()
@@ -960,6 +1260,11 @@ fn is_stuck(repo_path: &Path) -> Result<bool> {
         || git_dir.join("MERGE_HEAD").is_file()
         || git_dir.join("CHERRY_PICK_HEAD").is_file()
         || git_dir.join("BISECT_LOG").is_file())
+}
+
+#[cfg(test)]
+fn check_one_repo_status(repo_path: &Path) -> Result<RepoStatus> {
+    Ok(observe_one_repo(repo_path)?.0)
 }
 
 #[cfg(test)]
@@ -1406,7 +1711,7 @@ mod tests {
         init_repo(&repo);
         add_remote(&repo);
         write_commit(&repo, "f.txt", "hello\n", "init");
-        git(&repo, &["push", "-q", "origin", "main"]);
+        git(&repo, &["push", "-q", "-u", "origin", "main"]);
 
         match check_one_repo_status(&repo).unwrap() {
             RepoStatus::Clean(witness) => assert_eq!(witness.remote(), "origin"),
@@ -1458,5 +1763,299 @@ mod tests {
         assert_eq!(witness.remote(), "origin");
 
         std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    fn backed_repo(root: &Path, name: &str) -> std::path::PathBuf {
+        let repo = root.join(name);
+        init_repo(&repo);
+        add_remote(&repo);
+        write_commit(&repo, "f.txt", "base\n", "base");
+        git(&repo, &["push", "-q", "-u", "origin", "main"]);
+        repo
+    }
+
+    fn upstream_moves(repo: &Path) {
+        let upstream = repo.with_extension("upstream.git");
+        let other = repo.with_extension("other");
+        git(
+            repo.parent().unwrap(),
+            &[
+                "clone",
+                "-q",
+                &upstream.to_string_lossy(),
+                &other.to_string_lossy(),
+            ],
+        );
+        git(&other, &["config", "user.email", "o@o"]);
+        git(&other, &["config", "user.name", "o"]);
+        git(&other, &["config", "commit.gpgsign", "false"]);
+        write_commit(&other, "other.txt", "upstream\n", "upstream commit");
+        git(&other, &["push", "-q", "origin", "main"]);
+        git(repo, &["fetch", "-q", "origin"]);
+    }
+
+    fn observed(repo: &Path) -> (RepoStatus, RepoFacts) {
+        observe_one_repo(repo).unwrap()
+    }
+
+    #[test]
+    fn porcelain_v2_headers_parse_into_head_tracking_and_dirt() {
+        let clean = BranchStatus::parse(
+            "# branch.oid abc\n# branch.head main\n# branch.upstream origin/main\n# branch.ab +2 -1\n",
+        );
+        assert_eq!(clean.head, Head::Branch("main".into()));
+        assert_eq!(
+            clean.tracking,
+            Tracking::Compared {
+                ahead: 2,
+                behind: 1
+            }
+        );
+        assert_eq!(clean.dirty, 0);
+
+        let unborn = BranchStatus::parse("# branch.oid (initial)\n# branch.head main\n? new.txt\n");
+        assert_eq!(unborn.head, Head::Unborn);
+        assert_eq!(unborn.tracking, Tracking::Untracked);
+        assert_eq!(unborn.dirty, 1);
+
+        let gone = BranchStatus::parse(
+            "# branch.oid abc\n# branch.head feat\n# branch.upstream origin/feat\n1 .M N... 100644 100644 100644 a b f.txt\n? x\n",
+        );
+        assert_eq!(gone.tracking, Tracking::Gone);
+        assert_eq!(gone.dirty, 2);
+
+        let detached = BranchStatus::parse("# branch.oid abc\n# branch.head (detached)\n");
+        assert_eq!(detached.head, Head::Detached);
+    }
+
+    #[test]
+    fn committed_work_not_on_the_upstream_reports_ahead_with_its_count() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = backed_repo(tmp.path(), "repo");
+        write_commit(&repo, "f.txt", "one\n", "one");
+        write_commit(&repo, "f.txt", "two\n", "two");
+
+        let (status, facts) = observed(&repo);
+        assert_eq!(status, RepoStatus::Ahead);
+        assert_eq!(facts.ahead, Some(2));
+        assert_eq!(facts.behind, Some(0));
+        assert_eq!(facts.dirty_count, Some(0));
+        assert_eq!(facts.branch.as_deref(), Some("main"));
+    }
+
+    #[test]
+    fn a_tracked_branch_equal_to_its_upstream_is_clean_with_zero_counts() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = backed_repo(tmp.path(), "repo");
+
+        let (status, facts) = observed(&repo);
+        assert!(matches!(status, RepoStatus::Clean(_)), "got {status:?}");
+        assert_eq!((facts.ahead, facts.behind), (Some(0), Some(0)));
+    }
+
+    #[test]
+    fn commits_on_a_branch_that_tracks_nothing_report_no_upstream() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = tmp.path().join("repo");
+        init_repo(&repo);
+        add_remote(&repo);
+        write_commit(&repo, "f.txt", "a\n", "a");
+        write_commit(&repo, "f.txt", "b\n", "b");
+
+        let (status, facts) = observed(&repo);
+        assert_eq!(status, RepoStatus::NoUpstream);
+        assert_eq!(facts.ahead, Some(2), "every commit is on no remote");
+        assert_eq!(facts.behind, None, "nothing was compared");
+    }
+
+    #[test]
+    fn a_feature_branch_never_pushed_reports_no_upstream() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = backed_repo(tmp.path(), "repo");
+        git(&repo, &["checkout", "-q", "-b", "feat"]);
+        write_commit(&repo, "f.txt", "feature\n", "feature");
+
+        let (status, facts) = observed(&repo);
+        assert_eq!(status, RepoStatus::NoUpstream);
+        assert_eq!(facts.branch.as_deref(), Some("feat"));
+        assert_eq!(facts.ahead, Some(1));
+    }
+
+    #[test]
+    fn a_clone_of_an_empty_repo_is_unborn_not_missing_and_not_a_problem() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let upstream = tmp.path().join("empty.git");
+        std::fs::create_dir_all(&upstream).unwrap();
+        git(&upstream, &["init", "-q", "--bare", "-b", "main"]);
+        let clone = tmp.path().join("clone");
+        git(
+            tmp.path(),
+            &[
+                "clone",
+                "-q",
+                &upstream.to_string_lossy(),
+                &clone.to_string_lossy(),
+            ],
+        );
+
+        let (status, facts) = observed(&clone);
+        assert_eq!(status, RepoStatus::Unborn);
+        assert_eq!(status.word().problem_rank(), None);
+        assert!(status.word().is_quiet());
+        assert_eq!(facts.dirty_count, Some(0));
+    }
+
+    #[test]
+    fn dirt_outranks_ahead_and_the_ahead_count_survives_as_a_fact() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = backed_repo(tmp.path(), "repo");
+        write_commit(&repo, "f.txt", "ahead\n", "ahead");
+        std::fs::write(repo.join("f.txt"), "edited\n").unwrap();
+        std::fs::write(repo.join("new.txt"), "new\n").unwrap();
+
+        let (status, facts) = observed(&repo);
+        assert_eq!(status, RepoStatus::Dirty);
+        assert_eq!(facts.dirty_count, Some(2));
+        assert_eq!(facts.ahead, Some(1));
+    }
+
+    #[test]
+    fn ahead_outranks_no_upstream_and_no_upstream_outranks_behind() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = backed_repo(tmp.path(), "repo");
+        upstream_moves(&repo);
+        write_commit(&repo, "f.txt", "local\n", "local");
+
+        let (status, facts) = observed(&repo);
+        assert_eq!(status, RepoStatus::Ahead, "a diverged branch is ahead");
+        assert_eq!((facts.ahead, facts.behind), (Some(1), Some(1)));
+
+        git(&repo, &["branch", "-q", "--unset-upstream"]);
+        let (status, _) = observed(&repo);
+        assert_eq!(status, RepoStatus::NoUpstream);
+    }
+
+    #[test]
+    fn upstream_commits_not_yet_merged_report_behind() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = backed_repo(tmp.path(), "repo");
+        upstream_moves(&repo);
+
+        let (status, facts) = observed(&repo);
+        assert_eq!(status, RepoStatus::Behind);
+        assert_eq!((facts.ahead, facts.behind), (Some(0), Some(1)));
+        assert_eq!(status.word().problem_rank(), Some(5));
+    }
+
+    #[test]
+    fn an_upstream_that_vanished_reports_no_upstream() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = backed_repo(tmp.path(), "repo");
+        git(&repo, &["checkout", "-q", "-b", "feat"]);
+        write_commit(&repo, "f.txt", "feature\n", "feature");
+        git(&repo, &["push", "-q", "-u", "origin", "feat"]);
+        git(&repo, &["push", "-q", "origin", "--delete", "feat"]);
+        git(&repo, &["fetch", "-q", "--prune", "origin"]);
+
+        let (status, facts) = observed(&repo);
+        assert_eq!(status, RepoStatus::NoUpstream);
+        assert_eq!(facts.ahead, Some(1));
+    }
+
+    #[test]
+    fn a_detached_head_is_judged_by_whether_any_remote_holds_it() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = backed_repo(tmp.path(), "repo");
+        git(&repo, &["checkout", "-q", "--detach"]);
+        assert!(matches!(observed(&repo).0, RepoStatus::Clean(_)));
+
+        write_commit(&repo, "f.txt", "detached work\n", "detached work");
+        let (status, facts) = observed(&repo);
+        assert_eq!(status, RepoStatus::Ahead);
+        assert_eq!(facts.ahead, Some(1));
+        assert_eq!(facts.branch, None);
+    }
+
+    #[test]
+    fn the_stop_screen_skips_settled_repos_and_fully_observes_the_rest() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = backed_repo(tmp.path(), "repo");
+        assert_eq!(observe_unsettled(&repo).unwrap(), None);
+
+        upstream_moves(&repo);
+        assert_eq!(
+            observe_unsettled(&repo).unwrap(),
+            None,
+            "behind with nothing local holds no work to lose"
+        );
+
+        std::fs::write(repo.join(".git/BISECT_LOG"), "").unwrap();
+        assert_eq!(
+            observe_unsettled(&repo).unwrap().map(|(s, _)| s),
+            Some(RepoStatus::Stuck)
+        );
+        std::fs::remove_file(repo.join(".git/BISECT_LOG")).unwrap();
+
+        write_commit(&repo, "f.txt", "local\n", "local");
+        let (status, facts) = observe_unsettled(&repo).unwrap().expect("unsettled");
+        assert_eq!(status, RepoStatus::Ahead);
+        assert_eq!((facts.ahead, facts.behind), (Some(1), Some(1)));
+
+        git(&repo, &["reset", "-q", "--hard", "origin/main"]);
+        std::fs::write(repo.join("scratch"), "x\n").unwrap();
+        assert_eq!(
+            observe_unsettled(&repo).unwrap().map(|(s, _)| s),
+            Some(RepoStatus::Dirty)
+        );
+    }
+
+    #[test]
+    fn every_state_word_round_trips_through_its_json_spelling() {
+        for word in [
+            StateWord::Clean,
+            StateWord::Dirty,
+            StateWord::Stuck,
+            StateWord::NoRemote,
+            StateWord::Missing,
+            StateWord::Unknown,
+            StateWord::Ahead,
+            StateWord::NoUpstream,
+            StateWord::Behind,
+            StateWord::Unborn,
+        ] {
+            let json = serde_json::to_string(&word).unwrap();
+            assert_eq!(json, format!("\"{}\"", word.as_str()));
+            assert_eq!(serde_json::from_str::<StateWord>(&json).unwrap(), word);
+        }
+        assert_eq!(RepoStatus::Ahead.to_string(), "ahead");
+        assert_eq!(RepoStatus::NoUpstream.to_string(), "no-upstream");
+        assert_eq!(RepoStatus::Behind.to_string(), "behind");
+        assert_eq!(RepoStatus::Unborn.to_string(), "unborn");
+    }
+
+    #[test]
+    fn a_worktree_pointer_resolves_to_its_git_dir_and_common_dir() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = backed_repo(tmp.path(), "repo");
+        let wt = tmp.path().join("wt");
+        git(
+            &repo,
+            &[
+                "worktree",
+                "add",
+                "-q",
+                "-b",
+                "wt-branch",
+                &wt.to_string_lossy(),
+            ],
+        );
+        let gd = git_dir(&wt).expect("worktree gitdir");
+        assert!(gd.join("HEAD").is_file());
+        assert_eq!(head_branch(&gd).as_deref(), Some("wt-branch"));
+        assert_eq!(
+            common_dir(&gd).canonicalize().unwrap(),
+            repo.join(".git").canonicalize().unwrap()
+        );
+        assert_eq!(git_dir(&repo), Some(repo.join(".git")));
     }
 }

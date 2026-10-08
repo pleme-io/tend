@@ -1,5 +1,5 @@
-//! `StatusRepoJob` — read-only classification of one repo as
-//! Missing/Dirty/Clean. Wraps `sync::check_one_repo_status`. The
+//! `StatusRepoJob` — read-only classification of one repo into a
+//! `RepoStatus`. Wraps `sync::observe_one_repo`. The
 //! cheapest Job in the catalogue: no network, no mutations, no
 //! locks. Used both as a building block for typed reconcile loops and
 //! as the canonical input to `shigoto_test::idempotence_quickcheck`
@@ -20,7 +20,7 @@ use async_trait::async_trait;
 use shigoto_types::{JobScope, JobSubject, OutputSink, RecordingJob};
 use thiserror::Error;
 
-use crate::sync::{check_one_repo_status, RepoStatus};
+use crate::sync::{observe_one_repo, RepoStatus};
 
 /// Canonical kind id for every StatusRepoJob.
 pub(crate) const STATUS_REPO_KIND: &str = "tend.status-repo";
@@ -66,7 +66,7 @@ impl StatusRepoJob {
 
 #[derive(Debug, Error)]
 pub(crate) enum StatusRepoError {
-    #[error("check_one_repo_status invocation failed: {0}")]
+    #[error("observe_one_repo invocation failed: {0}")]
     Invocation(String),
 }
 
@@ -90,7 +90,7 @@ impl RecordingJob for StatusRepoJob {
 
     async fn execute_body(&self) -> Result<RepoStatus, StatusRepoError> {
         let path = self.repo_path.clone();
-        tokio::task::spawn_blocking(move || check_one_repo_status(&path))
+        tokio::task::spawn_blocking(move || observe_one_repo(&path).map(|(status, _)| status))
             .await
             .map_err(|join_err| StatusRepoError::Invocation(format!("join error: {join_err}")))?
             .map_err(|err| StatusRepoError::Invocation(err.to_string()))
@@ -157,6 +157,11 @@ mod tests {
             .unwrap();
         Command::new("git")
             .args(["remote", "add", "origin", &upstream.to_string_lossy()])
+            .current_dir(path)
+            .status()
+            .unwrap();
+        Command::new("git")
+            .args(["push", "-q", "-u", "origin", "main"])
             .current_dir(path)
             .status()
             .unwrap();

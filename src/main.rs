@@ -11,9 +11,12 @@ mod ci_trim;
 mod config;
 mod daemon;
 mod display;
+mod hook;
 mod kanshou_state;
 mod mcp;
 mod pressure;
+mod push_ahead;
+mod scan;
 mod worktree;
 mod xdg;
 // Typed failure classification for a reconcile cycle. See src/failure.rs --
@@ -112,6 +115,14 @@ enum Commands {
     Worktree {
         #[command(subcommand)]
         action: WorktreeAction,
+    },
+
+    #[command(
+        about = "Claude Code hook handlers. stop and session-start read the hook payload as JSON on stdin and print the hook's JSON answer (or nothing), never exiting non-zero."
+    )]
+    Hook {
+        #[command(subcommand)]
+        event: HookEvent,
     },
 
     /// Clone missing repos into the workspace
@@ -260,7 +271,7 @@ enum Commands {
         max_inflight: u32,
     },
 
-    /// Show repo status (clean/dirty/stuck/no-remote/missing/unknown)
+    /// Show repo status (clean/dirty/ahead/no-upstream/behind/unborn/stuck/no-remote/missing/unknown)
     Status {
         /// Path to config file
         #[arg(long)]
@@ -279,6 +290,12 @@ enum Commands {
         /// repos). The contract izumi's `tend-repos` board source reads.
         #[arg(long)]
         json: bool,
+
+        #[arg(
+            long,
+            help = "Print only repos that need attention: everything except clean and unborn"
+        )]
+        problems: bool,
 
         /// Skip the host-health autocorrect: report orphaned watched
         /// processes (see host_health.rs) without SIGKILLing them.
@@ -719,6 +736,29 @@ enum CargoTargetAction {
 }
 
 #[derive(Subcommand)]
+enum HookEvent {
+    #[command(
+        about = "Stop: block once when repos touched this session are dirty or hold unpushed commits"
+    )]
+    Stop {
+        #[arg(long)]
+        config: Option<PathBuf>,
+    },
+    #[command(about = "SessionStart: add the workspace's problem repos to the session's context")]
+    SessionStart {
+        #[arg(long)]
+        config: Option<PathBuf>,
+    },
+    #[command(
+        about = "Refresh the status snapshot SessionStart reads (the daemon does this every cycle)"
+    )]
+    Snapshot {
+        #[arg(long)]
+        config: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
 enum WorktreeAction {
     /// Create (or reuse) this session's worktree and print its path.
     ///
@@ -831,6 +871,36 @@ async fn main() -> Result<()> {
                 Some(n) if n == max_inflight => println!("verdict       proceed at {n}"),
                 Some(n) => println!("verdict       throttle to {n} — {}", verdict.why()),
                 None => println!("verdict       run nothing — {}", verdict.why()),
+            }
+        }
+
+        Commands::Hook { event } => {
+            let (event, config_path) = match event {
+                HookEvent::Stop { config } => (hook::Event::Stop, config),
+                HookEvent::SessionStart { config } => (hook::Event::SessionStart, config),
+                HookEvent::Snapshot { config } => {
+                    let cfg = load_config(config.as_deref())?;
+                    let workspaces: Vec<&config::Workspace> = cfg.workspaces.iter().collect();
+                    let path = scan::snapshot_path();
+                    let snapshot = scan::refresh_snapshot(
+                        &workspaces,
+                        cfg.status_snapshot.workers,
+                        &path,
+                        std::time::SystemTime::now(),
+                    )?;
+                    println!(
+                        "{} of {} repos classified -> {}",
+                        snapshot.rows.len(),
+                        snapshot.total,
+                        path.display()
+                    );
+                    return Ok(());
+                }
+            };
+            let mut raw = String::new();
+            let _ = std::io::Read::read_to_string(&mut std::io::stdin(), &mut raw);
+            if let Some(answer) = hook::run(event, load_config(config_path.as_deref()), &raw) {
+                println!("{answer}");
             }
         }
 
@@ -1451,6 +1521,7 @@ async fn main() -> Result<()> {
             workspace: ws_filter,
             refresh,
             json,
+            problems,
             no_fix,
         } => {
             let cfg = load_config(config_path.as_deref())?;
@@ -1478,10 +1549,11 @@ async fn main() -> Result<()> {
                     rows.extend(
                         entries
                             .iter()
-                            .map(|e| display::StatusJsonRow::new(e, &base_dir)),
+                            .map(|e| display::StatusJsonRow::new(e, &base_dir))
+                            .filter(|row| !(problems && row.is_quiet())),
                     );
                 } else {
-                    display::print_status(&ws.name, &entries);
+                    display::print_status(&ws.name, &entries, problems);
                 }
             }
             if json {

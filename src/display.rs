@@ -1,7 +1,7 @@
 use colored::Colorize;
 
 use crate::reach::DiscoveryAnswer;
-use crate::sync::{PullSummary, RepoEntry, RepoStatus};
+use crate::sync::{PullSummary, RepoEntry, RepoFacts, RepoStatus, StateWord};
 use crate::watch;
 
 /// One machine-readable `tend status --json` row — the typed contract
@@ -29,6 +29,12 @@ pub(crate) struct StatusJsonRow {
     /// would silently blank every row. Add fields here; never change them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unreachable_because: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ahead: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub behind: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dirty_count: Option<usize>,
 }
 
 impl StatusJsonRow {
@@ -60,7 +66,14 @@ impl StatusJsonRow {
             state: answer.outcome().to_owned(),
             clean_against_remote: None,
             unreachable_because: answer.because().map(ToOwned::to_owned),
+            ahead: None,
+            behind: None,
+            dirty_count: None,
         }
+    }
+
+    pub(crate) fn is_quiet(&self) -> bool {
+        self.state == StateWord::Clean.as_str() || self.state == StateWord::Unborn.as_str()
     }
 
     pub(crate) fn new(entry: &RepoEntry, base_dir: &std::path::Path) -> Self {
@@ -79,41 +92,41 @@ impl StatusJsonRow {
             state: entry.status.to_string(),
             clean_against_remote,
             unreachable_because: None,
+            ahead: entry.facts.ahead,
+            behind: entry.facts.behind,
+            dirty_count: entry.facts.dirty_count,
         }
     }
 }
 
-/// Print colored status table for all repos in a workspace.
-pub(crate) fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
-    let clean = entries
-        .iter()
-        .filter(|e| matches!(e.status, RepoStatus::Clean(_)))
-        .count();
-    let dirty = entries
-        .iter()
-        .filter(|e| matches!(e.status, RepoStatus::Dirty))
-        .count();
-    let stuck = entries
-        .iter()
-        .filter(|e| matches!(e.status, RepoStatus::Stuck))
-        .count();
-    let no_remote = entries
-        .iter()
-        .filter(|e| matches!(e.status, RepoStatus::NoRemote))
-        .count();
-    let missing = entries
-        .iter()
-        .filter(|e| matches!(e.status, RepoStatus::Missing))
-        .count();
-    let unknown = entries
-        .iter()
-        .filter(|e| matches!(e.status, RepoStatus::Unknown))
-        .count();
+pub(crate) fn facts_note(facts: &RepoFacts) -> String {
+    let mut parts = Vec::new();
+    if let Some(n) = facts.dirty_count.filter(|n| *n > 0) {
+        parts.push(format!("{n} changed"));
+    }
+    match (facts.ahead, facts.behind) {
+        (Some(a), Some(b)) if a > 0 && b > 0 => parts.push(format!("ahead {a}, behind {b}")),
+        (Some(a), Some(_)) if a > 0 => parts.push(format!("ahead {a}")),
+        (Some(_), Some(b)) if b > 0 => parts.push(format!("behind {b}")),
+        (Some(a), None) if a > 0 => parts.push(format!("{a} on no remote")),
+        _ => {}
+    }
+    if let Some(branch) = &facts.branch {
+        parts.push(format!("on {branch}"));
+    }
+    parts.join(", ")
+}
+
+pub(crate) fn print_status(workspace_name: &str, entries: &[RepoEntry], problems_only: bool) {
+    let count = |word: StateWord| entries.iter().filter(|e| e.status.word() == word).count();
 
     println!("{}", format!("workspace: {workspace_name}").bold());
     println!();
 
     for entry in entries {
+        if problems_only && entry.status.word().is_quiet() {
+            continue;
+        }
         let icon = match &entry.status {
             RepoStatus::Clean(_) => "ok".green().to_string(),
             RepoStatus::Dirty => "!!".yellow().to_string(),
@@ -124,26 +137,37 @@ pub(crate) fn print_status(workspace_name: &str, entries: &[RepoEntry]) {
             RepoStatus::NoRemote => "!R".red().bold().to_string(),
             RepoStatus::Missing => "--".red().to_string(),
             RepoStatus::Unknown => "??".cyan().to_string(),
+            RepoStatus::Ahead => "^^".yellow().bold().to_string(),
+            RepoStatus::NoUpstream => "!U".yellow().bold().to_string(),
+            RepoStatus::Behind => "vv".cyan().to_string(),
+            RepoStatus::Unborn => "()".dimmed().to_string(),
         };
         let note = match &entry.status {
             RepoStatus::NoRemote => "  <- history exists on this machine only"
                 .red()
                 .bold()
                 .to_string(),
-            _ => String::new(),
+            _ => match facts_note(&entry.facts) {
+                n if n.is_empty() => String::new(),
+                n => format!("  ({n})"),
+            },
         };
         println!("  [{icon}] {:<40} {}{note}", entry.name, entry.status);
     }
 
     println!();
     println!(
-        "  {} clean, {} dirty, {} stuck, {} no-remote, {} missing, {} unknown",
-        clean.to_string().green(),
-        dirty.to_string().yellow(),
-        stuck.to_string().red().bold(),
-        no_remote.to_string().red().bold(),
-        missing.to_string().red(),
-        unknown.to_string().cyan(),
+        "  {} clean, {} dirty, {} ahead, {} no-upstream, {} behind, {} unborn, {} stuck, {} no-remote, {} missing, {} unknown",
+        count(StateWord::Clean).to_string().green(),
+        count(StateWord::Dirty).to_string().yellow(),
+        count(StateWord::Ahead).to_string().yellow().bold(),
+        count(StateWord::NoUpstream).to_string().yellow().bold(),
+        count(StateWord::Behind).to_string().cyan(),
+        count(StateWord::Unborn).to_string().dimmed(),
+        count(StateWord::Stuck).to_string().red().bold(),
+        count(StateWord::NoRemote).to_string().red().bold(),
+        count(StateWord::Missing).to_string().red(),
+        count(StateWord::Unknown).to_string().cyan(),
     );
 }
 
@@ -235,6 +259,26 @@ pub(crate) fn print_pull_summary(workspace_name: &str, summary: &PullSummary) {
         summary.missing_skipped.to_string().red(),
         summary.failed.to_string().red(),
     );
+}
+
+pub(crate) fn print_ahead_pushed(workspace_name: &str, pushed: &crate::push_ahead::Pushed) {
+    match &pushed.result {
+        Ok(()) => println!(
+            "{}: pushed {} {} ({} ahead) to {}",
+            workspace_name.bold(),
+            pushed.repo,
+            pushed.plan.branch,
+            pushed.plan.ahead,
+            pushed.plan.remote,
+        ),
+        Err(e) => eprintln!(
+            "{}: push of {} {} {}: {e}",
+            workspace_name.bold(),
+            pushed.repo,
+            pushed.plan.branch,
+            "FAILED".red().bold(),
+        ),
+    }
 }
 
 /// Print fetch summary (fetched vs skipped counts).
@@ -434,4 +478,80 @@ pub(crate) fn print_watch_new_version(repo: &str, version: &str, tag: &str) {
         version,
         tag,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entry(status: RepoStatus, facts: RepoFacts) -> RepoEntry {
+        RepoEntry {
+            name: "tend".into(),
+            status,
+            facts,
+        }
+    }
+
+    #[test]
+    fn the_status_row_keeps_every_existing_key_and_adds_counts_only_when_measured() {
+        let ahead = entry(
+            RepoStatus::Ahead,
+            RepoFacts {
+                branch: Some("main".into()),
+                ahead: Some(2),
+                behind: Some(0),
+                dirty_count: Some(0),
+            },
+        );
+        let row = StatusJsonRow::new(&ahead, std::path::Path::new("/w"));
+        let json = serde_json::to_value(&row).unwrap();
+        assert_eq!(json["name"], "tend");
+        assert_eq!(json["path"], "/w/tend");
+        assert_eq!(json["state"], "ahead");
+        assert!(json
+            .as_object()
+            .unwrap()
+            .contains_key("clean_against_remote"));
+        assert_eq!(json["ahead"], 2);
+        assert_eq!(json["behind"], 0);
+        assert_eq!(json["dirty_count"], 0);
+        assert!(!row.is_quiet());
+
+        let missing = StatusJsonRow::new(
+            &entry(RepoStatus::Missing, RepoFacts::default()),
+            std::path::Path::new("/w"),
+        );
+        let json = serde_json::to_value(&missing).unwrap();
+        assert_eq!(json["path"], "");
+        for absent in ["ahead", "behind", "dirty_count", "unreachable_because"] {
+            assert!(
+                json.get(absent).is_none(),
+                "{absent} must be omitted: {json}"
+            );
+        }
+
+        let unborn = StatusJsonRow::new(
+            &entry(RepoStatus::Unborn, RepoFacts::default()),
+            std::path::Path::new("/w"),
+        );
+        assert!(unborn.is_quiet(), "--problems hides unborn");
+    }
+
+    #[test]
+    fn the_human_note_names_counts_and_branch() {
+        let note = facts_note(&RepoFacts {
+            branch: Some("feat".into()),
+            ahead: Some(3),
+            behind: None,
+            dirty_count: Some(2),
+        });
+        assert_eq!(note, "2 changed, 3 on no remote, on feat");
+        let diverged = facts_note(&RepoFacts {
+            branch: Some("main".into()),
+            ahead: Some(1),
+            behind: Some(4),
+            dirty_count: Some(0),
+        });
+        assert_eq!(diverged, "ahead 1, behind 4, on main");
+    }
 }

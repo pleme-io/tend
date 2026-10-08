@@ -168,6 +168,29 @@ impl AuditLog {
         );
     }
 
+    pub fn ahead_pushed(
+        &self,
+        workspace: &str,
+        repo: &str,
+        remote: &str,
+        branch: &str,
+        ahead: u32,
+        error: Option<&str>,
+    ) {
+        self.log(
+            "ahead_pushed",
+            serde_json::json!({
+                "workspace": workspace,
+                "repo": repo,
+                "remote": remote,
+                "branch": branch,
+                "ahead": ahead,
+                "ok": error.is_none(),
+                "error": error,
+            }),
+        );
+    }
+
     /// Log a flake input staleness detection event.
     pub fn flake_input_stale(
         &self,

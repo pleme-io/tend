@@ -37,6 +37,8 @@ pub struct Config {
     /// `src/cargo_target.rs`. Absent means disabled.
     #[serde(default)]
     pub cargo_target: crate::cargo_target::CargoTargetConfig,
+    #[serde(default)]
+    pub status_snapshot: crate::scan::StatusSnapshotConfig,
 }
 
 /// Host-level (not per-workspace) resource-hygiene knobs read by
@@ -158,6 +160,20 @@ pub struct Workspace {
     /// override; this is the typed-config layer.
     #[serde(default)]
     pub prebuild: Option<PrebuildConfig>,
+    #[serde(default)]
+    pub push_policy: PushPolicy,
+    #[serde(default)]
+    pub pr_skill: Option<String>,
+    #[serde(default)]
+    pub push_ahead: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PushPolicy {
+    #[default]
+    Main,
+    Pr,
 }
 
 /// Per-workspace prebuild knobs. See `src/prebuild.rs::PrebuildOptions`
@@ -626,6 +642,10 @@ impl shikumi::TieredConfig for Config {
             workspaces: Vec::new(),
             host_health: HostHealthConfig::default(),
             cargo_target: crate::cargo_target::CargoTargetConfig::default(),
+            status_snapshot: crate::scan::StatusSnapshotConfig {
+                enable: false,
+                ..crate::scan::StatusSnapshotConfig::default()
+            },
         }
     }
     fn prescribed_default() -> Self {
@@ -633,6 +653,7 @@ impl shikumi::TieredConfig for Config {
             workspaces: Vec::new(),
             host_health: HostHealthConfig::default(),
             cargo_target: crate::cargo_target::CargoTargetConfig::default(),
+            status_snapshot: crate::scan::StatusSnapshotConfig::default(),
         }
     }
 }
@@ -655,6 +676,9 @@ impl shikumi::TieredConfig for Workspace {
             watch: None,
             ai_tasks: Vec::new(),
             prebuild: None,
+            push_policy: PushPolicy::Main,
+            pr_skill: None,
+            push_ahead: false,
         }
     }
     fn prescribed_default() -> Self {
@@ -674,6 +698,9 @@ impl shikumi::TieredConfig for Workspace {
             watch: None,
             ai_tasks: Vec::new(),
             prebuild: None,
+            push_policy: PushPolicy::Main,
+            pr_skill: None,
+            push_ahead: false,
         }
     }
 }
@@ -886,6 +913,7 @@ impl Config {
         let config = Config {
             host_health: HostHealthConfig::default(),
             cargo_target: crate::cargo_target::CargoTargetConfig::default(),
+            status_snapshot: crate::scan::StatusSnapshotConfig::default(),
             workspaces: vec![Workspace {
                 name: "my-org".to_string(),
                 provider: "github".to_string(),
@@ -900,6 +928,9 @@ impl Config {
                 watch: None,
                 ai_tasks: vec![],
                 prebuild: None,
+                push_policy: PushPolicy::Main,
+                pr_skill: None,
+                push_ahead: false,
             }],
         };
         serde_yaml_ng::to_string(&config).context("serializing starter config")
@@ -927,6 +958,9 @@ impl Workspace {
             watch: None,
             ai_tasks: vec![],
             prebuild: None,
+            push_policy: PushPolicy::Main,
+            pr_skill: None,
+            push_ahead: false,
         }
     }
 

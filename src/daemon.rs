@@ -347,6 +347,12 @@ pub(crate) async fn run_with_kanshou(
             }
         };
 
+        let snapshot_workspaces: Vec<crate::config::Workspace> = if cfg.status_snapshot.enable {
+            workspaces.iter().map(|w| (*w).clone()).collect()
+        } else {
+            Vec::new()
+        };
+
         let mut tasks = tokio::task::JoinSet::new();
         for ws in workspaces {
             let ws = ws.clone();
@@ -369,6 +375,34 @@ pub(crate) async fn run_with_kanshou(
         while let Some(result) = tasks.join_next().await {
             if let Err(e) = result {
                 eprintln!("daemon: workspace task panicked: {e}");
+            }
+        }
+
+        if cfg.status_snapshot.enable {
+            let workers = cfg.status_snapshot.workers;
+            let started = std::time::SystemTime::now();
+            let refreshed = tokio::task::spawn_blocking(move || {
+                let refs: Vec<&crate::config::Workspace> = snapshot_workspaces.iter().collect();
+                crate::scan::refresh_snapshot(
+                    &refs,
+                    workers,
+                    &crate::scan::snapshot_path(),
+                    started,
+                )
+            })
+            .await;
+            match refreshed {
+                Ok(Ok(snapshot)) => {
+                    if !opts.quiet {
+                        eprintln!(
+                            "  status snapshot: {} of {} repos classified",
+                            snapshot.rows.len(),
+                            snapshot.total
+                        );
+                    }
+                }
+                Ok(Err(e)) => eprintln!("daemon: status snapshot failed: {e:#}"),
+                Err(e) => eprintln!("daemon: status snapshot panicked: {e}"),
             }
         }
 
@@ -477,6 +511,22 @@ async fn run_workspace_cycle(
             if !quiet {
                 display::print_fetch_summary(&ws.name, fetched, skipped);
             }
+        }
+    }
+
+    if ws.push_ahead {
+        let owned = ws.clone();
+        let names = repos.clone();
+        let pushed = tokio::task::spawn_blocking(move || {
+            crate::push_ahead::run_workspace(
+                &owned,
+                &names,
+                &crate::audit::AuditLog::default_path(),
+            )
+        })
+        .await?;
+        for p in &pushed {
+            display::print_ahead_pushed(&ws.name, p);
         }
     }
 

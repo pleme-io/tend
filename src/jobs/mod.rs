@@ -11,7 +11,7 @@
 //!
 //! Roadmap:
 //! - [`pull_repo`] — wraps `sync::pull_one_repo` (M0.10b)
-//! - [`status_repo`] — wraps `sync::check_one_repo_status` (M0.10d)
+//! - [`status_repo`] — wraps `sync::observe_one_repo` (M0.10d)
 //! - [`fetch_repo`] — wraps `sync::fetch_one_repo` (M0.10e)
 //! - [`sync_repo`] — wraps `sync::sync_one_repo` (M0.10f)
 //! - [`discover_org`] — wraps `provider::discover_github_repos_cached` (M0.19 / M2)

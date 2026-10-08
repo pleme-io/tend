@@ -1,18 +1,22 @@
 # tend
 
 pending-unrep: RepoStatus::Clean carries a `RemoteWitness` proving a remote was
-OBSERVED, not proving an ahead/behind COMPARISON was performed. That closes the
+OBSERVED. That closes the
 Tier ⊥ subclass A hole this repo actually shipped — a `clean` verdict over an
 empty subject set, which reported `ferrite-zig` / `openclaw-publisher-pki` /
 `pleme-app-core` healthy while their entire histories sat on one disk — but it
-is not the full derived-verdict law. Two rows remain:
-(1) the witness should carry the compared refs (`local_sha` vs
-`remote_sha` + a fetch recency bound), so `Clean` means "compared, and equal"
-rather than "there was something to compare against";
-(2) `RepoStatus` is one-dimensional, so a repo that is BOTH dirty and
-remote-less reports only `NoRemote` — the destination is orthogonal axes
-(`{ local: Clean|Dirty|Stuck, backing: Backed(w)|None }`), which makes the
-masking question disappear instead of being resolved by an ordering decision.
+is not the full derived-verdict law. Two rows remain, each narrowed 2026-10-08:
+(1) `Clean` is now reached only from an upstream comparison that came back
+`+0 -0` (`git status --porcelain=v2 --branch`), or a detached HEAD some
+remote-tracking ref contains; a tracked-nothing branch is `no-upstream`, never
+`clean`. Still open: the witness carries neither compared sha, and there is no
+fetch-recency bound, so "equal" means equal to the last fetched ref;
+(2) `RepoStatus` is still one word chosen by precedence, but `RepoFacts`
+(`ahead`, `behind`, `dirty_count`, `branch`) now travel beside it on every
+observed row and in `--json`, so a dirty remote-less repo reports `no-remote`
+WITH `dirty_count`, and a dirty repo shows its `ahead`. The destination is
+unchanged: orthogonal axes (`{ local: Clean|Dirty|Stuck, backing: Backed(w)|None }`)
+make the verdict word a projection rather than an ordering decision.
 Tier landed: truly-unrepresentable OUTSIDE `sync.rs` (the witness field is
 private to that module, so no other module can name `Clean` — proven by the
 compile error this change produced in `jobs/status_repo.rs`); only-mitigated
@@ -36,7 +40,8 @@ and automates version certification pipelines.
 | Command | Purpose |
 |---------|---------|
 | `sync` | Clone missing repos |
-| `status` | Show repo status (clean/dirty/stuck/no-remote/missing/unknown) |
+| `status` | Show repo status (clean/dirty/ahead/no-upstream/behind/unborn/stuck/no-remote/missing/unknown); `--problems` drops clean and unborn; `--json` adds `ahead`/`behind`/`dirty_count` |
+| `hook stop\|session-start\|snapshot` | Claude Code hooks: block a Stop on touched dirty/unpushed repos; brief a new session on problem repos; refresh the snapshot SessionStart reads |
 | `list` | List configured repos |
 | `discover` | Discover repos from a GitHub org |
 | `watch` | Run watch cycle once (detect new versions) |
@@ -52,7 +57,10 @@ src/
 ├── main.rs          # clap CLI dispatch (9 subcommands)
 ├── config.rs        # YAML config types (Workspace, WatchConfig, CloneMethod)
 ├── provider.rs      # GitHub API: discovery, HEAD, tags, language detection
-├── sync.rs          # Repo resolution, cloning, status, fetching
+├── sync.rs          # Repo resolution, cloning, status (RepoObservation → verdict + RepoFacts), fetching
+├── scan.rs          # On-disk repo enumeration, bounded parallel classification, touched filter, status snapshot
+├── hook.rs          # `tend hook stop|session-start`: Claude Code hook contracts
+├── push_ahead.rs    # Daemon knob: fast-forward-push ahead-only default branches (guard + push)
 ├── daemon.rs        # Persistent loop (parallel workspaces via JoinSet)
 ├── watch.rs         # Version detection + matrix appending + auto-certify/commit/propagate
 ├── watch_cache.rs   # Watch state persistence (~/.cache/tend/watch/)
@@ -194,6 +202,43 @@ cargo_target:
   logs a `cargo_target_sweep` audit event. MCP: `tend_cargo_targets`
   (read-only dry run).
 
+## Clean git state: status states, session hooks, push_ahead
+
+The 2026-10-08 sweep of 1,335 repos found work `tend status` could not name: a
+commit unpushed for 8 weeks, branches with commits and no upstream, clones of
+empty repos. `status` now classifies from one `git status --porcelain=v2
+--branch` per repo plus the remote witness: `ahead`, `no-upstream`, `behind`
+and `unborn` join the old states (precedence and JSON shape: README). There is
+no `archived-remote` state: discovery drops archived repos before caching, so
+tend holds no archive fact to report, and `status` makes no API calls.
+
+- **`tend hook stop`** — candidates are the `cwd` repo plus repos whose
+  `.git/index`, `.git/HEAD` or `.git/refs/heads/<branch>` mtime is newer than
+  the transcript's birth time; only stat runs on the other repos. Candidates
+  are screened with one `git status` (`sync::observe_unsettled`: a clean,
+  not-ahead branch is settled) and fully observed only when unsettled. Blocks
+  once; with `stop_hook_active` it prints a `systemMessage` instead.
+  Measured on 1,364 repos (debug build, 2026-10-08): 0.13-0.6 s for a fresh
+  session, 0.86-1.25 s for one started 12 h earlier (~160 repos touched,
+  mostly by the daemon's fast-forwards). Classification stops at 1.2 s.
+- **`tend hook session-start`** — a full live pass costs ~6 s here (git status
+  ×1,364 is kernel-bound; more workers do not help), so it reads the daemon's
+  snapshot (`status_snapshot`, `~/.cache/tend/status/local.json`) and
+  re-checks live only the snapshot's problem rows, repos new since it, repos
+  whose git state moved since it, and the `cwd` repo: 0.7-0.95 s measured.
+  Without a fresh snapshot it checks live, most recently active first, and
+  reports the coverage it reached.
+- **Wording is data**: `push_policy: main | pr` and `pr_skill` per workspace.
+  The default is `main`; tend has no per-name tier, so a PR-only org
+  (akeylesslabs) must set `push_policy: pr` (and `pr_skill:
+  akeyless-pr-standards`) in config.
+- **`push_ahead`** (per workspace, default `false`): with `push_policy: main`,
+  the daemon fast-forward-pushes a repo after its pull only through
+  `push_ahead::guard` — verdict `ahead` with `behind == 0`, clean, on a branch
+  equal to `refs/remotes/<remote>/HEAD`, tracking the same-named upstream.
+  Unknown default branch refuses rather than guessing. Each push is an
+  `ahead_pushed` audit event.
+
 ## Post-Hooks
 
 Configurable shell commands triggered at specific points in the watch cycle.
@@ -236,6 +281,7 @@ All watch cycle events are recorded in JSONL format at
 | `file_change_detected` | org, repo, path, old_sha, new_sha, file_size |
 | `spec_downloaded` | org, repo, path, sha, local_path, size |
 | `commit_pushed` | repo, commit, message |
+| `ahead_pushed` | workspace, repo, remote, branch, ahead, ok, error |
 | `certify_complete` | package, version, status, duration_ms |
 
 ### audit-log CLI Command
