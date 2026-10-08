@@ -217,7 +217,13 @@ tend holds no archive fact to report, and `status` makes no API calls.
   the transcript's birth time; only stat runs on the other repos. Candidates
   are screened with one `git status` (`sync::observe_unsettled`: a clean,
   not-ahead branch is settled) and fully observed only when unsettled. Blocks
-  once; with `stop_hook_active` it prints a `systemMessage` instead.
+  once; with `stop_hook_active` it prints a `systemMessage` instead. A finding
+  (repo label plus its description) blocks a session once: the hook records
+  it under `<cache>/hook/stop/<session_id>.json`, and the same unchanged
+  finding never blocks that session again, while a changed state blocks once
+  more. Measured 2026-10-08: another session's edit in a shared akeylesslabs
+  worktree blocked every stop of this one, since mtimes cannot say which
+  session moved a repo.
   Measured on 1,364 repos (debug build, 2026-10-08): 0.13-0.6 s for a fresh
   session, 0.86-1.25 s for one started 12 h earlier (~160 repos touched,
   mostly by the daemon's fast-forwards). Classification stops at 1.2 s.

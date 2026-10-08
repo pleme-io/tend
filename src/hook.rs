@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
@@ -22,6 +22,8 @@ pub(crate) enum Event {
 
 #[derive(Debug, Default, Deserialize)]
 pub(crate) struct Payload {
+    #[serde(default)]
+    pub session_id: Option<String>,
     #[serde(default)]
     pub transcript_path: Option<PathBuf>,
     #[serde(default)]
@@ -94,7 +96,17 @@ pub(crate) fn run(event: Event, config: anyhow::Result<Config>, raw: &str) -> Op
         .map_or(4, std::num::NonZeroUsize::get)
         .min(MAX_WORKERS);
     match event {
-        Event::Stop => stop(&workspaces, &payload, BUDGET, workers),
+        Event::Stop => stop(
+            &workspaces,
+            &payload,
+            BUDGET,
+            workers,
+            payload
+                .session_id
+                .as_deref()
+                .and_then(reported_path)
+                .as_deref(),
+        ),
         Event::SessionStart => session_start(
             &workspaces,
             &config.status_snapshot,
@@ -230,11 +242,49 @@ pub(crate) fn touched_repos(
         .collect()
 }
 
+pub(crate) fn reported_path(session_id: &str) -> Option<PathBuf> {
+    let safe = !session_id.is_empty()
+        && session_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    safe.then(|| {
+        crate::cache::tend_cache_root()
+            .join("hook")
+            .join("stop")
+            .join(format!("{session_id}.json"))
+    })
+}
+
+fn fingerprint(row: &ScanRow) -> String {
+    format!("{} {}", row.label(), describe(row))
+}
+
+fn read_reported(path: &Path) -> BTreeSet<String> {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
+fn write_reported(path: &Path, reported: &BTreeSet<String>) {
+    let Some(dir) = path.parent() else { return };
+    if std::fs::create_dir_all(dir).is_err() {
+        return;
+    }
+    let tmp = path.with_extension("json.tmp");
+    if let Ok(text) = serde_json::to_string(reported) {
+        if std::fs::write(&tmp, text).is_ok() {
+            let _ = std::fs::rename(&tmp, path);
+        }
+    }
+}
+
 pub(crate) fn stop(
     workspaces: &[&Workspace],
     payload: &Payload,
     budget: Duration,
     workers: usize,
+    memory: Option<&Path>,
 ) -> Option<Value> {
     let started = Instant::now();
     let since = session_started(payload.transcript_path.as_deref());
@@ -246,6 +296,11 @@ pub(crate) fn stop(
         Some(started + budget),
     );
     let mut findings: Vec<ScanRow> = result.rows().into_iter().filter(blocks_stop).collect();
+    if let Some(memory) = memory {
+        let mut reported = read_reported(memory);
+        findings.retain(|row| reported.insert(fingerprint(row)));
+        write_reported(memory, &reported);
+    }
     sort_worst_first(&mut findings);
     render_stop(
         &findings,
@@ -761,17 +816,58 @@ mod tests {
 
         let ws = workspace("ws", &base, PushPolicy::Main, None);
         let payload = Payload {
+            session_id: None,
             transcript_path: Some(transcript),
             cwd: Some(tmp.path().to_path_buf()),
             stop_hook_active: false,
         };
-        let out = stop(&[&ws], &payload, Duration::from_secs(30), 2).expect("blocks");
+        let out = stop(&[&ws], &payload, Duration::from_secs(30), 2, None).expect("blocks");
         let reason = reason(&out);
         assert!(reason.contains("ws/touched@main"), "{reason}");
         assert!(
             !reason.contains("untouched"),
             "a dirty repo this session never touched must not block: {reason}"
         );
+    }
+
+    #[test]
+    fn a_finding_blocks_a_session_once_until_its_state_changes() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let base = tmp.path().join("ws");
+        let repo = backed_repo(&base, "shared");
+        let transcript = transcript_now(tmp.path());
+        let memory = tmp.path().join("reported").join("session.json");
+
+        std::fs::write(repo.join("f"), "another session's edit\n").unwrap();
+        git(&repo, &["add", "f"]);
+
+        let ws = workspace("ws", &base, PushPolicy::Main, None);
+        let payload = Payload {
+            session_id: Some("session".into()),
+            transcript_path: Some(transcript),
+            cwd: Some(tmp.path().to_path_buf()),
+            stop_hook_active: false,
+        };
+        let stop_now = || stop(&[&ws], &payload, Duration::from_secs(30), 2, Some(&memory));
+
+        assert!(reason(&stop_now().expect("the first stop blocks")).contains("ws/shared@main"));
+        assert!(
+            stop_now().is_none(),
+            "the same finding must not block this session twice"
+        );
+
+        std::fs::write(repo.join("g"), "a second edit\n").unwrap();
+        git(&repo, &["add", "g"]);
+        assert!(
+            reason(&stop_now().expect("a changed state blocks again")).contains("ws/shared@main")
+        );
+    }
+
+    #[test]
+    fn a_session_id_that_is_not_a_plain_name_has_no_memory() {
+        assert!(reported_path("../escape").is_none());
+        assert!(reported_path("").is_none());
+        assert!(reported_path("f0ff6f65-669e-4812-814d-19e15bce4b8c").is_some());
     }
 
     #[test]
@@ -785,18 +881,20 @@ mod tests {
 
         let ws = workspace("ws", &base, PushPolicy::Main, None);
         let elsewhere = Payload {
+            session_id: None,
             transcript_path: Some(transcript.clone()),
             cwd: Some(tmp.path().to_path_buf()),
             stop_hook_active: false,
         };
-        assert!(stop(&[&ws], &elsewhere, Duration::from_secs(30), 2).is_none());
+        assert!(stop(&[&ws], &elsewhere, Duration::from_secs(30), 2, None).is_none());
 
         let inside = Payload {
+            session_id: None,
             transcript_path: Some(transcript),
             cwd: Some(repo.join("sub")),
             stop_hook_active: false,
         };
-        let out = stop(&[&ws], &inside, Duration::from_secs(30), 2).expect("blocks");
+        let out = stop(&[&ws], &inside, Duration::from_secs(30), 2, None).expect("blocks");
         assert!(reason(&out).contains("ws/here@main (1 uncommitted path)"));
     }
 
@@ -836,11 +934,12 @@ mod tests {
 
         let ws = workspace("ws", &base, PushPolicy::Main, None);
         let payload = Payload {
+            session_id: None,
             transcript_path: Some(transcript),
             cwd: Some(repo.clone()),
             stop_hook_active: false,
         };
-        assert!(stop(&[&ws], &payload, Duration::from_secs(30), 2).is_none());
+        assert!(stop(&[&ws], &payload, Duration::from_secs(30), 2, None).is_none());
     }
 
     #[test]
