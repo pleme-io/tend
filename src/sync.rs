@@ -948,6 +948,7 @@ pub(crate) struct PullSummary {
     pub no_remote_skipped: usize,
     pub empty_skipped: usize,
     pub failed: usize,
+    pub not_reached: usize,
 }
 
 /// Typed outcome of pulling a single repo. Used by both the batch

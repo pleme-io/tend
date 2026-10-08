@@ -249,7 +249,7 @@ pub(crate) fn print_daemon_cycle_done(cycle: u64, workspaces: usize) {
 /// Print pull summary (updated, up-to-date, dirty-skipped, etc.).
 pub(crate) fn print_pull_summary(workspace_name: &str, summary: &PullSummary) {
     println!(
-        "{}: {} updated, {} up-to-date, {} dirty skipped, {} no-remote, {} empty, {} missing, {} failed",
+        "{}: {} updated, {} up-to-date, {} dirty skipped, {} no-remote, {} empty, {} missing, {} failed, {} not reached",
         workspace_name.bold(),
         summary.updated.to_string().green(),
         summary.up_to_date.to_string().cyan(),
@@ -258,6 +258,7 @@ pub(crate) fn print_pull_summary(workspace_name: &str, summary: &PullSummary) {
         summary.empty_skipped.to_string().yellow(),
         summary.missing_skipped.to_string().red(),
         summary.failed.to_string().red(),
+        summary.not_reached.to_string().yellow(),
     );
 }
 

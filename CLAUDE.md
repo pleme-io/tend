@@ -238,6 +238,12 @@ tend holds no archive fact to report, and `status` makes no API calls.
   equal to `refs/remotes/<remote>/HEAD`, tracking the same-named upstream.
   Unknown default branch refuses rather than guessing. Each push is an
   `ahead_pushed` audit event.
+- **The pull summary separates `failed` from `not reached`.** A job the
+  throttled drain never ran (`Pending`, `Gated`, `Ready`, `Running` in the
+  final snapshot; `reconcile::never_ran`) is not reached, never failed.
+  Measured 2026-10-08 under load at `max_inflight` 2: a cycle printed
+  `1056 failed` while its stderr held about 59 lines, one per real git
+  failure; the rest had not run.
 
 ## Post-Hooks
 

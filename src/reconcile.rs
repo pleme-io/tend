@@ -120,9 +120,10 @@ pub(crate) struct ReconcileReceipt {
     /// operators should fall back to `sync::resolve_repos` for the
     /// canonical name list.
     pub discovery_outcomes: HashMap<JobId, Vec<crate::provider::RepoState>>,
-    /// JobIds (any kind) whose terminal phase was not Succeeded.
-    /// Pairs with the scheduler's final snapshot — Failed /
-    /// Deadlettered / Retrying jobs all surface here.
+    /// JobIds (any kind) whose phase in the scheduler's final snapshot
+    /// was not Succeeded: Failed / Deadlettered / Retrying jobs, and
+    /// jobs the drain never ran (`never_ran`), which the summary
+    /// counts as not reached rather than failed.
     pub failed_jobs: Vec<(JobId, JobPhase)>,
 }
 
@@ -137,6 +138,7 @@ impl ReconcileReceipt {
     #[must_use]
     pub fn as_pull_summary(&self) -> crate::sync::PullSummary {
         let counts = self.outcome_counts();
+        let not_reached = self.not_reached_jobs();
         crate::sync::PullSummary {
             updated: counts.updated,
             up_to_date: counts.up_to_date,
@@ -144,8 +146,17 @@ impl ReconcileReceipt {
             missing_skipped: counts.missing_skipped,
             no_remote_skipped: counts.no_remote_skipped,
             empty_skipped: counts.empty_skipped,
-            failed: counts.failed_pull + self.failed_jobs.len(),
+            failed: counts.failed_pull + self.failed_jobs.len() - not_reached,
+            not_reached,
         }
+    }
+
+    #[must_use]
+    pub fn not_reached_jobs(&self) -> usize {
+        self.failed_jobs
+            .iter()
+            .filter(|(_, phase)| never_ran(phase))
+            .count()
     }
 
     /// Aggregated counts by outcome variant. Useful for summary
@@ -217,6 +228,13 @@ impl DrainOutcome {
     pub(crate) fn is_quiesced(self) -> bool {
         matches!(self, Self::Quiesced)
     }
+}
+
+pub(crate) fn never_ran(phase: &JobPhase) -> bool {
+    matches!(
+        phase,
+        JobPhase::Pending | JobPhase::Gated | JobPhase::Ready | JobPhase::Running
+    )
 }
 
 /// Drive a scheduler to quiescence, or to the tick ceiling, and SAY WHICH.
@@ -389,7 +407,7 @@ pub(crate) async fn reconcile_workspace_pull(
         tracing::warn!(
             ticks,
             "reconcile: tick budget exhausted before quiescence — repos still \
-             pending were NOT attempted, and any failure count below includes them"
+             pending were NOT attempted; the summary counts them as not reached"
         );
     }
 
@@ -676,7 +694,7 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
         tracing::warn!(
             ticks,
             "reconcile: tick budget exhausted before quiescence — repos still \
-             pending were NOT attempted, and any failure count below includes them"
+             pending were NOT attempted; the summary counts them as not reached"
         );
     }
 
@@ -786,10 +804,16 @@ pub(crate) fn print_receipt(receipt: &ReconcileReceipt) {
         counts.no_remote_skipped,
         counts.missing_skipped,
         counts.failed_pull,
-        if receipt.failed_jobs.is_empty() {
-            String::new()
-        } else {
-            format!(" ({} job(s) didn't reach Succeeded)", receipt.failed_jobs.len())
+        match (
+            receipt.failed_jobs.len() - receipt.not_reached_jobs(),
+            receipt.not_reached_jobs(),
+        ) {
+            (0, 0) => String::new(),
+            (failed, 0) => format!(" ({failed} job(s) failed)"),
+            (0, not_reached) => format!(" ({not_reached} not reached)"),
+            (failed, not_reached) => {
+                format!(" ({failed} job(s) failed, {not_reached} not reached)")
+            }
         }
     );
 }
@@ -804,6 +828,30 @@ mod tests {
     /// 968-dir workspace can burn 64 ticks with most repos still `Ready` —
     /// never attempted, then read out of the snapshot as not-succeeded and
     /// rendered FAILED. "Not run" and "failed" demand opposite responses.
+    #[test]
+    fn a_job_the_drain_never_ran_is_not_reached_not_failed() {
+        use shigoto_types::{JobId, JobKindId, JobPhase, JobScope, JobSubject};
+        let id = |repo: &str| JobId {
+            scope: JobScope::Workspace("pleme-io".into()),
+            kind: JobKindId::new(crate::jobs::pull_repo::PULL_REPO_KIND),
+            subject: JobSubject::Repo(repo.into()),
+        };
+        let receipt = super::ReconcileReceipt {
+            workspace: "pleme-io".into(),
+            outcomes: std::collections::HashMap::new(),
+            sync_outcomes: std::collections::HashMap::new(),
+            discovery_outcomes: std::collections::HashMap::new(),
+            failed_jobs: vec![
+                (id("throttled"), JobPhase::Gated),
+                (id("queued"), JobPhase::Ready),
+                (id("broken"), JobPhase::Failed { attempts: 3 }),
+                (id("parked"), JobPhase::Deadlettered),
+            ],
+        };
+        let summary = receipt.as_pull_summary();
+        assert_eq!((summary.failed, summary.not_reached), (2, 2));
+    }
+
     #[test]
     fn quiesced_and_exhausted_are_distinguishable() {
         assert!(super::DrainOutcome::Quiesced.is_quiesced());
