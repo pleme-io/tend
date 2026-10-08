@@ -244,6 +244,12 @@ tend holds no archive fact to report, and `status` makes no API calls.
   equal to `refs/remotes/<remote>/HEAD`, tracking the same-named upstream.
   Unknown default branch refuses rather than guessing. Each push is an
   `ahead_pushed` audit event.
+- **SIGTERM ends a cycle in progress** (`daemon::join_or_drain`): the
+  workspace tasks are aborted and the daemon exits, rather than finishing a
+  cycle that runs 15+ minutes under load. A rebuild boots the agent out and
+  bootstraps the new plist at once; an old process still draining made that
+  bootstrap fail (`I/O error (code 5)`) on three rebuilds on 2026-10-08,
+  leaving the daemon unloaded while the rebuild printed `[OK]`.
 - **The pull summary separates `failed` from `not reached`.** A job the
   throttled drain never ran (`Pending`, `Gated`, `Ready`, `Running` in the
   final snapshot; `reconcile::never_ran`) is not reached, never failed.

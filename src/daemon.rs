@@ -371,11 +371,9 @@ pub(crate) async fn run_with_kanshou(
             });
         }
 
-        // Await all workspace tasks
-        while let Some(result) = tasks.join_next().await {
-            if let Err(e) = result {
-                eprintln!("daemon: workspace task panicked: {e}");
-            }
+        let mut tok = shutdown.token();
+        if let CycleEnd::Drained = join_or_drain(&mut tasks, &mut tok).await {
+            break;
         }
 
         if cfg.status_snapshot.enable {
@@ -435,6 +433,30 @@ pub(crate) async fn run_with_kanshou(
     }
 
     Ok(())
+}
+
+pub(crate) enum CycleEnd {
+    Completed,
+    Drained,
+}
+
+pub(crate) async fn join_or_drain(
+    tasks: &mut tokio::task::JoinSet<()>,
+    tok: &mut tsunagu::Shutdown,
+) -> CycleEnd {
+    loop {
+        tokio::select! {
+            next = tasks.join_next() => match next {
+                Some(Err(e)) => eprintln!("daemon: workspace task panicked: {e}"),
+                Some(Ok(())) => {}
+                None => return CycleEnd::Completed,
+            },
+            () = tok.wait_ref() => {
+                tasks.abort_all();
+                return CycleEnd::Drained;
+            }
+        }
+    }
 }
 
 async fn run_workspace_cycle(
@@ -776,6 +798,31 @@ fn now_unix_ms() -> u64 {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[tokio::test]
+    async fn a_drain_ends_the_cycle_without_waiting_for_it() {
+        let controller = tsunagu::ShutdownController::manual();
+        let mut tok = controller.token();
+        let mut tasks = tokio::task::JoinSet::new();
+        tasks.spawn(std::future::pending::<()>());
+        controller.shutdown();
+        let end = tokio::time::timeout(Duration::from_secs(5), join_or_drain(&mut tasks, &mut tok))
+            .await
+            .expect("a drained cycle returns at once");
+        assert!(matches!(end, CycleEnd::Drained));
+    }
+
+    #[tokio::test]
+    async fn a_cycle_that_finishes_is_completed() {
+        let controller = tsunagu::ShutdownController::manual();
+        let mut tok = controller.token();
+        let mut tasks = tokio::task::JoinSet::new();
+        tasks.spawn(async {});
+        assert!(matches!(
+            join_or_drain(&mut tasks, &mut tok).await,
+            CycleEnd::Completed
+        ));
+    }
 
     /// **The daemon must SEE the repos it manages, or the stale-lock sweep it
     /// now runs has nothing to sweep.**
