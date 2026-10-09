@@ -28,7 +28,8 @@ use anyhow::{anyhow, Context, Result};
 use std::path::Path;
 use tokio::process::Command;
 
-use crate::secret::{GitConfigEnv, Secret};
+use crate::secret::GitConfigEnv;
+use shikumi::github::GithubToken;
 
 #[derive(Debug, Clone)]
 pub struct GitCommitter {
@@ -69,7 +70,7 @@ impl GitCommitter {
 pub async fn fetch_and_reset_to_origin(
     repo_dir: &Path,
     branch: &str,
-    token: Option<&Secret>,
+    token: Option<&GithubToken>,
 ) -> Result<()> {
     let auth = github_auth_config(repo_dir, token).await;
 
@@ -109,7 +110,7 @@ pub async fn fetch_and_reset_to_origin(
 /// http...extraheader=AUTHORIZATION: bearer <token>` — what this code
 /// did previously — put the token in the process table, where any
 /// account on the host could read it out of `ps`.
-async fn github_auth_config(repo_dir: &Path, token: Option<&Secret>) -> GitConfigEnv {
+async fn github_auth_config(repo_dir: &Path, token: Option<&GithubToken>) -> GitConfigEnv {
     let Some(secret) = token else {
         return GitConfigEnv::new();
     };
@@ -119,7 +120,7 @@ async fn github_auth_config(repo_dir: &Path, token: Option<&Secret>) -> GitConfi
     {
         return GitConfigEnv::new();
     }
-    secret.github_git_auth()
+    crate::gh_auth::git_auth(secret)
 }
 
 /// Best-effort cleanup of in-progress rebase / cherry-pick / merge /
@@ -175,7 +176,7 @@ pub async fn commit_and_push(
     paths: &[&str],
     message: &str,
     committer: &GitCommitter,
-    token: Option<&Secret>,
+    token: Option<&GithubToken>,
 ) -> Result<String> {
     let mut add = vec!["add"];
     add.extend(paths.iter().copied());

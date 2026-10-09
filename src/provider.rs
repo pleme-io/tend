@@ -3,7 +3,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::cache;
 use crate::reach::{Denial, DiscoveryAnswer, Freshness};
-use crate::secret::Secret;
+
+/// The GitHub REST API root discovery talks to.
+pub(crate) const GITHUB_API: &str = "https://api.github.com";
+
+/// A REST client authenticated by the configured `github_auth` chain
+/// (unauthenticated when no source yields a token — the public floor).
+fn github_client() -> Result<todoku::GitHubClient, todoku::TodokuError> {
+    crate::gh_auth::credentials().todoku_client(GITHUB_API)
+}
 
 /// Cached wrapper around `discover_github_repos`.
 /// Returns cached results if fresh (within TTL); otherwise hits the API and writes cache.
@@ -96,13 +104,18 @@ pub async fn discover_answered(org: &str, refresh: bool) -> DiscoveryAnswer<Vec<
 /// endpoint on 404 — but every failure is classified by
 /// [`crate::reach::classify`] instead of being flattened into `anyhow`.
 async fn discover_github_repos_classified(org: &str) -> Result<Vec<String>, Denial> {
-    use todoku::{GitHubApi, OwnerType};
+    // Building the client failed, so we never asked anything.
+    let client = github_client().map_err(|e| crate::reach::classify(org, &e))?;
+    discover_with(&client, org).await
+}
 
-    let token = github_token();
-    let client = todoku::GitHubClient::new(token.as_ref().map(Secret::expose)).map_err(|e| {
-        // Building the client failed, so we never asked anything.
-        crate::reach::classify(org, &e)
-    })?;
+/// Discovery against an explicit client — the seam the private-repo test
+/// drives against a local mock of the GitHub API.
+pub(crate) async fn discover_with(
+    client: &todoku::GitHubClient,
+    org: &str,
+) -> Result<Vec<String>, Denial> {
+    use todoku::{GitHubApi, OwnerType};
 
     match client.list_repos(org, OwnerType::Org).await {
         Ok(repos) => return Ok(live_names(repos)),
@@ -192,9 +205,7 @@ pub async fn discover_github_repo_states_cached(
 pub async fn discover_github_repo_states(org: &str) -> Result<Vec<RepoState>> {
     use todoku::{GitHubApi, OwnerType};
 
-    let token = github_token();
-    let client = todoku::GitHubClient::new(token.as_ref().map(Secret::expose))
-        .context("building GitHub client")?;
+    let client = github_client().context("building GitHub client")?;
 
     let raw = match client.list_repos(org, OwnerType::Org).await {
         Ok(r) => r,
@@ -222,13 +233,12 @@ pub async fn discover_github_repo_states(org: &str) -> Result<Vec<RepoState>> {
 
 /// Discover all repos in a GitHub org or user account via REST API.
 /// Tries the /orgs endpoint first; falls back to /users on 404.
-/// Uses TEND_GITHUB_TOKEN or GITHUB_TOKEN env var for auth (optional but needed for private repos).
+/// Authenticated by the configured `github_auth` chain (optional, but needed
+/// for private repos).
 pub async fn discover_github_repos(org: &str) -> Result<Vec<String>> {
     use todoku::{GitHubApi, OwnerType};
 
-    let token = github_token();
-    let client = todoku::GitHubClient::new(token.as_ref().map(Secret::expose))
-        .context("building GitHub client")?;
+    let client = github_client().context("building GitHub client")?;
 
     // Try org endpoint first, then user endpoint on 404
     match client.list_repos(org, OwnerType::Org).await {
@@ -258,29 +268,6 @@ pub async fn discover_github_repos(org: &str) -> Result<Vec<String>> {
         .collect();
     names.sort();
     Ok(names)
-}
-
-/// The GitHub credential, from the environment or the on-disk
-/// fallback. **The single source of truth** — every path that
-/// authenticates to GitHub resolves it here.
-///
-/// It was previously three functions: this one (env only),
-/// `operator::load_github_token` (env plus `~/.config/github/token`),
-/// and `operator::throttle::load_github_token` (env only, but
-/// trimming where the others did not). They disagreed on precedence,
-/// on whether an empty value counted, and on trimming — so the same
-/// deployment could authenticate through one code path and 401 through
-/// another. Consolidated here; the file fallback is preserved.
-///
-/// Precedence: `TEND_GITHUB_TOKEN`, then `GITHUB_TOKEN`, then
-/// `~/.config/github/token`. The tend-specific variable wins so an
-/// operator can override an ambient CI token without unsetting it.
-#[must_use]
-pub fn github_token() -> Option<Secret> {
-    if let Some(secret) = Secret::from_env(&["TEND_GITHUB_TOKEN", "GITHUB_TOKEN"]) {
-        return Some(secret);
-    }
-    dirs::home_dir().and_then(|home| Secret::from_file(home.join(".config/github/token")))
 }
 
 #[cfg(test)]
@@ -313,49 +300,89 @@ mod tests {
         assert_eq!(state.name(), "shigoto");
     }
 
-    use std::sync::Mutex;
-
-    static ENV_MUTEX: Mutex<()> = Mutex::new(());
-
+    /// The default credential chain keeps the old precedence —
+    /// `TEND_GITHUB_TOKEN` before `GITHUB_TOKEN`, so an operator can override
+    /// an ambient CI token without unsetting it — and gains `GH_TOKEN` and
+    /// `gh auth token` before the old file fallback. Asserted on the config
+    /// value, not by mutating the process env.
     #[test]
-    fn test_github_token_prefers_tend_token() {
-        let _lock = ENV_MUTEX.lock().unwrap();
-        let orig_tend = std::env::var("TEND_GITHUB_TOKEN").ok();
-        let orig_gh = std::env::var("GITHUB_TOKEN").ok();
-
-        std::env::set_var("TEND_GITHUB_TOKEN", "tend-token-123");
-        std::env::set_var("GITHUB_TOKEN", "gh-token-456");
-        assert_eq!(github_token().unwrap().expose(), "tend-token-123");
-
-        // Restore
-        match orig_tend {
-            Some(v) => std::env::set_var("TEND_GITHUB_TOKEN", v),
-            None => std::env::remove_var("TEND_GITHUB_TOKEN"),
-        }
-        match orig_gh {
-            Some(v) => std::env::set_var("GITHUB_TOKEN", v),
-            None => std::env::remove_var("GITHUB_TOKEN"),
-        }
+    fn default_github_auth_chain_order() {
+        let chain = serde_json::to_value(crate::config::GithubAuthSources::default()).unwrap();
+        assert_eq!(
+            chain,
+            serde_json::json!([
+                { "token": { "env": "TEND_GITHUB_TOKEN" } },
+                { "token": { "env": "GITHUB_TOKEN" } },
+                { "token": { "env": "GH_TOKEN" } },
+                { "gh_cli": { "host": "github.com" } },
+                { "token": { "file": "~/.config/github/token" } },
+            ])
+        );
     }
 
-    #[test]
-    fn test_github_token_falls_back_to_github_token() {
-        let _lock = ENV_MUTEX.lock().unwrap();
-        let orig_tend = std::env::var("TEND_GITHUB_TOKEN").ok();
-        let orig_gh = std::env::var("GITHUB_TOKEN").ok();
+    /// A one-request-per-connection mock of the GitHub REST API: answers
+    /// `/orgs/<org>/repos` with one PRIVATE repo, but only to a request
+    /// carrying `Authorization: Bearer <token>` — exactly what GitHub does
+    /// (an unauthenticated list omits private repos). Returns the base URL.
+    async fn mock_github(token: &'static str) -> String {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut sock, _)) = listener.accept().await else {
+                    return;
+                };
+                let mut buf = vec![0u8; 8192];
+                let mut n = 0;
+                while !buf[..n].windows(4).any(|w| w == b"\r\n\r\n") {
+                    match sock.read(&mut buf[n..]).await {
+                        Ok(0) | Err(_) => break,
+                        Ok(k) => n += k,
+                    }
+                }
+                let req = String::from_utf8_lossy(&buf[..n]).to_ascii_lowercase();
+                let authed = req.contains(&format!(
+                    "authorization: bearer {}",
+                    token.to_ascii_lowercase()
+                ));
+                let body = if authed {
+                    r#"[{"name":"private-repo","archived":false},{"name":"public-repo"}]"#
+                } else {
+                    r#"[{"name":"public-repo"}]"#
+                };
+                let resp = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = sock.write_all(resp.as_bytes()).await;
+            }
+        });
+        format!("http://{addr}")
+    }
 
-        std::env::remove_var("TEND_GITHUB_TOKEN");
-        std::env::set_var("GITHUB_TOKEN", "gh-token-789");
-        assert_eq!(github_token().unwrap().expose(), "gh-token-789");
+    /// Private discovery goes through the resolver: the second chain
+    /// element yields the token, the client sends it, and the private repo
+    /// is listed. With no source yielding, the same mock lists only the
+    /// public one — discovery degrades to the public floor, it does not fail.
+    #[tokio::test]
+    async fn private_discovery_uses_the_github_auth_chain() {
+        use crate::gh_auth::tests::{creds, literal, TOKEN};
+        use shikumi::secret::{SecretBackend, SecretSource};
 
-        // Restore
-        match orig_tend {
-            Some(v) => std::env::set_var("TEND_GITHUB_TOKEN", v),
-            None => std::env::remove_var("TEND_GITHUB_TOKEN"),
-        }
-        match orig_gh {
-            Some(v) => std::env::set_var("GITHUB_TOKEN", v),
-            None => std::env::remove_var("GITHUB_TOKEN"),
-        }
+        let base = mock_github(TOKEN).await;
+        let unset = shikumi::github::GithubAuth::Token(SecretSource::Backend(SecretBackend::Env(
+            "TEND_TEST_DEFINITELY_UNSET_VAR_d41d".into(),
+        )));
+
+        let authed = creds(&[unset.clone(), literal(TOKEN)]);
+        let client = authed.todoku_client(&base).unwrap();
+        let names = discover_with(&client, "pleme-io").await.unwrap();
+        assert_eq!(names, vec!["private-repo", "public-repo"]);
+
+        let anonymous = creds(&[unset]);
+        let client = anonymous.todoku_client(&base).unwrap();
+        let names = discover_with(&client, "pleme-io").await.unwrap();
+        assert_eq!(names, vec!["public-repo"]);
     }
 }

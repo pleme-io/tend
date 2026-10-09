@@ -1,10 +1,11 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use shikumi::{ConfigDiscovery, Format};
+use shikumi::github::GithubAuth;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 pub struct AiTaskConfig {
     pub name: String,
     pub schedule: String,
@@ -28,23 +29,237 @@ fn default_timeout() -> u64 {
     120
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// tend's whole configuration — the one shape every source folds into.
+///
+/// Resolved ONLY through [`crate::config_layers::ConfigLoader`], which folds,
+/// lowest first: the computed tiers ([`shikumi::TieredConfig`] below) → the
+/// discovered file (`$TEND_CONFIG`, else `<config>/tend/tend.yaml`, else the
+/// legacy `<config>/tend/config.yaml`) → each `--config FILE` → `TEND_*`
+/// env (`__` nests; only keys that name a field here) → the subcommand's
+/// typed flags → each `--set PATH=VALUE`. Maps merge per key; scalars and
+/// lists replace. An unknown or ill-typed key is refused naming the layer
+/// that wrote it.
+///
+/// The JSON Schema of this type is committed at
+/// `schema/tend-config.schema.json` (golden-tested) and exported from the
+/// flake as `lib.configSchema`, so the home-manager options are generated
+/// from it rather than restated.
+#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 pub struct Config {
+    /// The workspaces tend manages: one per forge org/user and base directory.
+    #[serde(default)]
     pub workspaces: Vec<Workspace>,
+    /// Where tend's GitHub credential comes from: an ordered list of
+    /// sources, the first that yields a token wins. Every GitHub caller in
+    /// tend (discovery, clone, REST, nix `access-tokens`) resolves through
+    /// this one list. Default: `TEND_GITHUB_TOKEN`, `GITHUB_TOKEN`,
+    /// `GH_TOKEN`, `gh auth token`, `~/.config/github/token`.
+    #[serde(default)]
+    pub github_auth: GithubAuthSources,
+    /// Concurrency of the repo reconcile (`git pull`), shared by `tend
+    /// daemon`, `tend reconcile` and `tend pressure`.
+    #[serde(default)]
+    pub reconcile: ReconcileConfig,
+    /// `tend daemon` — the reconciler loop.
+    #[serde(default)]
+    pub daemon: DaemonConfig,
+    /// `tend flake-update-daemon` — the flake.lock propagation loop.
+    #[serde(default)]
+    pub flake_update_daemon: FlakeUpdateDaemonConfig,
+    /// `tend prebuild` / `tend prebuild-daemon` — build every workspace
+    /// flake and fill the binary caches.
+    #[serde(default)]
+    pub prebuild: PrebuildConfig,
+    /// Host resource hygiene read by `tend status` and the daemon.
     #[serde(default)]
     pub host_health: HostHealthConfig,
     /// Bounds on local cargo `target/` directories -- see
     /// `src/cargo_target.rs`. Absent means disabled.
     #[serde(default)]
     pub cargo_target: crate::cargo_target::CargoTargetConfig,
+    /// The status snapshot `tend hook session-start` reads.
     #[serde(default)]
     pub status_snapshot: crate::scan::StatusSnapshotConfig,
+}
+
+/// The `github_auth:` list — shikumi [`GithubAuth`] sources tried in order.
+///
+/// ── ★ WHY A LIST AND NOT ONE `GithubAuth` ──────────────────────────────
+/// `GithubAuth` is a sum type serialized as a one-key map (`{token: …}`,
+/// `{chain: […]}`). shikumi's fold merges MAPS per key and replaces LISTS,
+/// so a single-`GithubAuth` field defaulting to `{chain: […]}` would turn a
+/// file's `github_auth: {token: …}` into `{chain: […], token: …}` — two
+/// keys, a parse error — and no layer could ever replace the default. As a
+/// list, every layer's `github_auth` replaces the one below it whole, which
+/// is the only sound merge for a choice of credential. A single source map
+/// (`github_auth: {app: …}`, `{chain: […]}`) is still accepted and read as
+/// a one-element list.
+#[derive(Debug, Clone)]
+pub struct GithubAuthSources(pub Vec<GithubAuth>);
+
+impl Default for GithubAuthSources {
+    /// shikumi's default chain for tend, flattened to its elements.
+    fn default() -> Self {
+        match GithubAuth::default_chain("tend") {
+            GithubAuth::Chain(items) => Self(items),
+            other => Self(vec![other]),
+        }
+    }
+}
+
+impl Serialize for GithubAuthSources {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for GithubAuthSources {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = GithubAuthSources;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("a list of GitHub auth sources (or one source map)")
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                seq: A,
+            ) -> Result<Self::Value, A::Error> {
+                Vec::<GithubAuth>::deserialize(serde::de::value::SeqAccessDeserializer::new(seq))
+                    .map(GithubAuthSources)
+            }
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                map: A,
+            ) -> Result<Self::Value, A::Error> {
+                GithubAuth::deserialize(serde::de::value::MapAccessDeserializer::new(map))
+                    .map(|one| GithubAuthSources(vec![one]))
+            }
+        }
+        d.deserialize_any(Visitor)
+    }
+}
+
+impl schemars1::JsonSchema for GithubAuthSources {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "GithubAuthSources".into()
+    }
+    fn json_schema(generator: &mut schemars1::SchemaGenerator) -> schemars1::Schema {
+        let item = generator.subschema_for::<GithubAuth>();
+        let default = serde_json::to_value(Self::default()).unwrap_or_default();
+        schemars1::json_schema!({
+            "description": "GitHub auth sources, tried in order; the first that yields a token wins.",
+            "type": "array",
+            "items": item,
+            "default": default,
+        })
+    }
+}
+
+/// Concurrency of the repo reconcile.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
+#[serde(default)]
+pub struct ReconcileConfig {
+    /// Maximum concurrent `git pull` processes per workspace (the shigoto
+    /// budget for `tend.pull-repo`). The host-pressure gate may lower it for
+    /// a cycle; it never raises it.
+    pub max_inflight: u32,
+}
+
+impl Default for ReconcileConfig {
+    fn default() -> Self {
+        Self {
+            max_inflight: crate::reconcile::DEFAULT_MAX_INFLIGHT_PULL,
+        }
+    }
+}
+
+/// `tend daemon` — sync + pull + watch on an interval.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
+#[serde(default)]
+pub struct DaemonConfig {
+    /// Seconds between cycles. Re-read every cycle, like the rest of the
+    /// config, so an edit takes effect without a restart.
+    pub interval: u64,
+    /// Fast-forward clean repos every cycle (`git pull --ff-only`). Implies
+    /// fetch. The reconciler behavior.
+    pub pull: bool,
+    /// Plain `git fetch --all --prune` each cycle. Only takes effect when
+    /// `pull` is false (pull already fetches).
+    pub fetch: bool,
+    /// Suppress per-repo output.
+    pub quiet: bool,
+}
+
+impl Default for DaemonConfig {
+    fn default() -> Self {
+        Self {
+            interval: 300,
+            pull: true,
+            fetch: true,
+            quiet: false,
+        }
+    }
+}
+
+/// `tend flake-update-daemon` — `flake-update --all` with backoff.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
+#[serde(default)]
+pub struct FlakeUpdateDaemonConfig {
+    /// Sleep after a cycle that did work, seconds.
+    pub min_interval: u64,
+    /// Ceiling of the converged-cycle backoff, seconds.
+    pub max_interval: u64,
+    /// Suppress per-step output.
+    pub quiet: bool,
+}
+
+impl Default for FlakeUpdateDaemonConfig {
+    fn default() -> Self {
+        Self {
+            min_interval: 60,
+            max_interval: 3600,
+            quiet: false,
+        }
+    }
+}
+
+/// Probing the Attic server before each prebuild cycle.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
+#[serde(default)]
+pub struct AtticProbeConfig {
+    /// Probe `attic_url` before each cycle and back off while it is down.
+    /// Effective only when `attic_url` is set.
+    pub enable: bool,
+    /// Floor of the unreachable backoff, seconds.
+    pub min_interval: u64,
+    /// Ceiling of the unreachable backoff, seconds.
+    pub max_interval: u64,
+    /// Per-probe HTTP timeout, seconds.
+    pub timeout: u64,
+}
+
+impl Default for AtticProbeConfig {
+    fn default() -> Self {
+        Self {
+            enable: true,
+            min_interval: 60,
+            max_interval: 1800,
+            timeout: 5,
+        }
+    }
 }
 
 /// Host-level (not per-workspace) resource-hygiene knobs read by
 /// `tend status` -- see `src/host_health.rs`. Absent from a config file
 /// entirely, or with any field omitted, falls back to the defaults below.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 pub struct HostHealthConfig {
     /// Binary name fragments known to leave orphaned (PPID==1) processes
     /// behind under some failure mode -- extend as new patterns are found
@@ -101,7 +316,8 @@ fn default_stale_lock_min_age_secs() -> u64 {
     120
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 pub struct Workspace {
     pub name: String,
     #[serde(default = "default_provider")]
@@ -153,11 +369,10 @@ pub struct Workspace {
     pub watch: Option<WatchConfig>,
     #[serde(default)]
     pub ai_tasks: Vec<AiTaskConfig>,
-    /// Workspace-scoped prebuild daemon settings. When set, the
-    /// `tend prebuild-daemon` reads these on every cycle (re-load
-    /// is per-cycle, so dynamic edits take effect within one
-    /// interval — no daemon restart needed). CLI flags still
-    /// override; this is the typed-config layer.
+    /// LEGACY. The runtime reads only the top-level `prebuild:` section; the
+    /// loader hoists the first workspace's block there when a file has no
+    /// top-level one (see [`PrebuildConfig`]). Still parsed, so existing
+    /// files keep loading; write new settings at the top level.
     #[serde(default)]
     pub prebuild: Option<PrebuildConfig>,
     #[serde(default)]
@@ -168,7 +383,8 @@ pub struct Workspace {
     pub push_ahead: bool,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 #[serde(rename_all = "lowercase")]
 pub enum PushPolicy {
     #[default]
@@ -176,66 +392,94 @@ pub enum PushPolicy {
     Pr,
 }
 
-/// Per-workspace prebuild knobs. See `src/prebuild.rs::PrebuildOptions`
-/// for the runtime shape; this is the on-disk YAML projection that
-/// shikumi's TieredConfig resolves (env > file > prescribed_default >
-/// bare). The daemon reads this every cycle, so an operator can
-/// edit `~/.config/tend/config.yaml` (or `/etc/tend/config.yaml`)
-/// while the daemon runs and the next cycle picks up the change —
-/// matches the "K8s controller, dynamic config propagates live"
-/// shape called out in the project goals.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+/// The prebuild run: what `tend prebuild` builds and where it pushes, and
+/// how `tend prebuild-daemon` paces itself.
+///
+/// This is the TOP-LEVEL `prebuild:` section, and the only one the runtime
+/// reads. Every `tend prebuild[-daemon]` flag is a partial over it, so a flag
+/// beats every file. The daemon re-resolves it each cycle (and a file edit
+/// wakes the daemon), so an edit propagates without a restart.
+///
+/// ── ★ THE LEGACY PER-WORKSPACE `prebuild:` BLOCK ───────────────────────
+/// `workspaces[].prebuild` predates this section. It was never per
+/// workspace at runtime: the first workspace carrying one overrode the
+/// CLI's packages/systems/repro/caches for the WHOLE cycle (YAML beating the
+/// command line), and its max_inflight/attic fields were printed but never
+/// applied. The loader now hoists that first block to the top-level
+/// `prebuild:` of the same file when the file has none — same slot, so a
+/// flag beats it as it beats any file value. See
+/// [`crate::config_layers::hoist_legacy_prebuild`].
+#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
+#[serde(default)]
 pub struct PrebuildConfig {
-    /// Minimum sleep between cycles (seconds). Resets after any work.
-    #[serde(default = "default_prebuild_min_interval")]
+    /// Minimum sleep between daemon cycles (seconds). Resets after any work.
     pub min_interval: u64,
     /// Maximum sleep when converged (seconds). Caps the exponential
     /// backoff growth.
-    #[serde(default = "default_prebuild_max_interval")]
     pub max_interval: u64,
     /// Max concurrent `nix build` invocations.
-    #[serde(default = "default_prebuild_max_inflight")]
     pub max_inflight: usize,
+    /// Suppress per-repo log lines (the audit log is still written).
+    pub quiet: bool,
     /// Attic cache name to push closures to. `None` = build-only mode.
-    #[serde(default)]
     pub attic_cache: Option<String>,
     /// Attic server alias for `attic login`.
-    #[serde(default)]
     pub attic_server: Option<String>,
-    /// Attic server URL.
-    #[serde(default)]
+    /// Attic server URL. Also the reachability probe's target.
     pub attic_url: Option<String>,
     /// SOPS-managed Attic JWT token file path.
-    #[serde(default)]
     pub attic_token_file: Option<String>,
+    /// Reachability probe of `attic_url` (daemon only).
+    pub probe: AtticProbeConfig,
 
     // ── Cache-fill extensions (multi-cache, multi-package) ──────────
     /// Which flake outputs to build: `"all"` (every
     /// `packages.${system}.*` — the fill default), `"default"`, or a
     /// comma-separated allow-list (`"mado,tear"`). Parsed by
     /// [`crate::prebuild_cache::PackageSelector::parse`].
-    #[serde(default = "default_prebuild_packages")]
     pub packages: String,
     /// Target systems to build for. Empty ⇒ this host's native system
     /// only (no remote-builder fan-out unless the operator opts in by
     /// listing extra triples like `x86_64-linux`).
-    #[serde(default)]
     pub systems: Vec<String>,
     /// Reproducibility policy before pushing to a trusted cache:
     /// `"trusting"` (fast) or `"verify"` (build-and-compare; never
     /// pushes a non-reproducible artifact — the anti-poison gate).
     /// Parsed by [`crate::prebuild_cache::ReproPolicy::parse`].
-    #[serde(default)]
     pub repro: String,
     /// Many caches. Each produced closure fans out to every enabled
-    /// target. When empty, the legacy single `attic_*` quartet above is
-    /// promoted to a one-element list, so existing configs keep working.
-    #[serde(default)]
+    /// target. When empty, the single `attic_*` quartet above is
+    /// promoted to a one-element list.
     pub caches: Vec<CacheTargetConfig>,
 }
 
+impl Default for PrebuildConfig {
+    fn default() -> Self {
+        Self {
+            min_interval: default_prebuild_min_interval(),
+            max_interval: default_prebuild_max_interval(),
+            max_inflight: default_prebuild_max_inflight(),
+            quiet: false,
+            attic_cache: None,
+            attic_server: Some(DEFAULT_ATTIC_SERVER.to_string()),
+            attic_url: None,
+            attic_token_file: None,
+            probe: AtticProbeConfig::default(),
+            packages: default_prebuild_packages(),
+            systems: Vec::new(),
+            repro: "trusting".to_string(),
+            caches: Vec::new(),
+        }
+    }
+}
+
+/// The `attic login` alias used when none is configured.
+pub const DEFAULT_ATTIC_SERVER: &str = "nexus";
+
 /// One push destination in the multi-cache `caches:` list.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 pub struct CacheTargetConfig {
     /// Which protocol this destination speaks (`attic` | `sui`).
     /// Absent ⇒ `attic`, so every existing `caches:` block keeps working.
@@ -287,7 +531,8 @@ fn default_prebuild_max_inflight() -> usize {
     1
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 pub struct WatchConfig {
     /// Enable watch for this workspace
     #[serde(default)]
@@ -340,7 +585,8 @@ pub struct WatchConfig {
 /// Safe default: `auto_cancel_duplicate_queued: true` but `enable:
 /// false` at the top level — the feature ships off-by-default and
 /// each workspace opts in.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 pub struct CiHygieneConfig {
     /// Enable CI hygiene for this workspace.
     #[serde(default)]
@@ -378,7 +624,8 @@ fn default_stale_queue_minutes() -> u32 {
 /// When enabled, the daemon runs `nix-audit check --all` after the watch cycle,
 /// optionally auto-fixes violations and propagates fixes across the flake graph.
 /// Results are tracked in a convergence database for trend analysis.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 pub struct NixAuditConfig {
     /// Enable nix-audit integration in daemon cycle
     #[serde(default)]
@@ -397,7 +644,8 @@ pub struct NixAuditConfig {
     pub post_hooks: Vec<PostHook>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 pub struct FileWatch {
     /// Human-readable name for this watch
     pub name: String,
@@ -415,7 +663,8 @@ pub struct FileWatch {
     pub post_hooks: Vec<PostHook>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 pub struct PostHook {
     /// When to trigger: "after_certify", "after_commit", "after_propagate", "after_all"
     pub trigger: String,
@@ -432,7 +681,8 @@ pub struct PostHook {
     pub continue_on_error: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 pub struct FlakeInputWatch {
     /// Human-readable name for this watch
     pub name: String,
@@ -452,8 +702,9 @@ pub struct FlakeInputWatch {
     /// Commit + push flake.lock after update
     #[serde(default)]
     pub auto_commit: bool,
-    /// Run `tend flake-update --changed <repo>` to propagate
-    #[serde(default)]
+    /// Run `tend flake-update --changed <repo>` to propagate. `false` is
+    /// accepted as "no" — blackmatter's module renders it as a bool.
+    #[serde(default, deserialize_with = "opt_string_or_false")]
     pub auto_propagate: Option<String>,
     /// Hooks to run when staleness is detected
     #[serde(default)]
@@ -485,7 +736,8 @@ impl Default for FlakeRefreshConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 pub struct FlakeRefreshConfig {
     /// Enable flake refresh for this workspace
     #[serde(default)]
@@ -569,7 +821,8 @@ fn default_commit_message() -> String {
     "chore: update flake.lock".to_string()
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum FlakeInputMode {
@@ -587,11 +840,35 @@ impl std::fmt::Display for FlakeInputMode {
     }
 }
 
+/// `Option<String>` that also takes `false` (→ `None`).
+///
+/// The blackmatter-tend module declares `flake_input_watches[].auto_propagate`
+/// as a Nix bool and renders `false`. serde_yaml_ng read a YAML `false` into a
+/// String as `"false"` — a repo name nobody has — so the old loader "worked"
+/// by accident. shikumi's fold types values, so a bool reaches this field as
+/// a bool. `true` names no repo and is refused.
+fn opt_string_or_false<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Raw {
+        Name(String),
+        Flag(bool),
+    }
+    match Option::<Raw>::deserialize(d)? {
+        None | Some(Raw::Flag(false)) => Ok(None),
+        Some(Raw::Name(n)) => Ok(Some(n)),
+        Some(Raw::Flag(true)) => Err(serde::de::Error::custom(
+            "auto_propagate names the repo to propagate from (a string), or false",
+        )),
+    }
+}
+
 fn default_flake_input_mode() -> FlakeInputMode {
     FlakeInputMode::Commits
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum CloneMethod {
@@ -640,6 +917,16 @@ impl shikumi::TieredConfig for Config {
     fn bare() -> Self {
         Self {
             workspaces: Vec::new(),
+            github_auth: GithubAuthSources(Vec::new()),
+            reconcile: ReconcileConfig { max_inflight: 1 },
+            daemon: DaemonConfig {
+                interval: 300,
+                pull: false,
+                fetch: false,
+                quiet: false,
+            },
+            flake_update_daemon: FlakeUpdateDaemonConfig::default(),
+            prebuild: <PrebuildConfig as shikumi::TieredConfig>::bare(),
             host_health: HostHealthConfig::default(),
             cargo_target: crate::cargo_target::CargoTargetConfig::default(),
             status_snapshot: crate::scan::StatusSnapshotConfig {
@@ -648,9 +935,18 @@ impl shikumi::TieredConfig for Config {
             },
         }
     }
+    /// What tend runs when a source says nothing — every daemon knob the
+    /// launchd/systemd units used to spell as CLI defaults, and shikumi's
+    /// default GitHub credential chain. `tend config-show --effective`
+    /// starts from exactly this.
     fn prescribed_default() -> Self {
         Self {
             workspaces: Vec::new(),
+            github_auth: GithubAuthSources::default(),
+            reconcile: ReconcileConfig::default(),
+            daemon: DaemonConfig::default(),
+            flake_update_daemon: FlakeUpdateDaemonConfig::default(),
+            prebuild: PrebuildConfig::default(),
             host_health: HostHealthConfig::default(),
             cargo_target: crate::cargo_target::CargoTargetConfig::default(),
             status_snapshot: crate::scan::StatusSnapshotConfig::default(),
@@ -707,17 +1003,22 @@ impl shikumi::TieredConfig for Workspace {
 
 impl shikumi::TieredConfig for PrebuildConfig {
     fn bare() -> Self {
-        // Floor: no work happens, no attic interaction. Operators
-        // who declare a `prebuild:` block opt into the prescribed
-        // defaults below for any field they omit.
+        // Floor: no work happens, no attic interaction.
         Self {
             min_interval: 0,
             max_interval: 0,
             max_inflight: 0,
+            quiet: false,
             attic_cache: None,
             attic_server: None,
             attic_url: None,
             attic_token_file: None,
+            probe: AtticProbeConfig {
+                enable: false,
+                min_interval: 0,
+                max_interval: 0,
+                timeout: 0,
+            },
             packages: String::new(),
             systems: Vec::new(),
             repro: String::new(),
@@ -725,19 +1026,7 @@ impl shikumi::TieredConfig for PrebuildConfig {
         }
     }
     fn prescribed_default() -> Self {
-        Self {
-            min_interval: default_prebuild_min_interval(),
-            max_interval: default_prebuild_max_interval(),
-            max_inflight: default_prebuild_max_inflight(),
-            attic_cache: None,
-            attic_server: None,
-            attic_url: None,
-            attic_token_file: None,
-            packages: default_prebuild_packages(),
-            systems: Vec::new(),
-            repro: String::new(),
-            caches: Vec::new(),
-        }
+        Self::default()
     }
 }
 
@@ -840,12 +1129,16 @@ impl shikumi::TieredConfig for FlakeRefreshConfig {
 }
 
 impl Config {
+    /// Resolve the config from exactly one file over the computed defaults
+    /// — no discovery, no env, no flags. Strict: an unknown key is refused.
+    ///
+    /// This is NOT how tend loads its config at run time; that is
+    /// [`crate::config_layers::ConfigLoader`]. It exists for callers that
+    /// address one file on purpose (tests, fixtures), and it goes through
+    /// the same shikumi fold — there is no second parser.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn load(path: &Path) -> Result<Self> {
-        let contents =
-            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
-        let config: Config = serde_yaml_ng::from_str(&contents)
-            .with_context(|| format!("parsing {}", path.display()))?;
-        Ok(config)
+        crate::config_layers::load_file(path)
     }
 
     /// Discover the default config file path using shikumi.
@@ -910,10 +1203,14 @@ impl Config {
     /// the well-known starter config, but callers get a typed error instead
     /// of a panic).
     pub fn generate_starter() -> Result<String> {
-        let config = Config {
-            host_health: HostHealthConfig::default(),
-            cargo_target: crate::cargo_target::CargoTargetConfig::default(),
-            status_snapshot: crate::scan::StatusSnapshotConfig::default(),
+        /// Only the part a starter has to say: everything else is a real
+        /// default (`tend config-show --effective` prints it), and writing
+        /// it out would pin today's defaults into the operator's file.
+        #[derive(Serialize)]
+        struct Starter {
+            workspaces: Vec<Workspace>,
+        }
+        let config = Starter {
             workspaces: vec![Workspace {
                 name: "my-org".to_string(),
                 provider: "github".to_string(),
@@ -1561,10 +1858,10 @@ workspaces:
         let path = dir.join("bad-ctx.yaml");
         std::fs::write(&path, "{{{{ not valid yaml").unwrap();
         let result = Config::load(&path);
-        let err = result.unwrap_err().to_string();
+        let err = format!("{:#}", result.unwrap_err());
         assert!(
-            err.contains("parsing"),
-            "error should mention parsing context: {err}"
+            err.contains("bad-ctx.yaml"),
+            "error should name the file it could not parse: {err}"
         );
         let _ = std::fs::remove_file(&path);
     }

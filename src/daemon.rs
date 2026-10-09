@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -7,51 +7,21 @@ use std::time::Duration;
 use crate::kanshou_state::TendDaemonState;
 use crate::planner::{ExecutionPlan, WorkItem, WorkKind};
 use crate::{
-    audit, display, filter_workspaces_checked, git, github, host_health, load_config, planner,
-    reconcile, sync, watch, watch_cache,
+    audit, display, filter_workspaces_checked, git, github, host_health, planner, reconcile, sync,
+    watch, watch_cache,
 };
 
 /// Options for the daemon command.
+///
+/// Everything that used to be a flag here (interval, pull, fetch, quiet,
+/// max_inflight, the token file) is config now — `daemon.*`,
+/// `reconcile.max_inflight`, `github_auth` — resolved by `loader` EVERY
+/// cycle, with the command line's flags folded above the file. So a
+/// `config.yaml` edit (a nix rebuild) changes the running daemon on its next
+/// cycle, and a flag still beats it.
 pub(crate) struct DaemonOpts {
-    pub config: Option<PathBuf>,
+    pub loader: crate::config_layers::ConfigLoader,
     pub workspace: Option<String>,
-    pub interval: u64,
-    /// Fast-forward clean repos with `git pull --ff-only` each cycle. Implies
-    /// fetch (pull does its own fetch). Default true — this is the reconciler
-    /// behavior that drives the workspace toward the org's current state.
-    pub pull: bool,
-    /// Plain `git fetch --all --prune` each cycle. Only takes effect when
-    /// `pull` is false (pull already fetches). Kept so a fetch-only daemon
-    /// remains expressible (`--no-pull --fetch`).
-    pub fetch: bool,
-    pub quiet: bool,
-    /// Maximum concurrent `git pull` Jobs per workspace per cycle.
-    /// Bounds the shigoto-scheduler's per-kind Budget for the
-    /// `tend.pull-repo` kind so the daemon doesn't saturate file
-    /// handles / SSH multiplexers on large workspaces.
-    pub max_inflight: u32,
-    /// Path to the GitHub token file (`--github-token-file`). Held so an
-    /// external poke (SIGHUP) can re-read it and refresh the process
-    /// `GITHUB_TOKEN` cache that `provider`/`sync` consume — a rotated
-    /// token then takes effect without restarting the daemon.
-    pub github_token_file: Option<PathBuf>,
-}
-
-/// Read + trim a token from `path`. Pure (no env mutation) so it is unit
-/// testable without racing other tests on the process env.
-fn read_token_file(path: &std::path::Path) -> Result<String> {
-    let token = std::fs::read_to_string(path)
-        .with_context(|| format!("reading token from {}", path.display()))?;
-    Ok(token.trim().to_string())
-}
-
-/// Re-read the GitHub token from `path` and refresh the process-global
-/// `GITHUB_TOKEN` that `provider::github_token` and `sync` read at call
-/// time. This is the body of the external reload poke (SIGHUP) — it lets
-/// a rotated credential take effect without a daemon restart.
-fn reload_github_token(path: &std::path::Path) -> Result<()> {
-    std::env::set_var("GITHUB_TOKEN", read_token_file(path)?);
-    Ok(())
 }
 
 /// Run the daemon loop: sync + pull + watch on interval, re-reading config each cycle.
@@ -76,19 +46,18 @@ pub(crate) async fn run_with_kanshou(
     // SIGINT. `tokio::signal::ctrl_c` alone misses SIGTERM from launchd.
     let shutdown = tsunagu::ShutdownController::install();
 
-    // External reload poke: SIGHUP re-reads the token file and refreshes
-    // the `GITHUB_TOKEN` cache, then wakes the loop to reconcile with the
-    // fresh credential — so a rotated token (sops edit + rebuild, or a
-    // manual rotation) takes effect WITHOUT restarting the daemon. Poke
-    // with `kill -HUP <pid>` or
-    // `launchctl kill HUP gui/<uid>/io.pleme.tend-daemon`. The reload
-    // count + last-reload time are observable via
+    // External reload poke: SIGHUP forgets the memoized GitHub token and
+    // wakes the loop, which re-resolves the whole config (including
+    // `github_auth`) — so a rotated credential (sops edit + rebuild, a
+    // rewritten token file, a new App key) takes effect WITHOUT restarting
+    // the daemon. Poke with `kill -HUP <pid>` or
+    // `launchctl kill HUP gui/<uid>/io.pleme.tend-daemon`. The reload count
+    // and last-reload time are observable via
     // `gen kanshou query tend token`.
     let reload_now = Arc::new(tokio::sync::Notify::new());
-    if let Some(token_path) = opts.github_token_file.clone() {
+    {
         let notify = Arc::clone(&reload_now);
         let kstate = Arc::clone(&kanshou_state);
-        let quiet = opts.quiet;
         tokio::spawn(async move {
             let mut hup =
                 match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup()) {
@@ -100,41 +69,25 @@ pub(crate) async fn run_with_kanshou(
                 };
             let audit = crate::audit::AuditLog::default_path();
             while hup.recv().await.is_some() {
-                match reload_github_token(&token_path) {
-                    Ok(()) => {
-                        kstate.token_reloads.fetch_add(1, Ordering::Relaxed);
-                        kstate
-                            .token_last_reload_unix_ms
-                            .store(now_unix_ms(), Ordering::Relaxed);
-                        audit.log(
-                            "github_token_reloaded",
-                            serde_json::json!({
-                                "path": token_path.display().to_string(),
-                                "trigger": "SIGHUP",
-                            }),
-                        );
-                        if !quiet {
-                            eprintln!(
-                                "daemon: SIGHUP — reloaded GITHUB_TOKEN from {}; reconciling now",
-                                token_path.display()
-                            );
-                        }
-                        notify.notify_one();
-                    }
-                    Err(e) => {
-                        audit.log(
-                            "github_token_reload_failed",
-                            serde_json::json!({
-                                "path": token_path.display().to_string(),
-                                "error": e.to_string(),
-                            }),
-                        );
-                        eprintln!("daemon: SIGHUP reload failed: {e}");
-                    }
-                }
+                crate::gh_auth::credentials().begin_cycle();
+                kstate.token_reloads.fetch_add(1, Ordering::Relaxed);
+                kstate
+                    .token_last_reload_unix_ms
+                    .store(now_unix_ms(), Ordering::Relaxed);
+                audit.log(
+                    "github_token_reloaded",
+                    serde_json::json!({ "trigger": "SIGHUP" }),
+                );
+                eprintln!(
+                    "daemon: SIGHUP — re-resolving config and GitHub credential; reconciling now"
+                );
+                notify.notify_one();
             }
         });
     }
+
+    // The last config that resolved — what a failed reload sleeps on.
+    let mut last_daemon = crate::config::DaemonConfig::default();
 
     loop {
         cycle += 1;
@@ -143,18 +96,29 @@ pub(crate) async fn run_with_kanshou(
             break;
         }
 
-        // Re-read config each cycle so nix rebuild changes are picked up
-        let cfg = match load_config(opts.config.as_deref()) {
-            Ok(c) => c,
+        // Re-resolve config each cycle so nix rebuild changes are picked up
+        // (flags still fold above the file).
+        let cfg = match opts.loader.load_resolved() {
+            Ok(resolved) => {
+                *kanshou_state.effective_config.write() =
+                    crate::config_layers::effective_json(&resolved);
+                resolved.into_value()
+            }
             Err(e) => {
-                eprintln!("daemon: failed to load config: {e}");
+                eprintln!("daemon: failed to load config: {e:#}");
                 let mut tok = shutdown.token();
                 tokio::select! {
-                    _ = tokio::time::sleep(Duration::from_secs(opts.interval)) => continue,
+                    _ = tokio::time::sleep(Duration::from_secs(last_daemon.interval.max(1))) => continue,
                     () = tok.wait_ref() => break,
                 }
             }
         };
+        // Once per reconcile: walk the credential chain fresh and record
+        // which source answered (audit log), never the token.
+        crate::gh_auth::credentials().begin_cycle();
+        let d = cfg.daemon.clone();
+        last_daemon = d.clone();
+        let max_inflight = cfg.reconcile.max_inflight;
 
         let workspaces = filter_workspaces_checked(&cfg.workspaces, opts.workspace.as_deref())?;
         let ws_count = workspaces.len();
@@ -200,7 +164,7 @@ pub(crate) async fn run_with_kanshou(
                     &host_audit,
                 )
                 .unwrap_or_default();
-                if !opts.quiet {
+                if !d.quiet {
                     eprintln!(
                         "  unwedged {} repo(s) holding a stale index.lock",
                         reaped.len()
@@ -226,7 +190,7 @@ pub(crate) async fn run_with_kanshou(
                 .first()
                 .and_then(|w| w.resolved_base_dir().ok())
                 .unwrap_or_else(|| PathBuf::from("."));
-            let inflight = opts.max_inflight;
+            let inflight = max_inflight;
             let swept = tokio::task::spawn_blocking(move || {
                 let pressured = crate::cargo_target::disk_pressured_at(&probe, inflight);
                 crate::cargo_target::sweep(
@@ -259,7 +223,7 @@ pub(crate) async fn run_with_kanshou(
                             "removed": removed,
                         }),
                     );
-                    if !opts.quiet || !removed.is_empty() {
+                    if !d.quiet || !removed.is_empty() {
                         eprintln!(
                             "  cargo target dirs: {} holding {:.1} GiB; {} {:.1} GiB ({} removed)",
                             report.count,
@@ -284,16 +248,16 @@ pub(crate) async fn run_with_kanshou(
 
         // Build the DAG of configured work BEFORE touching repos or the network.
         // Empty plan → nothing's wired up this cycle → silent sleep.
-        let plan = build_plan(&workspaces, opts.pull, opts.fetch);
+        let plan = build_plan(&workspaces, d.pull, d.fetch);
         if plan.is_empty() {
             let mut tok = shutdown.token();
             tokio::select! {
-                _ = tokio::time::sleep(Duration::from_secs(opts.interval)) => continue,
+                _ = tokio::time::sleep(Duration::from_secs(d.interval.max(1))) => continue,
                 () = tok.wait_ref() => break,
             }
         }
 
-        if !opts.quiet {
+        if !d.quiet {
             display::print_daemon_cycle_start(cycle);
             eprintln!("  plan: {}", plan.summary());
         }
@@ -320,11 +284,11 @@ pub(crate) async fn run_with_kanshou(
                     let verdict = crate::pressure::assess(
                         reading,
                         crate::pressure::Thresholds::default(),
-                        opts.max_inflight,
+                        max_inflight,
                     );
-                    match verdict.inflight(opts.max_inflight) {
+                    match verdict.inflight(max_inflight) {
                         Some(n) => {
-                            if n != opts.max_inflight {
+                            if n != max_inflight {
                                 eprintln!("tend: throttling to {n} — {}", verdict.why());
                             }
                             n
@@ -342,7 +306,7 @@ pub(crate) async fn run_with_kanshou(
                     eprintln!(
                         "tend: pressure unreadable ({e}); proceeding at configured concurrency"
                     );
-                    opts.max_inflight
+                    max_inflight
                 }
             }
         };
@@ -356,9 +320,9 @@ pub(crate) async fn run_with_kanshou(
         let mut tasks = tokio::task::JoinSet::new();
         for ws in workspaces {
             let ws = ws.clone();
-            let pull = opts.pull;
-            let fetch = opts.fetch;
-            let quiet = opts.quiet;
+            let pull = d.pull;
+            let fetch = d.fetch;
+            let quiet = d.quiet;
             let max_inflight = effective_inflight;
             tasks.spawn(async move {
                 let name = ws.name.clone();
@@ -391,7 +355,7 @@ pub(crate) async fn run_with_kanshou(
             .await;
             match refreshed {
                 Ok(Ok(snapshot)) => {
-                    if !opts.quiet {
+                    if !d.quiet {
                         eprintln!(
                             "  status snapshot: {} of {} repos classified",
                             snapshot.rows.len(),
@@ -404,9 +368,9 @@ pub(crate) async fn run_with_kanshou(
             }
         }
 
-        if !opts.quiet {
+        if !d.quiet {
             display::print_daemon_cycle_done(cycle, ws_count);
-            display::print_daemon_sleeping(opts.interval);
+            display::print_daemon_sleeping(d.interval.max(1));
         }
 
         // Wire the kanshou counters at the cycle boundary so external
@@ -423,7 +387,7 @@ pub(crate) async fn run_with_kanshou(
 
         let mut tok = shutdown.token();
         tokio::select! {
-            _ = tokio::time::sleep(Duration::from_secs(opts.interval)) => {}
+            _ = tokio::time::sleep(Duration::from_secs(d.interval.max(1))) => {}
             // External poke (SIGHUP) reloaded the token — start the next
             // cycle immediately so the fresh credential is used now
             // (e.g. previously-401 https workspaces retry at once).
@@ -797,7 +761,6 @@ fn now_unix_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
 
     #[tokio::test]
     async fn a_drain_ends_the_cycle_without_waiting_for_it() {
@@ -865,23 +828,5 @@ mod tests {
         let mut ws = crate::config::Workspace::test_default("probe");
         ws.base_dir = "/nonexistent/path/that/is/not/there".to_string();
         assert!(daemon_repo_paths(&[&ws]).is_empty());
-    }
-
-    #[test]
-    fn read_token_file_trims_whitespace_and_newline() {
-        let mut f = tempfile::NamedTempFile::new().expect("temp file");
-        // Token files commonly carry a trailing newline (sops/echo) and
-        // sometimes surrounding whitespace — the reload must trim both so
-        // the value matches what GitHub expects.
-        write!(f, "  ghp_exampletoken123\n").expect("write");
-        let got = read_token_file(f.path()).expect("read");
-        assert_eq!(got, "ghp_exampletoken123");
-    }
-
-    #[test]
-    fn read_token_file_missing_path_errors() {
-        let err =
-            read_token_file(std::path::Path::new("/nonexistent/tend/token/path/xyz")).unwrap_err();
-        assert!(err.to_string().contains("reading token from"));
     }
 }

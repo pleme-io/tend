@@ -5,7 +5,7 @@ use std::process::Command;
 use crate::config::Workspace;
 use crate::provider;
 use crate::reach::{Degradations, DiscoveryAnswer, Freshness};
-use crate::secret::{GitConfigEnv, Secret};
+use crate::secret::GitConfigEnv;
 
 /// Proof that a repo's remote set was **observed** and found non-empty.
 ///
@@ -685,12 +685,18 @@ pub(crate) enum SyncOutcome {
 /// Empty for non-GitHub URLs and when no token is configured — a
 /// public clone needs no credential, and an absent one must not
 /// become an empty `Authorization` header.
+///
+/// The credential is the configured `github_auth` chain — the same one
+/// discovery used, so a repo discovery could list is a repo clone can fetch.
+/// This was env-only (`TEND_GITHUB_TOKEN`/`GITHUB_TOKEN`) while discovery
+/// also read `~/.config/github/token`: a private repo could be discovered
+/// and then fail to clone.
 fn github_clone_auth(url: &str) -> GitConfigEnv {
     if !url.starts_with("https://github.com/") {
         return GitConfigEnv::new();
     }
-    match Secret::from_env(&["TEND_GITHUB_TOKEN", "GITHUB_TOKEN"]) {
-        Some(secret) => secret.github_git_auth(),
+    match crate::gh_auth::token() {
+        Some(token) => crate::gh_auth::git_auth(&token),
         None => GitConfigEnv::new(),
     }
 }

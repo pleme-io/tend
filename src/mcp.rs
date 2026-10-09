@@ -278,9 +278,9 @@ impl TendMcp {
         description = "Read tend's RESOLVED configuration (shikumi TieredConfig: env > file > prescribed default) — what tend actually resolved, not what a file says. Omit `key` for everything; a dot-path returns that subtree, or null if absent."
     )]
     async fn tend_config_get(&self) -> String {
-        match crate::config::Config::load(std::path::Path::new(&shellexpand_home(
-            "~/.config/tend/config.yaml",
-        ))) {
+        // The same fold every subcommand runs (discovered file + TEND_* env),
+        // not a raw read of one hard-coded path.
+        match crate::load_config(None) {
             Ok(config) => {
                 let surface = ConfigSurface {
                     config,
@@ -299,9 +299,7 @@ impl TendMcp {
         description = "Cargo target/ directories across the configured workspace repos, as a DRY RUN of the cargo_target policy: per directory the size, idle days and verdict (in-use / keep / remove-idle / remove-over-budget), plus totals, the budget in force (tighter under disk pressure) and any `target` dirs refused for lacking cargo's CACHEDIR.TAG. Never deletes; `tend cargo-target apply` does."
     )]
     async fn tend_cargo_targets(&self) -> String {
-        let loaded = crate::config::Config::load(std::path::Path::new(&shellexpand_home(
-            "~/.config/tend/config.yaml",
-        )));
+        let loaded = crate::load_config(None);
         let cfg = match loaded {
             Ok(c) => c,
             Err(e) => return json!({"ok": false, "error": e.to_string()}).to_string(),
@@ -386,17 +384,6 @@ impl TendMcp {
                 Err(e) => json!({"ok": false, "error": e.to_string()}),
             }
         })
-    }
-}
-
-fn shellexpand_home(p: &str) -> String {
-    match std::env::var_os("HOME") {
-        Some(h) if p.starts_with("~/") => {
-            let mut s = h.to_string_lossy().to_string();
-            s.push_str(&p[1..]);
-            s
-        }
-        _ => p.to_string(),
     }
 }
 
@@ -536,12 +523,7 @@ mod tests {
     #[test]
     fn config_get_returns_null_for_a_missing_key_rather_than_erroring() {
         let surface = ConfigSurface {
-            config: crate::config::Config {
-                workspaces: vec![],
-                host_health: Default::default(),
-                cargo_target: Default::default(),
-                status_snapshot: Default::default(),
-            },
+            config: <crate::config::Config as shikumi::TieredConfig>::prescribed_default(),
             authority: Authority::Observe,
         };
         assert_eq!(surface.get(Some("nope.not.here")).unwrap(), Value::Null);

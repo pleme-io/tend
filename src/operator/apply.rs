@@ -19,7 +19,7 @@ use super::crds::FlakeRev;
 use super::flake_lock_adapter::FlakeLockAdapter;
 use super::git_ops::{commit_and_push, fetch_and_reset_to_origin, GitCommitter};
 use super::lock_format::LockFormat;
-use crate::secret::Secret;
+use shikumi::github::GithubToken;
 
 pub struct ApplyOutcome {
     /// SHA of the commit that landed the new pin.
@@ -30,7 +30,7 @@ pub async fn apply_pin(
     repo_dir: &Path,
     input_name: &str,
     new: &FlakeRev,
-    token: Option<&Secret>,
+    token: Option<&GithubToken>,
 ) -> Result<ApplyOutcome> {
     // Concurrent-writer race: the user (or another bot) can push to
     // origin/main between our fetch+reset and our push. When that
@@ -66,7 +66,7 @@ async fn try_apply_pin_once(
     repo_dir: &Path,
     input_name: &str,
     new: &FlakeRev,
-    token: Option<&Secret>,
+    token: Option<&GithubToken>,
 ) -> Result<ApplyOutcome> {
     fetch_and_reset_to_origin(repo_dir, "main", token)
         .await

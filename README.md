@@ -87,7 +87,26 @@ Wiring (settings.json):
 
 ## Configuration
 
-Default config path: `~/.config/tend/config.yaml`
+tend's config is one typed shape (`src/config.rs`), resolved through
+[shikumi](https://github.com/pleme-io/shikumi)'s fold. Lowest first:
+
+1. built-in defaults (what `tend config-show default` prints)
+2. the config file: `$TEND_CONFIG`, else `~/.config/tend/tend.yaml`, else `~/.config/tend/config.yaml`
+3. each `--config FILE` (a merge-override, repeatable; later wins)
+4. `TEND_*` env, `__` nesting (`TEND_DAEMON__INTERVAL=60`). Only names whose first segment is a config key are read; runtime variables such as `TEND_STATE_DIR` are not config.
+5. the subcommand's flags (each flag is a partial: `tend daemon --interval 60` is `daemon.interval: 60`)
+6. each `--set PATH=VALUE` (VALUE is YAML)
+
+Maps merge per key; scalars and lists replace. An unknown or ill-typed key is refused, naming the layer that wrote it.
+
+```sh
+tend config-show --effective               # what this invocation resolves
+tend config-show --effective --provenance  # ...and which layer set each value
+gen kanshou query tend config              # what the RUNNING daemon resolved, its flags included
+tend config-schema                         # the JSON Schema (schema/tend-config.schema.json)
+```
+
+The JSON Schema is committed at `schema/tend-config.schema.json` (a test fails when it is stale; `BLESS=1 cargo test schema` regenerates it) and exported by the flake as `lib.configSchema`, so Nix modules generate their options from it.
 
 ```yaml
 status_snapshot:
@@ -108,6 +127,54 @@ workspaces:
     push_policy: pr
     pr_skill: akeyless-pr-standards
 ```
+
+Daemon and prebuild settings are config too; their flags only override:
+
+```yaml
+daemon:              # tend daemon
+  interval: 300
+  pull: true
+  fetch: true
+  quiet: false
+reconcile:
+  max_inflight: 16   # concurrent git pulls (daemon, reconcile, pressure)
+flake_update_daemon:
+  min_interval: 60
+  max_interval: 3600
+prebuild:            # tend prebuild / prebuild-daemon
+  max_inflight: 1
+  packages: all
+  repro: trusting
+  attic_cache: nexus
+  attic_url: http://rio:8080/
+  attic_token_file: /run/secrets/attic
+  probe: {enable: true, min_interval: 60, max_interval: 1800, timeout: 5}
+```
+
+### GitHub credential
+
+Every GitHub call tend makes (discovery, clone, REST, nix `access-tokens`) resolves one ordered list of sources; the first that yields a token wins. A token is never logged; which source answered is written to the audit log once per cycle (`tend audit-log --event github_auth_resolved`).
+
+```yaml
+github_auth:                     # default shown
+  - token: {env: TEND_GITHUB_TOKEN}
+  - token: {env: GITHUB_TOKEN}
+  - token: {env: GH_TOKEN}
+  - gh_cli: {host: github.com}   # gh auth token
+  - token: {file: ~/.config/github/token}
+```
+
+A GitHub App mints and refreshes installation tokens itself:
+
+```yaml
+github_auth:
+  - app:
+      app_id: 123456                       # or a secret source: {env: APP_ID}
+      private_key: {file: /run/secrets/app.pem}
+      owner: pleme-io                      # or installation_id: 987
+```
+
+A `token:` or `private_key:` takes any shikumi secret source (`env`, `file`, `command`, `sops`, `op`, `akeyless`, `vault`, ...). Writing `github_auth` anywhere replaces the whole list. The flags `--github-token-file PATH` and `--github-app-id/--github-app-key-file/--github-app-owner/--github-app-installation-id` work on every subcommand and replace `github_auth` for that run.
 
 `push_ahead` (default `false`): when `true` and `push_policy` is `main`, the daemon pushes a repo after its pull step only if the repo is clean, ahead of its upstream and not behind, on the remote's default branch (`refs/remotes/<remote>/HEAD`), and tracking the same-named upstream branch. The push is a plain fast-forward (`git push <remote> refs/heads/<b>:refs/heads/<b>`), never forced. Every push is logged as an `ahead_pushed` audit event.
 

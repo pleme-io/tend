@@ -100,7 +100,19 @@ async-trait = "0.1"
 # hot-reload watcher can pattern-match on EventKind without a
 # duplicate crate version.
 notify = "8.2"
-shikumi = { git = "https://github.com/pleme-io/shikumi", features = ["cli"] }
+# crates.io, not git: the CLI-as-partial-layer surface (`cli::ConfigArgs`,
+# `overlay::operator_layers`) and the typed GitHub auth chain
+# (`github::GithubAuth`, feature `github`) landed in 0.1.1082; a git pin
+# would float to whatever main holds when Cargo.lock is next refreshed.
+shikumi = { version = "0.1.1082", features = ["cli", "github"] }
+# Direct: tend assembles its own operator layers (src/config_load.rs) so the
+# `TEND_` env namespace -- shared with runtime knobs like TEND_STATE_DIR --
+# only feeds config keys that exist. Same version shikumi folds with.
+figment = "0.10"
+# The config JSON Schema (schema/tend-config.schema.json). schemars 1.x,
+# because shikumi's GithubAuth derives the 1.x trait; the operator's kube
+# CRDs stay on 0.8 (`schemars` below), hence the rename.
+schemars1 = { package = "schemars", version = "1.2" }
 tsunagu = { git = "https://github.com/pleme-io/tsunagu" }
 opencode-zen = { git = "https://github.com/pleme-io/opencode-zen" }
 cron = "0.15"

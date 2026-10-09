@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "7956df2c85eddb143c0b327e38be1904c22887fcf308ee7334bd0aef0e6d8aab",
+  "cargo_lock_sha256": "a07e33987378a65d8c1141754aa0bb0640e2d6e4b079cd8328766152ba4c17de",
   "manifest_sha256": {
-    "Cargo.toml": "b39d003d881aa1c9e7b84e8154b41ec5c8c0f25c8ab6536e7bf70b9e319ebb8b"
+    "Cargo.toml": "fab758c63861bc61f74f751cddb7f3111b828acaa2fcd140572caff0fd0a1550"
   },
   "target_resolves": {
     "base": {
@@ -4914,6 +4914,94 @@
           "std"
         ]
       },
+      "jsonwebtoken-9.3.1": {
+        "runtime_dependencies": [
+          {
+            "name": "base64",
+            "package_key": "base64-0.22.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "pem",
+            "package_key": "pem-3.0.6",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "ring",
+            "package_key": "ring-0.17.14",
+            "kind": "normal",
+            "features": [
+              "std"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": "cfg(not(target_arch = \"wasm32\"))",
+            "tree": "target"
+          },
+          {
+            "name": "ring",
+            "package_key": "ring-0.17.14",
+            "kind": "normal",
+            "features": [
+              "std",
+              "wasm32_unknown_unknown_js"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": "cfg(target_arch = \"wasm32\")",
+            "tree": "target"
+          },
+          {
+            "name": "serde",
+            "package_key": "serde-1.0.229",
+            "kind": "normal",
+            "features": [
+              "derive"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde_json",
+            "package_key": "serde_json-1.0.151",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "simple_asn1",
+            "package_key": "simple_asn1-0.6.4",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "default",
+          "pem",
+          "simple_asn1",
+          "use_pem"
+        ]
+      },
       "k8s-openapi-0.24.0": {
         "runtime_dependencies": [
           {
@@ -6247,10 +6335,60 @@
         "build_dependencies": [],
         "features": []
       },
+      "num-bigint-0.4.8": {
+        "runtime_dependencies": [
+          {
+            "name": "num_integer",
+            "package_key": "num-integer-0.1.47",
+            "kind": "normal",
+            "features": [
+              "i128"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "num_traits",
+            "package_key": "num-traits-0.2.19",
+            "kind": "normal",
+            "features": [
+              "i128"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
       "num-conv-0.2.2": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
+      },
+      "num-integer-0.1.47": {
+        "runtime_dependencies": [
+          {
+            "name": "num_traits",
+            "package_key": "num-traits-0.2.19",
+            "kind": "normal",
+            "features": [
+              "i128"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "i128"
+        ]
       },
       "num-traits-0.2.19": {
         "runtime_dependencies": [],
@@ -6267,6 +6405,7 @@
           }
         ],
         "features": [
+          "i128",
           "std"
         ]
       },
@@ -6998,6 +7137,16 @@
             "tree": "target"
           },
           {
+            "name": "figment",
+            "package_key": "figment-0.10.19",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "futures",
             "package_key": "futures-0.3.34",
             "kind": "normal",
@@ -7247,6 +7396,16 @@
             "tree": "target"
           },
           {
+            "name": "schemars1",
+            "package_key": "schemars-1.2.2",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "serde",
             "package_key": "serde-1.0.229",
             "kind": "normal",
@@ -7360,10 +7519,11 @@
           },
           {
             "name": "shikumi",
-            "package_key": "shikumi-0.1.608-d415c1d61050c6e2262ee7305f68ab4d17fb0462",
+            "package_key": "shikumi-0.1.1082",
             "kind": "normal",
             "features": [
-              "cli"
+              "cli",
+              "github"
             ],
             "uses_default_features": true,
             "optional": false,
@@ -8605,6 +8765,16 @@
             "tree": "target"
           },
           {
+            "name": "futures_channel",
+            "package_key": "futures-channel-0.3.34",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": "cfg(not(target_arch = \"wasm32\"))",
+            "tree": "target"
+          },
+          {
             "name": "futures_core",
             "package_key": "futures-core-0.3.34",
             "kind": "normal",
@@ -8920,6 +9090,7 @@
           "__rustls",
           "__rustls-ring",
           "__tls",
+          "blocking",
           "brotli",
           "charset",
           "cookies",
@@ -10991,7 +11162,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shikumi-0.1.608-d415c1d61050c6e2262ee7305f68ab4d17fb0462": {
+      "shikumi-0.1.1082": {
         "runtime_dependencies": [
           {
             "name": "arc_swap",
@@ -11012,6 +11183,16 @@
             "optional": false,
             "target": null,
             "tree": "host"
+          },
+          {
+            "name": "base64",
+            "package_key": "base64-0.22.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
           },
           {
             "name": "clap",
@@ -11060,6 +11241,16 @@
             "tree": "target"
           },
           {
+            "name": "jsonwebtoken",
+            "package_key": "jsonwebtoken-9.3.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "notify",
             "package_key": "notify-8.2.0",
             "kind": "normal",
@@ -11079,6 +11270,29 @@
             "uses_default_features": false,
             "optional": false,
             "target": "cfg(target_os = \"macos\")",
+            "tree": "target"
+          },
+          {
+            "name": "reqwest",
+            "package_key": "reqwest-0.12.28",
+            "kind": "normal",
+            "features": [
+              "json",
+              "rustls-tls"
+            ],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "schemars",
+            "package_key": "schemars-1.2.2",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
             "tree": "target"
           },
           {
@@ -11137,7 +11351,8 @@
         "build_dependencies": [],
         "features": [
           "cli",
-          "default"
+          "default",
+          "github"
         ]
       },
       "shlex-2.0.1": {
@@ -11248,6 +11463,56 @@
       },
       "simd-adler32-0.3.10": {
         "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
+      "simple_asn1-0.6.4": {
+        "runtime_dependencies": [
+          {
+            "name": "num_bigint",
+            "package_key": "num-bigint-0.4.8",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "num_traits",
+            "package_key": "num-traits-0.2.19",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "thiserror",
+            "package_key": "thiserror-2.0.20",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "time",
+            "package_key": "time-0.3.55",
+            "kind": "normal",
+            "features": [
+              "formatting",
+              "macros",
+              "parsing"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
         "build_dependencies": [],
         "features": []
       },
@@ -14557,6 +14822,7 @@
               "alloc",
               "default",
               "dev_urandom_fallback",
+              "std",
               "wasm32_unknown_unknown_js"
             ]
           },
@@ -15479,6 +15745,7 @@
               "alloc",
               "default",
               "dev_urandom_fallback",
+              "std",
               "wasm32_unknown_unknown_js"
             ]
           },
@@ -16313,6 +16580,7 @@
               "alloc",
               "default",
               "dev_urandom_fallback",
+              "std",
               "wasm32_unknown_unknown_js"
             ]
           },
@@ -17177,6 +17445,7 @@
               "alloc",
               "default",
               "dev_urandom_fallback",
+              "std",
               "wasm32_unknown_unknown_js"
             ]
           },
@@ -18121,6 +18390,7 @@
               "alloc",
               "default",
               "dev_urandom_fallback",
+              "std",
               "wasm32_unknown_unknown_js"
             ]
           },
@@ -18977,6 +19247,7 @@
               "alloc",
               "default",
               "dev_urandom_fallback",
+              "std",
               "wasm32_unknown_unknown_js"
             ]
           },
@@ -19751,6 +20022,9 @@
     "jsonptr-0.6.3": {
       "edition": "2021"
     },
+    "jsonwebtoken-9.3.1": {
+      "edition": "2021"
+    },
     "k8s-openapi-0.24.0": {
       "edition": "2021",
       "build_script": "build.rs",
@@ -19857,8 +20131,14 @@
     "nuid-0.5.0": {
       "edition": "2021"
     },
+    "num-bigint-0.4.8": {
+      "edition": "2021"
+    },
     "num-conv-0.2.2": {
       "edition": "2021"
+    },
+    "num-integer-0.1.47": {
+      "edition": "2018"
     },
     "num-traits-0.2.19": {
       "edition": "2021",
@@ -20255,7 +20535,7 @@
     "shigoto-types-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": {
       "edition": "2024"
     },
-    "shikumi-0.1.608-d415c1d61050c6e2262ee7305f68ab4d17fb0462": {
+    "shikumi-0.1.1082": {
       "edition": "2024"
     },
     "shlex-2.0.1": {
@@ -20271,6 +20551,9 @@
       "edition": "2021"
     },
     "simd-adler32-0.3.10": {
+      "edition": "2018"
+    },
+    "simple_asn1-0.6.4": {
       "edition": "2018"
     },
     "slab-0.4.12": {
@@ -20566,7 +20849,6 @@
     "shigoto-retry-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
     "shigoto-scheduler-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
     "shigoto-types-0.1.15-d2cce119951154798ac995d14e6c0c11a95ec89c": "sha256-RrnptjfWIFPNnt3IUSUwuVZ7gPYiBCtl7g4hettv540=",
-    "shikumi-0.1.608-d415c1d61050c6e2262ee7305f68ab4d17fb0462": "sha256-et2elx4SlY1iBW7oL5Mcc1RbWTxJJbe46jWPvVY7ePo=",
     "todoku-0.1.2-dbaac2c3ab1c691e543a7c7b7d51fab3d4108585": "sha256-UchmRcrOmRKx4Qsx3l6hxILeLJw3hMuXp96KUY2ZOp4=",
     "tsunagu-0.1.9-3642fd081ede3eb064474577316f521abd1c51d7": "sha256-SFWdZ+lFfI7a0JbdoGB9HKJhD/I/MyzaUeHo4WuP7lA="
   },

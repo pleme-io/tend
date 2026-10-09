@@ -78,7 +78,6 @@ pub async fn run() -> Result<()> {
             .user_agent("tend-operator")
             .build()
             .context("building http client")?,
-        github_token: load_github_token(),
         repo_locks: Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),
         // File-backed cache on the workspace PVC. Survives pod
         // restarts. Path is operator-tunable via TEND_HEAD_CACHE_PATH
@@ -168,11 +167,4 @@ pub async fn run() -> Result<()> {
         _ = tokio::signal::ctrl_c() => tracing::info!("interrupted"),
     }
     Ok(())
-}
-
-/// Delegates to `provider::github_token`, which absorbed this
-/// function's env-plus-file resolution. Kept as a named local so the
-/// operator's construction site reads the same as before.
-fn load_github_token() -> Option<crate::secret::Secret> {
-    crate::provider::github_token()
 }

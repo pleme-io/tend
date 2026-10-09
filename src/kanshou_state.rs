@@ -37,6 +37,12 @@ pub struct TendDaemonState {
     pub current_repo: Arc<parking_lot::RwLock<Option<String>>>,
     /// Current workspace being processed (None when idle).
     pub current_workspace: Arc<parking_lot::RwLock<Option<String>>>,
+    /// The config this daemon resolved on its last cycle — every leaf with
+    /// the layer that set it (file, `--config`, env, the unit's flags,
+    /// `--set`). `gen kanshou query tend config` is "what is the daemon
+    /// ACTUALLY running", flags included, which `tend config-show
+    /// --effective` in another shell cannot know.
+    pub effective_config: Arc<parking_lot::RwLock<serde_json::Value>>,
 }
 
 impl Default for TendDaemonState {
@@ -59,6 +65,7 @@ impl TendDaemonState {
             token_last_reload_unix_ms: Arc::new(AtomicU64::new(0)),
             current_repo: Arc::new(parking_lot::RwLock::new(None)),
             current_workspace: Arc::new(parking_lot::RwLock::new(None)),
+            effective_config: Arc::new(parking_lot::RwLock::new(serde_json::Value::Null)),
         }
     }
 }
@@ -115,12 +122,13 @@ impl Introspect for TendDaemonState {
                 "uptime_ms": now.saturating_sub(self.started_at_unix_ms),
                 "version": env!("CARGO_PKG_VERSION"),
             })),
+            "config" => Ok(self.effective_config.read().clone()),
             other => Err(QueryError::unknown_field(other.to_string())),
         }
     }
 
     fn schema(&self) -> &'static [&'static str] {
-        &["ticks", "repos", "current", "process", "token"]
+        &["ticks", "repos", "current", "process", "token", "config"]
     }
 }
 

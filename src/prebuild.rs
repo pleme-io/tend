@@ -161,27 +161,57 @@ impl PrebuildOptions {
         out
     }
 
-    /// Overlay the cache-fill knobs (`packages`/`systems`/`repro`/
-    /// `caches`) from the config's `prebuild:` block onto this
-    /// CLI-derived options value. Reads the FIRST workspace that
-    /// declares a `prebuild:` block — the common single-org case. The
-    /// daemon reloads config each cycle and re-applies this, so editing
-    /// `config.yaml` reshapes the fill within one interval, no restart.
-    /// Legacy CLI fields (`quiet`/`max_inflight`/`attic`) are preserved;
-    /// per-workspace legacy overrides still flow through
-    /// [`effective_per_workspace`].
-    #[must_use]
-    pub fn with_fill_from_config(mut self, cfg: &Config) -> Self {
-        let Some(pc) = cfg.workspaces.iter().find_map(|w| w.prebuild.as_ref()) else {
-            return self;
+    /// The options for one cycle, from the RESOLVED top-level `prebuild:`
+    /// section — the one source. Every `tend prebuild[-daemon]` flag is a
+    /// partial over that section folded above the file, so precedence is
+    /// shikumi's (flag > env > --config > file > default) and nothing here
+    /// re-decides it.
+    ///
+    /// This replaces `with_fill_from_config` + `effective_per_workspace`,
+    /// which had it backwards: the first workspace's YAML block overwrote
+    /// the CLI's packages/systems/repro (an absent `repro:` reset a CLI
+    /// `--repro verify` to trusting), while its max_inflight/attic fields
+    /// were logged as "effective" and never applied.
+    ///
+    /// # Errors
+    ///
+    /// `attic_cache` named without `attic_url` or `attic_token_file` — a
+    /// half-specified cache is an operator mistake to surface, not to build
+    /// around silently.
+    pub fn from_config(p: &crate::config::PrebuildConfig) -> Result<Self> {
+        let attic = match &p.attic_cache {
+            None => None,
+            Some(cache) => {
+                let url = p.attic_url.as_ref().ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "prebuild.attic_url (--attic-url) is required when attic_cache is set"
+                    )
+                })?;
+                let token = p.attic_token_file.as_ref().ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "prebuild.attic_token_file (--attic-token-file) is required when attic_cache is set"
+                    )
+                })?;
+                Some(AtticPush {
+                    cache_name: cache.clone(),
+                    server_name: p
+                        .attic_server
+                        .clone()
+                        .unwrap_or_else(|| crate::config::DEFAULT_ATTIC_SERVER.to_string()),
+                    server_url: url.clone(),
+                    token_file: PathBuf::from(token),
+                })
+            }
         };
-        self.selector = PackageSelector::parse(&pc.packages);
-        self.systems = pc.systems.clone();
-        self.repro = ReproPolicy::parse(&pc.repro);
-        if !pc.caches.is_empty() {
-            self.caches = pc.caches.iter().map(|c| c.to_target()).collect();
-        }
-        self
+        Ok(Self {
+            quiet: p.quiet,
+            attic,
+            max_inflight: p.max_inflight,
+            caches: p.caches.iter().map(|c| c.to_target()).collect(),
+            selector: PackageSelector::parse(&p.packages),
+            systems: p.systems.clone(),
+            repro: ReproPolicy::parse(&p.repro),
+        })
     }
 }
 
@@ -232,6 +262,20 @@ impl Default for ReachabilityOptions {
 }
 
 impl ReachabilityOptions {
+    /// From the resolved `prebuild:` section. The probe is meaningful only
+    /// when we know where attic lives: enabled iff `probe.enable` AND an
+    /// `attic_url` is present.
+    #[must_use]
+    pub fn from_config(p: &crate::config::PrebuildConfig) -> Self {
+        Self {
+            enabled: p.probe.enable && p.attic_url.is_some(),
+            url: p.attic_url.clone().unwrap_or_default(),
+            min_interval: p.probe.min_interval,
+            max_interval: p.probe.max_interval,
+            probe_timeout: p.probe.timeout,
+        }
+    }
+
     /// Compute the next unreachable-backoff sleep given how many cycles
     /// in a row the server has been unreachable. Pure function: exposed
     /// for unit testing the doubling/cap behavior without a network.
@@ -354,10 +398,6 @@ pub async fn run_cycle(
     opts: &PrebuildOptions,
     audit: &AuditLog,
 ) -> Result<PrebuildSummary> {
-    // Overlay cache-fill knobs (packages/systems/repro/caches) from the
-    // config's `prebuild:` block. Owned shadow so the daemon's per-cycle
-    // config reload reshapes the fill without a restart.
-    let opts = opts.clone().with_fill_from_config(cfg);
     let seen_path = SeenCache::default_path();
     let seen = Arc::new(Mutex::new(SeenCache::load_from(&seen_path)));
 
@@ -408,18 +448,15 @@ pub async fn run_cycle(
     let mut all_repos: Vec<(String, PathBuf)> = Vec::new();
     for ws in crate::filter_workspaces(&cfg.workspaces, ws_filter) {
         let base = ws.resolved_base_dir()?;
-        // Honour workspace-level `prebuild:` config from shikumi:
-        // a workspace can declare its own intervals + attic cache
-        // without changing the CLI flags. Merged for log visibility
-        // only — the runtime budget + attic-login are global per cycle.
-        let effective = effective_per_workspace(&opts, ws.prebuild.as_ref());
-        if !effective.quiet {
+        // One cycle, one set of options (the resolved top-level
+        // `prebuild:` section) — printed as what actually runs.
+        if !opts.quiet {
             println!(
                 "[prebuild] workspace={} base={} max_inflight={} attic_cache={:?}",
                 ws.name,
                 base.display(),
-                effective.max_inflight,
-                effective.attic.as_ref().map(|a| &a.cache_name),
+                opts.max_inflight,
+                opts.attic.as_ref().map(|a| &a.cache_name),
             );
         }
         for repo in enumerate_repos_with_flake(&base) {
@@ -680,44 +717,6 @@ pub(crate) fn prebuild_one(
     })
 }
 
-/// Merge a workspace-level `prebuild:` declaration onto the
-/// CLI-derived [`PrebuildOptions`]. The workspace block, when
-/// present, **overrides** the CLI for any field it sets (non-zero
-/// numerics, `Some(_)` for attic-* options). This is the shikumi
-/// surface — operators edit `config.yaml`'s `prebuild:` to change
-/// daemon behavior; the daemon re-loads the config every cycle so
-/// edits propagate within one interval, no restart needed.
-pub(crate) fn effective_per_workspace(
-    cli: &PrebuildOptions,
-    ws: Option<&crate::config::PrebuildConfig>,
-) -> PrebuildOptions {
-    let mut out = cli.clone();
-    let Some(ws) = ws else {
-        return out;
-    };
-    if ws.max_inflight > 0 {
-        out.max_inflight = ws.max_inflight;
-    }
-    // The two interval knobs live on the daemon loop (not in
-    // PrebuildOptions which models a single cycle), so a workspace
-    // can't yet override them without restructuring. Tracked as a
-    // follow-up; the typed surface is what matters for now.
-    if let (Some(cache), Some(server), Some(url), Some(token)) = (
-        ws.attic_cache.as_ref(),
-        ws.attic_server.as_ref(),
-        ws.attic_url.as_ref(),
-        ws.attic_token_file.as_ref(),
-    ) {
-        out.attic = Some(AtticPush {
-            cache_name: cache.clone(),
-            server_name: server.clone(),
-            server_url: url.clone(),
-            token_file: PathBuf::from(token),
-        });
-    }
-    out
-}
-
 /// Enumerate immediate children of `base` that contain `flake.nix`
 /// AND a `.git/` (or `.git` worktree marker file). One level deep on
 /// purpose — pleme-io workspaces are `{base}/{repo}/...` shaped, never
@@ -838,7 +837,6 @@ pub(crate) mod test_support {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Workspace;
     use crate::prebuild_cache::DeterminismOutcome;
     use std::collections::HashMap;
     use std::fs;
@@ -1145,112 +1143,6 @@ mod tests {
         assert!(!missing_default_attribute(
             "error: builder for '/nix/store/x.drv' failed"
         ));
-    }
-
-    #[test]
-    fn effective_per_workspace_none_returns_cli_unchanged() {
-        let cli = PrebuildOptions {
-            quiet: true,
-            max_inflight: 3,
-            attic: None,
-            ..Default::default()
-        };
-        let out = effective_per_workspace(&cli, None);
-        assert_eq!(out.max_inflight, 3);
-        assert!(out.attic.is_none());
-        assert!(out.quiet);
-    }
-
-    #[test]
-    fn effective_per_workspace_zero_max_inflight_doesnt_override() {
-        // A workspace declaring `prebuild: {}` with all defaults
-        // (max_inflight=0 via TieredConfig::bare()) MUST NOT clamp
-        // the CLI's max_inflight to zero — the merge treats 0 as
-        // "unspecified."
-        let cli = PrebuildOptions {
-            quiet: false,
-            max_inflight: 4,
-            attic: None,
-            ..Default::default()
-        };
-        let ws = crate::config::PrebuildConfig {
-            min_interval: 0,
-            max_interval: 0,
-            max_inflight: 0,
-            attic_cache: None,
-            attic_server: None,
-            attic_url: None,
-            attic_token_file: None,
-            ..Default::default()
-        };
-        let out = effective_per_workspace(&cli, Some(&ws));
-        assert_eq!(out.max_inflight, 4, "zero must not override");
-    }
-
-    #[test]
-    fn effective_per_workspace_overrides_max_inflight_when_set() {
-        let cli = PrebuildOptions {
-            quiet: false,
-            max_inflight: 1,
-            attic: None,
-            ..Default::default()
-        };
-        let ws = crate::config::PrebuildConfig {
-            min_interval: 0,
-            max_interval: 0,
-            max_inflight: 6,
-            attic_cache: None,
-            attic_server: None,
-            attic_url: None,
-            attic_token_file: None,
-            ..Default::default()
-        };
-        let out = effective_per_workspace(&cli, Some(&ws));
-        assert_eq!(out.max_inflight, 6, "workspace value wins");
-    }
-
-    #[test]
-    fn effective_per_workspace_overrides_attic_only_when_full_quartet_set() {
-        let cli = PrebuildOptions {
-            quiet: false,
-            max_inflight: 1,
-            attic: None,
-            ..Default::default()
-        };
-        // Partial — missing token_file → MUST NOT install a half-baked
-        // AtticPush that'd crash at login time.
-        let partial = crate::config::PrebuildConfig {
-            min_interval: 0,
-            max_interval: 0,
-            max_inflight: 0,
-            attic_cache: Some("nexus".into()),
-            attic_server: Some("nexus".into()),
-            attic_url: Some("http://rio:8080/".into()),
-            attic_token_file: None,
-            ..Default::default()
-        };
-        let out = effective_per_workspace(&cli, Some(&partial));
-        assert!(out.attic.is_none(), "partial spec must not install attic");
-
-        // Full quartet — install.
-        let full = crate::config::PrebuildConfig {
-            min_interval: 0,
-            max_interval: 0,
-            max_inflight: 0,
-            attic_cache: Some("nexus".into()),
-            attic_server: Some("nexus".into()),
-            attic_url: Some("http://rio:8080/".into()),
-            attic_token_file: Some("/run/secrets/tend/attic-jwt-token".into()),
-            ..Default::default()
-        };
-        let out = effective_per_workspace(&cli, Some(&full));
-        let attic = out.attic.expect("full quartet must install attic");
-        assert_eq!(attic.cache_name, "nexus");
-        assert_eq!(attic.server_url, "http://rio:8080/");
-        assert_eq!(
-            attic.token_file,
-            PathBuf::from("/run/secrets/tend/attic-jwt-token")
-        );
     }
 
     #[test]
@@ -1797,94 +1689,67 @@ mod tests {
         assert!(opts.effective_caches().is_empty());
     }
 
-    /// A Config whose Nth workspace carries the given PrebuildConfig.
-    fn config_with_prebuild_on(
-        idx: usize,
-        total: usize,
-        pc: crate::config::PrebuildConfig,
-    ) -> Config {
-        let workspaces = (0..total)
-            .map(|i| {
-                let mut ws = Workspace::test_default(&format!("ws{i}"));
-                if i == idx {
-                    ws.prebuild = Some(pc.clone());
-                }
-                ws
-            })
-            .collect();
-        Config {
-            workspaces,
-            host_health: Default::default(),
-            cargo_target: Default::default(),
-            status_snapshot: Default::default(),
-        }
-    }
-
+    /// The resolved section is the whole story: a set `repro`/`packages`
+    /// reach the options, and an absent one is the prescribed default —
+    /// never a reset of something a flag set (flags are folded upstream).
     #[test]
-    fn with_fill_from_config_reads_first_declaring_workspace_not_index_zero() {
-        // Prebuild block on the SECOND workspace (first has None). find_map
-        // must pick it — a [0]-indexed regression would miss it entirely.
+    fn from_config_reads_the_resolved_section_whole() {
         let pc = crate::config::PrebuildConfig {
             packages: "mado,tear".into(),
             systems: vec!["aarch64-darwin".into()],
             repro: "verify".into(),
+            max_inflight: 3,
+            caches: vec![crate::config::CacheTargetConfig {
+                backend: Default::default(),
+                cache: "nexus".into(),
+                server: "nexus".into(),
+                url: "http://rio:8080/".into(),
+                token_file: "/run/t".into(),
+                enabled: true,
+            }],
             ..Default::default()
         };
-        let cfg = config_with_prebuild_on(1, 2, pc);
-        let out = PrebuildOptions::default().with_fill_from_config(&cfg);
+        let out = PrebuildOptions::from_config(&pc).unwrap();
         assert_eq!(
             out.selector,
             PackageSelector::Named(vec!["mado".into(), "tear".into()])
         );
         assert_eq!(out.systems, vec!["aarch64-darwin".to_string()]);
         assert!(out.repro.verifies());
-    }
-
-    #[test]
-    fn with_fill_from_config_empty_caches_preserve_cli_caches_but_apply_rest() {
-        // The prebuild block sets selector/systems/repro but has an EMPTY
-        // caches list — the narrow guard must NOT clobber the CLI caches,
-        // yet must still apply selector/systems/repro.
-        let pc = crate::config::PrebuildConfig {
-            packages: "all".into(),
-            systems: vec!["x86_64-linux".into()],
-            repro: "verify".into(),
-            caches: vec![], // empty
-            ..Default::default()
-        };
-        let cfg = config_with_prebuild_on(0, 1, pc);
-        let cli = PrebuildOptions {
-            caches: vec![usable_cache("cli-cache")],
-            ..Default::default()
-        };
-        let out = cli.with_fill_from_config(&cfg);
-        assert_eq!(out.caches.len(), 1, "CLI caches preserved");
-        assert_eq!(out.caches[0].cache_name, "cli-cache");
-        assert_eq!(out.selector, PackageSelector::All);
-        assert_eq!(out.systems, vec!["x86_64-linux".to_string()]);
-        assert!(out.repro.verifies());
-    }
-
-    #[test]
-    fn with_fill_from_config_no_prebuild_block_is_identity() {
-        let cfg = Config {
-            workspaces: vec![
-                Workspace::test_default("ws0"),
-                Workspace::test_default("ws1"),
-            ],
-            host_health: Default::default(),
-            cargo_target: Default::default(),
-            status_snapshot: Default::default(),
-        };
-        let cli = PrebuildOptions {
-            caches: vec![usable_cache("cli-cache")],
-            selector: PackageSelector::Default,
-            ..Default::default()
-        };
-        let out = cli.clone().with_fill_from_config(&cfg);
+        assert_eq!(out.max_inflight, 3);
         assert_eq!(out.caches.len(), 1);
-        assert_eq!(out.caches[0].cache_name, "cli-cache");
-        assert_eq!(out.selector, PackageSelector::Default);
-        assert!(!out.repro.verifies(), "Trusting preserved (identity)");
+
+        let defaults = PrebuildOptions::from_config(&Default::default()).unwrap();
+        assert_eq!(defaults.selector, PackageSelector::All);
+        assert!(!defaults.repro.verifies());
+        assert!(defaults.attic.is_none());
+    }
+
+    #[test]
+    fn from_config_refuses_a_half_specified_attic_cache() {
+        let pc = crate::config::PrebuildConfig {
+            attic_cache: Some("nexus".into()),
+            ..Default::default()
+        };
+        let err = PrebuildOptions::from_config(&pc).unwrap_err().to_string();
+        assert!(err.contains("attic_url"), "{err}");
+        let full = crate::config::PrebuildConfig {
+            attic_cache: Some("nexus".into()),
+            attic_url: Some("http://rio:8080/".into()),
+            attic_token_file: Some("/run/t".into()),
+            ..Default::default()
+        };
+        let attic = PrebuildOptions::from_config(&full).unwrap().attic.unwrap();
+        assert_eq!(attic.server_name, "nexus", "the default alias is real");
+    }
+
+    #[test]
+    fn reachability_probe_needs_a_url() {
+        let mut pc = crate::config::PrebuildConfig::default();
+        assert!(!ReachabilityOptions::from_config(&pc).enabled);
+        pc.attic_url = Some("http://rio:8080/".into());
+        assert!(ReachabilityOptions::from_config(&pc).enabled);
+        pc.probe.enable = false;
+        assert!(!ReachabilityOptions::from_config(&pc).enabled);
     }
 }

@@ -440,12 +440,11 @@ pub fn nix_env(cmd: &mut Command) {
          accept-flake-config = true",
     );
     // NIX_CONFIG is process-scoped, so the token dies with the child.
-    // Routed through `Secret` anyway: this is the one place tend still
-    // interpolates a credential into a string, and typing it keeps it
-    // visible to the `expose()` audit rather than looking like an
-    // ordinary env var.
-    if let Some(token) = crate::provider::github_token() {
-        nix_config.push_str(&format!("\naccess-tokens = github.com={}", token.expose()));
+    // Rendered by shikumi's `nix_access_tokens_line()` — the one renderer
+    // for this line, from the configured `github_auth` chain.
+    if let Some(token) = crate::gh_auth::token() {
+        nix_config.push('\n');
+        nix_config.push_str(&token.nix_access_tokens_line());
     }
     cmd.env("HOME", &home)
         .env("XDG_CACHE_HOME", &cache)

@@ -22,7 +22,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// Per-org swarm policy. Deny by default at both levels.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 pub struct OrgReleaseSwarmConfig {
     /// GitHub org/owner (e.g. "pleme-io", "drzzln").
     #[serde(default)]
@@ -54,7 +55,8 @@ fn default_retention() -> u32 {
 }
 
 /// Per-repo overrides. Every override optional.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, schemars1::JsonSchema)]
+#[schemars(crate = "schemars1")]
 pub struct RepoReleaseConfig {
     /// Per-repo enable. DENY by default.
     #[serde(default)]

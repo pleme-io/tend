@@ -1,0 +1,1537 @@
+{
+  "$defs": {
+    "AiTaskConfig": {
+      "properties": {
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "model": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "output": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "retries": {
+          "default": 3,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schedule": {
+          "type": "string"
+        },
+        "timeout_secs": {
+          "default": 120,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "schedule",
+        "model",
+        "prompt"
+      ],
+      "type": "object"
+    },
+    "AtticProbeConfig": {
+      "description": "Probing the Attic server before each prebuild cycle.",
+      "properties": {
+        "enable": {
+          "default": true,
+          "description": "Probe `attic_url` before each cycle and back off while it is down.\nEffective only when `attic_url` is set.",
+          "type": "boolean"
+        },
+        "max_interval": {
+          "default": 1800,
+          "description": "Ceiling of the unreachable backoff, seconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "min_interval": {
+          "default": 60,
+          "description": "Floor of the unreachable backoff, seconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "timeout": {
+          "default": 5,
+          "description": "Per-probe HTTP timeout, seconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "CacheBackend": {
+      "description": "Which protocol a push destination speaks.\n\nAttic was the fleet's only backend until it was retired on 2026-07-31\nafter twice serving Rust artifacts whose crate metadata a consumer\ncould not load. Its replacement, `sui cache serve`, is a plain HTTP\nbinary cache (`PUT /{hash}.narinfo`, `PUT /nar/{*path}`) that `nix\ncopy --to` speaks natively — no client binary, no login handshake.\n\nDefaults to [`CacheBackend::Attic`] on the wire so every existing\nconfig keeps parsing unchanged (★★ MODULARIZE, DON'T DELETE — attic\nstays a fully working, selectable backend, it is simply not the\nfleet's choice today).",
+      "oneOf": [
+        {
+          "const": "attic",
+          "description": "`attic push <cache> <path>`, preceded by `attic login`.",
+          "type": "string"
+        },
+        {
+          "const": "sui",
+          "description": "`nix copy --to <url> <path>`. No login step.",
+          "type": "string"
+        }
+      ]
+    },
+    "CacheTargetConfig": {
+      "description": "One push destination in the multi-cache `caches:` list.",
+      "properties": {
+        "backend": {
+          "$ref": "#/$defs/CacheBackend",
+          "default": "attic",
+          "description": "Which protocol this destination speaks (`attic` | `sui`).\nAbsent ⇒ `attic`, so every existing `caches:` block keeps working."
+        },
+        "cache": {
+          "default": "",
+          "description": "atticd cache name (e.g. `nexus`). Attic-only — a `sui` target is\naddressed by `url` alone.",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "description": "Disable without deleting. Defaults to true.",
+          "type": "boolean"
+        },
+        "server": {
+          "description": "Server alias for `attic login`.",
+          "type": "string"
+        },
+        "token_file": {
+          "description": "SOPS-managed JWT token file path.",
+          "type": "string"
+        },
+        "url": {
+          "description": "Server root URL (e.g. `http://rio:8080/`).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "server",
+        "url",
+        "token_file"
+      ],
+      "type": "object"
+    },
+    "CargoTargetConfig": {
+      "description": "`cargo_target:` in tend's config. Every field defaults, so a partial\nblock is valid and an absent block means disabled.",
+      "properties": {
+        "active_minutes": {
+          "default": 60,
+          "description": "A directory written within this many minutes counts as in use.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "budget_gib": {
+          "default": 50,
+          "description": "Total GiB the target dirs may hold; least-recently-used go first.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "dry_run": {
+          "default": false,
+          "description": "Decide and report, but delete nothing.",
+          "type": "boolean"
+        },
+        "enable": {
+          "default": false,
+          "description": "Run the sweep from the daemon. Default false: tend deletes nothing\nunless the operator turns this on. `tend cargo-target report` works\neither way.",
+          "type": "boolean"
+        },
+        "interval_minutes": {
+          "default": 60,
+          "description": "Minimum minutes between daemon sweeps.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_idle_days": {
+          "default": 14,
+          "description": "Remove a directory whose newest mtime is older than this many days.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pressure_budget_gib": {
+          "default": 10,
+          "description": "Tighter total used while disk pressure is high.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "search_depth": {
+          "default": 2,
+          "description": "How deep below each repo root to look for `target/`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "CiHygieneConfig": {
+      "description": "Per-workspace CI hygiene configuration. See `src/ci_trim.rs` for the\npure trim policy. When `enable: true`, the runner lists recent\nworkflow runs for each repo in the workspace + applies the policy.\n\nSafe default: `auto_cancel_duplicate_queued: true` but `enable:\nfalse` at the top level — the feature ships off-by-default and\neach workspace opts in.",
+      "properties": {
+        "auto_cancel_duplicate_queued": {
+          "default": true,
+          "description": "Auto-cancel duplicate queued runs (older ones, keeping the\nnewest). Default true when `enable: true`. Set false to\nobserve + log only (the dry-run equivalent at config level).",
+          "type": "boolean"
+        },
+        "enable": {
+          "default": false,
+          "description": "Enable CI hygiene for this workspace.",
+          "type": "boolean"
+        },
+        "recent_run_limit": {
+          "default": 50,
+          "description": "Max number of recent workflow runs per repo to inspect each\npass. Higher = more thorough but more API calls. Default 50.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "repo_filter": {
+          "default": null,
+          "description": "Optional allowlist of repo names. When set, only these repos\n(within the workspace's org) are scanned. When unset, every\ndiscovered repo in the org is scanned.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "stale_queue_alert_minutes": {
+          "default": 30,
+          "description": "Alert after a queued run has been stuck for N minutes without\nallocation (observability; does not auto-cancel). Default 30.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "CloneMethod": {
+      "enum": [
+        "ssh",
+        "https"
+      ],
+      "type": "string"
+    },
+    "DaemonConfig": {
+      "description": "`tend daemon` — sync + pull + watch on an interval.",
+      "properties": {
+        "fetch": {
+          "default": true,
+          "description": "Plain `git fetch --all --prune` each cycle. Only takes effect when\n`pull` is false (pull already fetches).",
+          "type": "boolean"
+        },
+        "interval": {
+          "default": 300,
+          "description": "Seconds between cycles. Re-read every cycle, like the rest of the\nconfig, so an edit takes effect without a restart.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pull": {
+          "default": true,
+          "description": "Fast-forward clean repos every cycle (`git pull --ff-only`). Implies\nfetch. The reconciler behavior.",
+          "type": "boolean"
+        },
+        "quiet": {
+          "default": false,
+          "description": "Suppress per-repo output.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "FileWatch": {
+      "properties": {
+        "download_to": {
+          "default": null,
+          "description": "Local directory to download the file to (versioned: {download_to}/{sha[..12]}.{ext})",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "Human-readable name for this watch",
+          "type": "string"
+        },
+        "org": {
+          "description": "GitHub org/owner",
+          "type": "string"
+        },
+        "path": {
+          "description": "File path within the repo",
+          "type": "string"
+        },
+        "post_hooks": {
+          "default": [],
+          "description": "Hooks to run when the file content changes",
+          "items": {
+            "$ref": "#/$defs/PostHook"
+          },
+          "type": "array"
+        },
+        "repo": {
+          "description": "GitHub repo name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "org",
+        "repo",
+        "path"
+      ],
+      "type": "object"
+    },
+    "FlakeInputMode": {
+      "enum": [
+        "commits",
+        "tags"
+      ],
+      "type": "string"
+    },
+    "FlakeInputWatch": {
+      "properties": {
+        "auto_commit": {
+          "default": false,
+          "description": "Commit + push flake.lock after update",
+          "type": "boolean"
+        },
+        "auto_propagate": {
+          "default": null,
+          "description": "Run `tend flake-update --changed <repo>` to propagate. `false` is\naccepted as \"no\" — blackmatter's module renders it as a bool.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "auto_update": {
+          "default": false,
+          "description": "Run `nix flake update <input>` when stale",
+          "type": "boolean"
+        },
+        "input": {
+          "description": "Flake input name in flake.lock",
+          "type": "string"
+        },
+        "mode": {
+          "$ref": "#/$defs/FlakeInputMode",
+          "default": "commits",
+          "description": "Watch mode: compare HEAD SHA (commits) or latest tag (tags)"
+        },
+        "name": {
+          "description": "Human-readable name for this watch",
+          "type": "string"
+        },
+        "post_hooks": {
+          "default": [],
+          "description": "Hooks to run when staleness is detected",
+          "items": {
+            "$ref": "#/$defs/PostHook"
+          },
+          "type": "array"
+        },
+        "repo": {
+          "description": "Local repo (relative to workspace base_dir) whose flake.lock to check",
+          "type": "string"
+        },
+        "upstream": {
+          "default": null,
+          "description": "\"owner/repo\" on GitHub — derived from flake.lock if omitted",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "repo",
+        "input"
+      ],
+      "type": "object"
+    },
+    "FlakeRefreshConfig": {
+      "properties": {
+        "auto_commit": {
+          "default": false,
+          "description": "Commit and push after a successful update.\n\n── ★ OPT-IN. A WRITE FLAG THAT DEFAULTS ON IS A WRITE NOBODY CHOSE ──\nThis defaulted to true, so the minimal config anyone would write —\n`flake_refresh: {enable: true}` — silently enabled commit+push to\nmain, through the one refresh path that had no verification gate at\nall. Every other write flag in WatchConfig (`auto_certify`,\nWatchConfig's own `auto_commit`) is `#[serde(default)]`; this was\nthe outlier, and the asymmetry is what kept it invisible.",
+          "type": "boolean"
+        },
+        "auto_propagate": {
+          "default": false,
+          "description": "Trigger `tend flake-update --changed <repo>` after each committed repo",
+          "type": "boolean"
+        },
+        "branch": {
+          "default": "main",
+          "description": "Required branch — repos not on this branch are skipped (default: \"main\")",
+          "type": "string"
+        },
+        "commit_message": {
+          "default": "chore: update flake.lock",
+          "description": "Commit message template — supports $REPO placeholder (default: \"chore: update flake.lock\")",
+          "type": "string"
+        },
+        "enable": {
+          "default": false,
+          "description": "Enable flake refresh for this workspace",
+          "type": "boolean"
+        },
+        "exclude": {
+          "default": [],
+          "description": "Skip these repos (applied after include, on top of workspace exclude)",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "include": {
+          "default": [],
+          "description": "Only refresh these repos (empty = all repos with flake.nix)",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "interval": {
+          "default": 3600,
+          "description": "Base cooldown per repo in seconds (default: 3600 = 1 hour).\nActual interval grows via adaptive backoff when no changes are found.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_interval": {
+          "default": 86400,
+          "description": "Maximum cooldown per repo in seconds after adaptive backoff (default: 86400 = 24 hours)",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "post_hooks": {
+          "default": [],
+          "description": "Post-hooks to run after each repo refresh (trigger: \"after_refresh\")",
+          "items": {
+            "$ref": "#/$defs/PostHook"
+          },
+          "type": "array"
+        },
+        "pull_before_update": {
+          "default": true,
+          "description": "Run `git pull origin <branch>` before updating (default: true)",
+          "type": "boolean"
+        },
+        "staleness_check": {
+          "default": true,
+          "description": "Skip `nix flake update` when local git refs show no inputs are stale (default: true).\nUses zero GitHub API calls — relies on `git fetch` already done by the daemon.",
+          "type": "boolean"
+        },
+        "update_command": {
+          "default": "nix flake update",
+          "description": "Shell command to run for updating the flake lock (default: \"nix flake update\")",
+          "type": "string"
+        },
+        "update_timeout": {
+          "default": 600,
+          "description": "Timeout in seconds for the update command (default: 600 = 10 minutes)",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "FlakeUpdateDaemonConfig": {
+      "description": "`tend flake-update-daemon` — `flake-update --all` with backoff.",
+      "properties": {
+        "max_interval": {
+          "default": 3600,
+          "description": "Ceiling of the converged-cycle backoff, seconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "min_interval": {
+          "default": 60,
+          "description": "Sleep after a cycle that did work, seconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "quiet": {
+          "default": false,
+          "description": "Suppress per-step output.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "GithubApp": {
+      "additionalProperties": false,
+      "description": "A GitHub App's credentials — enough to mint installation tokens on demand.",
+      "properties": {
+        "api_url": {
+          "default": "https://api.github.com",
+          "description": "GitHub REST API root; set for GitHub Enterprise Server.",
+          "type": "string"
+        },
+        "app_id": {
+          "$ref": "#/$defs/GithubId",
+          "description": "The App's numeric id: a number, or a secret source holding one."
+        },
+        "installation_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GithubId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The installation to mint tokens for. When absent, the installation is\nfound through `GET /app/installations` by `owner`, or is the App's only\ninstallation."
+        },
+        "owner": {
+          "description": "Account (organization or user) login whose installation to use when\n`installation_id` is absent. Matched case-insensitively.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "private_key": {
+          "$ref": "#/$defs/SecretSource",
+          "description": "The App's PEM-encoded RSA private key (PKCS#1 or PKCS#8)."
+        },
+        "refresh_before_secs": {
+          "default": 300,
+          "description": "Re-mint the installation token once it has this many seconds or fewer\nleft before it expires.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "app_id",
+        "private_key"
+      ],
+      "type": "object"
+    },
+    "GithubAuth": {
+      "description": "Where a GitHub token comes from.\n\nExternally tagged in `snake_case`: `token`, `gh_cli`, `app` or `chain`.\n\n`Serialize` and `Deserialize` are hand-written (below) rather than\nderived, for one measured reason: `serde_yaml` 0.9 reads a *derived*\nexternally tagged enum only from a YAML tag (`!token …`), rejecting the\nsingle-key map (`token: …`) every config in the fleet is written as, and\nrefuses to emit one nested in another enum (`chain:` of `token:`). The\nimpls read both forms and write the map form, which for `serde_json` and\nfigment is byte-identical to the derive — so the derived `JsonSchema`\n(driven by the `serde` attributes here) still describes the format.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "A personal access, OAuth or fine-grained token read from any secret\nbackend: `{ env: GITHUB_TOKEN }`, `{ file: ~/.config/github/token }`,\n`{ sops: … }`, `{ op: … }`, and the rest.",
+          "properties": {
+            "token": {
+              "$ref": "#/$defs/SecretSource"
+            }
+          },
+          "required": [
+            "token"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The token the GitHub CLI holds for a host, read with\n`gh auth token --hostname <host>`.",
+          "properties": {
+            "gh_cli": {
+              "properties": {
+                "host": {
+                  "default": "github.com",
+                  "description": "GitHub host the `gh` login belongs to.",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "gh_cli"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A GitHub App installation token, minted from the App's private key,\ncached, and re-minted shortly before it expires.",
+          "properties": {
+            "app": {
+              "$ref": "#/$defs/GithubApp"
+            }
+          },
+          "required": [
+            "app"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Try each source in order; the first that yields a non-empty token wins.\nWhen none does, the error lists every source and why it failed.",
+          "properties": {
+            "chain": {
+              "items": {
+                "$ref": "#/$defs/GithubAuth"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "chain"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "GithubAuthSources": {
+      "default": [
+        {
+          "token": {
+            "env": "TEND_GITHUB_TOKEN"
+          }
+        },
+        {
+          "token": {
+            "env": "GITHUB_TOKEN"
+          }
+        },
+        {
+          "token": {
+            "env": "GH_TOKEN"
+          }
+        },
+        {
+          "gh_cli": {
+            "host": "github.com"
+          }
+        },
+        {
+          "token": {
+            "file": "~/.config/github/token"
+          }
+        }
+      ],
+      "description": "GitHub auth sources, tried in order; the first that yields a token wins.",
+      "items": {
+        "$ref": "#/$defs/GithubAuth"
+      },
+      "type": "array"
+    },
+    "GithubId": {
+      "anyOf": [
+        {
+          "description": "The id itself, e.g. `123456`.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "$ref": "#/$defs/SecretSource",
+          "description": "A secret source whose value is the id in decimal, e.g. `{ file: /run/secrets/app-id }`."
+        }
+      ],
+      "description": "A numeric GitHub id (App id, installation id), given inline or read from a\nsecret source.\n\nWhy not a bare `u64`: the fleet already stores these next to the key they\nbelong to — the nix `github-runners` module takes `appIdSecret` and\n`installationIdSecret` as sops secrets — so a `u64`-only field would force\nevery such consumer to template the number into config by hand. An id is\nnot secret, so the inline number stays the first, plainest form; the\nsource form only means \"read it from where it already lives\"."
+    },
+    "HostHealthConfig": {
+      "description": "Host-level (not per-workspace) resource-hygiene knobs read by\n`tend status` -- see `src/host_health.rs`. Absent from a config file\nentirely, or with any field omitted, falls back to the defaults below.",
+      "properties": {
+        "fd_pressure_threshold": {
+          "default": 0.5,
+          "description": "Fraction of `kern.maxfiles` (0.0-1.0) at which `tend status` warns\nabout system-wide fd pressure, independent of any specific process.\nDefault 0.5 -- the actual 2026-07-12 incident hit ~0.99997, so this\ngives a wide lead-time margin before the kernel table actually fills.",
+          "format": "double",
+          "type": "number"
+        },
+        "fix": {
+          "default": true,
+          "description": "Whether `tend status` SIGKILLs confirmed orphans it finds (PPID==1\nAND name-matched against `watched_commands`) rather than only\nreporting them. Default true: this match is narrow enough (no\nowning session exists any more) that killing it is a return to\nbaseline, not an interruption of anything live. `--no-fix` at the\nCLI overrides this off for a single invocation.",
+          "type": "boolean"
+        },
+        "stale_lock_min_age_secs": {
+          "default": 120,
+          "description": "How old (seconds) an orphaned `.git/index.lock` must be before\n`tend status` will reap it. A real git operation holds its lock for\nmilliseconds, so the default 120 is ~3 orders of magnitude of slack\n-- generous on purpose, since reaping a live lock corrupts an index\nwhile waiting one more pass costs nothing.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "watched_commands": {
+          "default": [
+            "frost"
+          ],
+          "description": "Binary name fragments known to leave orphaned (PPID==1) processes\nbehind under some failure mode -- extend as new patterns are found\non the fleet. Default: `[\"frost\"]` (the confirmed 2026-07-12 case).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "NixAuditConfig": {
+      "description": "Configuration for nix-audit integration in the tend daemon.\n\nWhen enabled, the daemon runs `nix-audit check --all` after the watch cycle,\noptionally auto-fixes violations and propagates fixes across the flake graph.\nResults are tracked in a convergence database for trend analysis.",
+      "properties": {
+        "auto_fix": {
+          "default": false,
+          "description": "Run `nix-audit fix --all --commit` when violations found",
+          "type": "boolean"
+        },
+        "auto_propagate": {
+          "default": false,
+          "description": "Trigger `tend flake-update` propagation after fixes",
+          "type": "boolean"
+        },
+        "db_path": {
+          "default": null,
+          "description": "Path to convergence.db (default: ~/.local/share/nix-audit/convergence.db)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enable": {
+          "default": false,
+          "description": "Enable nix-audit integration in daemon cycle",
+          "type": "boolean"
+        },
+        "post_hooks": {
+          "default": [],
+          "description": "Post-hooks with new triggers: \"after_audit\", \"on_violation\", \"on_convergence\"",
+          "items": {
+            "$ref": "#/$defs/PostHook"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "OrgReleaseSwarmConfig": {
+      "description": "Per-org swarm policy. Deny by default at both levels.",
+      "properties": {
+        "default_retention_days": {
+          "default": 90,
+          "description": "Artefact retention in days.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "default_target_matrix": {
+          "default": "three_target",
+          "description": "Target matrix label (passed through to arch-synthesizer):\n\"three_target\" (default) | \"four_target_including_intel\" | \"custom\".\nString-shaped here so tend stays loosely coupled to\narch-synthesizer's enum representation.",
+          "type": "string"
+        },
+        "enable": {
+          "default": false,
+          "description": "Org-level enable. DENY by default.",
+          "type": "boolean"
+        },
+        "org": {
+          "default": "",
+          "description": "GitHub org/owner (e.g. \"pleme-io\", \"drzzln\").",
+          "type": "string"
+        },
+        "repos": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RepoReleaseConfig"
+          },
+          "default": {},
+          "description": "Per-repo configuration. Repos not listed OR listed with\n`enable: false` are both treated as disabled.",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "PostHook": {
+      "properties": {
+        "args": {
+          "default": [],
+          "description": "Arguments (supports $VERSION, $REPO, $REV, $MATRIX_FILE placeholders)",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "command": {
+          "description": "Shell command to run",
+          "type": "string"
+        },
+        "continue_on_error": {
+          "default": false,
+          "description": "Continue if this hook fails",
+          "type": "boolean"
+        },
+        "trigger": {
+          "description": "When to trigger: \"after_certify\", \"after_commit\", \"after_propagate\", \"after_all\"",
+          "type": "string"
+        },
+        "working_dir": {
+          "default": null,
+          "description": "Working directory (supports ~ expansion)",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "trigger",
+        "command"
+      ],
+      "type": "object"
+    },
+    "PrebuildConfig": {
+      "description": "The prebuild run: what `tend prebuild` builds and where it pushes, and\nhow `tend prebuild-daemon` paces itself.\n\nThis is the TOP-LEVEL `prebuild:` section, and the only one the runtime\nreads. Every `tend prebuild[-daemon]` flag is a partial over it, so a flag\nbeats every file. The daemon re-resolves it each cycle (and a file edit\nwakes the daemon), so an edit propagates without a restart.\n\n── ★ THE LEGACY PER-WORKSPACE `prebuild:` BLOCK ───────────────────────\n`workspaces[].prebuild` predates this section. It was never per\nworkspace at runtime: the first workspace carrying one overrode the\nCLI's packages/systems/repro/caches for the WHOLE cycle (YAML beating the\ncommand line), and its max_inflight/attic fields were printed but never\napplied. The loader now hoists that first block to the top-level\n`prebuild:` of the same file when the file has none — same slot, so a\nflag beats it as it beats any file value. See\n[`crate::config_layers::hoist_legacy_prebuild`].",
+      "properties": {
+        "attic_cache": {
+          "default": null,
+          "description": "Attic cache name to push closures to. `None` = build-only mode.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attic_server": {
+          "default": "nexus",
+          "description": "Attic server alias for `attic login`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attic_token_file": {
+          "default": null,
+          "description": "SOPS-managed Attic JWT token file path.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attic_url": {
+          "default": null,
+          "description": "Attic server URL. Also the reachability probe's target.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "caches": {
+          "default": [],
+          "description": "Many caches. Each produced closure fans out to every enabled\ntarget. When empty, the single `attic_*` quartet above is\npromoted to a one-element list.",
+          "items": {
+            "$ref": "#/$defs/CacheTargetConfig"
+          },
+          "type": "array"
+        },
+        "max_inflight": {
+          "default": 1,
+          "description": "Max concurrent `nix build` invocations.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_interval": {
+          "default": 3600,
+          "description": "Maximum sleep when converged (seconds). Caps the exponential\nbackoff growth.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "min_interval": {
+          "default": 120,
+          "description": "Minimum sleep between daemon cycles (seconds). Resets after any work.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "packages": {
+          "default": "all",
+          "description": "Which flake outputs to build: `\"all\"` (every\n`packages.${system}.*` — the fill default), `\"default\"`, or a\ncomma-separated allow-list (`\"mado,tear\"`). Parsed by\n[`crate::prebuild_cache::PackageSelector::parse`].",
+          "type": "string"
+        },
+        "probe": {
+          "$ref": "#/$defs/AtticProbeConfig",
+          "default": {
+            "enable": true,
+            "max_interval": 1800,
+            "min_interval": 60,
+            "timeout": 5
+          },
+          "description": "Reachability probe of `attic_url` (daemon only)."
+        },
+        "quiet": {
+          "default": false,
+          "description": "Suppress per-repo log lines (the audit log is still written).",
+          "type": "boolean"
+        },
+        "repro": {
+          "default": "trusting",
+          "description": "Reproducibility policy before pushing to a trusted cache:\n`\"trusting\"` (fast) or `\"verify\"` (build-and-compare; never\npushes a non-reproducible artifact — the anti-poison gate).\nParsed by [`crate::prebuild_cache::ReproPolicy::parse`].",
+          "type": "string"
+        },
+        "systems": {
+          "default": [],
+          "description": "Target systems to build for. Empty ⇒ this host's native system\nonly (no remote-builder fan-out unless the operator opts in by\nlisting extra triples like `x86_64-linux`).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "PushPolicy": {
+      "enum": [
+        "main",
+        "pr"
+      ],
+      "type": "string"
+    },
+    "ReconcileConfig": {
+      "description": "Concurrency of the repo reconcile.",
+      "properties": {
+        "max_inflight": {
+          "default": 16,
+          "description": "Maximum concurrent `git pull` processes per workspace (the shigoto\nbudget for `tend.pull-repo`). The host-pressure gate may lower it for\na cycle; it never raises it.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "RepoReleaseConfig": {
+      "description": "Per-repo overrides. Every override optional.",
+      "properties": {
+        "binary_name": {
+          "default": null,
+          "description": "Binary name (falls back to repo name).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enable": {
+          "default": false,
+          "description": "Per-repo enable. DENY by default.",
+          "type": "boolean"
+        },
+        "features": {
+          "default": [],
+          "description": "Cargo features enabled on every target.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "retention_days": {
+          "default": null,
+          "description": "Override retention for this repo.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "target_matrix": {
+          "default": null,
+          "description": "Override target matrix for this repo.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "SecretBackend": {
+      "description": "Internally-tagged variants — the backends proper.\n\nSplit out from [`SecretSource`] so the outer enum can be `untagged`\n(for bare-string literals) while the backends stay `rename_all` to\nmatch the YAML keys used by config files.\n\n`Serialize` is hand-written as a single-key map (`{tag: payload}`) rather\nthan derived. For `serde_json` and figment the two are byte-identical; the\ndifference is `serde_yaml` 0.9, which emits a *derived* externally tagged\nenum as a YAML tag (`!env X`) — a shape this crate's own untagged\n[`SecretSource`] cannot read back — and refuses outright to emit one nested\ninside another enum. Pinned by\n`tests::secret_source_yaml_emission_round_trips_for_every_backend`.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Plaintext value. Exposed explicitly so configs can say\n`{literal: \"...\"}` alongside the other tagged variants when\nthey don't want the bare-string shorthand.",
+          "properties": {
+            "literal": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "literal"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Shell command — stdout is the secret (see [`resolve_command`]).",
+          "properties": {
+            "command": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "command"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "1Password reference — `\"op://vault/item/field\"` (see [`resolve_op`]).",
+          "properties": {
+            "op": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "SOPS-encrypted file (optionally with a field path, see\n[`resolve_sops_field`]).",
+          "properties": {
+            "sops": {
+              "$ref": "#/$defs/SopsRef"
+            }
+          },
+          "required": [
+            "sops"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Akeyless secret name — `/prod/my-secret` (see [`resolve_akeyless`]).",
+          "properties": {
+            "akeyless": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "akeyless"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "HashiCorp Vault path (optionally with a field, see [`resolve_vault`]).",
+          "properties": {
+            "vault": {
+              "$ref": "#/$defs/VaultRef"
+            }
+          },
+          "required": [
+            "vault"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "AWS Secrets Manager secret id — `prod/my-app/jwt`\n(see [`resolve_aws_secret`]).",
+          "properties": {
+            "aws_secret": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "aws_secret"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "GCP Secret Manager secret name — `projects/.../secrets/.../versions/latest`\nor short form `projects/my-proj/secrets/my-secret` (see [`resolve_gcp_secret`]).",
+          "properties": {
+            "gcp_secret": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "gcp_secret"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A file whose contents ARE the secret — `~/.config/github/token`,\n`/run/secrets/app.pem` (see [`resolve_file`]). A leading `~` expands\nto `$HOME`; trailing whitespace is trimmed. The file is re-read on\nevery [`resolve`], so a rotated file (sops-nix re-rendering\n`/run/secrets`, a projected Kubernetes Secret) is picked up without a\nrestart — the property an env var resolved once at process start\ncannot have.",
+          "properties": {
+            "file": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "file"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An environment variable holding the secret — `GITHUB_TOKEN`\n(see [`resolve_env`]). Unset and set-but-empty are BOTH errors that\nname the variable: an empty token is not a token, and treating it as\none is how `Authorization: Bearer ` reaches an API and reads as a\npermissions problem far from its cause.",
+          "properties": {
+            "env": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "env"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SecretSource": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SecretBackend",
+          "description": "Structured variants with an explicit backend tag."
+        },
+        {
+          "description": "Bare-string fallthrough — always treated as a plaintext literal.\nUseful for development defaults. Production configs should prefer\none of the backend variants.",
+          "type": "string"
+        }
+      ],
+      "description": "A declarative reference to where a secret lives.\n\nSerde's untagged + internally-tagged combo means YAML authors can\nwrite any of the shapes documented on [the module](crate::secret).\nThe untagged fallback catches the bare-string form and treats it as\na literal — the \"just put the dev secret here\" path.\n\n`non_exhaustive` so we can add new vault backends without a semver\nbreak at the config layer."
+    },
+    "SopsRef": {
+      "anyOf": [
+        {
+          "description": "Path to the SOPS-encrypted file. Entire decrypted contents become\nthe secret value.",
+          "type": "string"
+        },
+        {
+          "description": "Decrypt the file, then extract a specific field via `jq -r`.\n\nThe `field` is passed to `jq` as the filter string, so\n`\"jwt_secret\"` pulls the top-level key. Use dotted syntax for\nnested keys: `\"auth.jwt.secret\"` would be `jq -r .auth.jwt.secret`.",
+          "properties": {
+            "field": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "file",
+            "field"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "SOPS-encrypted file reference.\n\nAccepts either a bare path (`\"secrets/prod.yaml\"`) or a path+field\npair via the struct form. Bare paths decrypt the whole file; the\n`field` form extracts a single JSON/YAML key after decryption using\n`jq`."
+    },
+    "StatusSnapshotConfig": {
+      "properties": {
+        "enable": {
+          "default": true,
+          "type": "boolean"
+        },
+        "max_age_minutes": {
+          "default": 30,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "workers": {
+          "default": 4,
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "VaultRef": {
+      "anyOf": [
+        {
+          "description": "Path to the Vault secret. Runs `vault read -field=value <path>` —\n`-field=value` picks the first `data` field for KV v1 and the\nconventional `value` key for single-valued KV v2 secrets.",
+          "type": "string"
+        },
+        {
+          "description": "Read a specific field of the Vault secret via\n`vault read -field=<field> <path>`.",
+          "properties": {
+            "field": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "field"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "HashiCorp Vault secret reference.\n\nAccepts either a bare path string (`\"secret/data/prod/app\"`) or a\n`{path, field}` pair. Bare form returns the first field of the\nsecret — handy for single-value KV secrets. The `field` form extracts\na named field — the typical case for KV v2 where the secret is a\nkey-value map."
+    },
+    "WatchConfig": {
+      "properties": {
+        "auto_certify": {
+          "default": false,
+          "description": "Run `akeyless-matrix certify` after appending pending entries",
+          "type": "boolean"
+        },
+        "auto_commit": {
+          "default": false,
+          "description": "Auto commit+push all changes (matrix.toml + generated files)",
+          "type": "boolean"
+        },
+        "auto_propagate": {
+          "default": null,
+          "description": "Run `tend flake-update --changed <repo>` to propagate to dependent flakes",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ci_hygiene": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CiHygieneConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "CI hygiene — tend's little tree trimmer for GitHub Actions queues.\nWhen enabled, the daemon (or the one-shot `tend ci-trim` command)\nscans workflow runs across the workspace's repos and cancels\nduplicate queued runs on the same tag/branch. Opt-in per workspace."
+        },
+        "enable": {
+          "default": false,
+          "description": "Enable watch for this workspace",
+          "type": "boolean"
+        },
+        "file_watches": {
+          "default": [],
+          "description": "File watches: monitor specific files in GitHub repos for content changes",
+          "items": {
+            "$ref": "#/$defs/FileWatch"
+          },
+          "type": "array"
+        },
+        "flake_input_watches": {
+          "default": [],
+          "description": "Flake input watches: monitor flake.lock inputs against upstream for staleness",
+          "items": {
+            "$ref": "#/$defs/FlakeInputWatch"
+          },
+          "type": "array"
+        },
+        "flake_refresh": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FlakeRefreshConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Flake refresh: periodically run `nix flake update` on all repos with flake.nix"
+        },
+        "matrix_file": {
+          "description": "Path to matrix.toml file to append entries to",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nix_audit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NixAuditConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Nix audit: run nix-audit convergence loop in daemon cycle"
+        },
+        "post_hooks": {
+          "default": [],
+          "description": "Post-hooks to run after watch cycle steps",
+          "items": {
+            "$ref": "#/$defs/PostHook"
+          },
+          "type": "array"
+        },
+        "release_swarm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OrgReleaseSwarmConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Release swarm — apply the canonical `rust-tool-public-release`\nworkflow across eligible Rust repos in this workspace's org.\nDENY by default at both the org level AND per-repo level —\nnothing is applied unless BOTH flags are explicitly `true`.\nSee `src/release_swarm.rs` for policy + apply logic."
+        }
+      },
+      "type": "object"
+    },
+    "Workspace": {
+      "properties": {
+        "ai_tasks": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/AiTaskConfig"
+          },
+          "type": "array"
+        },
+        "base_dir": {
+          "type": "string"
+        },
+        "clone_method": {
+          "$ref": "#/$defs/CloneMethod",
+          "default": "ssh"
+        },
+        "discover": {
+          "default": false,
+          "type": "boolean"
+        },
+        "exclude": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "extra_repos": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "flake_deps": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "name": {
+          "type": "string"
+        },
+        "org": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pr_skill": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prebuild": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrebuildConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "LEGACY. The runtime reads only the top-level `prebuild:` section; the\nloader hoists the first workspace's block there when a file has no\ntop-level one (see [`PrebuildConfig`]). Still parsed, so existing\nfiles keep loading; write new settings at the top level."
+        },
+        "provider": {
+          "default": "github",
+          "type": "string"
+        },
+        "push_ahead": {
+          "default": false,
+          "type": "boolean"
+        },
+        "push_policy": {
+          "$ref": "#/$defs/PushPolicy",
+          "default": "main"
+        },
+        "track_repos": {
+          "default": true,
+          "description": "Whether tend tracks REPOSITORIES in this workspace at all.\n\n── ★ WHY THIS IS NOT `discover = false` ────────────────────────────\n`discover` only turns off the forge API call. A workspace with\n`discover = false` and no `extra_repos` still gets its `base_dir`\nscanned, and every directory found there is reported `unknown` —\nwhich is correct behaviour (that is drift: a repo on disk that\nconfig does not declare) and completely wrong as an ANSWER when the\noperator's intent is \"this org is not mine to track\".\n\nMeasured 2026-09-05: `akeylesslabs` holds 138 directories on the\noperator's disk. Turning discovery off there traded one 403 warning\nfor 138 `unknown` rows in every `tend status` — noise for noise, and\nthe second kind is worse because it is indistinguishable from real\ndrift in the workspaces that ARE ours.\n\nThis is the workspace-level opt-out tend did not have: the only\nselection available was the CLI's `--workspace <name>`, which is a\nper-invocation filter and cannot express a standing intent.\n\n── ★ WHAT IT DOES *NOT* TURN OFF ───────────────────────────────────\nThe `watch` config keeps running. That distinction is the whole\nreason this is a flag rather than deleting the workspace entry:\n`akeylesslabs` carries the `akeyless-openapi-spec` file-watch that\nfeeds `iac-forge`, and that is load-bearing. \"Do not track its\nrepos\" and \"do not watch its files\" are different intents, and\ncollapsing them would force an operator to give up a working\npipeline to silence a listing.",
+          "type": "boolean"
+        },
+        "watch": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WatchConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "base_dir"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "tend's whole configuration — the one shape every source folds into.\n\nResolved ONLY through [`crate::config_layers::ConfigLoader`], which folds,\nlowest first: the computed tiers ([`shikumi::TieredConfig`] below) → the\ndiscovered file (`$TEND_CONFIG`, else `<config>/tend/tend.yaml`, else the\nlegacy `<config>/tend/config.yaml`) → each `--config FILE` → `TEND_*`\nenv (`__` nests; only keys that name a field here) → the subcommand's\ntyped flags → each `--set PATH=VALUE`. Maps merge per key; scalars and\nlists replace. An unknown or ill-typed key is refused naming the layer\nthat wrote it.\n\nThe JSON Schema of this type is committed at\n`schema/tend-config.schema.json` (golden-tested) and exported from the\nflake as `lib.configSchema`, so the home-manager options are generated\nfrom it rather than restated.",
+  "properties": {
+    "cargo_target": {
+      "$ref": "#/$defs/CargoTargetConfig",
+      "default": {
+        "active_minutes": 60,
+        "budget_gib": 50,
+        "dry_run": false,
+        "enable": false,
+        "interval_minutes": 60,
+        "max_idle_days": 14,
+        "pressure_budget_gib": 10,
+        "search_depth": 2
+      },
+      "description": "Bounds on local cargo `target/` directories -- see\n`src/cargo_target.rs`. Absent means disabled."
+    },
+    "daemon": {
+      "$ref": "#/$defs/DaemonConfig",
+      "default": {
+        "fetch": true,
+        "interval": 300,
+        "pull": true,
+        "quiet": false
+      },
+      "description": "`tend daemon` — the reconciler loop."
+    },
+    "flake_update_daemon": {
+      "$ref": "#/$defs/FlakeUpdateDaemonConfig",
+      "default": {
+        "max_interval": 3600,
+        "min_interval": 60,
+        "quiet": false
+      },
+      "description": "`tend flake-update-daemon` — the flake.lock propagation loop."
+    },
+    "github_auth": {
+      "$ref": "#/$defs/GithubAuthSources",
+      "default": [
+        {
+          "token": {
+            "env": "TEND_GITHUB_TOKEN"
+          }
+        },
+        {
+          "token": {
+            "env": "GITHUB_TOKEN"
+          }
+        },
+        {
+          "token": {
+            "env": "GH_TOKEN"
+          }
+        },
+        {
+          "gh_cli": {
+            "host": "github.com"
+          }
+        },
+        {
+          "token": {
+            "file": "~/.config/github/token"
+          }
+        }
+      ],
+      "description": "Where tend's GitHub credential comes from: an ordered list of\nsources, the first that yields a token wins. Every GitHub caller in\ntend (discovery, clone, REST, nix `access-tokens`) resolves through\nthis one list. Default: `TEND_GITHUB_TOKEN`, `GITHUB_TOKEN`,\n`GH_TOKEN`, `gh auth token`, `~/.config/github/token`."
+    },
+    "host_health": {
+      "$ref": "#/$defs/HostHealthConfig",
+      "default": {
+        "fd_pressure_threshold": 0.5,
+        "fix": true,
+        "stale_lock_min_age_secs": 120,
+        "watched_commands": [
+          "frost"
+        ]
+      },
+      "description": "Host resource hygiene read by `tend status` and the daemon."
+    },
+    "prebuild": {
+      "$ref": "#/$defs/PrebuildConfig",
+      "default": {
+        "attic_cache": null,
+        "attic_server": "nexus",
+        "attic_token_file": null,
+        "attic_url": null,
+        "caches": [],
+        "max_inflight": 1,
+        "max_interval": 3600,
+        "min_interval": 120,
+        "packages": "all",
+        "probe": {
+          "enable": true,
+          "max_interval": 1800,
+          "min_interval": 60,
+          "timeout": 5
+        },
+        "quiet": false,
+        "repro": "trusting",
+        "systems": []
+      },
+      "description": "`tend prebuild` / `tend prebuild-daemon` — build every workspace\nflake and fill the binary caches."
+    },
+    "reconcile": {
+      "$ref": "#/$defs/ReconcileConfig",
+      "default": {
+        "max_inflight": 16
+      },
+      "description": "Concurrency of the repo reconcile (`git pull`), shared by `tend\ndaemon`, `tend reconcile` and `tend pressure`."
+    },
+    "status_snapshot": {
+      "$ref": "#/$defs/StatusSnapshotConfig",
+      "default": {
+        "enable": true,
+        "max_age_minutes": 30,
+        "workers": 4
+      },
+      "description": "The status snapshot `tend hook session-start` reads."
+    },
+    "workspaces": {
+      "default": [],
+      "description": "The workspaces tend manages: one per forge org/user and base directory.",
+      "items": {
+        "$ref": "#/$defs/Workspace"
+      },
+      "type": "array"
+    }
+  },
+  "title": "Config",
+  "type": "object"
+}

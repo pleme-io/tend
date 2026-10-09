@@ -21,9 +21,9 @@
 //! See pleme-io/theory/RATE-LIMITED-CONSUMERS.md §V (per-consumer
 //! ingestion strategy: Mode A steady-trickle).
 
-use crate::secret::Secret;
 use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};
+use shikumi::github::GithubToken;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -466,7 +466,7 @@ impl FleetWatchTask {
 
         // Filter to flake-having. Paced (tick at discovery_pace) so
         // the discovery scan doesn't burst against the GitHub API.
-        let token = crate::provider::github_token();
+        let token = crate::gh_auth::token();
         let client = reqwest::Client::builder()
             .user_agent("tend-fleet-watch")
             .build()
@@ -517,7 +517,7 @@ async fn has_flake_nix(
     client: &reqwest::Client,
     owner: &str,
     repo: &str,
-    token: Option<&Secret>,
+    token: Option<&GithubToken>,
 ) -> Result<bool> {
     let url = format!("https://api.github.com/repos/{owner}/{repo}/contents/flake.nix");
     let mut req = client
@@ -525,7 +525,7 @@ async fn has_flake_nix(
         .header("Accept", "application/vnd.github+json")
         .header("User-Agent", "tend-fleet-watch");
     if let Some(t) = token {
-        req = req.bearer_auth(t.expose());
+        req = req.bearer_auth(t.expose_for_header());
     }
     let resp = req.send().await.with_context(|| format!("HEAD {url}"))?;
     let status = resp.status().as_u16();

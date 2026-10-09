@@ -9,7 +9,11 @@ mod cache;
 mod cargo_target;
 mod ci_trim;
 mod config;
+mod config_layers;
 mod daemon;
+mod flags;
+mod gh_auth;
+mod schema;
 mod display;
 mod hook;
 mod kanshou_state;
@@ -59,8 +63,26 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "tend", version, about = "Workspace repository manager")]
+#[command(
+    name = "tend",
+    version,
+    about = "Workspace repository manager",
+    long_about = "Workspace repository manager.\n\n\
+        Config is folded, lowest first: built-in defaults -> the config file \
+        ($TEND_CONFIG, else ~/.config/tend/tend.yaml, else ~/.config/tend/config.yaml) \
+        -> each --config FILE -> TEND_* env (`__` nests, e.g. TEND_DAEMON__INTERVAL=60) \
+        -> this subcommand's flags -> each --set PATH=VALUE. \
+        `tend config-show --effective --provenance` prints the result and who set each value."
+)]
 struct Cli {
+    /// `--config FILE` (merge-override, repeatable) and `--set PATH=VALUE`.
+    #[command(flatten, next_help_heading = "Config layers")]
+    config: shikumi::cli::ConfigArgs,
+
+    /// `--github-token-file`, `--github-app-*`: partials over `github_auth`.
+    #[command(flatten, next_help_heading = "GitHub credential (replaces `github_auth`)")]
+    github: flags::GithubFlags,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -90,9 +112,10 @@ enum Commands {
         /// Filesystem to measure (default: current directory).
         #[arg(long)]
         path: Option<PathBuf>,
-        /// Concurrency the daemon is configured for, to show the throttled value.
-        #[arg(long, default_value_t = 8)]
-        max_inflight: u32,
+        /// Concurrency to assess (`reconcile.max_inflight`; default: what
+        /// the daemon is configured for).
+        #[command(flatten)]
+        flags: flags::ReconcileFlags,
     },
 
     /// Cargo `target/` directories in the workspace repos: size, idle days,
@@ -127,10 +150,6 @@ enum Commands {
 
     /// Clone missing repos into the workspace
     Sync {
-        /// Path to config file
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Only sync a specific workspace by name
         #[arg(long)]
         workspace: Option<String>,
@@ -146,10 +165,6 @@ enum Commands {
 
     /// Fast-forward every clean repo in the workspace (git pull --ff-only)
     Pull {
-        /// Path to config file
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Only pull a specific workspace by name
         #[arg(long)]
         workspace: Option<String>,
@@ -170,10 +185,6 @@ enum Commands {
     /// dirty repo. Plans by default: every repo is classified from its lock and
     /// reported, and nothing is written without `--apply`.
     NixpkgsAlign {
-        /// Path to config file
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Only align a specific workspace by name
         #[arg(long)]
         workspace: Option<String>,
@@ -217,10 +228,6 @@ enum Commands {
     /// or repos the org discovery doesn't see (archived, private
     /// without token, etc.).
     Adopt {
-        /// Path to config file
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Workspace name to adopt into.
         workspace: String,
 
@@ -250,10 +257,6 @@ enum Commands {
     /// ReconcileReceipt. The destination shape that replaces
     /// `tend pull`'s batch summary with per-Job typed outcomes.
     Reconcile {
-        /// Path to config file
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Only reconcile a specific workspace by name
         #[arg(long)]
         workspace: Option<String>,
@@ -262,21 +265,13 @@ enum Commands {
         #[arg(long)]
         refresh: bool,
 
-        /// Maximum concurrent `git pull` processes. Bounds the
-        /// scheduler's per-kind Budget for `tend.pull-repo`. Default
-        /// is 16 — high enough to saturate a typical broadband link
-        /// without exhausting OS file handles or SSH connection
-        /// multiplexers.
-        #[arg(long, default_value_t = reconcile::DEFAULT_MAX_INFLIGHT_PULL)]
-        max_inflight: u32,
+        /// `--max-inflight` (`reconcile.max_inflight`).
+        #[command(flatten)]
+        flags: flags::ReconcileFlags,
     },
 
     /// Show repo status (clean/dirty/ahead/no-upstream/behind/unborn/stuck/no-remote/missing/unknown)
     Status {
-        /// Path to config file
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Only show status for a specific workspace
         #[arg(long)]
         workspace: Option<String>,
@@ -306,10 +301,6 @@ enum Commands {
 
     /// List configured repos
     List {
-        /// Path to config file
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Only list repos for a specific workspace
         #[arg(long)]
         workspace: Option<String>,
@@ -333,66 +324,18 @@ enum Commands {
     /// the workspace toward the org's current state continuously, not on
     /// demand. The reconciler shape.
     Daemon {
-        /// Path to config file
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Only sync a specific workspace by name
         #[arg(long)]
         workspace: Option<String>,
 
-        /// Sync interval in seconds
-        #[arg(long, default_value = "300")]
-        interval: u64,
-
-        /// Fast-forward clean repos every cycle (`git pull --ff-only`).
-        /// Default true — this is the reconciler behavior. Accepts bare
-        /// `--pull` (true), `--pull=false`, or no flag (default true).
-        #[arg(
-            long,
-            default_value_t = true,
-            num_args = 0..=1,
-            default_missing_value = "true",
-            require_equals = false,
-            action = clap::ArgAction::Set,
-        )]
-        pull: bool,
-
-        /// Plain `git fetch --all --prune` each cycle. Only takes effect
-        /// when `--pull=false` (pull already fetches). Kept so a
-        /// fetch-only daemon remains expressible, and so legacy launchd
-        /// configs passing bare `--fetch` continue to parse.
-        #[arg(
-            long,
-            default_value_t = true,
-            num_args = 0..=1,
-            default_missing_value = "true",
-            require_equals = false,
-            action = clap::ArgAction::Set,
-        )]
-        fetch: bool,
-
-        /// Suppress per-repo output
-        #[arg(long)]
-        quiet: bool,
-
-        /// Path to file containing GitHub token (for launchd environments)
-        #[arg(long)]
-        github_token_file: Option<PathBuf>,
-
-        /// Maximum concurrent `git pull` processes per workspace per
-        /// cycle. Bounds the shigoto scheduler's per-kind Budget for
-        /// `tend.pull-repo`. Default matches `tend reconcile`.
-        #[arg(long, default_value_t = reconcile::DEFAULT_MAX_INFLIGHT_PULL)]
-        max_inflight: u32,
+        /// `--interval`, `--pull`, `--fetch`, `--quiet`, `--max-inflight`:
+        /// partials over `daemon.*` and `reconcile.max_inflight`.
+        #[command(flatten)]
+        flags: flags::DaemonFlags,
     },
 
     /// Run watch cycle once (detect new versions)
     Watch {
-        /// Path to config file
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Only watch a specific workspace
         #[arg(long)]
         workspace: Option<String>,
@@ -436,10 +379,6 @@ enum Commands {
         #[arg(long, conflicts_with = "changed")]
         all: bool,
 
-        /// Path to config file
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Only process a specific workspace
         #[arg(long)]
         workspace: Option<String>,
@@ -471,10 +410,6 @@ enum Commands {
     /// Lists eligible repos per workspace (deny-by-default at both
     /// org and repo level).
     ReleaseSwarmPlan {
-        /// Path to config file
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Only process a specific workspace
         #[arg(long)]
         workspace: Option<String>,
@@ -484,10 +419,6 @@ enum Commands {
     /// canonical release.yml and open a PR. Dry-run by default so
     /// nothing mutates without explicit opt-in.
     ReleaseSwarmApply {
-        /// Path to config file
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Only process a specific workspace
         #[arg(long)]
         workspace: Option<String>,
@@ -512,175 +443,41 @@ enum Commands {
     /// Run flake-update --all continuously with exponential backoff.
     /// Idempotent: cycles where every workspace is converged do no work.
     FlakeUpdateDaemon {
-        /// Path to config file
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Only process a specific workspace
         #[arg(long)]
         workspace: Option<String>,
 
-        /// Minimum sleep between cycles, in seconds (reset interval after work).
-        #[arg(long, default_value = "60")]
-        min_interval: u64,
-
-        /// Maximum sleep between cycles when converged, in seconds.
-        #[arg(long, default_value = "3600")]
-        max_interval: u64,
-
-        /// Suppress per-step output
-        #[arg(long)]
-        quiet: bool,
-
-        /// Path to file containing GitHub token (for launchd environments)
-        #[arg(long)]
-        github_token_file: Option<PathBuf>,
+        /// `--min-interval`, `--max-interval`, `--quiet`: partials over
+        /// `flake_update_daemon.*`.
+        #[command(flatten)]
+        flags: flags::FlakeUpdateDaemonFlags,
     },
 
     /// Build every workspace flake repo whose HEAD has moved since
     /// last cycle, optionally pushing each closure to an Attic cache.
     /// One-shot; pair with `prebuild-daemon` for continuous fill.
     Prebuild {
-        /// Path to config file
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Only process a specific workspace
         #[arg(long)]
         workspace: Option<String>,
 
-        /// Suppress per-repo log lines (audit log still written)
-        #[arg(long)]
-        quiet: bool,
-
-        /// Maximum concurrent `nix build` invocations
-        #[arg(long, default_value = "1")]
-        max_inflight: usize,
-
-        /// Attic cache name (e.g. `nexus`). Omit to build without push.
-        #[arg(long)]
-        attic_cache: Option<String>,
-
-        /// Attic server alias for `attic login`
-        #[arg(long, default_value = "nexus")]
-        attic_server: String,
-
-        /// Attic server URL (e.g. `http://rio:8080/`)
-        #[arg(long)]
-        attic_url: Option<String>,
-
-        /// Path to file containing the Attic JWT token (SOPS-managed)
-        #[arg(long)]
-        attic_token_file: Option<PathBuf>,
-
-        /// Which flake outputs to build: "all" (every
-        /// `packages.${system}.*` — max cache coverage), "default", or a
-        /// comma-separated allow-list (e.g. "mado,tear"). A `prebuild:`
-        /// block in the config overrides this when present.
-        #[arg(long, default_value = "all")]
-        packages: String,
-
-        /// Reproducibility gate before pushing: "trusting" (fast) or
-        /// "verify" (build-and-compare via `nix build --rebuild`; never
-        /// push a non-reproducible closure to a substitution-source
-        /// cache — the anti-poison gate).
-        #[arg(long, default_value = "trusting")]
-        repro: String,
-
-        /// JSON array of cache targets to fan every closure out to —
-        /// rendered by the typed Nix module from its `caches` list. Each
-        /// element: `{name, server, url, token_file, enabled?}`. Takes
-        /// precedence over the single `--attic-*` quartet; default `[]`
-        /// (use the single cache).
-        #[arg(long, default_value = "[]")]
-        caches_json: String,
+        /// Partials over the top-level `prebuild.*` config section.
+        #[command(flatten)]
+        flags: flags::PrebuildFlags,
     },
 
     /// Run `prebuild` continuously with exponential backoff. Idempotent:
     /// converged cycles (zero builds) double the sleep up to
     /// `max_interval`; any build resets sleep to `min_interval`.
     PrebuildDaemon {
-        /// Path to config file
-        #[arg(long)]
-        config: Option<PathBuf>,
-
         /// Only process a specific workspace
         #[arg(long)]
         workspace: Option<String>,
 
-        /// Minimum sleep between cycles, in seconds (reset interval after work)
-        #[arg(long, default_value = "120")]
-        min_interval: u64,
-
-        /// Maximum sleep between cycles when converged, in seconds
-        #[arg(long, default_value = "3600")]
-        max_interval: u64,
-
-        /// Maximum concurrent `nix build` invocations
-        #[arg(long, default_value = "1")]
-        max_inflight: usize,
-
-        /// Suppress per-step output
-        #[arg(long)]
-        quiet: bool,
-
-        /// Attic cache name (e.g. `nexus`). Omit to build without push.
-        #[arg(long)]
-        attic_cache: Option<String>,
-
-        /// Attic server alias for `attic login`
-        #[arg(long, default_value = "nexus")]
-        attic_server: String,
-
-        /// Attic server URL (e.g. `http://rio:8080/`)
-        #[arg(long)]
-        attic_url: Option<String>,
-
-        /// Path to file containing the Attic JWT token (SOPS-managed)
-        #[arg(long)]
-        attic_token_file: Option<PathBuf>,
-
-        /// Probe whether the Attic server (`--attic-url`) is reachable
-        /// before each cycle; when it's down, back off (separately from
-        /// the converged backoff) and don't build closures we can't
-        /// push. Defaults to ON when `--attic-url` is set, OFF otherwise.
-        /// Pass `--attic-probe=false` to force-disable.
-        #[arg(long, action = clap::ArgAction::Set, default_value_t = true)]
-        attic_probe: bool,
-
-        /// Floor of the unreachable-backoff, in seconds (first
-        /// unreachable cycle sleeps this long).
-        #[arg(long, default_value = "60")]
-        attic_unreachable_min_interval: u64,
-
-        /// Ceiling of the unreachable-backoff, in seconds (the doubling
-        /// caps here during a sustained outage).
-        #[arg(long, default_value = "1800")]
-        attic_unreachable_max_interval: u64,
-
-        /// Per-probe HTTP timeout, in seconds.
-        #[arg(long, default_value = "5")]
-        attic_probe_timeout: u64,
-
-        /// Which flake outputs to build: "all" (every
-        /// `packages.${system}.*` — max cache coverage; the fill
-        /// default), "default", or a comma-separated allow-list. A
-        /// `prebuild:` block in the config overrides this when present.
-        #[arg(long, default_value = "all")]
-        packages: String,
-
-        /// Reproducibility gate before pushing: "trusting" (fast) or
-        /// "verify" (build-and-compare; never push a non-reproducible
-        /// closure to a substitution-source cache).
-        #[arg(long, default_value = "trusting")]
-        repro: String,
-
-        /// JSON array of cache targets to fan every closure out to —
-        /// rendered by the typed Nix module from its `caches` list. Each
-        /// element: `{name, server, url, token_file, enabled?}`. Takes
-        /// precedence over the single `--attic-*` quartet; default `[]`.
-        #[arg(long, default_value = "[]")]
-        caches_json: String,
+        /// Partials over the top-level `prebuild.*` config section,
+        /// including the daemon pacing and `prebuild.probe.*`.
+        #[command(flatten)]
+        flags: flags::PrebuildDaemonFlags,
     },
 
     /// Run as the fleet update controller (K8s operator).
@@ -699,22 +496,29 @@ enum Commands {
     /// pleme-io/theory/RATE-LIMITED-CONSUMERS.md.
     #[cfg(feature = "operator")]
     Throttle {
-        /// Path to samba config YAML. Defaults to /etc/pleme-worker/config.yaml
-        /// (matches pleme-lib.rate-limit-worker.config Helm template output).
-        #[arg(long)]
-        config: Option<PathBuf>,
+        /// Path to the samba worker config YAML. Defaults to
+        /// /etc/pleme-worker/config.yaml (the pleme-lib.rate-limit-worker
+        /// Helm template output). Named `--worker-config` because
+        /// `--config` is tend's own config overlay on every subcommand.
+        #[arg(long = "worker-config", value_name = "PATH")]
+        worker_config: Option<PathBuf>,
     },
 
-    /// Show the materialized config at a tier (bare/default/env/...).
+    /// Print the config at a tier (`bare`/`default`/`env`/...), or — with
+    /// `--effective` — the config this exact invocation resolves: every
+    /// file, `--config`, `TEND_*` env, flag and `--set` folded. Add
+    /// `--provenance` to see which layer set each value.
     ConfigShow(shikumi::cli::ConfigShowCommand),
+
+    /// Print the JSON Schema of tend's config (the committed
+    /// `schema/tend-config.schema.json`).
+    ConfigSchema,
 }
 
 #[derive(Subcommand)]
 enum CargoTargetAction {
     /// Show every target dir with its size, idle days and verdict. Deletes nothing.
     Report {
-        #[arg(long)]
-        config: Option<PathBuf>,
         #[arg(long)]
         workspace: Option<String>,
         /// Emit the report as JSON.
@@ -723,8 +527,6 @@ enum CargoTargetAction {
     },
     /// Remove the directories the policy selects.
     Apply {
-        #[arg(long)]
-        config: Option<PathBuf>,
         #[arg(long)]
         workspace: Option<String>,
         /// Decide and report without deleting.
@@ -740,22 +542,13 @@ enum HookEvent {
     #[command(
         about = "Stop: block once when repos touched this session are dirty or hold unpushed commits"
     )]
-    Stop {
-        #[arg(long)]
-        config: Option<PathBuf>,
-    },
+    Stop,
     #[command(about = "SessionStart: add the workspace's problem repos to the session's context")]
-    SessionStart {
-        #[arg(long)]
-        config: Option<PathBuf>,
-    },
+    SessionStart,
     #[command(
         about = "Refresh the status snapshot SessionStart reads (the daemon does this every cycle)"
     )]
-    Snapshot {
-        #[arg(long)]
-        config: Option<PathBuf>,
-    },
+    Snapshot,
 }
 
 #[derive(Subcommand)]
@@ -821,6 +614,18 @@ enum WorktreeAction {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    // Every subcommand resolves its config through this one constructor:
+    // the operator's --config/--set, the global credential flags, and the
+    // subcommand's own typed partial (`sub`).
+    let config_args = cli.config.clone();
+    let github_overlay = flags::Overlay::overlay(&cli.github);
+    let loader = move |sub: serde_json::Value| {
+        config_layers::ConfigLoader::new(
+            config_args.clone(),
+            flags::merge([github_overlay.clone(), sub]),
+        )
+    };
+    let none = || serde_json::Value::Null;
 
     match cli.command {
         Commands::Mcp {
@@ -848,7 +653,13 @@ async fn main() -> Result<()> {
             }
         }
 
-        Commands::Pressure { path, max_inflight } => {
+        Commands::Pressure { path, flags } => {
+            // The concurrency the daemon is configured for — the same
+            // `reconcile.max_inflight` it resolves — unless overridden here.
+            let max_inflight = loader(flags::Overlay::overlay(&flags))
+                .load()?
+                .reconcile
+                .max_inflight;
             let path = path.unwrap_or(std::env::current_dir()?);
             let reader = pressure::SystemPressureReader { path: path.clone() };
             let reading = pressure::PressureReader::read(&reader)?;
@@ -875,11 +686,11 @@ async fn main() -> Result<()> {
         }
 
         Commands::Hook { event } => {
-            let (event, config_path) = match event {
-                HookEvent::Stop { config } => (hook::Event::Stop, config),
-                HookEvent::SessionStart { config } => (hook::Event::SessionStart, config),
-                HookEvent::Snapshot { config } => {
-                    let cfg = load_config(config.as_deref())?;
+            let event = match event {
+                HookEvent::Stop => hook::Event::Stop,
+                HookEvent::SessionStart => hook::Event::SessionStart,
+                HookEvent::Snapshot => {
+                    let cfg = loader(none()).load()?;
                     let workspaces: Vec<&config::Workspace> = cfg.workspaces.iter().collect();
                     let path = scan::snapshot_path();
                     let snapshot = scan::refresh_snapshot(
@@ -899,35 +710,30 @@ async fn main() -> Result<()> {
             };
             let mut raw = String::new();
             let _ = std::io::Read::read_to_string(&mut std::io::stdin(), &mut raw);
-            if let Some(answer) = hook::run(event, load_config(config_path.as_deref()), &raw) {
+            if let Some(answer) = hook::run(event, loader(none()).load(), &raw) {
                 println!("{answer}");
             }
         }
 
         Commands::CargoTarget { action } => {
-            let (config_path, ws_filter, mode, json) = match action {
-                CargoTargetAction::Report {
-                    config,
-                    workspace,
-                    json,
-                } => (config, workspace, cargo_target::Mode::DryRun, json),
+            let (ws_filter, mode, json, overlay) = match action {
+                CargoTargetAction::Report { workspace, json } => {
+                    (workspace, cargo_target::Mode::DryRun, json, none())
+                }
+                // `--dry-run` is `cargo_target.dry_run: true` for this run;
+                // `sweep` honours the config's dry_run over the mode.
                 CargoTargetAction::Apply {
-                    config,
                     workspace,
                     dry_run,
                     json,
                 } => (
-                    config,
                     workspace,
-                    if dry_run {
-                        cargo_target::Mode::DryRun
-                    } else {
-                        cargo_target::Mode::Apply
-                    },
+                    cargo_target::Mode::Apply,
                     json,
+                    flags::cargo_target_overlay(dry_run),
                 ),
             };
-            let cfg = load_config(config_path.as_deref())?;
+            let cfg = loader(overlay).load()?;
             let workspaces = filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())?;
             let repos = daemon::daemon_repo_paths(&workspaces);
             let probe = workspaces
@@ -1079,12 +885,11 @@ async fn main() -> Result<()> {
         }
 
         Commands::Sync {
-            config: config_path,
             workspace: ws_filter,
             quiet,
             refresh,
         } => {
-            let cfg = load_config(config_path.as_deref())?;
+            let cfg = loader(none()).load()?;
             let mut degraded = reach::Degradations::default();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
                 let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await
@@ -1107,12 +912,11 @@ async fn main() -> Result<()> {
         }
 
         Commands::Pull {
-            config: config_path,
             workspace: ws_filter,
             quiet,
             refresh,
         } => {
-            let cfg = load_config(config_path.as_deref())?;
+            let cfg = loader(none()).load()?;
             let mut degraded = reach::Degradations::default();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
                 let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await
@@ -1133,13 +937,12 @@ async fn main() -> Result<()> {
         }
 
         Commands::NixpkgsAlign {
-            config: config_path,
             workspace: ws_filter,
             repos: only,
             apply,
         } => {
             use crate::nixpkgs_align::{align_one_repo, substrate_canonical_rev, AlignReport};
-            let cfg = load_config(config_path.as_deref())?;
+            let cfg = loader(none()).load()?;
             let git = crate::git::SystemGitOps;
             let mut degraded = reach::Degradations::default();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
@@ -1358,15 +1161,12 @@ async fn main() -> Result<()> {
             }
         }
 
-        Commands::Adopt {
-            config: config_path,
-            workspace,
-            repo,
-        } => {
+        Commands::Adopt { workspace, repo } => {
             // Validate the workspace exists + the repo dir is on disk
             // BEFORE touching the config file, so a typo doesn't
             // corrupt the YAML.
-            let cfg = load_config(config_path.as_deref())?;
+            let adopt_loader = loader(none());
+            let cfg = adopt_loader.load()?;
             let ws = cfg
                 .workspaces
                 .iter()
@@ -1390,10 +1190,9 @@ async fn main() -> Result<()> {
                 // serde_yaml_ng::Value lets us navigate the document
                 // structurally rather than splicing text, so the YAML
                 // type system stays load-bearing.
-                let cfg_path = match config_path {
-                    Some(p) => p.to_path_buf(),
-                    None => config::Config::default_path(),
-                };
+                // The last `--config`, else the discovered file: the file
+                // the operator owns, never a merged view of several.
+                let cfg_path = adopt_loader.edit_target();
                 let content = std::fs::read_to_string(&cfg_path)
                     .with_context(|| format!("reading {}", cfg_path.display()))?;
                 let mut doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)
@@ -1472,12 +1271,12 @@ async fn main() -> Result<()> {
         }
 
         Commands::Reconcile {
-            config: config_path,
             workspace: ws_filter,
             refresh,
-            max_inflight,
+            flags,
         } => {
-            let cfg = load_config(config_path.as_deref())?;
+            let cfg = loader(flags::Overlay::overlay(&flags)).load()?;
+            let max_inflight = cfg.reconcile.max_inflight;
             let mut any_failed = false;
             // Same transition log as the daemon path — operator can
             // grep one file across both `tend daemon` and `tend reconcile`.
@@ -1517,14 +1316,14 @@ async fn main() -> Result<()> {
         }
 
         Commands::Status {
-            config: config_path,
             workspace: ws_filter,
             refresh,
             json,
             problems,
             no_fix,
         } => {
-            let cfg = load_config(config_path.as_deref())?;
+            // `--no-fix` is `host_health.fix: false` for this invocation.
+            let cfg = loader(flags::status_overlay(no_fix)).load()?;
             let mut rows: Vec<display::StatusJsonRow> = Vec::new();
             // Every worktree this pass actually saw -- the input to the
             // orphaned-index.lock reap below. Collected here rather than
@@ -1587,7 +1386,7 @@ async fn main() -> Result<()> {
                     &host_health::SystemLockProbe,
                     &cfg.host_health.watched_commands,
                     cfg.host_health.fd_pressure_threshold,
-                    cfg.host_health.fix && !no_fix,
+                    cfg.host_health.fix,
                     &seen_repos,
                     cfg.host_health.stale_lock_min_age_secs,
                     &host_audit,
@@ -1664,11 +1463,10 @@ async fn main() -> Result<()> {
         }
 
         Commands::List {
-            config: config_path,
             workspace: ws_filter,
             refresh,
         } => {
-            let cfg = load_config(config_path.as_deref())?;
+            let cfg = loader(none()).load()?;
             let mut degraded = reach::Degradations::default();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
                 let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await
@@ -1695,7 +1493,6 @@ async fn main() -> Result<()> {
         Commands::FlakeUpdate {
             changed,
             all,
-            config: config_path,
             workspace: ws_filter,
             dry_run,
             quiet,
@@ -1707,7 +1504,7 @@ async fn main() -> Result<()> {
                 anyhow::bail!("flake-update requires either --changed <repo> or --all");
             }
 
-            let cfg = load_config(config_path.as_deref())?;
+            let cfg = loader(none()).load()?;
             let opts = flake::ExecOptions {
                 // Verification ON by default — an unverified lock is how a
                 // withdrawn upstream reached main and stopped the fleet.
@@ -1887,57 +1684,19 @@ async fn main() -> Result<()> {
         }
 
         Commands::FlakeUpdateDaemon {
-            config: config_path,
             workspace: ws_filter,
-            min_interval,
-            max_interval,
-            quiet,
-            github_token_file,
+            flags,
         } => {
-            if let Some(ref token_path) = github_token_file {
-                let token = std::fs::read_to_string(token_path)
-                    .with_context(|| format!("reading token from {}", token_path.display()))?;
-                std::env::set_var("GITHUB_TOKEN", token.trim());
-            }
-
-            run_flake_update_daemon(config_path, ws_filter, min_interval, max_interval, quiet)
-                .await?;
+            run_flake_update_daemon(loader(flags::Overlay::overlay(&flags)), ws_filter).await?;
         }
 
         Commands::Prebuild {
-            config: config_path,
             workspace: ws_filter,
-            quiet,
-            max_inflight,
-            attic_cache,
-            attic_server,
-            attic_url,
-            attic_token_file,
-            packages,
-            repro,
-            caches_json,
+            flags,
         } => {
-            let cfg = load_config(config_path.as_deref())?;
-            let opts = prebuild::PrebuildOptions {
-                quiet,
-                max_inflight,
-                attic: build_attic_push(
-                    attic_cache.as_deref(),
-                    &attic_server,
-                    attic_url.as_deref(),
-                    attic_token_file.as_deref(),
-                )?,
-                selector: prebuild_cache::PackageSelector::parse(&packages),
-                repro: prebuild_cache::ReproPolicy::parse(&repro),
-                caches: prebuild_cache::parse_caches_json(&caches_json).unwrap_or_else(|e| {
-                    eprintln!("[prebuild] invalid --caches-json, using single cache: {e}");
-                    Vec::new()
-                }),
-                ..Default::default()
-            };
+            let cfg = loader(flags::Overlay::overlay(&flags)).load()?;
+            let opts = prebuild::PrebuildOptions::from_config(&cfg.prebuild)?;
             let audit = audit::AuditLog::default_path();
-            // run_cycle overlays the config's prebuild block
-            // (packages/caches/repro/systems) onto these CLI options.
             let summary = prebuild::run_cycle(&cfg, ws_filter.as_deref(), &opts, &audit).await?;
             println!(
                 "prebuild: {} built, {} no-change, {} no-default, {} failed, {} pushed",
@@ -1950,58 +1709,17 @@ async fn main() -> Result<()> {
         }
 
         Commands::PrebuildDaemon {
-            config: config_path,
             workspace: ws_filter,
-            min_interval,
-            max_interval,
-            max_inflight,
-            quiet,
-            attic_cache,
-            attic_server,
-            attic_url,
-            attic_token_file,
-            attic_probe,
-            attic_unreachable_min_interval,
-            attic_unreachable_max_interval,
-            attic_probe_timeout,
-            packages,
-            repro,
-            caches_json,
+            flags,
         } => {
-            // The probe is meaningful only when we know where attic
-            // lives. Enable it iff requested AND a URL is present.
-            let reachability = prebuild::ReachabilityOptions {
-                enabled: attic_probe && attic_url.is_some(),
-                url: attic_url.clone().unwrap_or_default(),
-                min_interval: attic_unreachable_min_interval,
-                max_interval: attic_unreachable_max_interval,
-                probe_timeout: attic_probe_timeout,
-            };
-            run_prebuild_daemon(
-                config_path,
-                ws_filter,
-                min_interval,
-                max_interval,
-                max_inflight,
-                quiet,
-                attic_cache,
-                attic_server,
-                attic_url,
-                attic_token_file,
-                reachability,
-                packages,
-                repro,
-                caches_json,
-            )
-            .await?;
+            run_prebuild_daemon(loader(flags::Overlay::overlay(&flags)), ws_filter).await?;
         }
 
         Commands::Watch {
-            config: config_path,
             workspace: ws_filter,
             refresh: _refresh,
         } => {
-            let cfg = load_config(config_path.as_deref())?;
+            let cfg = loader(none()).load()?;
             let audit_log = audit::AuditLog::default_path();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
                 if let Some(ref watch_cfg) = ws.watch {
@@ -2103,25 +1821,12 @@ async fn main() -> Result<()> {
         }
 
         Commands::Daemon {
-            config: config_path,
             workspace: ws_filter,
-            interval,
-            pull,
-            fetch,
-            quiet,
-            github_token_file,
-            max_inflight,
+            flags,
         } => {
-            // In launchd/systemd environments, env vars may not be inherited.
-            // Read the token from a file and set GITHUB_TOKEN for provider discovery.
-            // The path is also threaded into DaemonOpts below so a SIGHUP poke can
-            // re-read it and refresh this cache without a restart.
-            if let Some(ref token_path) = github_token_file {
-                let token = std::fs::read_to_string(token_path)
-                    .with_context(|| format!("reading token from {}", token_path.display()))?;
-                std::env::set_var("GITHUB_TOKEN", token.trim());
-            }
-
+            // No token plumbing here any more: `--github-token-file` (now on
+            // every subcommand) is a partial over `github_auth`, resolved on
+            // each use and re-read every cycle — see src/gh_auth.rs.
             // Open the kanshou introspection socket so operators can
             // query the live tend daemon — ticks completed, current
             // workspace/repo, pull/fetch counters — via
@@ -2142,14 +1847,8 @@ async fn main() -> Result<()> {
 
             daemon::run_with_kanshou(
                 daemon::DaemonOpts {
-                    config: config_path,
+                    loader: loader(flags::Overlay::overlay(&flags)),
                     workspace: ws_filter,
-                    interval,
-                    pull,
-                    fetch,
-                    quiet,
-                    max_inflight,
-                    github_token_file,
                 },
                 kanshou_state,
             )
@@ -2157,10 +1856,9 @@ async fn main() -> Result<()> {
         }
 
         Commands::ReleaseSwarmPlan {
-            config: config_path,
             workspace: ws_filter,
         } => {
-            let cfg = load_config(config_path.as_deref())?;
+            let cfg = loader(none()).load()?;
             let audit_log = audit::AuditLog::default_path();
             let mut total_eligible = 0usize;
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
@@ -2221,11 +1919,10 @@ async fn main() -> Result<()> {
         }
 
         Commands::ReleaseSwarmApply {
-            config: config_path,
             workspace: ws_filter,
             dry_run,
         } => {
-            let cfg = load_config(config_path.as_deref())?;
+            let cfg = loader(none()).load()?;
             let audit_log = audit::AuditLog::default_path();
             // Render fn stub — produces the canonical 3-target workflow YAML
             // derived from repo_name + binary_name. Later swapped for a call
@@ -2246,14 +1943,15 @@ async fn main() -> Result<()> {
                     let mock = MockReleaseSwarmApi;
                     release_swarm::apply_swarm(&mock, swarm_cfg, dry_run, render).await?
                 } else {
-                    let token = provider::github_token().ok_or_else(|| {
+                    let token = gh_auth::token().ok_or_else(|| {
                         anyhow::anyhow!(
-                            "GITHUB_TOKEN not set — release-swarm apply needs a PAT \
-                             with repo write scope"
+                            "no GitHub token from `github_auth` — release-swarm apply needs \
+                             one with repo write scope (see `tend config-show --effective`)"
                         )
                     })?;
-                    let api =
-                        release_swarm_http::HttpReleaseSwarmApi::new(token.expose().to_string())?;
+                    let api = release_swarm_http::HttpReleaseSwarmApi::new(
+                        token.expose_for_header().to_string(),
+                    )?;
                     release_swarm::apply_swarm(&api, swarm_cfg, dry_run, render).await?
                 };
                 for r in &reports {
@@ -2315,13 +2013,28 @@ async fn main() -> Result<()> {
             operator::run().await?;
         }
         #[cfg(feature = "operator")]
-        Commands::Throttle { config } => {
-            operator::throttle::run(config.as_deref()).await?;
+        Commands::Throttle { worker_config } => {
+            operator::throttle::run(worker_config.as_deref()).await?;
         }
 
         Commands::ConfigShow(cmd) => {
-            cmd.run::<config::Config>("TEND_TIER")
-                .map_err(|e| anyhow::anyhow!("config-show failed: {e}"))?;
+            if cmd.effective {
+                // The same fold every subcommand runs, with this
+                // invocation's --config/--set/credential flags applied.
+                let resolved = loader(none()).resolve()?;
+                print!(
+                    "{}",
+                    cmd.render_effective(&resolved)
+                        .map_err(|e| anyhow::anyhow!("config-show failed: {e}"))?
+                );
+            } else {
+                cmd.run::<config::Config>("TEND_TIER")
+                    .map_err(|e| anyhow::anyhow!("config-show failed: {e}"))?;
+            }
+        }
+
+        Commands::ConfigSchema => {
+            println!("{}", serde_json::to_string_pretty(&schema::config_schema())?);
         }
     }
 
@@ -2341,23 +2054,29 @@ pub(crate) fn env_flag_enabled(name: &str) -> bool {
     }
 }
 
+/// Resolve the config with no flag overlay — the K8s operator's and MCP's
+/// entry: the discovered file (or `path` as a `--config` override), env.
 pub(crate) fn load_config(path: Option<&std::path::Path>) -> Result<config::Config> {
-    let config_path = match path {
-        Some(p) => p.to_path_buf(),
-        None => config::Config::default_path(),
+    let args = shikumi::cli::ConfigArgs {
+        config: path.map(std::path::Path::to_path_buf).into_iter().collect(),
+        set: Vec::new(),
     };
-    config::Config::load(&config_path)
+    config_layers::ConfigLoader::new(args, serde_json::Value::Null).load()
 }
 
 async fn run_flake_update_daemon(
-    config_path: Option<PathBuf>,
+    loader: config_layers::ConfigLoader,
     ws_filter: Option<String>,
-    min_interval: u64,
-    max_interval: u64,
-    quiet: bool,
 ) -> Result<()> {
-    let min = min_interval.max(1);
-    let max = max_interval.max(min);
+    // Pacing is config (`flake_update_daemon.*`), re-resolved every cycle
+    // with the same flag overlay, so an edit takes effect without a restart
+    // while a flag keeps beating the file.
+    let pacing = |cfg: &config::FlakeUpdateDaemonConfig| {
+        let min = cfg.min_interval.max(1);
+        (min, cfg.max_interval.max(min), cfg.quiet)
+    };
+    let first = loader.load()?;
+    let (min, max, quiet) = pacing(&first.flake_update_daemon);
     let mut interval = min;
     let audit_log = audit::AuditLog::default_path();
 
@@ -2372,7 +2091,21 @@ async fn run_flake_update_daemon(
             serde_json::json!({ "interval_secs": interval }),
         );
 
-        match run_flake_update_cycle(config_path.as_deref(), ws_filter.as_deref(), quiet).await {
+        let cycle = match loader.load() {
+            Ok(cfg) => {
+                gh_auth::credentials().begin_cycle();
+                let (min, max, quiet) = pacing(&cfg.flake_update_daemon);
+                (
+                    min,
+                    max,
+                    quiet,
+                    run_flake_update_cycle(&cfg, ws_filter.as_deref(), quiet).await,
+                )
+            }
+            Err(e) => (min, max, quiet, Err(e)),
+        };
+        let (min, max, quiet, outcome) = cycle;
+        match outcome {
             Ok(summary) => {
                 let duration_ms = cycle_start.elapsed().as_millis() as u64;
                 audit_log.log(
@@ -2387,7 +2120,7 @@ async fn run_flake_update_daemon(
                 if !summary.converged() {
                     interval = min;
                 } else {
-                    interval = (interval.saturating_mul(2)).min(max);
+                    interval = (interval.saturating_mul(2)).clamp(min, max);
                 }
             }
             Err(e) => {
@@ -2408,11 +2141,10 @@ async fn run_flake_update_daemon(
 }
 
 async fn run_flake_update_cycle(
-    config_path: Option<&std::path::Path>,
+    cfg: &config::Config,
     ws_filter: Option<&str>,
     quiet: bool,
 ) -> Result<flake::ExecSummary> {
-    let cfg = load_config(config_path)?;
     let opts = flake::ExecOptions {
         // Verification ON by default — an unverified lock is how a
         // withdrawn upstream reached main and stopped the fleet.
@@ -2454,55 +2186,25 @@ async fn run_flake_update_cycle(
     Ok(summary)
 }
 
-/// Translate CLI flags into a `prebuild::AtticPush`. Returns `None`
-/// if no cache is configured (i.e. build-only mode). Returns an
-/// `Err` if a cache is named but the URL/token are missing, because
-/// that's almost certainly an operator mistake we want to surface
-/// loudly rather than silently building without pushing.
-fn build_attic_push(
-    cache_name: Option<&str>,
-    server_name: &str,
-    server_url: Option<&str>,
-    token_file: Option<&std::path::Path>,
-) -> Result<Option<prebuild::AtticPush>> {
-    let Some(cache) = cache_name else {
-        return Ok(None);
-    };
-    let url = server_url
-        .ok_or_else(|| anyhow::anyhow!("--attic-url is required when --attic-cache is set"))?;
-    let token = token_file.ok_or_else(|| {
-        anyhow::anyhow!("--attic-token-file is required when --attic-cache is set")
-    })?;
-    Ok(Some(prebuild::AtticPush {
-        cache_name: cache.to_string(),
-        server_name: server_name.to_string(),
-        server_url: url.to_string(),
-        token_file: token.to_path_buf(),
-    }))
-}
-
-#[allow(clippy::too_many_arguments)]
 async fn run_prebuild_daemon(
-    config_path: Option<PathBuf>,
+    loader: config_layers::ConfigLoader,
     ws_filter: Option<String>,
-    min_interval: u64,
-    max_interval: u64,
-    max_inflight: usize,
-    quiet: bool,
-    attic_cache: Option<String>,
-    attic_server: String,
-    attic_url: Option<String>,
-    attic_token_file: Option<PathBuf>,
-    reachability: prebuild::ReachabilityOptions,
-    packages: String,
-    repro: String,
-    caches_json: String,
 ) -> Result<()> {
     use std::sync::Arc;
     use tokio::sync::Notify;
 
-    let min = min_interval.max(1);
-    let max = max_interval.max(min);
+    // Pacing, probe and fill settings are the top-level `prebuild:` config,
+    // re-resolved each cycle with the same flag overlay — so a flag beats
+    // the file, and a file edit lands without a restart.
+    let first = loader.load()?;
+    let pacing = |p: &config::PrebuildConfig| {
+        let min = p.min_interval.max(1);
+        (min, p.max_interval.max(min))
+    };
+    let (mut min, mut max) = pacing(&first.prebuild);
+    let mut reachability = prebuild::ReachabilityOptions::from_config(&first.prebuild);
+    let quiet = first.prebuild.quiet;
+    let max_inflight = first.prebuild.max_inflight;
     let mut interval = min;
     let audit = audit::AuditLog::default_path();
 
@@ -2516,10 +2218,13 @@ async fn run_prebuild_daemon(
     // config: file changes wake the daemon mid-sleep, the next
     // cycle runs immediately against the fresh config — no restart,
     // no waiting for the exp-backoff window to close.
-    let resolved_path: PathBuf = match config_path.as_ref() {
-        Some(p) => p.clone(),
-        None => config::Config::default_path(),
-    };
+    // Watch the first file the fold reads (the discovered file, else the
+    // first --config); with none on disk, the path `tend init` would create.
+    let resolved_path: PathBuf = loader
+        .files()
+        .into_iter()
+        .next()
+        .unwrap_or_else(config::Config::default_path);
 
     let reload_signal = Arc::new(Notify::new());
     let watch_signal = Arc::clone(&reload_signal);
@@ -2630,24 +2335,10 @@ async fn run_prebuild_daemon(
         // which wakes the sleep below — so config edits propagate
         // within milliseconds, not within one backoff interval.
         let cycle_result: Result<prebuild::PrebuildSummary> = async {
-            let cfg = load_config(config_path.as_deref())?;
-            let opts = prebuild::PrebuildOptions {
-                quiet,
-                max_inflight,
-                attic: build_attic_push(
-                    attic_cache.as_deref(),
-                    &attic_server,
-                    attic_url.as_deref(),
-                    attic_token_file.as_deref(),
-                )?,
-                selector: prebuild_cache::PackageSelector::parse(&packages),
-                repro: prebuild_cache::ReproPolicy::parse(&repro),
-                caches: prebuild_cache::parse_caches_json(&caches_json).unwrap_or_else(|e| {
-                    eprintln!("[prebuild] invalid --caches-json, using single cache: {e}");
-                    Vec::new()
-                }),
-                ..Default::default()
-            };
+            let cfg = loader.load()?;
+            (min, max) = pacing(&cfg.prebuild);
+            reachability = prebuild::ReachabilityOptions::from_config(&cfg.prebuild);
+            let opts = prebuild::PrebuildOptions::from_config(&cfg.prebuild)?;
             prebuild::run_cycle(&cfg, ws_filter.as_deref(), &opts, &audit).await
         }
         .await;

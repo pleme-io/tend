@@ -45,17 +45,57 @@ and automates version certification pipelines.
 | `list` | List configured repos |
 | `discover` | Discover repos from a GitHub org |
 | `watch` | Run watch cycle once (detect new versions) |
-| `daemon` | Persistent loop: sync + fetch + watch (300s default) |
+| `daemon` | Persistent loop: sync + fetch + watch (`daemon.interval`, default 300s) |
 | `flake-update` | Propagate nix flake updates through dependency chain |
 | `init` | Generate starter config |
 | `cargo-target report\|apply` | Size, idle days and verdict for every cargo `target/` dir; `apply` removes what the policy selects |
+| `config-show [--effective [--provenance]]` | The config at a tier, or the one this invocation resolves and which layer set each leaf |
+| `config-schema` | The config's JSON Schema (`schema/tend-config.schema.json`) |
+
+## Config — one fold, flags are partials
+
+`Config` (src/config.rs) resolves ONLY through `config_layers::ConfigLoader`
+— shikumi's operator fold: computed tiers → discovered file (`$TEND_CONFIG`,
+`tend/tend.yaml`, legacy `tend/config.yaml`) → each `--config` → `TEND_*`
+env → the subcommand's typed flags (src/flags.rs) → each `--set`. A flag is
+an `Option` whose serde shape IS the config path it sets (`--interval` →
+`daemon.interval`); an absent flag contributes nothing, so there is one
+default per knob, in `TieredConfig::prescribed_default`. Never give a config
+flag a clap `default_value` — that silently beats the file again.
+
+Three tend-specific rules in the loader: the env layer admits only `TEND_*`
+names whose first segment is a config key (`TEND_STATE_DIR` and friends are
+runtime env, and shikumi's strict extraction would otherwise refuse the whole
+config); the legacy per-workspace `prebuild:` block is hoisted to the
+top-level section in its own layer; `github_auth` is a LIST because shikumi
+merges maps and a one-key-map sum type would merge into two keys.
+
+The schema is golden-tested (`BLESS=1 cargo test schema` regenerates) and
+held to what substrate's `jsonSchema.optionsFromJsonSchema` maps (no
+`pattern`/`minLength`/tuples/...); the flake exports it as `lib.configSchema`.
+
+## GitHub credential — one chain, one handle
+
+`github_auth:` (default: shikumi's `GithubAuth::default_chain("tend")`)
+is resolved by `gh_auth` with ONE process-lifetime `GithubAuthResolver`
+(App installation tokens cached + refreshed). Every caller asks
+`gh_auth::token()` and renders through `GithubToken` (`expose_for_header`
+for REST, `gh_auth::git_auth` = per-process `GIT_CONFIG_*` extraheader for
+git, `nix_access_tokens_line` for nix). Never `set_var("GITHUB_TOKEN")`,
+never read the env for a token directly, never put a token in argv or a URL.
+The token is memoized 60s; `begin_cycle()` (daemon cycle, SIGHUP) re-walks
+the chain and logs the answering source once (`github_auth_resolved`).
 
 ## Architecture
 
 ```
 src/
 ├── main.rs          # clap CLI dispatch (9 subcommands)
-├── config.rs        # YAML config types (Workspace, WatchConfig, CloneMethod)
+├── config.rs        # Config types (Workspace, DaemonConfig, PrebuildConfig, GithubAuthSources)
+├── config_layers.rs # The one config load path (shikumi fold, env filter, legacy hoist)
+├── flags.rs         # CLI flags as typed partials of Config
+├── gh_auth.rs       # The one GitHub credential handle (shikumi GithubAuth chain)
+├── schema.rs        # Config JSON Schema (golden: schema/tend-config.schema.json)
 ├── provider.rs      # GitHub API: discovery, HEAD, tags, language detection
 ├── sync.rs          # Repo resolution, cloning, status (RepoObservation → verdict + RepoFacts), fetching
 ├── scan.rs          # On-disk repo enumeration, bounded parallel classification, touched filter, status snapshot

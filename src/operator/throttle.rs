@@ -132,8 +132,12 @@ impl TendGithubApi {
     /// the worker is robust when run outside a samba context too
     /// (e.g. CLI smoke-test).
     pub fn from_env() -> Result<Self> {
-        let token = load_github_token().context(
-            "GITHUB_TOKEN env var unset — refusing to run unauthenticated \
+        // Probe once so a worker with no credential refuses to start;
+        // the resolver then re-resolves per request (`TokenSource::Live`),
+        // so a GitHub App installation token is refreshed before it
+        // expires instead of dying an hour into a long-lived worker.
+        load_github_token().context(
+            "no GitHub token from `github_auth` — refusing to run unauthenticated \
              (60 req/hr per IP defeats the throttle)",
         )?;
         let http = reqwest::Client::builder()
@@ -142,7 +146,7 @@ impl TendGithubApi {
             .context("building reqwest client")?;
         let resolver = ReqwestHeadResolver::new(
             http,
-            Some(token.expose().to_string()),
+            super::discovery::TokenSource::Live,
             Arc::new(super::budget::pacer_from_env()),
         );
         Ok(Self {
@@ -245,10 +249,8 @@ pub async fn run(config_path: Option<&Path>) -> Result<()> {
     Ok(())
 }
 
-/// Delegates to `provider::github_token`. This used to be its own
-/// env-only lookup, so a deployment relying on the
-/// `~/.config/github/token` fallback authenticated everywhere except
-/// here.
-fn load_github_token() -> Option<crate::secret::Secret> {
-    crate::provider::github_token()
+/// The configured `github_auth` chain — the same credential every other
+/// tend path resolves (see `src/gh_auth.rs`).
+fn load_github_token() -> Option<shikumi::github::GithubToken> {
+    crate::gh_auth::token()
 }

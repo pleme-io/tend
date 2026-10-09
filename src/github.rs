@@ -32,9 +32,11 @@ pub struct HttpGitHubClient {
 }
 
 impl HttpGitHubClient {
+    /// Authenticated by the configured `github_auth` chain, resolved now.
+    /// Construct one per cycle/command — an App installation token is
+    /// short-lived, and the chain memoizes, so this is cheap.
     pub fn new() -> Result<Self> {
-        let token = crate::provider::github_token();
-        let inner = todoku::GitHubClient::new(token.as_ref().map(crate::secret::Secret::expose))?;
+        let inner = crate::gh_auth::credentials().todoku_client(crate::provider::GITHUB_API)?;
         Ok(Self { inner })
     }
 }

@@ -142,9 +142,29 @@ fn graphql_batch_size() -> usize {
         .unwrap_or(DEFAULT_GRAPHQL_BATCH_SIZE)
 }
 
+/// Where a head resolver's bearer token comes from.
+#[derive(Debug, Clone)]
+pub enum TokenSource {
+    /// The configured `github_auth` chain, resolved per request (memoized
+    /// in `gh_auth`), so a short-lived App token is refreshed in place.
+    Live,
+    /// A fixed value (tests).
+    #[allow(dead_code)]
+    Fixed(Option<String>),
+}
+
+impl TokenSource {
+    fn current(&self) -> Option<String> {
+        match self {
+            Self::Live => crate::gh_auth::token().map(|t| t.expose_for_header().to_string()),
+            Self::Fixed(t) => t.clone(),
+        }
+    }
+}
+
 pub struct ReqwestHeadResolver {
     pub client: reqwest::Client,
-    pub token: Option<String>,
+    pub token: TokenSource,
     /// Shared rate-limit pacer — samba's `LeakyBucket`, the same
     /// canonical primitive `tend throttle`'s worker uses. Every
     /// head_conditional invocation awaits a token from this bucket
@@ -254,7 +274,7 @@ fn build_batch_query(targets: &[(usize, &UpstreamId)]) -> Result<String, anyhow:
 
 impl ReqwestHeadResolver {
     /// Construct with token + shared budget, fresh remaining + limit trackers.
-    pub fn new(client: reqwest::Client, token: Option<String>, budget: Arc<LeakyBucket>) -> Self {
+    pub fn new(client: reqwest::Client, token: TokenSource, budget: Arc<LeakyBucket>) -> Self {
         Self {
             client,
             token,
@@ -311,7 +331,7 @@ impl RegistryClient for ReqwestHeadResolver {
             .get(&url)
             .header("Accept", "application/vnd.github+json")
             .header("User-Agent", "tend-operator");
-        if let Some(t) = &self.token {
+        if let Some(t) = self.token.current() {
             req = req.bearer_auth(t);
         }
         // Conditional request: if we have a cached etag, ask GitHub
@@ -540,7 +560,7 @@ impl ReqwestHeadResolver {
             .post("https://api.github.com/graphql")
             .header("User-Agent", "tend-operator")
             .json(&body);
-        if let Some(t) = &self.token {
+        if let Some(t) = self.token.current() {
             req = req.bearer_auth(t);
         }
         let resp = req.send().await?;
