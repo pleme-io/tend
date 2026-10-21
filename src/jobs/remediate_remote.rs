@@ -286,7 +286,11 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         repo_with_remote(tmp.path(), "https://github.com/pleme-io/tend.git");
         Command::new("git")
-            .args(["config", "url.git@github.com:.insteadOf", "https://github.com/"])
+            .args([
+                "config",
+                "url.git@github.com:.insteadOf",
+                "https://github.com/",
+            ])
             .current_dir(tmp.path())
             .status()
             .unwrap();
@@ -295,7 +299,10 @@ mod tests {
             remediate_one(tmp.path(), &CloneMethod::Https).unwrap(),
             RemediateRemoteOutcome::AlreadyConforming
         );
-        assert_eq!(origin_url(tmp.path()), "https://github.com/pleme-io/tend.git");
+        assert_eq!(
+            origin_url(tmp.path()),
+            "https://github.com/pleme-io/tend.git"
+        );
     }
 
     #[test]

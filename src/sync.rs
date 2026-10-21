@@ -1063,7 +1063,11 @@ fn head_sha(repo_path: &Path) -> Option<String> {
         return None;
     }
     let sha = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if sha.is_empty() { None } else { Some(sha) }
+    if sha.is_empty() {
+        None
+    } else {
+        Some(sha)
+    }
 }
 
 /// Pull one repo. The unit shared by the batch driver and the

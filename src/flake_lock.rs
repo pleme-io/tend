@@ -63,9 +63,11 @@ impl FlakeLock {
             if locked.kind != "github" {
                 continue;
             }
-            let (Some(owner), Some(repo), Some(rev)) =
-                (locked.owner.clone(), locked.repo.clone(), locked.rev.clone())
-            else {
+            let (Some(owner), Some(repo), Some(rev)) = (
+                locked.owner.clone(),
+                locked.repo.clone(),
+                locked.rev.clone(),
+            ) else {
                 continue;
             };
             let tracked_ref = node
@@ -468,16 +470,28 @@ mod tests {
     fn an_input_name_resolves_through_the_root_not_the_node_key() {
         let lock = FlakeLock::parse(SHADOWED).unwrap();
         let np = lock.locked_input("nixpkgs").unwrap();
-        assert_eq!(np.rev, "root-own", "read the transitive node that holds the plain name");
-        assert_eq!(np.tracked_ref, "nixos-25.11", "the declared branch lives in `original`");
+        assert_eq!(
+            np.rev, "root-own",
+            "read the transitive node that holds the plain name"
+        );
+        assert_eq!(
+            np.tracked_ref, "nixos-25.11",
+            "the declared branch lives in `original`"
+        );
     }
 
     #[test]
     fn a_follows_input_resolves_to_the_node_it_follows() {
         let lock = FlakeLock::parse(SHADOWED).unwrap();
-        assert_eq!(lock.locked_input("pkgs-via-substrate").unwrap().rev, "substrate-pin");
+        assert_eq!(
+            lock.locked_input("pkgs-via-substrate").unwrap().rev,
+            "substrate-pin"
+        );
         // A follow of a follow: blue's nixpkgs itself follows substrate/nixpkgs.
-        assert_eq!(lock.locked_input("pkgs-via-blue").unwrap().rev, "substrate-pin");
+        assert_eq!(
+            lock.locked_input("pkgs-via-blue").unwrap().rev,
+            "substrate-pin"
+        );
     }
 
     #[test]
@@ -489,13 +503,19 @@ mod tests {
           "root": "root", "version": 7 }"#;
         let lock = ExtendedLockFile::parse(cyclic).unwrap();
         assert!(lock.root_input("x").is_none());
-        assert!(FlakeLock::parse(cyclic).unwrap().locked_input("x").is_none());
+        assert!(FlakeLock::parse(cyclic)
+            .unwrap()
+            .locked_input("x")
+            .is_none());
     }
 
     #[test]
     fn a_pinned_commit_is_recorded_in_original() {
         let lock = ExtendedLockFile::parse(SHADOWED).unwrap();
         let sub = lock.root_input("pkgs-via-substrate").unwrap();
-        assert_eq!(sub.original.as_ref().unwrap().rev.as_deref(), Some("substrate-pin"));
+        assert_eq!(
+            sub.original.as_ref().unwrap().rev.as_deref(),
+            Some("substrate-pin")
+        );
     }
 }

@@ -516,6 +516,58 @@ async fn run_workspace_cycle(
         }
     }
 
+    if ws
+        .conditions
+        .enabled(crate::conditions::Condition::StaleFlakeLock)
+    {
+        let opts = crate::flake::ExecOptions {
+            skip_verify: false,
+            dry_run: false,
+            quiet,
+            auto_clone: false,
+            pull_before_update: true,
+            retry_on_push_reject: true,
+            prune_direnv: false,
+        };
+        match github::HttpGitHubClient::new() {
+            Ok(gh) => {
+                let upstream = crate::head_cache::CachedGitHubHead::new(&gh);
+                match crate::conditions::remedy_stale_flake_lock(ws, &upstream, opts).await {
+                    Ok(s) if !quiet || s.updated > 0 || s.blocked > 0 => println!(
+                        "{}: stale-flake-lock: {} updated, {} blocked",
+                        ws.name, s.updated, s.blocked
+                    ),
+                    Ok(_) => {}
+                    Err(e) => display::print_daemon_error(&ws.name, &e),
+                }
+            }
+            Err(e) => display::print_daemon_error(&ws.name, &e),
+        }
+    }
+
+    if ws
+        .conditions
+        .enabled(crate::conditions::Condition::UncleanGit)
+    {
+        if let Some(parent) = crate::audit::AuditLog::default_path().path().parent() {
+            let drift_path = parent.join("drift-events.jsonl");
+            if let Ok(sink) = crate::drift::AuditFileDriftSink::new(&drift_path) {
+                let n = crate::conditions::record_unclean(
+                    ws,
+                    &repos,
+                    &sink,
+                    std::time::SystemTime::now(),
+                );
+                if !quiet && n > 0 {
+                    println!(
+                        "{}: unclean-git: {n} repo(s) recorded for tend doctor",
+                        ws.name
+                    );
+                }
+            }
+        }
+    }
+
     // Watch: detect new versions if enabled
     if let Some(ref watch_cfg) = ws.watch {
         if watch_cfg.enable {

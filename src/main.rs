@@ -8,6 +8,7 @@ mod audit;
 mod cache;
 mod cargo_target;
 mod ci_trim;
+mod conditions;
 mod config;
 mod config_layers;
 mod daemon;
@@ -31,6 +32,7 @@ mod anomaly;
 mod drift;
 mod failure;
 mod flake;
+mod flake_graph;
 mod flake_lock;
 mod git;
 mod github;
@@ -892,8 +894,7 @@ async fn main() -> Result<()> {
             let cfg = loader(none()).load()?;
             let mut degraded = reach::Degradations::default();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
-                let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await
-                else {
+                let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await else {
                     continue;
                 };
                 let (cloned, present, failed) = sync::sync_repos(ws, &repos, quiet).await?;
@@ -919,8 +920,7 @@ async fn main() -> Result<()> {
             let cfg = loader(none()).load()?;
             let mut degraded = reach::Degradations::default();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
-                let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await
-                else {
+                let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await else {
                     continue;
                 };
                 let summary = sync::pull_repos(ws, &repos, quiet).await?;
@@ -955,8 +955,7 @@ async fn main() -> Result<()> {
                     );
                     continue;
                 };
-                let Some(repos) = sync::resolve_or_degrade(ws, false, &mut degraded).await
-                else {
+                let Some(repos) = sync::resolve_or_degrade(ws, false, &mut degraded).await else {
                     continue;
                 };
                 let mut report = AlignReport::default();
@@ -1078,6 +1077,7 @@ async fn main() -> Result<()> {
                         drift::DriftEvent::RemoteUrlEmbeddedCredential { .. } => {
                             "remote-url-embedded-credential"
                         }
+                        drift::DriftEvent::UncleanAfterCycle { .. } => "unclean-after-cycle",
                         drift::DriftEvent::RemoteProtocolMismatch { .. } => {
                             "remote-protocol-mismatch"
                         }
@@ -1149,6 +1149,11 @@ async fn main() -> Result<()> {
                         )),
                         drift::DriftEvent::RemoteProtocolMismatch { repo_name, declared, actual, .. } => Some(format!(
                             "  remote protocol [{repo_name}]: origin uses {actual} but the workspace declares {declared} — `tend reconcile` converges it to the declared method"
+                        )),
+                        drift::DriftEvent::UncleanAfterCycle { repo_name, paths, age_secs, .. } => Some(format!(
+                            "  unclean [{repo_name}]: foreign work, untouched by tend, oldest change {}h ago: {}",
+                            age_secs / 3600,
+                            paths.join(", ")
                         )),
                         drift::DriftEvent::JobUnhealed { .. } => None,
                     };
@@ -1286,8 +1291,7 @@ async fn main() -> Result<()> {
                 .map(|p| p.join("scheduler-transitions.jsonl"));
             let mut degraded = reach::Degradations::default();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
-                let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await
-                else {
+                let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await else {
                     continue;
                 };
                 let receipt = reconcile::reconcile_workspace_pull(
@@ -1332,8 +1336,7 @@ async fn main() -> Result<()> {
             let mut seen_repos: Vec<std::path::PathBuf> = Vec::new();
             let mut degraded = reach::Degradations::default();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
-                let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await
-                else {
+                let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await else {
                     continue;
                 };
                 let entries = sync::check_status(ws, &repos).await?;
@@ -1469,8 +1472,7 @@ async fn main() -> Result<()> {
             let cfg = loader(none()).load()?;
             let mut degraded = reach::Degradations::default();
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
-                let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await
-                else {
+                let Some(repos) = sync::resolve_or_degrade(ws, refresh, &mut degraded).await else {
                     continue;
                 };
                 display::print_repo_list(&ws.name, &repos);
@@ -1525,20 +1527,31 @@ async fn main() -> Result<()> {
             let mut summary = flake::ExecSummary::default();
 
             for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
-                if ws.flake_deps.is_empty() {
+                let (graph, derive_skips) = flake_graph::FlakeGraph::for_workspace(ws)?;
+                if !quiet {
+                    for skip in &derive_skips {
+                        if let flake_graph::DeriveSkip::CycleEdge { repo, dep } = skip {
+                            eprintln!(
+                                "{}: cycle edge {repo} -> {dep} left for the next cycle",
+                                ws.name
+                            );
+                        }
+                    }
+                }
+                if graph.deps().is_empty() {
                     continue;
                 }
 
                 let (label, chain) = if all {
                     (
                         "(all)".to_string(),
-                        flake::compute_update_chain_all(&ws.flake_deps)?,
+                        graph.to_input_names(flake::compute_update_chain_all(graph.deps())?),
                     )
                 } else {
                     let trigger = changed.as_deref().expect("validated above");
                     (
                         trigger.to_string(),
-                        flake::compute_update_chain(trigger, &ws.flake_deps)?,
+                        graph.to_input_names(flake::compute_update_chain(trigger, graph.deps())?),
                     )
                 };
 
@@ -2161,21 +2174,7 @@ async fn run_flake_update_cycle(
 
     let mut summary = flake::ExecSummary::default();
     for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter)? {
-        if ws.flake_deps.is_empty() {
-            continue;
-        }
-        let chain = flake::compute_update_chain_all(&ws.flake_deps)?;
-        if chain.is_empty() {
-            continue;
-        }
-        let (chain, _dropped) = flake::filter_to_divergent(ws, chain, Some(&upstream)).await?;
-        if chain.is_empty() {
-            continue;
-        }
-        if !quiet {
-            display::print_flake_chain_header(&ws.name, "(daemon cycle)", &chain);
-        }
-        let ws_summary = flake::execute_update_chain(ws, &chain, opts)?;
+        let ws_summary = conditions::remedy_stale_flake_lock(ws, &upstream, opts).await?;
         summary.updated += ws_summary.updated;
         summary.no_change += ws_summary.no_change;
         summary.skipped += ws_summary.skipped;

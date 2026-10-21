@@ -353,6 +353,17 @@ fn format_drift_event(event: &DriftEvent) -> String {
         } => format!(
             "[{workspace}] {repo_name}: CREDENTIAL IN REMOTE URL — origin embeds {credential} ({slug}); token is sitting in .git/config"
         ),
+        DriftEvent::UncleanAfterCycle {
+            workspace,
+            repo_name,
+            paths,
+            age_secs,
+        } => format!(
+            "[{workspace}] {repo_name}: unclean after the cycle, {} path(s), oldest {}s: {}",
+            paths.len(),
+            age_secs,
+            paths.join(", ")
+        ),
         DriftEvent::RemoteProtocolMismatch {
             workspace,
             repo_name,

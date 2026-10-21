@@ -113,7 +113,9 @@ pub(crate) fn classify(lock: &ExtendedLockFile) -> Eligibility {
 /// GitHub owners and repos are case-insensitive: `nixos` is `NixOS`.
 fn is_github_nixpkgs(o: &ExtendedOriginal) -> bool {
     let is = |field: &Option<String>, want: &str| {
-        field.as_deref().is_some_and(|v| v.eq_ignore_ascii_case(want))
+        field
+            .as_deref()
+            .is_some_and(|v| v.eq_ignore_ascii_case(want))
     };
     o.kind == "github" && is(&o.owner, "nixos") && is(&o.repo, "nixpkgs")
 }
@@ -331,7 +333,9 @@ pub(crate) fn align_one_repo(
     // it precisely because the rule lived inline in the other one.
     if let Some(reason) = crate::flake::verify_flake_evaluates(repo) {
         let _ = restore();
-        return Ok(AlignOutcome::Failed(["does-not-evaluate:", reason.as_str()].concat()));
+        return Ok(AlignOutcome::Failed(
+            ["does-not-evaluate:", reason.as_str()].concat(),
+        ));
     }
     git.add(repo, flake_rel)?;
     git.add(repo, lock_rel)?;
@@ -391,7 +395,8 @@ impl AlignReport {
             Ok(AlignOutcome::Skipped(Skip::Dirty)) => self.dirty.push(name),
             Ok(AlignOutcome::Skipped(Skip::NoFlake)) => self.not_flakes += 1,
             Ok(AlignOutcome::Skipped(Skip::NoLock)) => {
-                self.blind.push((name, "flake.nix with no readable flake.lock".into()));
+                self.blind
+                    .push((name, "flake.nix with no readable flake.lock".into()));
             }
             Ok(AlignOutcome::Unrewritable(refusal)) => self.blind.push((name, refusal.to_string())),
             Ok(AlignOutcome::Failed(reason)) => self.failed.push((name, reason)),
@@ -405,7 +410,11 @@ mod tests {
     use super::*;
 
     fn lock(nixpkgs_decl: &str, nixpkgs_original: &str, with_substrate: bool) -> ExtendedLockFile {
-        let substrate = if with_substrate { r#", "substrate": "substrate""# } else { "" };
+        let substrate = if with_substrate {
+            r#", "substrate": "substrate""#
+        } else {
+            ""
+        };
         let json = [
             r#"{ "nodes": {
               "nixpkgs": { "locked": { "type": "github", "owner": "NixOS", "repo": "nixpkgs", "rev": "t" },
@@ -426,17 +435,23 @@ mod tests {
         ExtendedLockFile::parse(&json).unwrap()
     }
 
-    const BRANCH: &str = r#"{ "type": "github", "owner": "NixOS", "repo": "nixpkgs", "ref": "nixos-25.11" }"#;
+    const BRANCH: &str =
+        r#"{ "type": "github", "owner": "NixOS", "repo": "nixpkgs", "ref": "nixos-25.11" }"#;
 
     #[test]
     fn every_spelling_nix_parses_as_a_branch_is_movable() {
         // `github:nixos/nixpkgs?ref=nixos-25.11` — blue's spelling, missed by
         // the first version's one-spelling regex.
-        let query = r#"{ "type": "github", "owner": "nixos", "repo": "nixpkgs", "ref": "nixos-25.11" }"#;
+        let query =
+            r#"{ "type": "github", "owner": "nixos", "repo": "nixpkgs", "ref": "nixos-25.11" }"#;
         let unstable = r#"{ "type": "github", "owner": "NixOS", "repo": "nixpkgs", "ref": "nixpkgs-unstable" }"#;
         let default_branch = r#"{ "type": "github", "owner": "NixOS", "repo": "nixpkgs" }"#;
         for original in [BRANCH, query, unstable, default_branch] {
-            assert_eq!(classify(&lock(r#""nixpkgs_2""#, original, true)), Eligibility::Movable, "{original}");
+            assert_eq!(
+                classify(&lock(r#""nixpkgs_2""#, original, true)),
+                Eligibility::Movable,
+                "{original}"
+            );
         }
     }
 
@@ -445,8 +460,14 @@ mod tests {
         let pinned = r#"{ "type": "github", "owner": "NixOS", "repo": "nixpkgs", "rev": "6b316287bae2ee04c9b93c8c858d930fd07d7338" }"#;
         let fork = r#"{ "type": "github", "owner": "someone", "repo": "nixpkgs", "ref": "main" }"#;
         let tarball = r#"{ "type": "tarball", "url": "https://example.com/n.tar.gz" }"#;
-        assert_eq!(classify(&lock(r#""nixpkgs_2""#, pinned, true)), Eligibility::PinnedCommit);
-        assert_eq!(classify(&lock(r#""nixpkgs_2""#, BRANCH, false)), Eligibility::NoSubstrateInput);
+        assert_eq!(
+            classify(&lock(r#""nixpkgs_2""#, pinned, true)),
+            Eligibility::PinnedCommit
+        );
+        assert_eq!(
+            classify(&lock(r#""nixpkgs_2""#, BRANCH, false)),
+            Eligibility::NoSubstrateInput
+        );
         assert_eq!(
             classify(&lock(r#"["substrate", "nixpkgs"]"#, BRANCH, true)),
             Eligibility::FollowsSubstrate
@@ -471,7 +492,10 @@ mod tests {
         // root's own input is `nixpkgs_2`, pinned. Reading by node key would
         // call it movable.
         let pinned = r#"{ "type": "github", "owner": "NixOS", "repo": "nixpkgs", "rev": "6b316287bae2ee04c9b93c8c858d930fd07d7338" }"#;
-        assert_eq!(classify(&lock(r#""nixpkgs_2""#, pinned, true)), Eligibility::PinnedCommit);
+        assert_eq!(
+            classify(&lock(r#""nixpkgs_2""#, pinned, true)),
+            Eligibility::PinnedCommit
+        );
     }
 
     #[test]
@@ -512,21 +536,47 @@ mod tests {
     fn a_shape_the_rewriter_cannot_edit_is_refused_by_name() {
         let block = "  inputs = {\n    nixpkgs = {\n      url = \"github:NixOS/nixpkgs/nixos-25.11\";\n    };\n  };\n";
         assert_eq!(rewrite_flake(block), Err(RewriteRefusal::NoDeclarationLine));
-        let inline = "  inputs = { nixpkgs.url = \"github:NixOS/nixpkgs\"; substrate.url = \"x\"; };\n";
-        assert_eq!(rewrite_flake(inline), Err(RewriteRefusal::NoDeclarationLine));
+        let inline =
+            "  inputs = { nixpkgs.url = \"github:NixOS/nixpkgs\"; substrate.url = \"x\"; };\n";
+        assert_eq!(
+            rewrite_flake(inline),
+            Err(RewriteRefusal::NoDeclarationLine)
+        );
         let two = "    nixpkgs.url = \"a\";\n    nixpkgs.url = \"b\";\n";
-        assert_eq!(rewrite_flake(two), Err(RewriteRefusal::SeveralDeclarationLines(2)));
+        assert_eq!(
+            rewrite_flake(two),
+            Err(RewriteRefusal::SeveralDeclarationLines(2))
+        );
     }
 
     #[test]
     fn a_blind_spot_is_reported_by_name_and_never_counted_as_a_skip() {
         let mut report = AlignReport::default();
-        report.record("a", Ok(AlignOutcome::Unrewritable(RewriteRefusal::NoDeclarationLine)));
+        report.record(
+            "a",
+            Ok(AlignOutcome::Unrewritable(
+                RewriteRefusal::NoDeclarationLine,
+            )),
+        );
         report.record("b", Ok(AlignOutcome::Skipped(Skip::NoLock)));
-        report.record("c", Ok(AlignOutcome::Skipped(Skip::Ineligible(Eligibility::PinnedCommit))));
-        report.record("d", Ok(AlignOutcome::Skipped(Skip::Ineligible(Eligibility::FollowsSubstrate))));
+        report.record(
+            "c",
+            Ok(AlignOutcome::Skipped(Skip::Ineligible(
+                Eligibility::PinnedCommit,
+            ))),
+        );
+        report.record(
+            "d",
+            Ok(AlignOutcome::Skipped(Skip::Ineligible(
+                Eligibility::FollowsSubstrate,
+            ))),
+        );
         assert_eq!(
-            report.blind.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(),
+            report
+                .blind
+                .iter()
+                .map(|(n, _)| n.as_str())
+                .collect::<Vec<_>>(),
             ["a", "b"]
         );
         assert_eq!(report.by_design.get("pinned"), Some(&1));
@@ -541,8 +591,14 @@ mod tests {
             converged_or_stale(&follows, "t"),
             AlignOutcome::Skipped(Skip::Ineligible(Eligibility::FollowsSubstrate))
         );
-        assert_eq!(converged_or_stale(&follows, "canonical"), AlignOutcome::StaleLock("t".into()));
+        assert_eq!(
+            converged_or_stale(&follows, "canonical"),
+            AlignOutcome::StaleLock("t".into())
+        );
         // An empty canonical rev proves nothing, so it never reads as converged.
-        assert_eq!(converged_or_stale(&follows, ""), AlignOutcome::StaleLock("t".into()));
+        assert_eq!(
+            converged_or_stale(&follows, ""),
+            AlignOutcome::StaleLock("t".into())
+        );
     }
 }

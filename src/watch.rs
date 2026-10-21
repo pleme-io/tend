@@ -2039,7 +2039,6 @@ const fn refresh_action(has_changes: bool, auto_commit: bool) -> RefreshAction {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 

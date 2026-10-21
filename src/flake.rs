@@ -172,6 +172,15 @@ fn run_flake_check(repo_path: &std::path::Path, impure: bool) -> Result<std::pro
     run_bounded_sync(c, SUBPROCESS_DEADLINE_SECS, what)
 }
 
+pub(crate) fn lock_commit_message(inputs: &[String], verified: bool) -> String {
+    let head = format!("flake.lock: nix flake update {}", inputs.join(" "));
+    if verified {
+        format!("{head} (built: nix flake check --no-build)")
+    } else {
+        format!("{head} (unverified)")
+    }
+}
+
 /// Record a step as blocked and move on.
 ///
 /// A macro-free helper so every failure arm in the loop is IDENTICAL. The
@@ -682,7 +691,7 @@ pub(crate) fn execute_update_chain(
         }
 
         // Commit
-        let msg = format!("chore: update {}", step.inputs.join(" "));
+        let msg = lock_commit_message(&step.inputs, !opts.skip_verify);
         let output = Command::new("git")
             .args(["commit", "-m", &msg])
             .current_dir(&repo_path)
@@ -1321,6 +1330,15 @@ pub(crate) fn find_cargo_lock_repos(workspace: &Workspace) -> Result<Vec<String>
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn lock_commit_message_names_the_inputs_and_the_gate() {
+        let inputs = vec!["substrate".to_string(), "lib-a".to_string()];
+        assert_eq!(
+            super::lock_commit_message(&inputs, true),
+            "flake.lock: nix flake update substrate lib-a (built: nix flake check --no-build)"
+        );
+        assert!(super::lock_commit_message(&inputs, false).ends_with("(unverified)"));
+    }
 
     /// ── ★ tend MUST NOT STRAND THE LOCK IT THEN BLAMES ──────────────────
     /// Six `git status --porcelain` call sites ran WITHOUT

@@ -196,6 +196,13 @@ pub(crate) enum DriftEvent {
     /// keep depending on a credential helper) instead of using the
     /// declared transport. Healed the same way, by rewriting to the
     /// canonical URL for the declared method.
+    UncleanAfterCycle {
+        workspace: String,
+        repo_name: String,
+        paths: Vec<String>,
+        age_secs: u64,
+    },
+
     RemoteProtocolMismatch {
         workspace: String,
         repo_name: String,
@@ -223,6 +230,7 @@ impl DriftEvent {
             | Self::RepoHasNoRemote { workspace, .. }
             | Self::LocalRepoNotInDiscovery { workspace, .. }
             | Self::RemoteUrlEmbeddedCredential { workspace, .. }
+            | Self::UncleanAfterCycle { workspace, .. }
             | Self::RemoteProtocolMismatch { workspace, .. } => Some(workspace.as_str()),
             Self::JobUnhealed { job_id, .. } => match &job_id.scope {
                 shigoto_types::JobScope::Workspace(w) => Some(w.as_str()),

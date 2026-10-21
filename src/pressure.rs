@@ -224,7 +224,8 @@ impl Thresholds {
     pub fn throttle_floor_gib(&self, total_gib: f64, inflight: u32) -> f64 {
         let halt = self.halt_floor_gib(total_gib);
         let want = halt + f64::from(inflight) * self.job_disk_budget_gib;
-        want.min(total_gib * self.disk_throttle_pct / 100.0).max(halt)
+        want.min(total_gib * self.disk_throttle_pct / 100.0)
+            .max(halt)
     }
 
     /// True when free disk is under the throttle floor — the DISK axis of

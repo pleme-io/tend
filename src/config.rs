@@ -381,6 +381,8 @@ pub struct Workspace {
     pub pr_skill: Option<String>,
     #[serde(default)]
     pub push_ahead: bool,
+    #[serde(default)]
+    pub conditions: crate::conditions::ConditionsConfig,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars1::JsonSchema)]
@@ -975,6 +977,7 @@ impl shikumi::TieredConfig for Workspace {
             push_policy: PushPolicy::Main,
             pr_skill: None,
             push_ahead: false,
+            conditions: crate::conditions::ConditionsConfig::off(),
         }
     }
     fn prescribed_default() -> Self {
@@ -997,6 +1000,7 @@ impl shikumi::TieredConfig for Workspace {
             push_policy: PushPolicy::Main,
             pr_skill: None,
             push_ahead: false,
+            conditions: crate::conditions::ConditionsConfig::default(),
         }
     }
 }
@@ -1228,6 +1232,7 @@ impl Config {
                 push_policy: PushPolicy::Main,
                 pr_skill: None,
                 push_ahead: false,
+                conditions: crate::conditions::ConditionsConfig::default(),
             }],
         };
         serde_yaml_ng::to_string(&config).context("serializing starter config")
@@ -1258,6 +1263,7 @@ impl Workspace {
             push_policy: PushPolicy::Main,
             pr_skill: None,
             push_ahead: false,
+            conditions: crate::conditions::ConditionsConfig::off(),
         }
     }
 
@@ -2004,10 +2010,8 @@ mod tiered_tests {
             <FlakeRefreshConfig as TieredConfig>::resolve_tier(ConfigTier::Default).interval,
             3600
         );
-        assert!(
-            <Config as TieredConfig>::resolve_tier(ConfigTier::Bare)
-                .workspaces
-                .is_empty()
-        );
+        assert!(<Config as TieredConfig>::resolve_tier(ConfigTier::Bare)
+            .workspaces
+            .is_empty());
     }
 }

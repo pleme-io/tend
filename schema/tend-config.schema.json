@@ -240,6 +240,19 @@
       ],
       "type": "string"
     },
+    "ConditionsConfig": {
+      "properties": {
+        "stale_flake_lock": {
+          "default": true,
+          "type": "boolean"
+        },
+        "unclean_git": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
     "DaemonConfig": {
       "description": "`tend daemon` — sync + pull + watch on an interval.",
       "properties": {
@@ -1310,6 +1323,13 @@
         "clone_method": {
           "$ref": "#/$defs/CloneMethod",
           "default": "ssh"
+        },
+        "conditions": {
+          "$ref": "#/$defs/ConditionsConfig",
+          "default": {
+            "stale_flake_lock": true,
+            "unclean_git": true
+          }
         },
         "discover": {
           "default": false,
