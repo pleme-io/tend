@@ -287,6 +287,11 @@ pub struct HostHealthConfig {
     /// while waiting one more pass costs nothing.
     #[serde(default = "default_stale_lock_min_age_secs")]
     pub stale_lock_min_age_secs: u64,
+    /// Whether the agent session-start hook reports host pressure (free disk
+    /// against tend's own throttle and halt floors) when the verdict is not
+    /// proceed. Default true.
+    #[serde(default = "default_report_pressure")]
+    pub report_pressure: bool,
 }
 
 impl Default for HostHealthConfig {
@@ -296,6 +301,7 @@ impl Default for HostHealthConfig {
             fd_pressure_threshold: default_fd_pressure_threshold(),
             fix: true,
             stale_lock_min_age_secs: default_stale_lock_min_age_secs(),
+            report_pressure: default_report_pressure(),
         }
     }
 }
@@ -309,6 +315,10 @@ fn default_fd_pressure_threshold() -> f64 {
 }
 
 fn default_host_health_fix() -> bool {
+    true
+}
+
+fn default_report_pressure() -> bool {
     true
 }
 

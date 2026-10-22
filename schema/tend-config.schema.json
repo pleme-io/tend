@@ -686,6 +686,11 @@
           "description": "Whether `tend status` SIGKILLs confirmed orphans it finds (PPID==1\nAND name-matched against `watched_commands`) rather than only\nreporting them. Default true: this match is narrow enough (no\nowning session exists any more) that killing it is a return to\nbaseline, not an interruption of anything live. `--no-fix` at the\nCLI overrides this off for a single invocation.",
           "type": "boolean"
         },
+        "report_pressure": {
+          "default": true,
+          "description": "Whether the agent session-start hook reports host pressure (free disk\nagainst tend's own throttle and halt floors) when the verdict is not\nproceed. Default true.",
+          "type": "boolean"
+        },
         "stale_lock_min_age_secs": {
           "default": 120,
           "description": "How old (seconds) an orphaned `.git/index.lock` must be before\n`tend status` will reap it. A real git operation holds its lock for\nmilliseconds, so the default 120 is ~3 orders of magnitude of slack\n-- generous on purpose, since reaping a live lock corrupts an index\nwhile waiting one more pass costs nothing.",
@@ -1496,6 +1501,7 @@
       "default": {
         "fd_pressure_threshold": 0.5,
         "fix": true,
+        "report_pressure": true,
         "stale_lock_min_age_secs": 120,
         "watched_commands": [
           "frost"

@@ -115,8 +115,25 @@ pub(crate) fn run(event: Event, config: anyhow::Result<Config>, raw: &str) -> Op
             BUDGET,
             workers,
             SystemTime::now(),
+            config
+                .host_health
+                .report_pressure
+                .then(host_pressure)
+                .flatten(),
         ),
     }
+}
+
+// The session's own view of the host. tend throttled itself at 20.4 GiB free
+// (floor 28.0) while the agent sharing the machine learned of it only from
+// `No space left on device`, which it first read as failing tests
+// (2026-10-22). Reported only when the verdict is not proceed.
+fn host_pressure() -> Option<String> {
+    let path = PathBuf::from(std::env::var_os("HOME")?);
+    let reader = crate::pressure::SystemPressureReader { path };
+    let reading = crate::pressure::PressureReader::read(&reader).ok()?;
+    let verdict = crate::pressure::assess(reading, crate::pressure::Thresholds::default(), 8);
+    pressure_sentence(reading.disk_free_gib, reading.disk_total_gib, &verdict)
 }
 
 pub(crate) fn session_started(transcript: Option<&Path>) -> Option<SystemTime> {
@@ -429,6 +446,7 @@ pub(crate) fn session_start(
     budget: Duration,
     workers: usize,
     now: SystemTime,
+    pressure: Option<String>,
 ) -> Option<Value> {
     let deadline = Some(Instant::now() + budget);
     let repos = scan::local_repos(workspaces);
@@ -443,7 +461,13 @@ pub(crate) fn session_start(
         Some(snapshot) => from_snapshot(snapshot, repos, cwd_repo, workers, deadline, now),
         None => live(repos, cwd_repo, workers, deadline),
     };
-    render_session_start(&rows, total, &coverage, &Policies::of(workspaces))
+    render_session_start(
+        &rows,
+        total,
+        &coverage,
+        &Policies::of(workspaces),
+        pressure.as_deref(),
+    )
 }
 
 fn from_snapshot(
@@ -538,23 +562,51 @@ fn live(
     )
 }
 
+pub(crate) fn pressure_sentence(
+    free_gib: f64,
+    total_gib: f64,
+    verdict: &crate::pressure::Verdict,
+) -> Option<String> {
+    use crate::pressure::Verdict;
+    let word = match verdict {
+        Verdict::Proceed => return None,
+        Verdict::Throttle { .. } => "throttle",
+        Verdict::Halt { .. } => "halt",
+    };
+    let mut s = String::new();
+    let _ = write!(
+        s,
+        "tend: host pressure ({word}): {free_gib:.1} GiB free of {total_gib:.0} GiB; {}. \
+         A build that fails with \"No space left on device\" is this, not the code: free space \
+         first (cargo target directories, ~/Library/Caches, nix-collect-garbage).",
+        verdict.why()
+    );
+    Some(s)
+}
+
 pub(crate) fn render_session_start(
     rows: &[ScanRow],
     total: usize,
     coverage: &Coverage,
     policies: &Policies,
+    pressure: Option<&str>,
 ) -> Option<Value> {
     let mut problems: Vec<ScanRow> = rows
         .iter()
         .filter(|r| r.state.problem_rank().is_some())
         .cloned()
         .collect();
-    if problems.is_empty() && coverage.complete() {
+    if problems.is_empty() && coverage.complete() && pressure.is_none() {
         return None;
     }
     sort_worst_first(&mut problems);
     let mut text = String::new();
-    if problems.is_empty() {
+    if let Some(p) = pressure {
+        let _ = writeln!(text, "{p}");
+    }
+    if problems.is_empty() && coverage.complete() {
+        text.push_str("tend: no workspace repo needs attention.");
+    } else if problems.is_empty() {
         let _ = write!(
             text,
             "tend: no workspace repo needs attention among those checked ({total} on disk; {}).",
@@ -964,7 +1016,7 @@ mod tests {
             unchecked: 0,
         };
 
-        let out = render_session_start(&rows, 100, &coverage, &policies()).unwrap();
+        let out = render_session_start(&rows, 100, &coverage, &policies(), None).unwrap();
         assert_eq!(out["hookSpecificOutput"]["hookEventName"], "SessionStart");
         let text = out["hookSpecificOutput"]["additionalContext"]
             .as_str()
@@ -1004,17 +1056,52 @@ mod tests {
             checked: 2,
             total: 2,
         };
-        assert!(render_session_start(&rows, 2, &live, &policies()).is_none());
+        assert!(render_session_start(&rows, 2, &live, &policies(), None).is_none());
 
         let partial = Coverage::Live {
             checked: 2,
             total: 9,
         };
-        let out = render_session_start(&rows, 9, &partial, &policies()).unwrap();
+        let out = render_session_start(&rows, 9, &partial, &policies(), None).unwrap();
         let text = out["hookSpecificOutput"]["additionalContext"]
             .as_str()
             .unwrap();
         assert!(text.contains("checked live 2 of 9"), "{text}");
+    }
+
+    #[test]
+    fn host_pressure_is_reported_even_when_every_repo_is_clean() {
+        let rows = vec![row("pleme-io", "a", StateWord::Clean)];
+        let live = Coverage::Live {
+            checked: 1,
+            total: 1,
+        };
+        let out = render_session_start(&rows, 1, &live, &policies(), Some("tend: host pressure (throttle)"))
+            .unwrap();
+        let text = out["hookSpecificOutput"]["additionalContext"]
+            .as_str()
+            .unwrap();
+        assert!(text.starts_with("tend: host pressure (throttle)"), "{text}");
+        assert!(text.contains("no workspace repo needs attention"), "{text}");
+    }
+
+    #[test]
+    fn a_pressured_host_names_its_free_disk_and_the_out_of_space_trap() {
+        use crate::pressure::Verdict;
+        let throttle = Verdict::Throttle {
+            max_inflight: 1,
+            why: "disk free 20.4 GiB is under the throttle floor 28.0 GiB".to_string(),
+        };
+        let s = pressure_sentence(20.4, 460.4, &throttle).unwrap();
+        assert!(s.contains("throttle"), "{s}");
+        assert!(s.contains("20.4 GiB free of 460 GiB"), "{s}");
+        assert!(s.contains("throttle floor 28.0 GiB"), "{s}");
+        assert!(s.contains("No space left on device"), "{s}");
+        let halt = Verdict::Halt {
+            why: "disk free 0.2 GiB is under the halt floor".to_string(),
+        };
+        assert!(pressure_sentence(0.2, 460.4, &halt).unwrap().contains("halt"));
+        assert!(pressure_sentence(200.0, 460.4, &Verdict::Proceed).is_none());
     }
 
     #[test]
@@ -1042,6 +1129,7 @@ mod tests {
             Duration::from_secs(30),
             2,
             taken + Duration::from_secs(60),
+            None,
         )
         .unwrap();
         let text = out["hookSpecificOutput"]["additionalContext"]
@@ -1062,6 +1150,7 @@ mod tests {
             Duration::from_secs(30),
             2,
             taken + config.max_age() + Duration::from_secs(1),
+            None,
         )
         .unwrap();
         let text = stale["hookSpecificOutput"]["additionalContext"]
