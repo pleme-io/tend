@@ -686,6 +686,11 @@
           "description": "Whether `tend status` SIGKILLs confirmed orphans it finds (PPID==1\nAND name-matched against `watched_commands`) rather than only\nreporting them. Default true: this match is narrow enough (no\nowning session exists any more) that killing it is a return to\nbaseline, not an interruption of anything live. `--no-fix` at the\nCLI overrides this off for a single invocation.",
           "type": "boolean"
         },
+        "report_daemon": {
+          "default": true,
+          "description": "Whether the session-start hook says so when the daemon's status\nsnapshot is missing or older than its own max age, which means the\ndaemon is not running. Default true.",
+          "type": "boolean"
+        },
         "report_pressure": {
           "default": true,
           "description": "Whether the agent session-start hook reports host pressure (free disk\nagainst tend's own throttle and halt floors) when the verdict is not\nproceed. Default true.",
@@ -1501,6 +1506,7 @@
       "default": {
         "fd_pressure_threshold": 0.5,
         "fix": true,
+        "report_daemon": true,
         "report_pressure": true,
         "stale_lock_min_age_secs": 120,
         "watched_commands": [

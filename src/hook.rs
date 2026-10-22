@@ -119,7 +119,10 @@ pub(crate) fn run(event: Event, config: anyhow::Result<Config>, raw: &str) -> Op
                 .host_health
                 .report_pressure
                 .then(host_pressure)
-                .flatten(),
+                .flatten()
+                .into_iter()
+                .collect(),
+            config.host_health.report_daemon,
         ),
     }
 }
@@ -446,7 +449,8 @@ pub(crate) fn session_start(
     budget: Duration,
     workers: usize,
     now: SystemTime,
-    pressure: Option<String>,
+    mut notes: Vec<String>,
+    report_daemon: bool,
 ) -> Option<Value> {
     let deadline = Some(Instant::now() + budget);
     let repos = scan::local_repos(workspaces);
@@ -455,19 +459,22 @@ pub(crate) fn session_start(
         .cwd
         .as_deref()
         .and_then(|c| scan::enclosing_repo(workspaces, c));
-    let snapshot = scan::read_snapshot(snapshot_path)
-        .filter(|s| snapshot_config.enable && s.age(now) <= snapshot_config.max_age());
+    let raw = scan::read_snapshot(snapshot_path);
+    if report_daemon && snapshot_config.enable {
+        if let Some(note) = daemon_sentence(
+            raw.as_ref().map(|s| s.age(now)),
+            snapshot_config.max_age(),
+        ) {
+            notes.push(note);
+        }
+    }
+    let snapshot =
+        raw.filter(|s| snapshot_config.enable && s.age(now) <= snapshot_config.max_age());
     let (rows, coverage) = match snapshot {
         Some(snapshot) => from_snapshot(snapshot, repos, cwd_repo, workers, deadline, now),
         None => live(repos, cwd_repo, workers, deadline),
     };
-    render_session_start(
-        &rows,
-        total,
-        &coverage,
-        &Policies::of(workspaces),
-        pressure.as_deref(),
-    )
+    render_session_start(&rows, total, &coverage, &Policies::of(workspaces), &notes)
 }
 
 fn from_snapshot(
@@ -562,6 +569,36 @@ fn live(
     )
 }
 
+/// The daemon's liveness, read from its own heartbeat: it writes a status
+/// snapshot every cycle, so a missing or overdue snapshot means it is not
+/// running. On 2026-10-22 it had been unloaded since 06:54 and every session
+/// start said only "no fresh daemon snapshot", which no reader took as "dead".
+pub(crate) fn daemon_sentence(snapshot_age: Option<Duration>, max_age: Duration) -> Option<String> {
+    let restart = if cfg!(target_os = "macos") {
+        "launchctl kickstart -k gui/$(id -u)/io.pleme.tend-daemon"
+    } else {
+        "restart tend's daemon service"
+    };
+    let mut s = String::new();
+    match snapshot_age {
+        None => {
+            let _ = write!(
+                s,
+                "tend: the daemon has never written a status snapshot here, so it is not running; start it: {restart}."
+            );
+        }
+        Some(age) if age > max_age => {
+            let _ = write!(
+                s,
+                "tend: the daemon's last status snapshot is {} old (it writes one every cycle), so it is probably not running; restart it: {restart}.",
+                human_age(age)
+            );
+        }
+        Some(_) => return None,
+    }
+    Some(s)
+}
+
 pub(crate) fn pressure_sentence(
     free_gib: f64,
     total_gib: f64,
@@ -589,20 +626,20 @@ pub(crate) fn render_session_start(
     total: usize,
     coverage: &Coverage,
     policies: &Policies,
-    pressure: Option<&str>,
+    notes: &[String],
 ) -> Option<Value> {
     let mut problems: Vec<ScanRow> = rows
         .iter()
         .filter(|r| r.state.problem_rank().is_some())
         .cloned()
         .collect();
-    if problems.is_empty() && coverage.complete() && pressure.is_none() {
+    if problems.is_empty() && coverage.complete() && notes.is_empty() {
         return None;
     }
     sort_worst_first(&mut problems);
     let mut text = String::new();
-    if let Some(p) = pressure {
-        let _ = writeln!(text, "{p}");
+    for note in notes {
+        let _ = writeln!(text, "{note}");
     }
     if problems.is_empty() && coverage.complete() {
         text.push_str("tend: no workspace repo needs attention.");
@@ -1016,7 +1053,7 @@ mod tests {
             unchecked: 0,
         };
 
-        let out = render_session_start(&rows, 100, &coverage, &policies(), None).unwrap();
+        let out = render_session_start(&rows, 100, &coverage, &policies(), &[]).unwrap();
         assert_eq!(out["hookSpecificOutput"]["hookEventName"], "SessionStart");
         let text = out["hookSpecificOutput"]["additionalContext"]
             .as_str()
@@ -1056,13 +1093,13 @@ mod tests {
             checked: 2,
             total: 2,
         };
-        assert!(render_session_start(&rows, 2, &live, &policies(), None).is_none());
+        assert!(render_session_start(&rows, 2, &live, &policies(), &[]).is_none());
 
         let partial = Coverage::Live {
             checked: 2,
             total: 9,
         };
-        let out = render_session_start(&rows, 9, &partial, &policies(), None).unwrap();
+        let out = render_session_start(&rows, 9, &partial, &policies(), &[]).unwrap();
         let text = out["hookSpecificOutput"]["additionalContext"]
             .as_str()
             .unwrap();
@@ -1076,13 +1113,31 @@ mod tests {
             checked: 1,
             total: 1,
         };
-        let out = render_session_start(&rows, 1, &live, &policies(), Some("tend: host pressure (throttle)"))
-            .unwrap();
+        let out = render_session_start(
+            &rows,
+            1,
+            &live,
+            &policies(),
+            &["tend: host pressure (throttle)".to_string()],
+        )
+        .unwrap();
         let text = out["hookSpecificOutput"]["additionalContext"]
             .as_str()
             .unwrap();
         assert!(text.starts_with("tend: host pressure (throttle)"), "{text}");
         assert!(text.contains("no workspace repo needs attention"), "{text}");
+    }
+
+    #[test]
+    fn an_overdue_or_missing_snapshot_says_the_daemon_is_not_running() {
+        let max = Duration::from_secs(30 * 60);
+        let never = daemon_sentence(None, max).unwrap();
+        assert!(never.contains("never written a status snapshot"), "{never}");
+        let overdue = daemon_sentence(Some(Duration::from_secs(8 * 3600)), max).unwrap();
+        assert!(overdue.contains("8h0m old"), "{overdue}");
+        assert!(overdue.contains("probably not running"), "{overdue}");
+        assert!(overdue.contains("restart it"), "{overdue}");
+        assert!(daemon_sentence(Some(Duration::from_secs(60)), max).is_none());
     }
 
     #[test]
@@ -1129,7 +1184,8 @@ mod tests {
             Duration::from_secs(30),
             2,
             taken + Duration::from_secs(60),
-            None,
+            Vec::new(),
+            false,
         )
         .unwrap();
         let text = out["hookSpecificOutput"]["additionalContext"]
@@ -1150,7 +1206,8 @@ mod tests {
             Duration::from_secs(30),
             2,
             taken + config.max_age() + Duration::from_secs(1),
-            None,
+            Vec::new(),
+            false,
         )
         .unwrap();
         let text = stale["hookSpecificOutput"]["additionalContext"]

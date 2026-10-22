@@ -290,8 +290,13 @@ pub struct HostHealthConfig {
     /// Whether the agent session-start hook reports host pressure (free disk
     /// against tend's own throttle and halt floors) when the verdict is not
     /// proceed. Default true.
-    #[serde(default = "default_report_pressure")]
+    #[serde(default = "default_true")]
     pub report_pressure: bool,
+    /// Whether the session-start hook says so when the daemon's status
+    /// snapshot is missing or older than its own max age, which means the
+    /// daemon is not running. Default true.
+    #[serde(default = "default_true")]
+    pub report_daemon: bool,
 }
 
 impl Default for HostHealthConfig {
@@ -301,7 +306,8 @@ impl Default for HostHealthConfig {
             fd_pressure_threshold: default_fd_pressure_threshold(),
             fix: true,
             stale_lock_min_age_secs: default_stale_lock_min_age_secs(),
-            report_pressure: default_report_pressure(),
+            report_pressure: default_true(),
+            report_daemon: default_true(),
         }
     }
 }
@@ -315,10 +321,6 @@ fn default_fd_pressure_threshold() -> f64 {
 }
 
 fn default_host_health_fix() -> bool {
-    true
-}
-
-fn default_report_pressure() -> bool {
     true
 }
 
