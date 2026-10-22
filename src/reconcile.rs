@@ -241,6 +241,19 @@ pub(crate) fn never_ran(phase: &JobPhase) -> bool {
 }
 
 /// Drive a scheduler to quiescence, or to the tick ceiling, and SAY WHICH.
+/// Ticks one drain may take. A tick completes up to `max_inflight` jobs, so
+/// the budget scales with the work: every job twice over at the configured
+/// concurrency, never under the old floor of 64, never over a ceiling that
+/// still stops a livelocked gate. The fixed 64 reached about 500 of the
+/// pleme-io workspace's 1,600 repos and left "1092 not reached" on every
+/// cycle (2026-10-22).
+pub(crate) fn tick_budget(jobs: usize, max_inflight: u32) -> usize {
+    const FLOOR: usize = 64;
+    const CEILING: usize = 100_000;
+    let per_tick = max_inflight.max(1) as usize;
+    (jobs.div_ceil(per_tick) * 2 + FLOOR).clamp(FLOOR, CEILING)
+}
+
 async fn drain_scheduler(
     scheduler: &shigoto_scheduler::InProcessScheduler,
     dag: &mut shigoto_dag::Dag,
@@ -282,8 +295,6 @@ pub(crate) async fn reconcile_workspace_pull(
     max_inflight: u32,
     transition_log: Option<&Path>,
 ) -> Result<ReconcileReceipt> {
-    const MAX_TICKS: usize = 64;
-
     let base_dir = workspace.resolved_base_dir()?;
 
     // Walk the on-disk tree the same way pull_repos does so we
@@ -402,7 +413,8 @@ pub(crate) async fn reconcile_workspace_pull(
         scheduler.register_job(job).await;
     }
 
-    let drain = drain_scheduler(&scheduler, &mut dag, MAX_TICKS).await?;
+    let max_ticks = tick_budget(all.len(), max_inflight);
+    let drain = drain_scheduler(&scheduler, &mut dag, max_ticks).await?;
     if let DrainOutcome::TicksExhausted { ticks } = drain {
         // Loud, because the snapshot below will read every un-admitted job
         // as not-succeeded and the caller will render it as FAILED. "Not
@@ -470,7 +482,7 @@ pub(crate) async fn reconcile_workspace_pull(
             scheduler.register_job(job).await;
         }
 
-        let drain = drain_scheduler(&scheduler, &mut dag, MAX_TICKS).await?;
+        let drain = drain_scheduler(&scheduler, &mut dag, max_ticks).await?;
         if let DrainOutcome::TicksExhausted { ticks } = drain {
             tracing::warn!(
                 ticks,
@@ -509,8 +521,6 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
     max_inflight: u32,
     transition_log: Option<&Path>,
 ) -> Result<ReconcileReceipt> {
-    const MAX_TICKS: usize = 64;
-
     let base_dir = workspace.resolved_base_dir()?;
     std::fs::create_dir_all(&base_dir)
         .with_context(|| format!("creating {}", base_dir.display()))?;
@@ -689,7 +699,8 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
         pull_ids.push(pull_id);
     }
 
-    let drain = drain_scheduler(&scheduler, &mut dag, MAX_TICKS).await?;
+    let max_ticks = tick_budget(all.len() * 2, max_inflight);
+    let drain = drain_scheduler(&scheduler, &mut dag, max_ticks).await?;
     if let DrainOutcome::TicksExhausted { ticks } = drain {
         // Loud, because the snapshot below will read every un-admitted job
         // as not-succeeded and the caller will render it as FAILED. "Not
@@ -770,7 +781,7 @@ pub(crate) async fn reconcile_workspace_sync_then_pull(
         }
 
         // One more tick — bounded; reactions are one-shot per cycle.
-        let drain = drain_scheduler(&scheduler, &mut dag, MAX_TICKS).await?;
+        let drain = drain_scheduler(&scheduler, &mut dag, max_ticks).await?;
         if let DrainOutcome::TicksExhausted { ticks } = drain {
             tracing::warn!(
                 ticks,
@@ -819,6 +830,23 @@ pub(crate) fn print_receipt(receipt: &ReconcileReceipt) {
             }
         }
     );
+}
+
+#[cfg(test)]
+mod tick_budget_tests {
+    use super::tick_budget;
+
+    #[test]
+    fn the_tick_budget_reaches_every_job_and_keeps_its_floor_and_ceiling() {
+        assert_eq!(tick_budget(0, 8), 64);
+        assert!(
+            tick_budget(1600, 8) >= 1600 / 8,
+            "the pleme-io workspace at concurrency 8 needs at least 200 ticks"
+        );
+        assert_eq!(tick_budget(1600, 8), 1600_usize.div_ceil(8) * 2 + 64);
+        assert_eq!(tick_budget(10, 0), 10 * 2 + 64);
+        assert_eq!(tick_budget(usize::MAX / 4, 1), 100_000);
+    }
 }
 
 #[cfg(test)]
