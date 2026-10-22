@@ -146,6 +146,7 @@ impl ReconcileReceipt {
             missing_skipped: counts.missing_skipped,
             no_remote_skipped: counts.no_remote_skipped,
             empty_skipped: counts.empty_skipped,
+            unpullable_skipped: counts.unpullable_skipped,
             failed: counts.failed_pull + self.failed_jobs.len() - not_reached,
             not_reached,
         }
@@ -172,6 +173,7 @@ impl ReconcileReceipt {
                 PullOutcome::MissingSkipped => c.missing_skipped += 1,
                 PullOutcome::NoRemoteSkipped => c.no_remote_skipped += 1,
                 PullOutcome::EmptySkipped => c.empty_skipped += 1,
+                PullOutcome::UnpullableSkipped { .. } => c.unpullable_skipped += 1,
                 PullOutcome::Failed { .. } => c.failed_pull += 1,
             }
         }
@@ -199,6 +201,7 @@ pub(crate) struct OutcomeCounts {
     pub missing_skipped: usize,
     pub no_remote_skipped: usize,
     pub empty_skipped: usize,
+    pub unpullable_skipped: usize,
     pub failed_pull: usize,
 }
 

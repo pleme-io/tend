@@ -420,6 +420,24 @@ pub(crate) fn derive_from_receipt(receipt: &ReconcileReceipt) -> Vec<DriftEvent>
                 &repo_name,
                 stderr,
             )),
+            // The typed skip carries what classify_pull_failure used to
+            // recover from stderr, so the same drift events fire without
+            // running git. A detached HEAD has nothing to remediate.
+            PullOutcome::UnpullableSkipped { why } => match why {
+                crate::sync::Unpullable::Diverged { .. } => {
+                    events.push(DriftEvent::PullFailedDiverged {
+                        workspace: receipt.workspace.clone(),
+                        repo_name,
+                    })
+                }
+                crate::sync::Unpullable::NoUpstream | crate::sync::Unpullable::UpstreamGone => {
+                    events.push(DriftEvent::PullFailedNoUpstream {
+                        workspace: receipt.workspace.clone(),
+                        repo_name,
+                    })
+                }
+                crate::sync::Unpullable::Detached => {}
+            },
             // EmptySkipped is deliberately NOT drift. Nothing has diverged
             // and nothing is actionable: the repo is declared, cloned, and
             // has no first commit on either side. It stays visible through

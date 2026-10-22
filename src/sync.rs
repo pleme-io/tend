@@ -953,6 +953,7 @@ pub(crate) struct PullSummary {
     pub missing_skipped: usize,
     pub no_remote_skipped: usize,
     pub empty_skipped: usize,
+    pub unpullable_skipped: usize,
     pub failed: usize,
     pub not_reached: usize,
 }
@@ -1007,8 +1008,54 @@ pub(crate) enum PullOutcome {
     /// forever. An empty repo is a FINDING, not a failure: nothing is
     /// broken and nothing is actionable until someone pushes a first commit.
     EmptySkipped,
+    /// The checkout cannot be fast-forwarded by construction, so git was not
+    /// asked: a detached HEAD, a branch with no upstream or a gone one, or a
+    /// branch that is both ahead and behind its upstream. Measured 2026-10-22:
+    /// these four ran `git pull --ff-only` every 300-second cycle and wrote
+    /// 13,840 `hint:` lines into a 57 MB error log. A diverged branch stays
+    /// visible through the status scan; it is not a pull failure.
+    UnpullableSkipped { why: Unpullable },
     /// `git pull` exited non-zero. Carries the trimmed stderr for surfacing.
     Failed { stderr: String },
+}
+
+/// Why a checkout cannot be fast-forwarded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Unpullable {
+    Detached,
+    NoUpstream,
+    UpstreamGone,
+    Diverged { ahead: u32, behind: u32 },
+}
+
+impl Unpullable {
+    fn of(status: &BranchStatus) -> Option<Self> {
+        match (&status.head, status.tracking) {
+            (Head::Detached, _) => Some(Self::Detached),
+            (_, Tracking::Untracked) => Some(Self::NoUpstream),
+            (_, Tracking::Gone) => Some(Self::UpstreamGone),
+            (_, Tracking::Compared { ahead, behind }) if ahead > 0 && behind > 0 => {
+                Some(Self::Diverged { ahead, behind })
+            }
+            _ => None,
+        }
+    }
+
+    fn describe(self) -> String {
+        match self {
+            Self::Detached => "detached HEAD".to_string(),
+            Self::NoUpstream => "no upstream".to_string(),
+            Self::UpstreamGone => "upstream gone".to_string(),
+            Self::Diverged { ahead, behind } => {
+                let mut s = String::new();
+                let _ = std::fmt::Write::write_fmt(
+                    &mut s,
+                    format_args!("diverged ({ahead} ahead, {behind} behind)"),
+                );
+                s
+            }
+        }
+    }
 }
 
 impl PullOutcome {
@@ -1021,6 +1068,7 @@ impl PullOutcome {
             PullOutcome::MissingSkipped => summary.missing_skipped += 1,
             PullOutcome::NoRemoteSkipped => summary.no_remote_skipped += 1,
             PullOutcome::EmptySkipped => summary.empty_skipped += 1,
+            PullOutcome::UnpullableSkipped { .. } => summary.unpullable_skipped += 1,
             PullOutcome::Failed { .. } => summary.failed += 1,
         }
     }
@@ -1113,18 +1161,44 @@ pub(crate) fn pull_one_repo(
         return Ok(PullOutcome::DirtySkipped);
     }
 
+    if let Some(why) = Unpullable::of(&branch_status(repo_path)?) {
+        if !quiet {
+            println!("  not pullable (skipped, {}): {repo_label}", why.describe());
+        }
+        return Ok(PullOutcome::UnpullableSkipped { why });
+    }
+
     let before = head_sha(repo_path);
 
+    // fetch, then fast-forward to the upstream: never a plain `git pull`. A
+    // linked worktree (`.git` is a file) shares its refs with the main
+    // checkout, which fetches them; fetching from every worktree at once
+    // raced on those shared refs ("cannot lock ref", measured 2026-10-22).
+    if repo_path.join(".git").is_dir() {
+        let fetch = Command::new("git")
+            .args(["fetch", "--quiet"])
+            .current_dir(repo_path)
+            .output()
+            .with_context(|| format!("running git fetch in {repo_label}"))?;
+        if !fetch.status.success() {
+            return Ok(failed(repo_label, &fetch.stderr));
+        }
+    }
+    if let Some(why) = Unpullable::of(&branch_status(repo_path)?) {
+        if !quiet {
+            println!("  not pullable (skipped, {}): {repo_label}", why.describe());
+        }
+        return Ok(PullOutcome::UnpullableSkipped { why });
+    }
+
     let output = Command::new("git")
-        .args(["pull", "--ff-only", "--quiet"])
+        .args(["merge", "--ff-only", "--quiet", "@{u}"])
         .current_dir(repo_path)
         .output()
-        .with_context(|| format!("running git pull in {repo_label}"))?;
+        .with_context(|| format!("running git merge --ff-only in {repo_label}"))?;
 
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        eprintln!("  warning: pull failed for {repo_label}: {stderr}");
-        return Ok(PullOutcome::Failed { stderr });
+        return Ok(failed(repo_label, &output.stderr));
     }
 
     let after = head_sha(repo_path);
@@ -1136,6 +1210,16 @@ pub(crate) fn pull_one_repo(
         }
         Ok(PullOutcome::Updated)
     }
+}
+
+/// A failed git step: the first line of stderr is logged, the whole of it is
+/// kept for classification. Logging every line wrote multi-line advice blocks
+/// into the daemon's error log on every cycle.
+fn failed(repo_label: &str, stderr: &[u8]) -> PullOutcome {
+    let stderr = String::from_utf8_lossy(stderr).trim().to_string();
+    let first = stderr.lines().next().unwrap_or("");
+    eprintln!("  warning: pull failed for {repo_label}: {first}");
+    PullOutcome::Failed { stderr }
 }
 
 /// Pull the default branch (fast-forward only) for every repo in the workspace.
@@ -1621,6 +1705,71 @@ mod tests {
         std::fs::write(repo.join(file), content).unwrap();
         git(repo, &["add", "."]);
         git(repo, &["commit", "-q", "--no-verify", "-m", msg]);
+    }
+
+    /// A checkout tracking `origin/main`, and a second clone of the same
+    /// upstream that can move it.
+    fn backed_with_pusher(tmp: &Path) -> (std::path::PathBuf, std::path::PathBuf) {
+        let subject = tmp.join("subject");
+        init_repo(&subject);
+        add_remote(&subject);
+        write_commit(&subject, "a", "1\n", "init");
+        git(&subject, &["push", "-q", "-u", "origin", "main"]);
+        let upstream = subject.with_extension("upstream.git");
+        git(tmp, &["clone", "-q", &upstream.to_string_lossy(), "pusher"]);
+        let pusher = tmp.join("pusher");
+        git(&pusher, &["config", "user.email", "t@t"]);
+        git(&pusher, &["config", "user.name", "t"]);
+        git(&pusher, &["config", "commit.gpgsign", "false"]);
+        (subject, pusher)
+    }
+
+    #[test]
+    fn pull_skips_a_detached_head_a_missing_upstream_and_a_diverged_branch() {
+        let tmp = std::env::temp_dir().join(format!("tend-unpullable-{}", std::process::id()));
+        std::fs::remove_dir_all(&tmp).ok();
+        std::fs::create_dir_all(&tmp).unwrap();
+        let (subject, pusher) = backed_with_pusher(&tmp);
+
+        git(&subject, &["checkout", "-q", "--detach"]);
+        assert_eq!(
+            pull_one_repo(&subject, true, "s").unwrap(),
+            PullOutcome::UnpullableSkipped { why: Unpullable::Detached }
+        );
+
+        git(&subject, &["checkout", "-q", "-b", "side"]);
+        assert_eq!(
+            pull_one_repo(&subject, true, "s").unwrap(),
+            PullOutcome::UnpullableSkipped { why: Unpullable::NoUpstream }
+        );
+
+        git(&subject, &["checkout", "-q", "main"]);
+        write_commit(&pusher, "b", "2\n", "theirs");
+        git(&pusher, &["push", "-q", "origin", "main"]);
+        write_commit(&subject, "c", "3\n", "ours");
+        assert_eq!(
+            pull_one_repo(&subject, true, "s").unwrap(),
+            PullOutcome::UnpullableSkipped {
+                why: Unpullable::Diverged { ahead: 1, behind: 1 }
+            },
+            "the fetch inside the pull must see the upstream move before deciding"
+        );
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn pull_fast_forwards_through_fetch_then_merge() {
+        let tmp = std::env::temp_dir().join(format!("tend-ff-{}", std::process::id()));
+        std::fs::remove_dir_all(&tmp).ok();
+        std::fs::create_dir_all(&tmp).unwrap();
+        let (subject, pusher) = backed_with_pusher(&tmp);
+        assert_eq!(pull_one_repo(&subject, true, "s").unwrap(), PullOutcome::UpToDate);
+        write_commit(&pusher, "b", "2\n", "theirs");
+        git(&pusher, &["push", "-q", "origin", "main"]);
+        assert_eq!(pull_one_repo(&subject, true, "s").unwrap(), PullOutcome::Updated);
+        assert!(subject.join("b").exists());
+        std::fs::remove_dir_all(&tmp).ok();
     }
 
     /// Regression guard for the incident this variant exists to catch: a
