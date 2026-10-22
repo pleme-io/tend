@@ -70,6 +70,11 @@ config); the legacy per-workspace `prebuild:` block is hoisted to the
 top-level section in its own layer; `github_auth` is a LIST because shikumi
 merges maps and a one-key-map sum type would merge into two keys.
 
+**New daemon behaviour is a vigy** (`theory/VIGY.md` §II.1): a sensor, sweep,
+sync or optimizer is written in blue and run by tend as its host, which supplies
+only intrinsics (repo facts, host pressure). The 2026-10-22 pressure and liveness
+notes, pull policy and tick budget are Rust today and move on their next refactor.
+
 **`tend.b`, the configuration in blue** (src/blue_config.rs). A
 `<config>/tend/tend.b` beside the YAML is the discovered file unless
 `$TEND_CONFIG` names one or `TEND_CONFIG_BLUE=off`. Blue evaluates it through
