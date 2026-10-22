@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "ce02f4a0964a1172fb446946af98997a4118ac03a9f64bb398398b3f36bf1e9d",
+  "cargo_lock_sha256": "801452e7e2786467d764dfe245d46204ca499fd1b3bcd9c8639cba5c32efdbd0",
   "manifest_sha256": {
-    "Cargo.toml": "9be0215e8985cc737dfdc1d7bff1fe94016fad8cc2df5b0ea81386e73a274005"
+    "Cargo.toml": "5dbf6c9d5834d6af2be32e9bcf9e953a57ddecc2e18d61df3c5ad0380e4c72a5"
   },
   "target_resolves": {
     "base": {
@@ -519,7 +519,7 @@
           },
           {
             "name": "rustls_webpki",
-            "package_key": "rustls-webpki-0.103.14",
+            "package_key": "rustls-webpki-0.103.16",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -4708,7 +4708,7 @@
           },
           {
             "name": "rustls",
-            "package_key": "rustls-0.23.43",
+            "package_key": "rustls-0.23.46",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -4758,7 +4758,7 @@
           },
           {
             "name": "webpki_roots",
-            "package_key": "webpki-roots-1.0.9",
+            "package_key": "webpki-roots-1.0.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6138,7 +6138,7 @@
           },
           {
             "name": "rustls",
-            "package_key": "rustls-0.23.43",
+            "package_key": "rustls-0.23.46",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -8082,7 +8082,7 @@
           },
           {
             "name": "rmcp",
-            "package_key": "rmcp-1.8.0",
+            "package_key": "rmcp-2.2.0",
             "kind": "normal",
             "features": [
               "server",
@@ -8723,7 +8723,7 @@
           },
           {
             "name": "proto",
-            "package_key": "quinn-proto-0.11.17",
+            "package_key": "quinn-proto-0.11.19",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -8755,7 +8755,7 @@
           },
           {
             "name": "rustls",
-            "package_key": "rustls-0.23.43",
+            "package_key": "rustls-0.23.46",
             "kind": "normal",
             "features": [
               "std"
@@ -8829,7 +8829,7 @@
           "rustls-ring"
         ]
       },
-      "quinn-proto-0.11.17": {
+      "quinn-proto-0.11.19": {
         "runtime_dependencies": [
           {
             "name": "bytes",
@@ -8905,7 +8905,7 @@
           },
           {
             "name": "rustls",
-            "package_key": "rustls-0.23.43",
+            "package_key": "rustls-0.23.46",
             "kind": "normal",
             "features": [
               "std"
@@ -9710,7 +9710,7 @@
           },
           {
             "name": "rustls",
-            "package_key": "rustls-0.23.43",
+            "package_key": "rustls-0.23.46",
             "kind": "normal",
             "features": [
               "std",
@@ -9858,7 +9858,7 @@
           },
           {
             "name": "webpki_roots",
-            "package_key": "webpki-roots-1.0.9",
+            "package_key": "webpki-roots-1.0.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -9888,7 +9888,7 @@
           "system-proxy"
         ]
       },
-      "rmcp-1.8.0": {
+      "rmcp-2.2.0": {
         "runtime_dependencies": [
           {
             "name": "async_trait",
@@ -9970,7 +9970,7 @@
           },
           {
             "name": "rmcp_macros",
-            "package_key": "rmcp-macros-1.8.0",
+            "package_key": "rmcp-macros-2.2.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10069,7 +10069,7 @@
           "transport-io"
         ]
       },
-      "rmcp-macros-1.8.0": {
+      "rmcp-macros-2.2.0": {
         "runtime_dependencies": [
           {
             "name": "darling",
@@ -10297,7 +10297,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "rustls-0.23.43": {
+      "rustls-0.23.46": {
         "runtime_dependencies": [
           {
             "name": "log",
@@ -10346,7 +10346,7 @@
           },
           {
             "name": "webpki",
-            "package_key": "rustls-webpki-0.103.14",
+            "package_key": "rustls-webpki-0.103.16",
             "kind": "normal",
             "features": [
               "alloc"
@@ -10427,7 +10427,7 @@
           "web-time"
         ]
       },
-      "rustls-webpki-0.103.14": {
+      "rustls-webpki-0.103.16": {
         "runtime_dependencies": [
           {
             "name": "ring",
@@ -13541,7 +13541,7 @@
         "runtime_dependencies": [
           {
             "name": "rustls",
-            "package_key": "rustls-0.23.43",
+            "package_key": "rustls-0.23.46",
             "kind": "normal",
             "features": [
               "std"
@@ -15007,7 +15007,7 @@
         "runtime_dependencies": [
           {
             "name": "parent",
-            "package_key": "webpki-roots-1.0.9",
+            "package_key": "webpki-roots-1.0.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -15019,7 +15019,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "webpki-roots-1.0.9": {
+      "webpki-roots-1.0.10": {
         "runtime_dependencies": [
           {
             "name": "pki_types",
@@ -21594,7 +21594,7 @@
       "edition": "2021",
       "build_script": "build.rs"
     },
-    "quinn-proto-0.11.17": {
+    "quinn-proto-0.11.19": {
       "edition": "2021"
     },
     "quinn-udp-0.5.15": {
@@ -21660,11 +21660,11 @@
       "build_script": "build.rs",
       "links": "ring_core_0_17_14_"
     },
-    "rmcp-1.8.0": {
+    "rmcp-2.2.0": {
       "edition": "2024",
       "build_script": "build.rs"
     },
-    "rmcp-macros-1.8.0": {
+    "rmcp-macros-2.2.0": {
       "edition": "2024",
       "proc_macro": true
     },
@@ -21697,7 +21697,7 @@
       "edition": "2021",
       "build_script": "build.rs"
     },
-    "rustls-0.23.43": {
+    "rustls-0.23.46": {
       "edition": "2021",
       "build_script": "build.rs"
     },
@@ -21710,7 +21710,7 @@
     "rustls-pki-types-1.15.1": {
       "edition": "2021"
     },
-    "rustls-webpki-0.103.14": {
+    "rustls-webpki-0.103.16": {
       "edition": "2021",
       "lib_target": {
         "name": "webpki",
@@ -22133,7 +22133,7 @@
     "webpki-roots-0.26.11": {
       "edition": "2021"
     },
-    "webpki-roots-1.0.9": {
+    "webpki-roots-1.0.10": {
       "edition": "2021"
     },
     "wide-0.7.33": {
