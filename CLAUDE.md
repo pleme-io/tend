@@ -70,6 +70,16 @@ config); the legacy per-workspace `prebuild:` block is hoisted to the
 top-level section in its own layer; `github_auth` is a LIST because shikumi
 merges maps and a one-key-map sum type would merge into two keys.
 
+**`tend.b`, the configuration in blue** (src/blue_config.rs). A
+`<config>/tend/tend.b` beside the YAML is the discovered file unless
+`$TEND_CONFIG` names one or `TEND_CONFIG_BLUE=off`. Blue evaluates it through
+`blue-lang-host` in a pure frame (every host-effect name is unbound, so a
+config that reads the clock does not compile), with the standard bidamas
+available to `use`; its `config()` value is the file layer and every layer
+above folds over it as before. A workspace entry that does not read as a
+`Workspace` is refused alone, by name, and its siblings stand. `tend adopt`
+never edits a `.b` file: it writes the YAML.
+
 The schema is golden-tested (`BLESS=1 cargo test schema` regenerates) and
 held to what substrate's `jsonSchema.optionsFromJsonSchema` maps (no
 `pattern`/`minLength`/tuples/...); the flake exports it as `lib.configSchema`.

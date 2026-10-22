@@ -127,8 +127,18 @@ impl ConfigLoader {
             .config
             .last()
             .cloned()
-            .or_else(|| self.discovered_file())
-            .unwrap_or_else(Config::default_path)
+            .or_else(|| {
+                self.discovered_file()
+                    .filter(|p| !crate::blue_config::is_blue(p))
+            })
+            .unwrap_or_else(|| {
+                let found = Config::default_path();
+                if crate::blue_config::is_blue(&found) {
+                    Config::legacy_default_path(&crate::xdg::resolver())
+                } else {
+                    found
+                }
+            })
     }
 
     /// Every file this resolution reads — what a hot-reload watcher watches.
@@ -143,9 +153,19 @@ impl ConfigLoader {
     fn layers(&self) -> Result<Vec<ProgressiveLayer>> {
         let mut layers = Vec::with_capacity(self.args.config.len() + 4);
         if let Some(path) = self.discovered_file() {
-            let mut dict = ProgressiveLayer::try_from_file(&path)
-                .with_context(|| format!("reading config {}", path.display()))?
-                .into_dict();
+            let mut dict = if crate::blue_config::is_blue(&path) {
+                let out = crate::blue_config::evaluate(&path)?;
+                for refusal in &out.refusals {
+                    eprintln!("tend: {}: refused {refusal}", path.display());
+                }
+                ProgressiveLayer::cli(&out.json)
+                    .with_context(|| format!("the value of {}", path.display()))?
+                    .into_dict()
+            } else {
+                ProgressiveLayer::try_from_file(&path)
+                    .with_context(|| format!("reading config {}", path.display()))?
+                    .into_dict()
+            };
             hoist_legacy_prebuild(&mut dict);
             layers.push(ProgressiveLayer::file(path, dict));
         }

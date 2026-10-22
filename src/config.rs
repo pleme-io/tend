@@ -1167,6 +1167,16 @@ impl Config {
     pub fn default_path() -> PathBuf {
         use shikumi::{ConfigDiscovery, Format};
 
+        // A blue declaration beside the YAML wins, unless TEND_CONFIG names a
+        // file or TEND_CONFIG_BLUE=off (src/blue_config.rs).
+        if std::env::var_os("TEND_CONFIG").is_none() && crate::blue_config::enabled() {
+            let blue = Self::legacy_default_path(&crate::xdg::resolver())
+                .with_file_name(crate::blue_config::FILE_NAME);
+            if blue.is_file() {
+                return blue;
+            }
+        }
+
         // Try shikumi discovery first (TEND_CONFIG env, then tend/tend.yaml, etc.)
         if let Ok(path) = ConfigDiscovery::new("tend")
             .env_override("TEND_CONFIG")
@@ -1198,7 +1208,7 @@ impl Config {
     /// okiba resolves this tier to the identical place for every valid
     /// configuration (`$XDG_CONFIG_HOME/tend` or `~/.config/tend`) and
     /// ignores a relative override instead of joining it.
-    fn legacy_default_path(x: &okiba::Okiba) -> PathBuf {
+    pub(crate) fn legacy_default_path(x: &okiba::Okiba) -> PathBuf {
         x.try_path(okiba::Tier::Config, "config.yaml")
             // No absolute `$XDG_CONFIG_HOME` and no usable `$HOME` at all:
             // fall back to the spec's SYSTEM-wide config location, which is
