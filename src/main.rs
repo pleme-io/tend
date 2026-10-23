@@ -4,6 +4,7 @@ mod ai_flow;
 mod ai_lisp;
 mod ai_models;
 mod ai_planner;
+mod align;
 mod audit;
 mod backoff;
 mod blue_config;
@@ -180,6 +181,20 @@ enum Commands {
         /// Bypass discovery cache and always hit the GitHub API
         #[arg(long)]
         refresh: bool,
+    },
+
+    /// Propose, never apply, the order in which repos of one dependency tree
+    /// should align when they pin different versions of a shared org flake
+    /// input or crate. The order is a topological sort over the dependency
+    /// graph, computed in blue (blue/align.b).
+    AlignPlan {
+        /// Only a specific workspace by name
+        #[arg(long)]
+        workspace: Option<String>,
+
+        /// Print the proposal as JSON
+        #[arg(long)]
+        json: bool,
     },
 
     /// Align every clean repo's nixpkgs to follow substrate's pinned rev (the
@@ -935,6 +950,22 @@ async fn main() -> Result<()> {
             degraded.report();
             if degraded.should_fail_exit() {
                 std::process::exit(1);
+            }
+        }
+
+        Commands::AlignPlan {
+            workspace: ws_filter,
+            json,
+        } => {
+            let cfg = loader(none()).load()?;
+            for ws in filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())? {
+                let facts = align::gather(ws)?;
+                let proposal = align::propose(&facts)?;
+                if json {
+                    println!("{}", serde_json::to_string(&proposal)?);
+                } else {
+                    print!("[{}] {}", ws.name, align::render(&proposal));
+                }
             }
         }
 
