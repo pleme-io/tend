@@ -344,7 +344,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-bidama"
 version = "0.0.90"
-source = "git+https://github.com/pleme-io/blue#4c600bec75e18185f644278c2606bd134f29c491"
+source = "git+https://github.com/pleme-io/blue#37c59424a140547f7d9909c43f49f9ed330e3e7d"
 dependencies = [
  "blue-lang-waku",
 ]
@@ -352,7 +352,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-check"
 version = "0.0.90"
-source = "git+https://github.com/pleme-io/blue#4c600bec75e18185f644278c2606bd134f29c491"
+source = "git+https://github.com/pleme-io/blue#37c59424a140547f7d9909c43f49f9ed330e3e7d"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -361,7 +361,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-fmt"
 version = "0.0.90"
-source = "git+https://github.com/pleme-io/blue#4c600bec75e18185f644278c2606bd134f29c491"
+source = "git+https://github.com/pleme-io/blue#37c59424a140547f7d9909c43f49f9ed330e3e7d"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -371,7 +371,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-host"
 version = "0.0.90"
-source = "git+https://github.com/pleme-io/blue#4c600bec75e18185f644278c2606bd134f29c491"
+source = "git+https://github.com/pleme-io/blue#37c59424a140547f7d9909c43f49f9ed330e3e7d"
 dependencies = [
  "blue-lang-host-macros",
  "blue-lang-pkg",
@@ -385,7 +385,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-host-macros"
 version = "0.0.90"
-source = "git+https://github.com/pleme-io/blue#4c600bec75e18185f644278c2606bd134f29c491"
+source = "git+https://github.com/pleme-io/blue#37c59424a140547f7d9909c43f49f9ed330e3e7d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -395,7 +395,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-pkg"
 version = "0.0.90"
-source = "git+https://github.com/pleme-io/blue#4c600bec75e18185f644278c2606bd134f29c491"
+source = "git+https://github.com/pleme-io/blue#37c59424a140547f7d9909c43f49f9ed330e3e7d"
 dependencies = [
  "blue-lang-bidama",
  "blue-lang-check",
@@ -413,7 +413,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-proc"
 version = "0.0.90"
-source = "git+https://github.com/pleme-io/blue#4c600bec75e18185f644278c2606bd134f29c491"
+source = "git+https://github.com/pleme-io/blue#37c59424a140547f7d9909c43f49f9ed330e3e7d"
 dependencies = [
  "blue-lang-waku",
  "serde_json",
@@ -424,7 +424,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-runtime"
 version = "0.0.90"
-source = "git+https://github.com/pleme-io/blue#4c600bec75e18185f644278c2606bd134f29c491"
+source = "git+https://github.com/pleme-io/blue#37c59424a140547f7d9909c43f49f9ed330e3e7d"
 dependencies = [
  "blake3",
  "blue-lang-check",
@@ -445,7 +445,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-syntax"
 version = "0.0.90"
-source = "git+https://github.com/pleme-io/blue#4c600bec75e18185f644278c2606bd134f29c491"
+source = "git+https://github.com/pleme-io/blue#37c59424a140547f7d9909c43f49f9ed330e3e7d"
 dependencies = [
  "tatara-lisp",
 ]
@@ -453,7 +453,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-waku"
 version = "0.0.90"
-source = "git+https://github.com/pleme-io/blue#4c600bec75e18185f644278c2606bd134f29c491"
+source = "git+https://github.com/pleme-io/blue#37c59424a140547f7d9909c43f49f9ed330e3e7d"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -2537,7 +2537,7 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.24"
+version = "0.3.25"
 dependencies = [
  "anyhow",
  "async-nats",
