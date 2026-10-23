@@ -5,6 +5,7 @@ mod ai_lisp;
 mod ai_models;
 mod ai_planner;
 mod audit;
+mod backoff;
 mod blue_config;
 mod cache;
 mod cargo_target;

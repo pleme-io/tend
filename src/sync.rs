@@ -892,6 +892,8 @@ pub(crate) enum FetchOutcome {
     MissingSkipped,
     /// `git fetch` exited non-zero. Carries the trimmed stderr.
     Failed { stderr: String },
+    /// The remote failed a recent fetch and is inside its backoff window.
+    BackedOff,
 }
 
 /// Fetch one repo. The unit shared by the batch driver and the
@@ -905,6 +907,10 @@ pub(crate) fn fetch_one_repo(
         return Ok(FetchOutcome::MissingSkipped);
     }
 
+    if crate::backoff::should_skip(repo_path) {
+        return Ok(FetchOutcome::BackedOff);
+    }
+
     let output = Command::new("git")
         .args(["fetch", "--all", "--prune", "--quiet"])
         .current_dir(repo_path)
@@ -912,12 +918,14 @@ pub(crate) fn fetch_one_repo(
         .with_context(|| format!("running git fetch in {repo_label}"))?;
 
     if output.status.success() {
+        crate::backoff::note_fetch(repo_path, None);
         if !quiet {
             println!("  fetched: {repo_label}");
         }
         Ok(FetchOutcome::Fetched)
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        crate::backoff::note_fetch(repo_path, Some(&stderr));
         eprintln!("  warning: fetch failed for {repo_label}: {stderr}");
         Ok(FetchOutcome::Failed { stderr })
     }
@@ -937,7 +945,9 @@ pub(crate) async fn fetch_repos(
         let repo_path = base_dir.join(repo_name);
         match fetch_one_repo(&repo_path, quiet, repo_name)? {
             FetchOutcome::Fetched => fetched += 1,
-            FetchOutcome::MissingSkipped | FetchOutcome::Failed { .. } => skipped += 1,
+            FetchOutcome::MissingSkipped
+                | FetchOutcome::BackedOff
+                | FetchOutcome::Failed { .. } => skipped += 1,
         }
     }
 
@@ -954,6 +964,7 @@ pub(crate) struct PullSummary {
     pub no_remote_skipped: usize,
     pub empty_skipped: usize,
     pub unpullable_skipped: usize,
+    pub backed_off: usize,
     pub failed: usize,
     pub not_reached: usize,
 }
@@ -1015,6 +1026,9 @@ pub(crate) enum PullOutcome {
     /// 13,840 `hint:` lines into a 57 MB error log. A diverged branch stays
     /// visible through the status scan; it is not a pull failure.
     UnpullableSkipped { why: Unpullable },
+    /// The remote failed a recent fetch and is inside its backoff window, so
+    /// git was not asked.
+    BackedOff,
     /// `git pull` exited non-zero. Carries the trimmed stderr for surfacing.
     Failed { stderr: String },
 }
@@ -1069,6 +1083,7 @@ impl PullOutcome {
             PullOutcome::NoRemoteSkipped => summary.no_remote_skipped += 1,
             PullOutcome::EmptySkipped => summary.empty_skipped += 1,
             PullOutcome::UnpullableSkipped { .. } => summary.unpullable_skipped += 1,
+            PullOutcome::BackedOff => summary.backed_off += 1,
             PullOutcome::Failed { .. } => summary.failed += 1,
         }
     }
@@ -1175,14 +1190,20 @@ pub(crate) fn pull_one_repo(
     // checkout, which fetches them; fetching from every worktree at once
     // raced on those shared refs ("cannot lock ref", measured 2026-10-22).
     if repo_path.join(".git").is_dir() {
+        if crate::backoff::should_skip(repo_path) {
+            return Ok(PullOutcome::BackedOff);
+        }
         let fetch = Command::new("git")
             .args(["fetch", "--quiet"])
             .current_dir(repo_path)
             .output()
             .with_context(|| format!("running git fetch in {repo_label}"))?;
         if !fetch.status.success() {
+            let stderr = String::from_utf8_lossy(&fetch.stderr);
+            crate::backoff::note_fetch(repo_path, Some(&stderr));
             return Ok(failed(repo_label, &fetch.stderr));
         }
+        crate::backoff::note_fetch(repo_path, None);
     }
     if let Some(why) = Unpullable::of(&branch_status(repo_path)?) {
         if !quiet {
@@ -1754,6 +1775,31 @@ mod tests {
             },
             "the fetch inside the pull must see the upstream move before deciding"
         );
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn an_unreachable_remote_is_fetched_once_then_backed_off() {
+        let tmp = std::env::temp_dir().join(format!("tend-backoff-{}", std::process::id()));
+        std::fs::remove_dir_all(&tmp).ok();
+        std::fs::create_dir_all(&tmp).unwrap();
+        let (subject, _pusher) = backed_with_pusher(&tmp);
+        let gone = tmp.join("no-such-remote");
+        git(&subject, &["remote", "set-url", "origin", gone.to_str().unwrap()]);
+
+        assert!(matches!(
+            pull_one_repo(&subject, true, "s").unwrap(),
+            PullOutcome::Failed { .. }
+        ));
+        assert_eq!(
+            pull_one_repo(&subject, true, "s").unwrap(),
+            PullOutcome::BackedOff
+        );
+        assert!(matches!(
+            fetch_one_repo(&subject, true, "s").unwrap(),
+            FetchOutcome::BackedOff
+        ));
 
         std::fs::remove_dir_all(&tmp).ok();
     }

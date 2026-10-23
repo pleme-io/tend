@@ -261,6 +261,15 @@
           "description": "Plain `git fetch --all --prune` each cycle. Only takes effect when\n`pull` is false (pull already fetches).",
           "type": "boolean"
         },
+        "fetch_backoff": {
+          "$ref": "#/$defs/FetchBackoffConfig",
+          "default": {
+            "base_secs": 300,
+            "enabled": true,
+            "max_secs": 21600
+          },
+          "description": "Exponential backoff with jitter for a remote whose fetch failed."
+        },
         "interval": {
           "default": 300,
           "description": "Seconds between cycles. Re-read every cycle, like the rest of the\nconfig, so an edit takes effect without a restart.",
@@ -277,6 +286,30 @@
           "default": false,
           "description": "Suppress per-repo output.",
           "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "FetchBackoffConfig": {
+      "properties": {
+        "base_secs": {
+          "default": 300,
+          "description": "Delay after the first failure, seconds. Doubles per consecutive failure.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enabled": {
+          "default": true,
+          "description": "Skip the fetch of a remote that failed, for an exponentially growing\ndelay with jitter, instead of retrying it every cycle. Off retries\nevery cycle.",
+          "type": "boolean"
+        },
+        "max_secs": {
+          "default": 21600,
+          "description": "Ceiling of the delay, seconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
         }
       },
       "type": "object"
@@ -1455,6 +1488,11 @@
       "$ref": "#/$defs/DaemonConfig",
       "default": {
         "fetch": true,
+        "fetch_backoff": {
+          "base_secs": 300,
+          "enabled": true,
+          "max_secs": 21600
+        },
         "interval": 300,
         "pull": true,
         "quiet": false

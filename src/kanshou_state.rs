@@ -122,13 +122,14 @@ impl Introspect for TendDaemonState {
                 "uptime_ms": now.saturating_sub(self.started_at_unix_ms),
                 "version": env!("CARGO_PKG_VERSION"),
             })),
+            "backoff" => Ok(serde_json::json!(crate::backoff::snapshot())),
             "config" => Ok(self.effective_config.read().clone()),
             other => Err(QueryError::unknown_field(other.to_string())),
         }
     }
 
     fn schema(&self) -> &'static [&'static str] {
-        &["ticks", "repos", "current", "process", "token", "config"]
+        &["ticks", "repos", "current", "process", "token", "backoff", "config"]
     }
 }
 

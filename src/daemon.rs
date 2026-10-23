@@ -117,6 +117,7 @@ pub(crate) async fn run_with_kanshou(
         // which source answered (audit log), never the token.
         crate::gh_auth::credentials().begin_cycle();
         let d = cfg.daemon.clone();
+        crate::backoff::configure(d.fetch_backoff);
         last_daemon = d.clone();
         let max_inflight = cfg.reconcile.max_inflight;
 

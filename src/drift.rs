@@ -447,7 +447,8 @@ pub(crate) fn derive_from_receipt(receipt: &ReconcileReceipt) -> Vec<DriftEvent>
             PullOutcome::Updated
             | PullOutcome::UpToDate
             | PullOutcome::MissingSkipped
-            | PullOutcome::EmptySkipped => {}
+            | PullOutcome::EmptySkipped
+            | PullOutcome::BackedOff => {}
         }
     }
 

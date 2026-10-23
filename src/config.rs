@@ -192,6 +192,8 @@ pub struct DaemonConfig {
     pub fetch: bool,
     /// Suppress per-repo output.
     pub quiet: bool,
+    /// Exponential backoff with jitter for a remote whose fetch failed.
+    pub fetch_backoff: crate::backoff::FetchBackoffConfig,
 }
 
 impl Default for DaemonConfig {
@@ -201,6 +203,7 @@ impl Default for DaemonConfig {
             pull: true,
             fetch: true,
             quiet: false,
+            fetch_backoff: crate::backoff::FetchBackoffConfig::default(),
         }
     }
 }
@@ -938,6 +941,7 @@ impl shikumi::TieredConfig for Config {
                 pull: false,
                 fetch: false,
                 quiet: false,
+                fetch_backoff: crate::backoff::FetchBackoffConfig::default(),
             },
             flake_update_daemon: FlakeUpdateDaemonConfig::default(),
             prebuild: <PrebuildConfig as shikumi::TieredConfig>::bare(),
