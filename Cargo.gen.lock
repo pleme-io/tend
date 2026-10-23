@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "0726abfca96a8834a883d8db5ba6a3a1299b57b8eee8196f27c39ea563d2037d",
+  "cargo_lock_sha256": "fa95521a42a7e2a34209c32ec82b4f35498986230b3a2372d57625ebb2f134ba",
   "manifest_sha256": {
-    "Cargo.toml": "ccd9bfb17420493c863e5701dbcfc99f2a338cc8ed7b9bc4b04d3a5a7d33d071"
+    "Cargo.toml": "8a1e292c5c13d8d9ef32d4f099b6676c1431b751d62f1ba31e08d0056f3e6786"
   },
   "target_resolves": {
     "base": {
@@ -8297,6 +8297,18 @@
             "tree": "target"
           },
           {
+            "name": "sysinfo",
+            "package_key": "sysinfo-0.39.6",
+            "kind": "normal",
+            "features": [
+              "system"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "thiserror",
             "package_key": "thiserror-2.0.21",
             "kind": "normal",
@@ -16113,6 +16125,75 @@
               "macos_fsevent"
             ]
           },
+          "objc2-core-foundation-0.3.2": {
+            "runtime_dependencies": [
+              {
+                "name": "bitflags",
+                "package_key": "bitflags-2.13.2",
+                "kind": "normal",
+                "features": [
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "CFArray",
+              "CFBase",
+              "CFData",
+              "CFDictionary",
+              "CFPlugInCOM",
+              "CFRunLoop",
+              "CFString",
+              "CFURL",
+              "CFUUID",
+              "alloc",
+              "bitflags",
+              "std"
+            ]
+          },
+          "objc2-io-kit-0.3.2": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "objc2_core_foundation",
+                "package_key": "objc2-core-foundation-0.3.2",
+                "kind": "normal",
+                "features": [
+                  "CFArray",
+                  "CFData",
+                  "CFDictionary",
+                  "CFPlugInCOM",
+                  "CFRunLoop",
+                  "CFURL",
+                  "CFUUID"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "alloc",
+              "libc",
+              "std"
+            ]
+          },
           "ring-0.17.14": {
             "runtime_dependencies": [
               {
@@ -16513,6 +16594,59 @@
             "features": [
               "OSX_10_13",
               "default"
+            ]
+          },
+          "sysinfo-0.39.6": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(not(any(target_os = \"unknown\", target_arch = \"wasm32\")))",
+                "tree": "target"
+              },
+              {
+                "name": "memchr",
+                "package_key": "memchr-2.8.3",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "objc2_core_foundation",
+                "package_key": "objc2-core-foundation-0.3.2",
+                "kind": "normal",
+                "features": [
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": true,
+                "target": "cfg(any(target_os = \"macos\", target_os = \"ios\"))",
+                "tree": "target"
+              },
+              {
+                "name": "objc2_io_kit",
+                "package_key": "objc2-io-kit-0.3.2",
+                "kind": "normal",
+                "features": [
+                  "libc",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": true,
+                "target": "cfg(any(target_os = \"macos\", target_os = \"ios\"))",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "system"
             ]
           },
           "system-configuration-0.7.0": {
@@ -17555,6 +17689,34 @@
             ],
             "build_dependencies": [],
             "features": []
+          },
+          "sysinfo-0.39.6": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(not(any(target_os = \"unknown\", target_arch = \"wasm32\")))",
+                "tree": "target"
+              },
+              {
+                "name": "memchr",
+                "package_key": "memchr-2.8.3",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "system"
+            ]
           }
         }
       },
@@ -18534,6 +18696,34 @@
             ],
             "build_dependencies": [],
             "features": []
+          },
+          "sysinfo-0.39.6": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(not(any(target_os = \"unknown\", target_arch = \"wasm32\")))",
+                "tree": "target"
+              },
+              {
+                "name": "memchr",
+                "package_key": "memchr-2.8.3",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "system"
+            ]
           }
         }
       },
@@ -19208,6 +19398,75 @@
               "macos_fsevent"
             ]
           },
+          "objc2-core-foundation-0.3.2": {
+            "runtime_dependencies": [
+              {
+                "name": "bitflags",
+                "package_key": "bitflags-2.13.2",
+                "kind": "normal",
+                "features": [
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "CFArray",
+              "CFBase",
+              "CFData",
+              "CFDictionary",
+              "CFPlugInCOM",
+              "CFRunLoop",
+              "CFString",
+              "CFURL",
+              "CFUUID",
+              "alloc",
+              "bitflags",
+              "std"
+            ]
+          },
+          "objc2-io-kit-0.3.2": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "objc2_core_foundation",
+                "package_key": "objc2-core-foundation-0.3.2",
+                "kind": "normal",
+                "features": [
+                  "CFArray",
+                  "CFData",
+                  "CFDictionary",
+                  "CFPlugInCOM",
+                  "CFRunLoop",
+                  "CFURL",
+                  "CFUUID"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "alloc",
+              "libc",
+              "std"
+            ]
+          },
           "ring-0.17.14": {
             "runtime_dependencies": [
               {
@@ -19588,6 +19847,59 @@
             "features": [
               "OSX_10_13",
               "default"
+            ]
+          },
+          "sysinfo-0.39.6": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(not(any(target_os = \"unknown\", target_arch = \"wasm32\")))",
+                "tree": "target"
+              },
+              {
+                "name": "memchr",
+                "package_key": "memchr-2.8.3",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "objc2_core_foundation",
+                "package_key": "objc2-core-foundation-0.3.2",
+                "kind": "normal",
+                "features": [
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": true,
+                "target": "cfg(any(target_os = \"macos\", target_os = \"ios\"))",
+                "tree": "target"
+              },
+              {
+                "name": "objc2_io_kit",
+                "package_key": "objc2-io-kit-0.3.2",
+                "kind": "normal",
+                "features": [
+                  "libc",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": true,
+                "target": "cfg(any(target_os = \"macos\", target_os = \"ios\"))",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "system"
             ]
           },
           "system-configuration-0.7.0": {
@@ -20669,6 +20981,34 @@
             ],
             "build_dependencies": [],
             "features": []
+          },
+          "sysinfo-0.39.6": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(not(any(target_os = \"unknown\", target_arch = \"wasm32\")))",
+                "tree": "target"
+              },
+              {
+                "name": "memchr",
+                "package_key": "memchr-2.8.3",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "system"
+            ]
           }
         }
       },
@@ -21687,6 +22027,34 @@
             ],
             "build_dependencies": [],
             "features": []
+          },
+          "sysinfo-0.39.6": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(not(any(target_os = \"unknown\", target_arch = \"wasm32\")))",
+                "tree": "target"
+              },
+              {
+                "name": "memchr",
+                "package_key": "memchr-2.8.3",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "system"
+            ]
           }
         }
       }
@@ -22458,6 +22826,12 @@
       "edition": "2021",
       "build_script": "build.rs"
     },
+    "objc2-core-foundation-0.3.2": {
+      "edition": "2021"
+    },
+    "objc2-io-kit-0.3.2": {
+      "edition": "2021"
+    },
     "object-0.40.0": {
       "edition": "2024"
     },
@@ -22925,6 +23299,9 @@
       "edition": "2018"
     },
     "synthesizer-core-0.1.1": {
+      "edition": "2024"
+    },
+    "sysinfo-0.39.6": {
       "edition": "2024"
     },
     "system-configuration-0.7.0": {

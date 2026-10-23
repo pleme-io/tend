@@ -135,7 +135,7 @@
       "type": "object"
     },
     "CargoTargetConfig": {
-      "description": "`cargo_target:` in tend's config. Every field defaults, so a partial\nblock is valid and an absent block means disabled.",
+      "description": "`cargo_target:` in tend's config. Every field defaults, so a partial\nblock is valid.",
       "properties": {
         "active_minutes": {
           "default": 60,
@@ -143,6 +143,16 @@
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
+        },
+        "adopt_untagged": {
+          "default": false,
+          "description": "Also remove a directory named `target` that has cargo's layout but\nno `CACHEDIR.TAG`. Default false: such directories are reported as\n`untagged-cargo-layout` and kept.",
+          "type": "boolean"
+        },
+        "auto_apply": {
+          "default": true,
+          "description": "While disk pressure is high, the daemon sweeps and applies even when\n`enable` is false, at most every `pressure_interval_minutes`.\nDefault true; false leaves only the `enable` schedule.",
+          "type": "boolean"
         },
         "budget_gib": {
           "default": 50,
@@ -158,8 +168,16 @@
         },
         "enable": {
           "default": false,
-          "description": "Run the sweep from the daemon. Default false: tend deletes nothing\nunless the operator turns this on. `tend cargo-target report` works\neither way.",
+          "description": "Run the sweep from the daemon every `interval_minutes`. Default\nfalse. `tend cargo-target report` works either way.",
           "type": "boolean"
+        },
+        "extra_roots": {
+          "default": [],
+          "description": "Directories scanned one level deep for cargo target dirs of any\nname, such as `~/.cache` holding agents' `CARGO_TARGET_DIR`s. `~`\nexpands. Default empty.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "interval_minutes": {
           "default": 60,
@@ -178,6 +196,13 @@
         "pressure_budget_gib": {
           "default": 10,
           "description": "Tighter total used while disk pressure is high.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pressure_interval_minutes": {
+          "default": 5,
+          "description": "Minimum minutes between pressure-relief sweeps.",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -1474,12 +1499,16 @@
       "$ref": "#/$defs/CargoTargetConfig",
       "default": {
         "active_minutes": 60,
+        "adopt_untagged": false,
+        "auto_apply": true,
         "budget_gib": 50,
         "dry_run": false,
         "enable": false,
+        "extra_roots": [],
         "interval_minutes": 60,
         "max_idle_days": 14,
         "pressure_budget_gib": 10,
+        "pressure_interval_minutes": 5,
         "search_depth": 2
       },
       "description": "Bounds on local cargo `target/` directories -- see\n`src/cargo_target.rs`. Absent means disabled."

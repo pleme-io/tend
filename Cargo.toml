@@ -119,6 +119,7 @@ schemars = { version = "1.2", features = ["chrono04"] }
 tsunagu = { git = "https://github.com/pleme-io/tsunagu" }
 opencode-zen = { git = "https://github.com/pleme-io/opencode-zen" }
 cron = "0.15"
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 
 kube = { version = "4.2", features = ["runtime", "derive", "client"], optional = true }
 k8s-openapi = { version = "0.28", features = ["v1_35"], optional = true }

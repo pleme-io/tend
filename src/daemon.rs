@@ -179,18 +179,24 @@ pub(crate) async fn run_with_kanshou(
         // BEFORE the pressure gate, deliberately: this sweep FREES disk, and
         // a gate that halts on low disk must not also stop the one step that
         // relieves it. Rate-limited by `interval_minutes`, because measuring
-        // stats every file in every target dir. Off unless configured.
-        if cfg.cargo_target.enable
-            && last_cargo_sweep
-                .is_none_or(|t: std::time::Instant| t.elapsed() >= cfg.cargo_target.interval())
-        {
+        // stats every file in every target dir. The schedule is
+        // `enable`; `auto_apply` adds a relief sweep while disk is pressured.
+        let ct_probe = workspaces
+            .first()
+            .and_then(|w| w.resolved_base_dir().ok())
+            .unwrap_or_else(|| PathBuf::from("."));
+        let since_sweep = |every: Duration| {
+            last_cargo_sweep.is_none_or(|t: std::time::Instant| t.elapsed() >= every)
+        };
+        let scheduled = cfg.cargo_target.enable && since_sweep(cfg.cargo_target.interval());
+        let relief = cfg.cargo_target.auto_apply
+            && since_sweep(cfg.cargo_target.pressure_interval())
+            && crate::cargo_target::disk_pressured_at(&ct_probe, max_inflight);
+        if scheduled || relief {
             last_cargo_sweep = Some(std::time::Instant::now());
             let ct = cfg.cargo_target.clone();
             let repos = daemon_repo_paths(&workspaces);
-            let probe = workspaces
-                .first()
-                .and_then(|w| w.resolved_base_dir().ok())
-                .unwrap_or_else(|| PathBuf::from("."));
+            let probe = ct_probe;
             let inflight = max_inflight;
             let swept = tokio::task::spawn_blocking(move || {
                 let pressured = crate::cargo_target::disk_pressured_at(&probe, inflight);
@@ -200,11 +206,33 @@ pub(crate) async fn run_with_kanshou(
                     pressured,
                     crate::cargo_target::Mode::Apply,
                     std::time::SystemTime::now(),
+                    &crate::cargo_target::SystemProcessTable,
                 )
             })
             .await;
             match swept {
-                Ok(report) => {
+                Ok(Err(e)) => eprintln!("daemon: cargo target sweep refused: {e:#}"),
+                Ok(Ok(report)) => {
+                    for e in report.entries.iter().filter(|e| e.removed == Some(true)) {
+                        eprintln!(
+                            "  cargo target removed {} ({:.2} GiB, {})",
+                            e.path,
+                            e.gib,
+                            e.verdict.label()
+                        );
+                        audit::AuditLog::default_path().log(
+                            "cargo_target_removed",
+                            serde_json::json!({
+                                "path": e.path,
+                                "bytes": e.bytes,
+                                "form": e.form,
+                                "verdict": e.verdict,
+                                "trigger": if scheduled { "schedule" } else { "pressure" },
+                            }),
+                        );
+                    }
+                    *kanshou_state.cargo_target.write() =
+                        serde_json::to_value(&report).unwrap_or(serde_json::Value::Null);
                     let removed: Vec<&str> = report
                         .entries
                         .iter()
@@ -221,6 +249,8 @@ pub(crate) async fn run_with_kanshou(
                             "reclaim_gib": report.reclaim_gib,
                             "freed_gib": report.freed_gib,
                             "budget_unreachable": report.budget_unreachable,
+                            "processes": report.processes,
+                            "trigger": if scheduled { "schedule" } else { "pressure" },
                             "removed": removed,
                         }),
                     );

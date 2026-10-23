@@ -82,8 +82,9 @@ pub const TOOLS: &[Tool] = &[
     },
     Tool {
         name: "tend_cargo_targets",
-        description: "Cargo target/ directories in the workspace repos: size, idle \
-                      days and the verdict the cargo_target policy reaches. A dry \
+        description: "Cargo target directories in the workspace repos and the \
+                      cargo_target.extra_roots: size, idle days, form, process use \
+                      and the verdict the cargo_target policy reaches. A dry \
                       run — never deletes.",
         mutating: false,
     },
@@ -296,7 +297,7 @@ impl TendMcp {
     }
 
     #[tool(
-        description = "Cargo target/ directories across the configured workspace repos, as a DRY RUN of the cargo_target policy: per directory the size, idle days and verdict (in-use / keep / remove-idle / remove-over-budget), plus totals, the budget in force (tighter under disk pressure) and any `target` dirs refused for lacking cargo's CACHEDIR.TAG. Never deletes; `tend cargo-target apply` does."
+        description = "Cargo target directories across the configured workspace repos and the cargo_target.extra_roots (agent CARGO_TARGET_DIRs such as ~/.cache/<x>-target), as a DRY RUN of the cargo_target policy: per directory the size, idle days, how it was recognized (named / layout / adopted), whether a running process uses it, and the verdict (in-use / keep / remove-idle / remove-over-budget), plus totals, the budget in force (tighter under disk pressure), whether the process table was seen or blind (blind keeps everything), and refused dirs with their reason (no-cachedir-tag, untagged-cargo-layout, no-cargo-layout, ...). Never deletes; `tend cargo-target apply` does."
     )]
     async fn tend_cargo_targets(&self) -> String {
         let loaded = crate::load_config(None);
@@ -318,11 +319,13 @@ impl TendMcp {
                 pressured,
                 crate::cargo_target::Mode::DryRun,
                 std::time::SystemTime::now(),
+                &crate::cargo_target::SystemProcessTable,
             )
         })
         .await;
         match swept {
-            Ok(report) => json!({"ok": true, "report": report}).to_string(),
+            Ok(Ok(report)) => json!({"ok": true, "report": report}).to_string(),
+            Ok(Err(e)) => json!({"ok": false, "error": format!("{e:#}")}).to_string(),
             Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
         }
     }

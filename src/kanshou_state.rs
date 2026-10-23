@@ -43,6 +43,9 @@ pub struct TendDaemonState {
     /// ACTUALLY running", flags included, which `tend config-show
     /// --effective` in another shell cannot know.
     pub effective_config: Arc<parking_lot::RwLock<serde_json::Value>>,
+    /// The last cargo target sweep's report (null before the first):
+    /// `gen kanshou query tend cargo_target`.
+    pub cargo_target: Arc<parking_lot::RwLock<serde_json::Value>>,
 }
 
 impl Default for TendDaemonState {
@@ -66,6 +69,7 @@ impl TendDaemonState {
             current_repo: Arc::new(parking_lot::RwLock::new(None)),
             current_workspace: Arc::new(parking_lot::RwLock::new(None)),
             effective_config: Arc::new(parking_lot::RwLock::new(serde_json::Value::Null)),
+            cargo_target: Arc::new(parking_lot::RwLock::new(serde_json::Value::Null)),
         }
     }
 }
@@ -124,12 +128,22 @@ impl Introspect for TendDaemonState {
             })),
             "backoff" => Ok(serde_json::json!(crate::backoff::snapshot())),
             "config" => Ok(self.effective_config.read().clone()),
+            "cargo_target" => Ok(self.cargo_target.read().clone()),
             other => Err(QueryError::unknown_field(other.to_string())),
         }
     }
 
     fn schema(&self) -> &'static [&'static str] {
-        &["ticks", "repos", "current", "process", "token", "backoff", "config"]
+        &[
+            "ticks",
+            "repos",
+            "current",
+            "process",
+            "token",
+            "backoff",
+            "config",
+            "cargo_target",
+        ]
     }
 }
 

@@ -8,6 +8,7 @@ mod align;
 mod audit;
 mod backoff;
 mod blue_config;
+mod blue_policy;
 mod cache;
 mod cargo_target;
 mod ci_trim;
@@ -766,7 +767,8 @@ async fn main() -> Result<()> {
                 pressured,
                 mode,
                 std::time::SystemTime::now(),
-            );
+                &cargo_target::SystemProcessTable,
+            )?;
             if json {
                 println!("{}", serde_json::to_string_pretty(&report)?);
             } else {

@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use anyhow::{anyhow, Context, Result};
-use blue_lang_host::{Budget, Entry, Program, Standard, Value};
+use blue_lang_host::{Program, Value};
 use serde::Serialize;
 use serde_json::{json, Value as Json};
 
@@ -85,16 +85,7 @@ pub(crate) fn propose(facts: &Facts) -> Result<Proposal> {
 }
 
 fn load() -> Result<Program<()>> {
-    let effects = blue_lang_host::host_effect_names();
-    let pure = |name: &str| !effects.contains(&name);
-    Program::<()>::builder(Entry {
-        path: None,
-        text: SOURCE,
-    })
-    .loader(&Standard)
-    .frame(&pure, Budget::tree_walker_default())
-    .load(&mut ())
-    .map_err(|e| anyhow!("align.b: {e}"))
+    crate::blue_policy::load_pure(None, SOURCE, "align.b")
 }
 
 fn call(program: &mut Program<()>, facts: &Facts) -> Result<Proposal> {

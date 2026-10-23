@@ -16,7 +16,7 @@
 use std::path::Path;
 
 use anyhow::{anyhow, Context, Result};
-use blue_lang_host::{Budget, Entry, Program, Standard, Value};
+use blue_lang_host::Value;
 
 pub(crate) const FILE_NAME: &str = "tend.b";
 
@@ -43,13 +43,7 @@ pub(crate) fn evaluate(path: &Path) -> Result<Evaluated> {
 
 pub(crate) fn evaluate_text(path: Option<&Path>, text: &str) -> Result<Evaluated> {
     let shown = path.map_or_else(|| "tend.b".to_string(), |p| p.display().to_string());
-    let effects = blue_lang_host::host_effect_names();
-    let pure = |name: &str| !effects.contains(&name);
-    let mut program = Program::<()>::builder(Entry { path, text })
-        .loader(&Standard)
-        .frame(&pure, Budget::tree_walker_default())
-        .load(&mut ())
-        .map_err(|e| anyhow!("{shown}: {e}"))?;
+    let mut program = crate::blue_policy::load_pure(path, text, &shown)?;
     if !program.defines("config") {
         return Err(anyhow!("{shown}: defines no `config()`; it returns the configuration map"));
     }
