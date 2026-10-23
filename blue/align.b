@@ -23,7 +23,7 @@ end
 
 def lookup(m, k, fallback)
   v = get(m, k)
-  if v == nil
+  if v.nil?
     fallback
   else
     v
@@ -70,7 +70,7 @@ end
 def tree_ids(down, up, ns)
   reduce(
     fn(ids, n)
-      if get(ids, n) == nil
+      if get(ids, n).nil?
         reduce(
           (acc, k) -> assoc(acc, k, n),
           ids,
@@ -124,7 +124,7 @@ end
 def ordered_edge(index, e)
   r = get(index, edge_repo(e))
   d = get(index, edge_dep(e))
-  if r == nil or d == nil
+  if r.nil? or d.nil?
     true
   else
     d < r
@@ -136,7 +136,7 @@ def is_topological(edges, index)
 end
 
 def covers(ns, index)
-  size(filter((n) -> get(index, n) == nil, ns)) == 0
+  size(filter((n) -> get(index, n).nil?, ns)) == 0
 end
 
 def tally(versions)
@@ -204,7 +204,10 @@ end
 
 def skews_of(index, ids, pins)
   usable = filter(
-    (p) -> get(ids, pin_repo(p)) != nil and get(index, pin_repo(p)) != nil,
+    fn(p)
+      get(ids, pin_repo(p)).nil? == false and
+        get(index, pin_repo(p)).nil? == false
+    end,
     pins
   )
   per_item = by_key(pin_item, usable)
@@ -239,8 +242,8 @@ def propose(ns, edges, pins)
   waves = first(walked)
   stuck = nth(1, walked)
   index = wave_index(waves, 0, {})
-  placed = filter((n) -> get(index, n) != nil, ns)
-  free = filter((e) -> get(index, edge_repo(e)) != nil, edges)
+  placed = filter((n) -> get(index, n).nil? == false, ns)
+  free = filter((e) -> get(index, edge_repo(e)).nil? == false, edges)
   if is_topological(free, index) and covers(placed, index)
     ids = tree_ids(down_map(free), up_map(free), placed)
     found = skews_of(index, ids, pins)
