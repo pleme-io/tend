@@ -357,16 +357,16 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-bidama"
-version = "0.0.91"
-source = "git+https://github.com/pleme-io/blue#b135120e579099d87e1e0f42f37da74ebaa34ced"
+version = "0.0.101"
+source = "git+https://github.com/pleme-io/blue#2308bfe900b83a96aa6f7136ef7d5bd182bbefe1"
 dependencies = [
  "blue-lang-waku",
 ]
 
 [[package]]
 name = "blue-lang-check"
-version = "0.0.91"
-source = "git+https://github.com/pleme-io/blue#b135120e579099d87e1e0f42f37da74ebaa34ced"
+version = "0.0.101"
+source = "git+https://github.com/pleme-io/blue#2308bfe900b83a96aa6f7136ef7d5bd182bbefe1"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -374,8 +374,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-fmt"
-version = "0.0.91"
-source = "git+https://github.com/pleme-io/blue#b135120e579099d87e1e0f42f37da74ebaa34ced"
+version = "0.0.101"
+source = "git+https://github.com/pleme-io/blue#2308bfe900b83a96aa6f7136ef7d5bd182bbefe1"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -384,8 +384,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-host"
-version = "0.0.91"
-source = "git+https://github.com/pleme-io/blue#b135120e579099d87e1e0f42f37da74ebaa34ced"
+version = "0.0.101"
+source = "git+https://github.com/pleme-io/blue#2308bfe900b83a96aa6f7136ef7d5bd182bbefe1"
 dependencies = [
  "blue-lang-host-macros",
  "blue-lang-pkg",
@@ -398,8 +398,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-host-macros"
-version = "0.0.91"
-source = "git+https://github.com/pleme-io/blue#b135120e579099d87e1e0f42f37da74ebaa34ced"
+version = "0.0.101"
+source = "git+https://github.com/pleme-io/blue#2308bfe900b83a96aa6f7136ef7d5bd182bbefe1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -408,8 +408,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-pkg"
-version = "0.0.91"
-source = "git+https://github.com/pleme-io/blue#b135120e579099d87e1e0f42f37da74ebaa34ced"
+version = "0.0.101"
+source = "git+https://github.com/pleme-io/blue#2308bfe900b83a96aa6f7136ef7d5bd182bbefe1"
 dependencies = [
  "blue-lang-bidama",
  "blue-lang-check",
@@ -426,8 +426,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-proc"
-version = "0.0.91"
-source = "git+https://github.com/pleme-io/blue#b135120e579099d87e1e0f42f37da74ebaa34ced"
+version = "0.0.101"
+source = "git+https://github.com/pleme-io/blue#2308bfe900b83a96aa6f7136ef7d5bd182bbefe1"
 dependencies = [
  "blue-lang-waku",
  "serde_json",
@@ -437,8 +437,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-runtime"
-version = "0.0.91"
-source = "git+https://github.com/pleme-io/blue#b135120e579099d87e1e0f42f37da74ebaa34ced"
+version = "0.0.101"
+source = "git+https://github.com/pleme-io/blue#2308bfe900b83a96aa6f7136ef7d5bd182bbefe1"
 dependencies = [
  "blake3",
  "blue-lang-check",
@@ -447,9 +447,11 @@ dependencies = [
  "blue-lang-syntax",
  "blue-lang-waku",
  "ed25519-dalek",
+ "hmac",
  "rnix 0.14.0",
  "rowan 0.16.1",
  "serde_json",
+ "sha1",
  "sha2",
  "tatara-lisp",
  "tatara-lisp-eval",
@@ -458,16 +460,16 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-syntax"
-version = "0.0.91"
-source = "git+https://github.com/pleme-io/blue#b135120e579099d87e1e0f42f37da74ebaa34ced"
+version = "0.0.101"
+source = "git+https://github.com/pleme-io/blue#2308bfe900b83a96aa6f7136ef7d5bd182bbefe1"
 dependencies = [
  "tatara-lisp",
 ]
 
 [[package]]
 name = "blue-lang-waku"
-version = "0.0.91"
-source = "git+https://github.com/pleme-io/blue#b135120e579099d87e1e0f42f37da74ebaa34ced"
+version = "0.0.101"
+source = "git+https://github.com/pleme-io/blue#2308bfe900b83a96aa6f7136ef7d5bd182bbefe1"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -931,6 +933,7 @@ checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
  "block-buffer",
  "crypto-common",
+ "subtle",
 ]
 
 [[package]]
@@ -1462,6 +1465,15 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
+name = "hmac"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
+dependencies = [
+ "digest",
+]
 
 [[package]]
 name = "hostname"
@@ -2660,7 +2672,7 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.26"
+version = "0.3.27"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3666,6 +3678,17 @@ dependencies = [
  "ryu",
  "serde",
  "unsafe-libyaml",
+]
+
+[[package]]
+name = "sha1"
+version = "0.10.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a978451301f4db1d02937a4ab3ccce137717b81826e79b7d49ffe3244a13c3b8"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.2.17",
+ "digest",
 ]
 
 [[package]]
