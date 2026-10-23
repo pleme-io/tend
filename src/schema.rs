@@ -25,7 +25,7 @@ const COMMITTED: &str = "schema/tend-config.schema.json";
 
 /// The JSON Schema (draft 2020-12, schemars 1.x) of [`Config`].
 pub(crate) fn config_schema() -> serde_json::Value {
-    serde_json::to_value(schemars1::schema_for!(Config)).unwrap_or_default()
+    serde_json::to_value(schemars::schema_for!(Config)).unwrap_or_default()
 }
 
 #[cfg(test)]

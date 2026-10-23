@@ -42,8 +42,7 @@ impl Condition {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, rename_all = "snake_case")]
 pub(crate) struct ConditionsConfig {
     pub stale_flake_lock: bool,

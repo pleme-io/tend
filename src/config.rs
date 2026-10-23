@@ -4,8 +4,7 @@ use shikumi::github::GithubAuth;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct AiTaskConfig {
     pub name: String,
     pub schedule: String,
@@ -44,8 +43,7 @@ fn default_timeout() -> u64 {
 /// `schema/tend-config.schema.json` (golden-tested) and exported from the
 /// flake as `lib.configSchema`, so the home-manager options are generated
 /// from it rather than restated.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Config {
     /// The workspaces tend manages: one per forge org/user and base directory.
     #[serde(default)]
@@ -141,14 +139,14 @@ impl<'de> Deserialize<'de> for GithubAuthSources {
     }
 }
 
-impl schemars1::JsonSchema for GithubAuthSources {
+impl schemars::JsonSchema for GithubAuthSources {
     fn schema_name() -> std::borrow::Cow<'static, str> {
         "GithubAuthSources".into()
     }
-    fn json_schema(generator: &mut schemars1::SchemaGenerator) -> schemars1::Schema {
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
         let item = generator.subschema_for::<GithubAuth>();
         let default = serde_json::to_value(Self::default()).unwrap_or_default();
-        schemars1::json_schema!({
+        schemars::json_schema!({
             "description": "GitHub auth sources, tried in order; the first that yields a token wins.",
             "type": "array",
             "items": item,
@@ -158,8 +156,7 @@ impl schemars1::JsonSchema for GithubAuthSources {
 }
 
 /// Concurrency of the repo reconcile.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct ReconcileConfig {
     /// Maximum concurrent `git pull` processes per workspace (the shigoto
@@ -177,8 +174,7 @@ impl Default for ReconcileConfig {
 }
 
 /// `tend daemon` — sync + pull + watch on an interval.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct DaemonConfig {
     /// Seconds between cycles. Re-read every cycle, like the rest of the
@@ -209,8 +205,7 @@ impl Default for DaemonConfig {
 }
 
 /// `tend flake-update-daemon` — `flake-update --all` with backoff.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct FlakeUpdateDaemonConfig {
     /// Sleep after a cycle that did work, seconds.
@@ -232,8 +227,7 @@ impl Default for FlakeUpdateDaemonConfig {
 }
 
 /// Probing the Attic server before each prebuild cycle.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct AtticProbeConfig {
     /// Probe `attic_url` before each cycle and back off while it is down.
@@ -261,8 +255,7 @@ impl Default for AtticProbeConfig {
 /// Host-level (not per-workspace) resource-hygiene knobs read by
 /// `tend status` -- see `src/host_health.rs`. Absent from a config file
 /// entirely, or with any field omitted, falls back to the defaults below.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct HostHealthConfig {
     /// Binary name fragments known to leave orphaned (PPID==1) processes
     /// behind under some failure mode -- extend as new patterns are found
@@ -331,8 +324,7 @@ fn default_stale_lock_min_age_secs() -> u64 {
     120
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Workspace {
     pub name: String,
     #[serde(default = "default_provider")]
@@ -400,8 +392,7 @@ pub struct Workspace {
     pub conditions: crate::conditions::ConditionsConfig,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum PushPolicy {
     #[default]
@@ -426,8 +417,7 @@ pub enum PushPolicy {
 /// `prebuild:` of the same file when the file has none — same slot, so a
 /// flag beats it as it beats any file value. See
 /// [`crate::config_layers::hoist_legacy_prebuild`].
-#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct PrebuildConfig {
     /// Minimum sleep between daemon cycles (seconds). Resets after any work.
@@ -495,8 +485,7 @@ impl Default for PrebuildConfig {
 pub const DEFAULT_ATTIC_SERVER: &str = "nexus";
 
 /// One push destination in the multi-cache `caches:` list.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct CacheTargetConfig {
     /// Which protocol this destination speaks (`attic` | `sui`).
     /// Absent ⇒ `attic`, so every existing `caches:` block keeps working.
@@ -548,8 +537,7 @@ fn default_prebuild_max_inflight() -> usize {
     1
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct WatchConfig {
     /// Enable watch for this workspace
     #[serde(default)]
@@ -602,8 +590,7 @@ pub struct WatchConfig {
 /// Safe default: `auto_cancel_duplicate_queued: true` but `enable:
 /// false` at the top level — the feature ships off-by-default and
 /// each workspace opts in.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct CiHygieneConfig {
     /// Enable CI hygiene for this workspace.
     #[serde(default)]
@@ -641,8 +628,7 @@ fn default_stale_queue_minutes() -> u32 {
 /// When enabled, the daemon runs `nix-audit check --all` after the watch cycle,
 /// optionally auto-fixes violations and propagates fixes across the flake graph.
 /// Results are tracked in a convergence database for trend analysis.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct NixAuditConfig {
     /// Enable nix-audit integration in daemon cycle
     #[serde(default)]
@@ -661,8 +647,7 @@ pub struct NixAuditConfig {
     pub post_hooks: Vec<PostHook>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct FileWatch {
     /// Human-readable name for this watch
     pub name: String,
@@ -680,8 +665,7 @@ pub struct FileWatch {
     pub post_hooks: Vec<PostHook>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct PostHook {
     /// When to trigger: "after_certify", "after_commit", "after_propagate", "after_all"
     pub trigger: String,
@@ -698,8 +682,7 @@ pub struct PostHook {
     pub continue_on_error: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct FlakeInputWatch {
     /// Human-readable name for this watch
     pub name: String,
@@ -753,8 +736,7 @@ impl Default for FlakeRefreshConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct FlakeRefreshConfig {
     /// Enable flake refresh for this workspace
     #[serde(default)]
@@ -838,8 +820,7 @@ fn default_commit_message() -> String {
     "chore: update flake.lock".to_string()
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum FlakeInputMode {
@@ -884,8 +865,7 @@ fn default_flake_input_mode() -> FlakeInputMode {
     FlakeInputMode::Commits
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum CloneMethod {

@@ -7,8 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct FetchBackoffConfig {
     /// Skip the fetch of a remote that failed, for an exponentially growing

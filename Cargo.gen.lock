@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "d73fa5f87a7eb261462becb0280832340a4a6606791aa81423aacebcbbb8394f",
+  "cargo_lock_sha256": "d5b5596f8ddc29d33bbc0b65ee2b7a1a1ca8358d164e3a49a5085dfacb435e0f",
   "manifest_sha256": {
-    "Cargo.toml": "e527568ca112408b7e4bc6f84e72b2033e874afc5cef6763e38c5ced9823cc29"
+    "Cargo.toml": "bc8afbc6455ba4c027b081b28148799b4b7607716a6444d99dc0849b01b428b6"
   },
   "target_resolves": {
     "base": {
@@ -122,6 +122,35 @@
         "build_dependencies": [],
         "features": [
           "alloc"
+        ]
+      },
+      "annotate-snippets-0.12.17": {
+        "runtime_dependencies": [
+          {
+            "name": "anstyle",
+            "package_key": "anstyle-1.0.14",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "unicode_width",
+            "package_key": "unicode-width-0.2.2",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "default",
+          "std"
         ]
       },
       "anstream-1.0.0": {
@@ -270,6 +299,11 @@
         "features": []
       },
       "archery-1.2.3": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
+      "arraydeque-0.5.1": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
@@ -928,42 +962,38 @@
         ],
         "features": []
       },
-      "backoff-0.4.0": {
+      "backon-1.6.0": {
         "runtime_dependencies": [
           {
-            "name": "getrandom",
-            "package_key": "getrandom-0.2.17",
+            "name": "fastrand",
+            "package_key": "fastrand-2.5.0",
             "kind": "normal",
             "features": [],
-            "uses_default_features": true,
+            "uses_default_features": false,
             "optional": false,
             "target": null,
             "tree": "target"
           },
           {
-            "name": "instant",
-            "package_key": "instant-0.1.13",
+            "name": "tokio",
+            "package_key": "tokio-1.54.1",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "rand",
-            "package_key": "rand-0.8.8",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
+            "optional": true,
+            "target": "cfg(not(target_arch = \"wasm32\"))",
             "tree": "target"
           }
         ],
         "build_dependencies": [],
         "features": [
-          "default"
+          "default",
+          "gloo-timers",
+          "gloo-timers-sleep",
+          "std",
+          "std-blocking-sleep",
+          "tokio",
+          "tokio-sleep"
         ]
       },
       "base64-0.22.1": {
@@ -990,6 +1020,13 @@
         "build_dependencies": [],
         "features": [
           "alloc"
+        ]
+      },
+      "bitflags-1.3.2": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "default"
         ]
       },
       "bitflags-2.13.2": {
@@ -2276,35 +2313,6 @@
           "std"
         ]
       },
-      "darling-0.20.11": {
-        "runtime_dependencies": [
-          {
-            "name": "darling_core",
-            "package_key": "darling_core-0.20.11",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "darling_macro",
-            "package_key": "darling_macro-0.20.11",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "host"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "default",
-          "suggestions"
-        ]
-      },
       "darling-0.23.0": {
         "runtime_dependencies": [
           {
@@ -2331,78 +2339,6 @@
         "build_dependencies": [],
         "features": [
           "default",
-          "suggestions"
-        ]
-      },
-      "darling_core-0.20.11": {
-        "runtime_dependencies": [
-          {
-            "name": "fnv",
-            "package_key": "fnv-1.0.7",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "ident_case",
-            "package_key": "ident_case-1.0.1",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "proc_macro2",
-            "package_key": "proc-macro2-1.0.107",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "quote",
-            "package_key": "quote-1.0.47",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "strsim",
-            "package_key": "strsim-0.11.1",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "syn",
-            "package_key": "syn-2.0.119",
-            "kind": "normal",
-            "features": [
-              "extra-traits",
-              "full"
-            ],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "strsim",
           "suggestions"
         ]
       },
@@ -2468,42 +2404,6 @@
           "suggestions"
         ]
       },
-      "darling_macro-0.20.11": {
-        "runtime_dependencies": [
-          {
-            "name": "darling_core",
-            "package_key": "darling_core-0.20.11",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "quote",
-            "package_key": "quote-1.0.47",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "syn",
-            "package_key": "syn-2.0.119",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
-      },
       "darling_macro-0.23.0": {
         "runtime_dependencies": [
           {
@@ -2548,6 +2448,99 @@
           "default",
           "std"
         ]
+      },
+      "defmt-1.2.0": {
+        "runtime_dependencies": [
+          {
+            "name": "bitflags",
+            "package_key": "bitflags-1.3.2",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "defmt_macros",
+            "package_key": "defmt-macros-1.2.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "host"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "alloc"
+        ]
+      },
+      "defmt-macros-1.2.0": {
+        "runtime_dependencies": [
+          {
+            "name": "defmt_parser",
+            "package_key": "defmt-parser-1.1.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "proc_macro2",
+            "package_key": "proc-macro2-1.0.107",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "quote",
+            "package_key": "quote-1.0.47",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "syn",
+            "package_key": "syn-3.0.9",
+            "kind": "normal",
+            "features": [
+              "extra-traits",
+              "full"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
+      "defmt-parser-1.1.0": {
+        "runtime_dependencies": [
+          {
+            "name": "thiserror",
+            "package_key": "thiserror-2.0.21",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
       },
       "der-0.7.10": {
         "runtime_dependencies": [
@@ -2610,6 +2603,76 @@
         "features": [
           "default",
           "serde"
+        ]
+      },
+      "derive_more-2.1.1": {
+        "runtime_dependencies": [
+          {
+            "name": "derive_more_impl",
+            "package_key": "derive_more-impl-2.1.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "host"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "default",
+          "from",
+          "std"
+        ]
+      },
+      "derive_more-impl-2.1.1": {
+        "runtime_dependencies": [
+          {
+            "name": "proc_macro2",
+            "package_key": "proc-macro2-1.0.107",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "quote",
+            "package_key": "quote-1.0.47",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "syn",
+            "package_key": "syn-2.0.119",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [
+          {
+            "name": "rustc_version",
+            "package_key": "rustc_version-0.4.1",
+            "kind": "build",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "host"
+          }
+        ],
+        "features": [
+          "default",
+          "from"
         ]
       },
       "digest-0.10.7": {
@@ -2905,6 +2968,22 @@
           "std"
         ]
       },
+      "encoding_rs_io-0.1.8": {
+        "runtime_dependencies": [
+          {
+            "name": "encoding_rs",
+            "package_key": "encoding_rs-0.8.42",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
       "enum-ordinalize-4.4.2": {
         "runtime_dependencies": [
           {
@@ -3197,7 +3276,7 @@
           "std"
         ]
       },
-      "foldhash-0.1.5": {
+      "foldhash-0.2.0": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
@@ -3914,7 +3993,8 @@
         ],
         "build_dependencies": [],
         "features": [
-          "std"
+          "std",
+          "wasm_js"
         ]
       },
       "getrandom-0.4.3": {
@@ -4026,6 +4106,32 @@
           "sys_rng",
           "wasm_js"
         ]
+      },
+      "granit-parser-0.0.7": {
+        "runtime_dependencies": [
+          {
+            "name": "arraydeque",
+            "package_key": "arraydeque-0.5.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "smallvec",
+            "package_key": "smallvec-1.15.2",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
       },
       "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686": {
         "runtime_dependencies": [
@@ -4180,7 +4286,7 @@
           "inline-more"
         ]
       },
-      "hashbrown-0.15.5": {
+      "hashbrown-0.16.1": {
         "runtime_dependencies": [
           {
             "name": "allocator_api2",
@@ -4206,7 +4312,7 @@
           },
           {
             "name": "foldhash",
-            "package_key": "foldhash-0.1.5",
+            "package_key": "foldhash-0.2.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -4230,98 +4336,6 @@
         "build_dependencies": [],
         "features": []
       },
-      "headers-0.4.2": {
-        "runtime_dependencies": [
-          {
-            "name": "base64",
-            "package_key": "base64-0.22.1",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "bytes",
-            "package_key": "bytes-1.12.1",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "headers_core",
-            "package_key": "headers-core-0.3.0",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "http",
-            "package_key": "http-1.5.0",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "httpdate",
-            "package_key": "httpdate-1.0.3",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "mime",
-            "package_key": "mime-0.3.17",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "sha1",
-            "package_key": "sha1-0.10.7",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
-      },
-      "headers-core-0.3.0": {
-        "runtime_dependencies": [
-          {
-            "name": "http",
-            "package_key": "http-1.5.0",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
-      },
       "heck-0.5.0": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -4335,11 +4349,6 @@
           "default",
           "std"
         ]
-      },
-      "home-0.5.12": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": []
       },
       "hostname-0.4.2": {
         "runtime_dependencies": [
@@ -4609,7 +4618,7 @@
           },
           {
             "name": "smallvec",
-            "package_key": "smallvec-1.16.3",
+            "package_key": "smallvec-1.15.2",
             "kind": "normal",
             "features": [
               "const_generics",
@@ -4650,135 +4659,6 @@
           "http1",
           "http2",
           "server"
-        ]
-      },
-      "hyper-http-proxy-1.2.0": {
-        "runtime_dependencies": [
-          {
-            "name": "bytes",
-            "package_key": "bytes-1.12.1",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "futures_util",
-            "package_key": "futures-util-0.3.34",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "headers",
-            "package_key": "headers-0.4.2",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "http",
-            "package_key": "http-1.5.0",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "hyper",
-            "package_key": "hyper-1.12.0",
-            "kind": "normal",
-            "features": [
-              "client"
-            ],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "hyper_rustls",
-            "package_key": "hyper-rustls-0.27.10",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "hyper_util",
-            "package_key": "hyper-util-0.1.21",
-            "kind": "normal",
-            "features": [
-              "client",
-              "client-legacy",
-              "tokio"
-            ],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "pin_project_lite",
-            "package_key": "pin-project-lite-0.2.17",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "tokio",
-            "package_key": "tokio-1.54.1",
-            "kind": "normal",
-            "features": [
-              "io-std",
-              "io-util"
-            ],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "tokio_rustls",
-            "package_key": "tokio-rustls-0.26.6",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "tower_service",
-            "package_key": "tower-service-0.3.3",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "__rustls",
-          "__tls",
-          "rustls-tls-native-roots"
         ]
       },
       "hyper-rustls-0.27.10": {
@@ -5127,7 +5007,7 @@
           },
           {
             "name": "smallvec",
-            "package_key": "smallvec-1.16.3",
+            "package_key": "smallvec-1.15.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -5350,7 +5230,7 @@
           },
           {
             "name": "smallvec",
-            "package_key": "smallvec-1.16.3",
+            "package_key": "smallvec-1.15.2",
             "kind": "normal",
             "features": [
               "const_generics"
@@ -5537,22 +5417,6 @@
         "build_dependencies": [],
         "features": []
       },
-      "instant-0.1.13": {
-        "runtime_dependencies": [
-          {
-            "name": "cfg_if",
-            "package_key": "cfg-if-1.0.5",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
-      },
       "inventory-0.3.25": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -5578,6 +5442,46 @@
         "build_dependencies": [],
         "features": []
       },
+      "jiff-0.2.38": {
+        "runtime_dependencies": [
+          {
+            "name": "jcore",
+            "package_key": "jiff-core-0.1.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde_core",
+            "package_key": "serde_core-1.0.229",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "alloc",
+          "serde",
+          "std"
+        ]
+      },
+      "jiff-core-0.1.1": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "alloc",
+          "default",
+          "std",
+          "tz-fat"
+        ]
+      },
       "jobserver-0.1.35": {
         "runtime_dependencies": [
           {
@@ -5594,11 +5498,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "json-patch-3.0.1": {
+      "json-patch-4.2.0": {
         "runtime_dependencies": [
           {
             "name": "jsonptr",
-            "package_key": "jsonptr-0.6.3",
+            "package_key": "jsonptr-0.7.1",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5630,7 +5534,7 @@
           },
           {
             "name": "thiserror",
-            "package_key": "thiserror-1.0.69",
+            "package_key": "thiserror-2.0.21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5645,7 +5549,7 @@
           "diff"
         ]
       },
-      "jsonpath-rust-0.7.5": {
+      "jsonpath-rust-1.0.12": {
         "runtime_dependencies": [
           {
             "name": "pest",
@@ -5701,7 +5605,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "jsonptr-0.6.3": {
+      "jsonptr-0.7.1": {
         "runtime_dependencies": [
           {
             "name": "serde",
@@ -5837,7 +5741,7 @@
           "use_pem"
         ]
       },
-      "k8s-openapi-0.24.0": {
+      "k8s-openapi-0.28.0": {
         "runtime_dependencies": [
           {
             "name": "base64",
@@ -5852,8 +5756,8 @@
             "tree": "target"
           },
           {
-            "name": "chrono",
-            "package_key": "chrono-0.4.45",
+            "name": "jiff",
+            "package_key": "jiff-0.2.38",
             "kind": "normal",
             "features": [
               "alloc",
@@ -5867,16 +5771,6 @@
           {
             "name": "serde",
             "package_key": "serde-1.0.229",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "serde_value",
-            "package_key": "serde-value-0.7.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -5899,7 +5793,9 @@
         ],
         "build_dependencies": [],
         "features": [
-          "v1_31"
+          "default",
+          "std",
+          "v1_35"
         ]
       },
       "kanshou-0.1.11-ce51886f6818e0ceb7a8c12b676594e8b8117f12": {
@@ -6028,11 +5924,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "kube-0.98.0": {
+      "kube-4.2.0": {
         "runtime_dependencies": [
           {
             "name": "k8s_openapi",
-            "package_key": "k8s-openapi-0.24.0",
+            "package_key": "k8s-openapi-0.28.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -6042,7 +5938,7 @@
           },
           {
             "name": "kube_client",
-            "package_key": "kube-client-0.98.0",
+            "package_key": "kube-client-4.2.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -6052,7 +5948,7 @@
           },
           {
             "name": "kube_core",
-            "package_key": "kube-core-0.98.0",
+            "package_key": "kube-core-4.2.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6062,7 +5958,7 @@
           },
           {
             "name": "kube_derive",
-            "package_key": "kube-derive-0.98.0",
+            "package_key": "kube-derive-4.2.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6072,7 +5968,7 @@
           },
           {
             "name": "kube_runtime",
-            "package_key": "kube-runtime-0.98.0",
+            "package_key": "kube-runtime-4.2.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6090,11 +5986,12 @@
           "kube-client",
           "kube-derive",
           "kube-runtime",
+          "ring",
           "runtime",
           "rustls-tls"
         ]
       },
-      "kube-client-0.98.0": {
+      "kube-client-4.2.0": {
         "runtime_dependencies": [
           {
             "name": "base64",
@@ -6117,16 +6014,6 @@
             "tree": "target"
           },
           {
-            "name": "chrono",
-            "package_key": "chrono-0.4.45",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
             "name": "either",
             "package_key": "either-1.19.0",
             "kind": "normal",
@@ -6144,16 +6031,6 @@
               "std"
             ],
             "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "home",
-            "package_key": "home-0.5.12",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
             "optional": true,
             "target": null,
             "tree": "target"
@@ -6209,7 +6086,6 @@
               "http1",
               "logging",
               "native-tokio",
-              "ring",
               "tls12"
             ],
             "uses_default_features": false,
@@ -6243,8 +6119,21 @@
             "tree": "target"
           },
           {
+            "name": "jiff",
+            "package_key": "jiff-0.2.38",
+            "kind": "normal",
+            "features": [
+              "serde",
+              "std"
+            ],
+            "uses_default_features": false,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "jsonpath_rust",
-            "package_key": "jsonpath-rust-0.7.5",
+            "package_key": "jsonpath-rust-1.0.12",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6254,7 +6143,7 @@
           },
           {
             "name": "k8s_openapi",
-            "package_key": "k8s-openapi-0.24.0",
+            "package_key": "k8s-openapi-0.28.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -6264,7 +6153,7 @@
           },
           {
             "name": "kube_core",
-            "package_key": "kube-core-0.98.0",
+            "package_key": "kube-core-4.2.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6293,8 +6182,8 @@
             "tree": "target"
           },
           {
-            "name": "rustls_pemfile",
-            "package_key": "rustls-pemfile-2.2.0",
+            "name": "rustls_platform_verifier",
+            "package_key": "rustls-platform-verifier-0.7.1",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6325,22 +6214,22 @@
             "tree": "target"
           },
           {
+            "name": "serde_saphyr",
+            "package_key": "serde-saphyr-0.0.29",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "serde_json",
             "package_key": "serde_json-1.0.154",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
             "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "serde_yaml",
-            "package_key": "serde_yaml-0.9.34+deprecated",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": true,
             "target": null,
             "tree": "target"
           },
@@ -6359,6 +6248,7 @@
             "package_key": "tokio-1.54.1",
             "kind": "normal",
             "features": [
+              "rt",
               "signal",
               "sync",
               "time"
@@ -6388,6 +6278,7 @@
             "features": [
               "buffer",
               "filter",
+              "retry",
               "util"
             ],
             "uses_default_features": true,
@@ -6402,7 +6293,8 @@
             "features": [
               "auth",
               "map-response-body",
-              "trace"
+              "trace",
+              "util"
             ],
             "uses_default_features": true,
             "optional": true,
@@ -6427,25 +6319,24 @@
           "__non_core",
           "base64",
           "bytes",
-          "chrono",
           "client",
           "config",
           "either",
           "futures",
-          "home",
           "http-body",
           "http-body-util",
           "hyper",
           "hyper-rustls",
           "hyper-timeout",
           "hyper-util",
+          "jiff",
           "jsonpatch",
           "jsonpath-rust",
           "pem",
+          "ring",
           "rustls",
-          "rustls-pemfile",
           "rustls-tls",
-          "serde_yaml",
+          "serde-saphyr",
           "tokio",
           "tokio-util",
           "tower",
@@ -6453,16 +6344,16 @@
           "tracing"
         ]
       },
-      "kube-core-0.98.0": {
+      "kube-core-4.2.0": {
         "runtime_dependencies": [
           {
-            "name": "chrono",
-            "package_key": "chrono-0.4.45",
+            "name": "derive_more",
+            "package_key": "derive_more-2.1.1",
             "kind": "normal",
             "features": [
-              "now"
+              "from"
             ],
-            "uses_default_features": false,
+            "uses_default_features": true,
             "optional": false,
             "target": null,
             "tree": "target"
@@ -6488,8 +6379,20 @@
             "tree": "target"
           },
           {
+            "name": "jiff",
+            "package_key": "jiff-0.2.38",
+            "kind": "normal",
+            "features": [
+              "std"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "json_patch",
-            "package_key": "json-patch-3.0.1",
+            "package_key": "json-patch-4.2.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6499,7 +6402,7 @@
           },
           {
             "name": "k8s_openapi",
-            "package_key": "k8s-openapi-0.24.0",
+            "package_key": "k8s-openapi-0.28.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -6509,7 +6412,7 @@
           },
           {
             "name": "schemars",
-            "package_key": "schemars-0.8.22",
+            "package_key": "schemars-1.2.3",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6568,11 +6471,11 @@
           "schemars"
         ]
       },
-      "kube-derive-0.98.0": {
+      "kube-derive-4.2.0": {
         "runtime_dependencies": [
           {
             "name": "darling",
-            "package_key": "darling-0.20.11",
+            "package_key": "darling-0.23.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6595,6 +6498,18 @@
             "package_key": "quote-1.0.47",
             "kind": "normal",
             "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde",
+            "package_key": "serde-1.0.229",
+            "kind": "normal",
+            "features": [
+              "derive"
+            ],
             "uses_default_features": true,
             "optional": false,
             "target": null,
@@ -6626,7 +6541,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "kube-runtime-0.98.0": {
+      "kube-runtime-4.2.0": {
         "runtime_dependencies": [
           {
             "name": "ahash",
@@ -6659,18 +6574,8 @@
             "tree": "target"
           },
           {
-            "name": "async_trait",
-            "package_key": "async-trait-0.1.92",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "host"
-          },
-          {
-            "name": "backoff",
-            "package_key": "backoff-0.4.0",
+            "name": "backon",
+            "package_key": "backon-1.6.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6707,7 +6612,7 @@
           },
           {
             "name": "hashbrown",
-            "package_key": "hashbrown-0.15.5",
+            "package_key": "hashbrown-0.16.1",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6727,17 +6632,7 @@
           },
           {
             "name": "json_patch",
-            "package_key": "json-patch-3.0.1",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "jsonptr",
-            "package_key": "jsonptr-0.6.3",
+            "package_key": "json-patch-4.2.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6747,7 +6642,7 @@
           },
           {
             "name": "k8s_openapi",
-            "package_key": "k8s-openapi-0.24.0",
+            "package_key": "k8s-openapi-0.28.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -6757,7 +6652,7 @@
           },
           {
             "name": "kube_client",
-            "package_key": "kube-client-0.98.0",
+            "package_key": "kube-client-4.2.0",
             "kind": "normal",
             "features": [
               "client",
@@ -7142,6 +7037,14 @@
         "build_dependencies": [],
         "features": []
       },
+      "nohash-hasher-0.2.0": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "default",
+          "std"
+        ]
+      },
       "notify-types-2.1.0": {
         "runtime_dependencies": [
           {
@@ -7252,11 +7155,38 @@
           }
         ],
         "features": [
+          "default",
           "i128",
           "std"
         ]
       },
-      "object-0.36.7": {
+      "object-0.39.1": {
+        "runtime_dependencies": [
+          {
+            "name": "memchr",
+            "package_key": "memchr-2.8.3",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "archive",
+          "coff",
+          "elf",
+          "macho",
+          "pe",
+          "read",
+          "read_core",
+          "std",
+          "xcoff"
+        ]
+      },
+      "object-0.40.0": {
         "runtime_dependencies": [
           {
             "name": "flate2",
@@ -7280,7 +7210,7 @@
           },
           {
             "name": "ruzstd",
-            "package_key": "ruzstd-0.7.3",
+            "package_key": "ruzstd-0.9.1",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7295,33 +7225,6 @@
           "coff",
           "compression",
           "default",
-          "elf",
-          "macho",
-          "pe",
-          "read",
-          "read_core",
-          "std",
-          "unaligned",
-          "xcoff"
-        ]
-      },
-      "object-0.39.1": {
-        "runtime_dependencies": [
-          {
-            "name": "memchr",
-            "package_key": "memchr-2.8.3",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "archive",
-          "coff",
           "elf",
           "macho",
           "pe",
@@ -7496,7 +7399,7 @@
           },
           {
             "name": "smallvec",
-            "package_key": "smallvec-1.16.3",
+            "package_key": "smallvec-1.15.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8101,10 +8004,10 @@
           },
           {
             "name": "k8s_openapi",
-            "package_key": "k8s-openapi-0.24.0",
+            "package_key": "k8s-openapi-0.28.0",
             "kind": "normal",
             "features": [
-              "v1_31"
+              "v1_35"
             ],
             "uses_default_features": true,
             "optional": true,
@@ -8123,7 +8026,7 @@
           },
           {
             "name": "kube",
-            "package_key": "kube-0.98.0",
+            "package_key": "kube-4.2.0",
             "kind": "normal",
             "features": [
               "client",
@@ -8147,7 +8050,7 @@
           },
           {
             "name": "object",
-            "package_key": "object-0.36.7",
+            "package_key": "object-0.40.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8283,21 +8186,11 @@
           },
           {
             "name": "schemars",
-            "package_key": "schemars-0.8.22",
-            "kind": "normal",
-            "features": [
-              "chrono"
-            ],
-            "uses_default_features": true,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "schemars1",
             "package_key": "schemars-1.2.3",
             "kind": "normal",
-            "features": [],
+            "features": [
+              "chrono04"
+            ],
             "uses_default_features": true,
             "optional": false,
             "target": null,
@@ -8536,7 +8429,8 @@
         "build_dependencies": [],
         "features": [
           "default",
-          "fallback"
+          "fallback",
+          "require-cas"
         ]
       },
       "potential_utf-0.1.6": {
@@ -10544,25 +10438,6 @@
           "tls12"
         ]
       },
-      "rustls-pemfile-2.2.0": {
-        "runtime_dependencies": [
-          {
-            "name": "pki_types",
-            "package_key": "rustls-pki-types-1.15.1",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "default",
-          "std"
-        ]
-      },
       "rustls-pki-types-1.15.1": {
         "runtime_dependencies": [
           {
@@ -10630,13 +10505,15 @@
         "build_dependencies": [],
         "features": []
       },
-      "ruzstd-0.7.3": {
+      "ruzstd-0.9.1": {
         "runtime_dependencies": [
           {
             "name": "twox_hash",
-            "package_key": "twox-hash-1.6.3",
+            "package_key": "twox-hash-2.1.5",
             "kind": "normal",
-            "features": [],
+            "features": [
+              "xxhash64"
+            ],
             "uses_default_features": false,
             "optional": true,
             "target": null,
@@ -10868,16 +10745,6 @@
       "schemars-0.8.22": {
         "runtime_dependencies": [
           {
-            "name": "chrono",
-            "package_key": "chrono-0.4.45",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
             "name": "dyn_clone",
             "package_key": "dyn-clone-1.0.20",
             "kind": "normal",
@@ -10922,7 +10789,6 @@
         ],
         "build_dependencies": [],
         "features": [
-          "chrono",
           "default",
           "derive",
           "schemars_derive"
@@ -11164,6 +11030,116 @@
           "std"
         ]
       },
+      "serde-saphyr-0.0.29": {
+        "runtime_dependencies": [
+          {
+            "name": "ahash",
+            "package_key": "ahash-0.8.12",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "annotate_snippets",
+            "package_key": "annotate-snippets-0.12.17",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "base64",
+            "package_key": "base64-0.22.1",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "encoding_rs_io",
+            "package_key": "encoding_rs_io-0.1.8",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "granit_parser",
+            "package_key": "granit-parser-0.0.7",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "nohash_hasher",
+            "package_key": "nohash-hasher-0.2.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "num_traits",
+            "package_key": "num-traits-0.2.19",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde_core",
+            "package_key": "serde_core-1.0.229",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "smallvec",
+            "package_key": "smallvec-1.15.2",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "zmij",
+            "package_key": "zmij-1.0.23",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": true,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "default",
+          "deserialize",
+          "serialize"
+        ]
+      },
       "serde-value-0.7.0": {
         "runtime_dependencies": [
           {
@@ -11195,6 +11171,7 @@
         "build_dependencies": [],
         "features": [
           "alloc",
+          "default",
           "rc",
           "result",
           "std"
@@ -11607,45 +11584,6 @@
         ],
         "build_dependencies": [],
         "features": []
-      },
-      "sha1-0.10.7": {
-        "runtime_dependencies": [
-          {
-            "name": "cfg_if",
-            "package_key": "cfg-if-1.0.5",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "cpufeatures",
-            "package_key": "cpufeatures-0.2.17",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": "cfg(any(target_arch = \"aarch64\", target_arch = \"x86\", target_arch = \"x86_64\"))",
-            "tree": "target"
-          },
-          {
-            "name": "digest",
-            "package_key": "digest-0.10.7",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "default",
-          "std"
-        ]
       },
       "sha2-0.10.9": {
         "runtime_dependencies": [
@@ -12499,7 +12437,8 @@
         "build_dependencies": [],
         "features": [
           "aarch64_neon",
-          "public_imp"
+          "public_imp",
+          "std"
         ]
       },
       "simple_asn1-0.6.4": {
@@ -12560,7 +12499,7 @@
           "std"
         ]
       },
-      "smallvec-1.16.3": {
+      "smallvec-1.15.2": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": [
@@ -12658,11 +12597,6 @@
             "tree": "host"
           }
         ],
-        "features": []
-      },
-      "static_assertions-1.1.0": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
         "features": []
       },
       "strsim-0.11.1": {
@@ -14471,6 +14405,7 @@
           "tower",
           "trace",
           "tracing",
+          "util",
           "validate-request"
         ]
       },
@@ -14741,7 +14676,7 @@
           },
           {
             "name": "smallvec",
-            "package_key": "smallvec-1.16.3",
+            "package_key": "smallvec-1.15.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -14963,31 +14898,12 @@
           "default"
         ]
       },
-      "twox-hash-1.6.3": {
-        "runtime_dependencies": [
-          {
-            "name": "cfg_if",
-            "package_key": "cfg-if-1.0.5",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "static_assertions",
-            "package_key": "static_assertions-1.1.0",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": false,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
+      "twox-hash-2.1.5": {
+        "runtime_dependencies": [],
         "build_dependencies": [],
-        "features": []
+        "features": [
+          "xxhash64"
+        ]
       },
       "typenum-1.20.1": {
         "runtime_dependencies": [],
@@ -15029,6 +14945,14 @@
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
+      },
+      "unicode-width-0.2.2": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": [
+          "cjk",
+          "default"
+        ]
       },
       "unsafe-libyaml-0.2.11": {
         "runtime_dependencies": [],
@@ -16468,6 +16392,74 @@
             "build_dependencies": [],
             "features": []
           },
+          "rustls-platform-verifier-0.7.1": {
+            "runtime_dependencies": [
+              {
+                "name": "core_foundation",
+                "package_key": "core-foundation-0.10.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(target_vendor = \"apple\"))",
+                "tree": "target"
+              },
+              {
+                "name": "core_foundation_sys",
+                "package_key": "core-foundation-sys-0.8.7",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(target_vendor = \"apple\"))",
+                "tree": "target"
+              },
+              {
+                "name": "log",
+                "package_key": "log-0.4.34",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustls",
+                "package_key": "rustls-0.23.46",
+                "kind": "normal",
+                "features": [
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "security_framework",
+                "package_key": "security-framework-3.7.0",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(target_vendor = \"apple\"))",
+                "tree": "target"
+              },
+              {
+                "name": "security_framework_sys",
+                "package_key": "security-framework-sys-2.17.0",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(target_vendor = \"apple\"))",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
           "security-framework-3.7.0": {
             "runtime_dependencies": [
               {
@@ -16553,7 +16545,10 @@
               }
             ],
             "build_dependencies": [],
-            "features": []
+            "features": [
+              "OSX_10_13",
+              "default"
+            ]
           },
           "system-configuration-0.7.0": {
             "runtime_dependencies": [
@@ -17527,6 +17522,74 @@
             ],
             "build_dependencies": [],
             "features": []
+          },
+          "rustls-platform-verifier-0.7.1": {
+            "runtime_dependencies": [
+              {
+                "name": "log",
+                "package_key": "log-0.4.34",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustls",
+                "package_key": "rustls-0.23.46",
+                "kind": "normal",
+                "features": [
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustls_native_certs",
+                "package_key": "rustls-native-certs-0.8.5",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(all(unix, not(target_os = \"android\"), not(target_vendor = \"apple\"), not(target_arch = \"wasm32\")))",
+                "tree": "target"
+              },
+              {
+                "name": "webpki",
+                "package_key": "rustls-webpki-0.103.16",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(all(unix, not(target_os = \"android\"), not(target_vendor = \"apple\"), not(target_arch = \"wasm32\")))",
+                "tree": "target"
+              },
+              {
+                "name": "webpki",
+                "package_key": "rustls-webpki-0.103.16",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_arch = \"wasm32\")",
+                "tree": "target"
+              },
+              {
+                "name": "webpki",
+                "package_key": "rustls-webpki-0.103.16",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_os = \"android\")",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           }
         }
       },
@@ -18438,6 +18501,74 @@
             ],
             "build_dependencies": [],
             "features": []
+          },
+          "rustls-platform-verifier-0.7.1": {
+            "runtime_dependencies": [
+              {
+                "name": "log",
+                "package_key": "log-0.4.34",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustls",
+                "package_key": "rustls-0.23.46",
+                "kind": "normal",
+                "features": [
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustls_native_certs",
+                "package_key": "rustls-native-certs-0.8.5",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(all(unix, not(target_os = \"android\"), not(target_vendor = \"apple\"), not(target_arch = \"wasm32\")))",
+                "tree": "target"
+              },
+              {
+                "name": "webpki",
+                "package_key": "rustls-webpki-0.103.16",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(all(unix, not(target_os = \"android\"), not(target_vendor = \"apple\"), not(target_arch = \"wasm32\")))",
+                "tree": "target"
+              },
+              {
+                "name": "webpki",
+                "package_key": "rustls-webpki-0.103.16",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_arch = \"wasm32\")",
+                "tree": "target"
+              },
+              {
+                "name": "webpki",
+                "package_key": "rustls-webpki-0.103.16",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_os = \"android\")",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           }
         }
       },
@@ -19336,6 +19467,74 @@
             "build_dependencies": [],
             "features": []
           },
+          "rustls-platform-verifier-0.7.1": {
+            "runtime_dependencies": [
+              {
+                "name": "core_foundation",
+                "package_key": "core-foundation-0.10.1",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(target_vendor = \"apple\"))",
+                "tree": "target"
+              },
+              {
+                "name": "core_foundation_sys",
+                "package_key": "core-foundation-sys-0.8.7",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(target_vendor = \"apple\"))",
+                "tree": "target"
+              },
+              {
+                "name": "log",
+                "package_key": "log-0.4.34",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustls",
+                "package_key": "rustls-0.23.46",
+                "kind": "normal",
+                "features": [
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "security_framework",
+                "package_key": "security-framework-3.7.0",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(target_vendor = \"apple\"))",
+                "tree": "target"
+              },
+              {
+                "name": "security_framework_sys",
+                "package_key": "security-framework-sys-2.17.0",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(target_vendor = \"apple\"))",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
+          },
           "security-framework-3.7.0": {
             "runtime_dependencies": [
               {
@@ -19421,7 +19620,10 @@
               }
             ],
             "build_dependencies": [],
-            "features": []
+            "features": [
+              "OSX_10_13",
+              "default"
+            ]
           },
           "system-configuration-0.7.0": {
             "runtime_dependencies": [
@@ -20434,6 +20636,74 @@
             ],
             "build_dependencies": [],
             "features": []
+          },
+          "rustls-platform-verifier-0.7.1": {
+            "runtime_dependencies": [
+              {
+                "name": "log",
+                "package_key": "log-0.4.34",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustls",
+                "package_key": "rustls-0.23.46",
+                "kind": "normal",
+                "features": [
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustls_native_certs",
+                "package_key": "rustls-native-certs-0.8.5",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(all(unix, not(target_os = \"android\"), not(target_vendor = \"apple\"), not(target_arch = \"wasm32\")))",
+                "tree": "target"
+              },
+              {
+                "name": "webpki",
+                "package_key": "rustls-webpki-0.103.16",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(all(unix, not(target_os = \"android\"), not(target_vendor = \"apple\"), not(target_arch = \"wasm32\")))",
+                "tree": "target"
+              },
+              {
+                "name": "webpki",
+                "package_key": "rustls-webpki-0.103.16",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_arch = \"wasm32\")",
+                "tree": "target"
+              },
+              {
+                "name": "webpki",
+                "package_key": "rustls-webpki-0.103.16",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_os = \"android\")",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           }
         }
       },
@@ -21384,6 +21654,74 @@
             ],
             "build_dependencies": [],
             "features": []
+          },
+          "rustls-platform-verifier-0.7.1": {
+            "runtime_dependencies": [
+              {
+                "name": "log",
+                "package_key": "log-0.4.34",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustls",
+                "package_key": "rustls-0.23.46",
+                "kind": "normal",
+                "features": [
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustls_native_certs",
+                "package_key": "rustls-native-certs-0.8.5",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(all(unix, not(target_os = \"android\"), not(target_vendor = \"apple\"), not(target_arch = \"wasm32\")))",
+                "tree": "target"
+              },
+              {
+                "name": "webpki",
+                "package_key": "rustls-webpki-0.103.16",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(all(unix, not(target_os = \"android\"), not(target_vendor = \"apple\"), not(target_arch = \"wasm32\")))",
+                "tree": "target"
+              },
+              {
+                "name": "webpki",
+                "package_key": "rustls-webpki-0.103.16",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_arch = \"wasm32\")",
+                "tree": "target"
+              },
+              {
+                "name": "webpki",
+                "package_key": "rustls-webpki-0.103.16",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(target_os = \"android\")",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           }
         }
       }
@@ -21421,6 +21759,9 @@
     "allocator-api2-0.2.21": {
       "edition": "2018"
     },
+    "annotate-snippets-0.12.17": {
+      "edition": "2024"
+    },
     "anstream-1.0.0": {
       "edition": "2021"
     },
@@ -21445,6 +21786,9 @@
     },
     "archery-1.2.3": {
       "edition": "2024"
+    },
+    "arraydeque-0.5.1": {
+      "edition": "2021"
     },
     "arrayvec-0.7.8": {
       "edition": "2018"
@@ -21485,8 +21829,8 @@
       "build_script": "builder/main.rs",
       "links": "aws_lc_0_46_0"
     },
-    "backoff-0.4.0": {
-      "edition": "2018"
+    "backon-1.6.0": {
+      "edition": "2024"
     },
     "base64-0.22.1": {
       "edition": "2018"
@@ -21496,6 +21840,9 @@
     },
     "base64ct-1.8.3": {
       "edition": "2024"
+    },
+    "bitflags-1.3.2": {
+      "edition": "2018"
     },
     "bitflags-2.13.2": {
       "edition": "2021"
@@ -21668,21 +22015,11 @@
       "edition": "2021",
       "proc_macro": true
     },
-    "darling-0.20.11": {
-      "edition": "2021"
-    },
     "darling-0.23.0": {
-      "edition": "2021"
-    },
-    "darling_core-0.20.11": {
       "edition": "2021"
     },
     "darling_core-0.23.0": {
       "edition": "2021"
-    },
-    "darling_macro-0.20.11": {
-      "edition": "2021",
-      "proc_macro": true
     },
     "darling_macro-0.23.0": {
       "edition": "2021",
@@ -21691,11 +22028,31 @@
     "data-encoding-2.11.1": {
       "edition": "2018"
     },
+    "defmt-1.2.0": {
+      "edition": "2021",
+      "build_script": "build.rs",
+      "links": "defmt"
+    },
+    "defmt-macros-1.2.0": {
+      "edition": "2021",
+      "proc_macro": true,
+      "build_script": "build.rs"
+    },
+    "defmt-parser-1.1.0": {
+      "edition": "2021"
+    },
     "der-0.7.10": {
       "edition": "2021"
     },
     "deranged-0.5.9": {
       "edition": "2024"
+    },
+    "derive_more-2.1.1": {
+      "edition": "2021"
+    },
+    "derive_more-impl-2.1.1": {
+      "edition": "2021",
+      "proc_macro": true
     },
     "digest-0.10.7": {
       "edition": "2018"
@@ -21741,6 +22098,9 @@
       "edition": "2024",
       "build_script": "build.rs"
     },
+    "encoding_rs_io-0.1.8": {
+      "edition": "2015"
+    },
     "enum-ordinalize-4.4.2": {
       "edition": "2024"
     },
@@ -21783,7 +22143,7 @@
         "path": "lib.rs"
       }
     },
-    "foldhash-0.1.5": {
+    "foldhash-0.2.0": {
       "edition": "2021"
     },
     "form_urlencoded-1.2.2": {
@@ -21848,6 +22208,23 @@
       "edition": "2024",
       "build_script": "build.rs"
     },
+    "granit-parser-0.0.7": {
+      "edition": "2021",
+      "binaries": [
+        {
+          "name": "dump_events",
+          "path": "tools/dump_events.rs"
+        },
+        {
+          "name": "run_parser",
+          "path": "tools/run_bench.rs"
+        },
+        {
+          "name": "time_parser",
+          "path": "tools/time_parse.rs"
+        }
+      ]
+    },
     "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686": {
       "edition": "2024"
     },
@@ -21860,26 +22237,17 @@
     "hashbrown-0.14.5": {
       "edition": "2021"
     },
-    "hashbrown-0.15.5": {
+    "hashbrown-0.16.1": {
       "edition": "2021"
     },
     "hashbrown-0.17.1": {
       "edition": "2024"
-    },
-    "headers-0.4.2": {
-      "edition": "2018"
-    },
-    "headers-core-0.3.0": {
-      "edition": "2015"
     },
     "heck-0.5.0": {
       "edition": "2021"
     },
     "hex-0.4.3": {
       "edition": "2018"
-    },
-    "home-0.5.12": {
-      "edition": "2024"
     },
     "hostname-0.4.2": {
       "edition": "2021"
@@ -21901,9 +22269,6 @@
       "edition": "2021"
     },
     "hyper-1.12.0": {
-      "edition": "2021"
-    },
-    "hyper-http-proxy-1.2.0": {
       "edition": "2021"
     },
     "hyper-rustls-0.27.10": {
@@ -21969,9 +22334,6 @@
       "edition": "2015",
       "build_script": "build.rs"
     },
-    "instant-0.1.13": {
-      "edition": "2018"
-    },
     "inventory-0.3.25": {
       "edition": "2021"
     },
@@ -21984,25 +22346,31 @@
     "itoa-1.0.18": {
       "edition": "2021"
     },
+    "jiff-0.2.38": {
+      "edition": "2021"
+    },
+    "jiff-core-0.1.1": {
+      "edition": "2021"
+    },
     "jobserver-0.1.35": {
       "edition": "2021"
     },
-    "json-patch-3.0.1": {
+    "json-patch-4.2.0": {
       "edition": "2021"
     },
-    "jsonpath-rust-0.7.5": {
+    "jsonpath-rust-1.0.12": {
       "edition": "2021"
     },
-    "jsonptr-0.6.3": {
+    "jsonptr-0.7.1": {
       "edition": "2021"
     },
     "jsonwebtoken-10.4.0": {
       "edition": "2024"
     },
-    "k8s-openapi-0.24.0": {
+    "k8s-openapi-0.28.0": {
       "edition": "2021",
       "build_script": "build.rs",
-      "links": "k8s-openapi-0.24.0"
+      "links": "k8s-openapi-0.28.0"
     },
     "kanshou-0.1.11-ce51886f6818e0ceb7a8c12b676594e8b8117f12": {
       "edition": "2024"
@@ -22011,21 +22379,21 @@
       "edition": "2024",
       "proc_macro": true
     },
-    "kube-0.98.0": {
-      "edition": "2021"
+    "kube-4.2.0": {
+      "edition": "2024"
     },
-    "kube-client-0.98.0": {
-      "edition": "2021"
+    "kube-client-4.2.0": {
+      "edition": "2024"
     },
-    "kube-core-0.98.0": {
-      "edition": "2021"
+    "kube-core-4.2.0": {
+      "edition": "2024"
     },
-    "kube-derive-0.98.0": {
-      "edition": "2021",
+    "kube-derive-4.2.0": {
+      "edition": "2024",
       "proc_macro": true
     },
-    "kube-runtime-0.98.0": {
-      "edition": "2021"
+    "kube-runtime-4.2.0": {
+      "edition": "2024"
     },
     "lazy_static-1.5.1": {
       "edition": "2015"
@@ -22100,6 +22468,9 @@
         }
       ]
     },
+    "nohash-hasher-0.2.0": {
+      "edition": "2018"
+    },
     "notify-8.2.0": {
       "edition": "2021"
     },
@@ -22125,13 +22496,12 @@
       "edition": "2021",
       "build_script": "build.rs"
     },
-    "object-0.36.7": {
-      "edition": "2018",
-      "build_script": "build.rs"
-    },
     "object-0.39.1": {
       "edition": "2018",
       "build_script": "build.rs"
+    },
+    "object-0.40.0": {
+      "edition": "2024"
     },
     "okiba-0.2.1": {
       "edition": "2024"
@@ -22381,10 +22751,10 @@
     "rustls-native-certs-0.8.5": {
       "edition": "2021"
     },
-    "rustls-pemfile-2.2.0": {
-      "edition": "2018"
-    },
     "rustls-pki-types-1.15.1": {
+      "edition": "2021"
+    },
+    "rustls-platform-verifier-0.7.1": {
       "edition": "2021"
     },
     "rustls-webpki-0.103.16": {
@@ -22399,18 +22769,8 @@
       "proc_macro": true,
       "build_script": "build/build.rs"
     },
-    "ruzstd-0.7.3": {
-      "edition": "2018",
-      "binaries": [
-        {
-          "name": "zstd",
-          "path": "src/bin/zstd.rs"
-        },
-        {
-          "name": "zstd_stream",
-          "path": "src/bin/zstd_stream.rs"
-        }
-      ]
+    "ruzstd-0.9.1": {
+      "edition": "2018"
     },
     "ryu-1.0.23": {
       "edition": "2021"
@@ -22457,6 +22817,15 @@
     "serde-1.0.229": {
       "edition": "2021",
       "build_script": "build.rs"
+    },
+    "serde-saphyr-0.0.29": {
+      "edition": "2024",
+      "binaries": [
+        {
+          "name": "serde-saphyr",
+          "path": "src/main.rs"
+        }
+      ]
     },
     "serde-value-0.7.0": {
       "edition": "2018"
@@ -22505,9 +22874,6 @@
     },
     "serde_yaml_ng-0.10.0": {
       "edition": "2021"
-    },
-    "sha1-0.10.7": {
-      "edition": "2018"
     },
     "sha2-0.10.9": {
       "edition": "2018"
@@ -22566,7 +22932,7 @@
     "slab-0.4.12": {
       "edition": "2018"
     },
-    "smallvec-1.16.3": {
+    "smallvec-1.15.2": {
       "edition": "2018"
     },
     "socket2-0.6.5": {
@@ -22581,9 +22947,6 @@
     "stacker-0.1.25": {
       "edition": "2021",
       "build_script": "build.rs"
-    },
-    "static_assertions-1.1.0": {
-      "edition": "2015"
     },
     "strsim-0.11.1": {
       "edition": "2015"
@@ -22751,14 +23114,8 @@
     "tsunagu-0.1.10-11aa4cc5c36ebf10536278571a5a229342490bc9": {
       "edition": "2024"
     },
-    "twox-hash-1.6.3": {
-      "edition": "2018",
-      "binaries": [
-        {
-          "name": "hash_file",
-          "path": "src/bin/hash_file.rs"
-        }
-      ]
+    "twox-hash-2.1.5": {
+      "edition": "2021"
     },
     "typenum-1.20.1": {
       "edition": "2018"
@@ -22774,6 +23131,9 @@
       "edition": "2018"
     },
     "unicode-ident-1.0.27": {
+      "edition": "2021"
+    },
+    "unicode-width-0.2.2": {
       "edition": "2021"
     },
     "unsafe-libyaml-0.2.11": {

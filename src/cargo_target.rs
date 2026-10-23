@@ -102,8 +102,7 @@ pub(crate) const DEFAULT_SEARCH_DEPTH: u32 = 2;
 
 /// `cargo_target:` in tend's config. Every field defaults, so a partial
 /// block is valid and an absent block means disabled.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct CargoTargetConfig {
     /// Run the sweep from the daemon. Default false: tend deletes nothing

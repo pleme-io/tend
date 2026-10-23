@@ -54,8 +54,7 @@ use std::collections::HashSet;
 /// config keeps parsing unchanged (★★ MODULARIZE, DON'T DELETE — attic
 /// stays a fully working, selectable backend, it is simply not the
 /// fleet's choice today).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, serde::Serialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, serde::Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum CacheBackend {
     /// `attic push <cache> <path>`, preceded by `attic login`.

@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::Workspace;
 use crate::sync::{self, RepoFacts, RepoStatus, StateWord};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars1::JsonSchema)]
-#[schemars(crate = "schemars1")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct StatusSnapshotConfig {
     pub enable: bool,
