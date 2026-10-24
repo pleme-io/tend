@@ -212,15 +212,9 @@ def skews_of(index, ids, pins)
   )
   per_item = by_key(pin_item, usable)
   flat_map(
+    sort(members(per_item)),
     fn(item)
       flat_map(
-        fn(id)
-          skew_in(
-            index,
-            item,
-            filter((p) -> get(ids, pin_repo(p)) == id, get(per_item, item))
-          )
-        end,
         sort(
           members(
             reduce(
@@ -229,10 +223,16 @@ def skews_of(index, ids, pins)
               map((p) -> get(ids, pin_repo(p)), get(per_item, item))
             )
           )
-        )
+        ),
+        fn(id)
+          skew_in(
+            index,
+            item,
+            filter((p) -> get(ids, pin_repo(p)) == id, get(per_item, item))
+          )
+        end
       )
-    end,
-    sort(members(per_item))
+    end
   )
 end
 
@@ -251,7 +251,7 @@ def propose(ns, edges, pins)
       "ok",
       waves,
       map((s) -> [first(s), nth(1, s), nth(2, s)], found),
-      sort_stable_by((m) -> first(m), flat_map((s) -> nth(3, s), found)),
+      sort_stable_by((m) -> first(m), flat_map(found, (s) -> nth(3, s))),
       stuck
     ]
   else
