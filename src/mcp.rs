@@ -89,6 +89,14 @@ pub const TOOLS: &[Tool] = &[
         mutating: false,
     },
     Tool {
+        name: "tend_drift",
+        description: "The drift sentinel's last sweep: per drift.checks entry the \
+                      kind, template repo and verdict (drifted / red-past-window / \
+                      red-within-window / blind / off / green), each finding, and the \
+                      issue plan. Reads the saved state; runs no check.",
+        mutating: false,
+    },
+    Tool {
         name: "tend_worktree_prune",
         description: "Remove session worktrees that hold no work. Refuses on \
                       uncommitted or unpushed changes. Requires mutate authority.",
@@ -327,6 +335,30 @@ impl TendMcp {
             Ok(Ok(report)) => json!({"ok": true, "report": report}).to_string(),
             Ok(Err(e)) => json!({"ok": false, "error": format!("{e:#}")}).to_string(),
             Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
+        }
+    }
+
+    #[tool(
+        description = "The anti-sprawl drift sentinel's last sweep (`tend drift run`, or the daemon every drift.interval_minutes). Per check (one per kind: repo, reusable-workflow, action, bidama, service, chart, skill) the template repo, the verdict (drifted, red-past-window, red-within-window, blind, off, green), every alert with its instance and since-when, every blind finding with its reason (blind is never green), and the issue plan (open / close / hold per kind and template repo). Reads the saved state and runs no check; `age_minutes` says how old it is."
+    )]
+    async fn tend_drift(&self) -> String {
+        match crate::drift_sentinel::read_state(&crate::drift_sentinel::state_path()) {
+            Some(state) => json!({
+                "ok": true,
+                "age_minutes": crate::drift_sentinel::unix(std::time::SystemTime::now())
+                    .saturating_sub(state.judged_unix) / 60,
+                "summary": crate::drift_sentinel::status_line(Some(&state)),
+                "findings": crate::drift_sentinel::finding_lines(&state.report),
+                "report": state.report,
+                "issues": state.issues,
+            })
+            .to_string(),
+            None => json!({
+                "ok": true,
+                "verdict": "blind",
+                "why": "no drift sweep has run on this host; run `tend drift run`",
+            })
+            .to_string(),
         }
     }
 

@@ -34,6 +34,7 @@ mod xdg;
 // residue the way "the credential is gone" does.
 mod anomaly;
 mod drift;
+mod drift_sentinel;
 mod failure;
 mod flake;
 mod flake_graph;
@@ -133,6 +134,15 @@ enum Commands {
     CargoTarget {
         #[command(subcommand)]
         action: CargoTargetAction,
+    },
+
+    #[command(
+        about = "The drift sentinel: every kind's template drift check, judged in blue (drift.checks)",
+        long_about = "The drift sentinel: runs each drift.checks entry read-only (a command, or a gate workflow's GitHub Actions runs), judges the results in blue/drift.b (drifted, red past its window, blind, green) and, with drift.issues.enable, keeps one GitHub issue per (kind, template repo). `report` reads the last sweep and runs nothing."
+    )]
+    Drift {
+        #[command(subcommand)]
+        action: DriftAction,
     },
 
     /// Per-session git worktrees — real isolation for concurrent agents.
@@ -558,6 +568,29 @@ enum CargoTargetAction {
 }
 
 #[derive(Subcommand)]
+enum DriftAction {
+    #[command(about = "Show the last sweep's verdicts and findings; runs no check")]
+    Report {
+        #[arg(long, help = "Emit the saved state as JSON")]
+        json: bool,
+    },
+    #[command(about = "Run the due checks read-only, judge every check, save the state")]
+    Run {
+        #[arg(long, help = "Run every enabled check, whatever its cadence")]
+        all: bool,
+        #[arg(long, help = "Run only this check (drift.checks.<name>)")]
+        only: Option<String>,
+        #[arg(
+            long,
+            help = "Do not touch GitHub issues this run, whatever drift.issues.enable says"
+        )]
+        no_issues: bool,
+        #[arg(long, help = "Emit the new state as JSON")]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
 enum HookEvent {
     #[command(
         about = "Stop: block once when repos touched this session are dirty or hold unpushed commits"
@@ -776,6 +809,41 @@ async fn main() -> Result<()> {
             }
             if report.entries.iter().any(|e| e.removed == Some(false)) {
                 std::process::exit(1);
+            }
+        }
+
+        Commands::Drift { action } => {
+            let path = drift_sentinel::state_path();
+            match action {
+                DriftAction::Report { json } => match drift_sentinel::read_state(&path) {
+                    Some(state) if json => println!("{}", serde_json::to_string_pretty(&state)?),
+                    Some(state) => drift_sentinel::print_report(&state),
+                    None => println!("{}", drift_sentinel::status_line(None)),
+                },
+                DriftAction::Run {
+                    all,
+                    only,
+                    no_issues,
+                    json,
+                } => {
+                    let cfg = loader(flags::drift_overlay(no_issues)).load()?;
+                    if let Some(name) = only.as_deref() {
+                        if !cfg.drift.checks.contains_key(name) {
+                            anyhow::bail!("no drift check named `{name}`");
+                        }
+                    }
+                    let due = match (&only, all) {
+                        (Some(n), _) => drift_sentinel::Due::Only(n),
+                        (None, true) => drift_sentinel::Due::All,
+                        (None, false) => drift_sentinel::Due::Cadence,
+                    };
+                    let state = drift_sentinel::run_live(&cfg.drift, due, &path).await?;
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&state)?);
+                    } else {
+                        drift_sentinel::print_report(&state);
+                    }
+                }
             }
         }
 
@@ -1416,6 +1484,15 @@ async fn main() -> Result<()> {
                 // so it gets the summary instead — with its denominator, so
                 // "3 workspaces" is never read without "of 5".
                 degraded.report();
+                if cfg.drift.enable {
+                    println!();
+                    println!(
+                        "{}",
+                        drift_sentinel::status_line(
+                            drift_sentinel::read_state(&drift_sentinel::state_path()).as_ref()
+                        )
+                    );
+                }
                 let host_audit = audit::AuditLog::default_path();
                 let report = host_health::run_host_health_check(
                     &host_health::SystemProcessLister,

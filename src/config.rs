@@ -76,6 +76,8 @@ pub struct Config {
     /// `src/cargo_target.rs`. Absent means disabled.
     #[serde(default)]
     pub cargo_target: crate::cargo_target::CargoTargetConfig,
+    #[serde(default)]
+    pub drift: crate::drift_sentinel::DriftConfig,
     /// The status snapshot `tend hook session-start` reads.
     #[serde(default)]
     pub status_snapshot: crate::scan::StatusSnapshotConfig,
@@ -927,6 +929,11 @@ impl shikumi::TieredConfig for Config {
             prebuild: <PrebuildConfig as shikumi::TieredConfig>::bare(),
             host_health: HostHealthConfig::default(),
             cargo_target: crate::cargo_target::CargoTargetConfig::default(),
+            drift: crate::drift_sentinel::DriftConfig {
+                enable: false,
+                checks: std::collections::BTreeMap::new(),
+                ..crate::drift_sentinel::DriftConfig::default()
+            },
             status_snapshot: crate::scan::StatusSnapshotConfig {
                 enable: false,
                 ..crate::scan::StatusSnapshotConfig::default()
@@ -947,6 +954,7 @@ impl shikumi::TieredConfig for Config {
             prebuild: PrebuildConfig::default(),
             host_health: HostHealthConfig::default(),
             cargo_target: crate::cargo_target::CargoTargetConfig::default(),
+            drift: crate::drift_sentinel::DriftConfig::default(),
             status_snapshot: crate::scan::StatusSnapshotConfig::default(),
         }
     }

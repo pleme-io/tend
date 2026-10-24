@@ -182,13 +182,22 @@ impl GithubCredentials {
         &self,
         base_url: &str,
     ) -> Result<todoku::GitHubClient, todoku::TodokuError> {
+        Ok(todoku::GitHubClient::from_client(
+            self.rest_client(base_url)?,
+        ))
+    }
+
+    pub(crate) fn rest_client(
+        &self,
+        base_url: &str,
+    ) -> Result<todoku::HttpClient, todoku::TodokuError> {
         let mut builder = todoku::HttpClient::builder()
             .base_url(base_url)
             .header(reqwest::header::ACCEPT, "application/vnd.github.v3+json");
         if let Some(token) = self.token() {
             builder = builder.auth(todoku::BearerToken::new(token.expose_for_header()));
         }
-        Ok(todoku::GitHubClient::from_client(builder.build()?))
+        builder.build()
     }
 }
 

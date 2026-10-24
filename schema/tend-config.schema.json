@@ -315,6 +315,267 @@
       },
       "type": "object"
     },
+    "DriftCheck": {
+      "properties": {
+        "branch": {
+          "default": "main",
+          "type": "string"
+        },
+        "cadence_minutes": {
+          "default": 360,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "command": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "dirs": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "enable": {
+          "default": true,
+          "type": "boolean"
+        },
+        "kind": {
+          "default": "",
+          "type": "string"
+        },
+        "read": {
+          "$ref": "#/$defs/ReadAs",
+          "default": "exit-status"
+        },
+        "red_window_hours": {
+          "default": 24,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "repos": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source": {
+          "$ref": "#/$defs/Source",
+          "default": "command"
+        },
+        "template": {
+          "default": "",
+          "type": "string"
+        },
+        "timeout_minutes": {
+          "default": 30,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "workflow": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "DriftConfig": {
+      "properties": {
+        "checks": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DriftCheck"
+          },
+          "default": {
+            "action": {
+              "branch": "main",
+              "cadence_minutes": 60,
+              "command": [],
+              "dirs": [],
+              "enable": true,
+              "kind": "action",
+              "read": "exit-status",
+              "red_window_hours": 24,
+              "repos": [
+                "pleme-io/actions"
+              ],
+              "source": "gate",
+              "template": "pleme-io/actions",
+              "timeout_minutes": 30,
+              "workflow": "ci.yml"
+            },
+            "bidama": {
+              "branch": "main",
+              "cadence_minutes": 60,
+              "command": [],
+              "dirs": [],
+              "enable": true,
+              "kind": "bidama",
+              "read": "exit-status",
+              "red_window_hours": 24,
+              "repos": [
+                "pleme-io/blue"
+              ],
+              "source": "gate",
+              "template": "pleme-io/blue",
+              "timeout_minutes": 30,
+              "workflow": "ci.yml"
+            },
+            "chart": {
+              "branch": "main",
+              "cadence_minutes": 720,
+              "command": [
+                "nix",
+                "build",
+                ".#checks.{system}.values-schema-fresh",
+                "--no-link"
+              ],
+              "dirs": [
+                "~/code/github/pleme-io/helmworks"
+              ],
+              "enable": true,
+              "kind": "chart",
+              "read": "exit-status",
+              "red_window_hours": 24,
+              "repos": [],
+              "source": "command",
+              "template": "pleme-io/helmworks",
+              "timeout_minutes": 30,
+              "workflow": ""
+            },
+            "repo": {
+              "branch": "main",
+              "cadence_minutes": 360,
+              "command": [
+                "repo-forge",
+                "check",
+                "--catalog",
+                "repos.lisp",
+                "--json"
+              ],
+              "dirs": [
+                "~/code/github/pleme-io/repo-forge"
+              ],
+              "enable": true,
+              "kind": "repo",
+              "read": "repo-forge-ndjson",
+              "red_window_hours": 24,
+              "repos": [],
+              "source": "command",
+              "template": "pleme-io/repo-forge",
+              "timeout_minutes": 30,
+              "workflow": ""
+            },
+            "reusable-workflow": {
+              "branch": "main",
+              "cadence_minutes": 60,
+              "command": [],
+              "dirs": [],
+              "enable": true,
+              "kind": "reusable-workflow",
+              "read": "exit-status",
+              "red_window_hours": 24,
+              "repos": [
+                "pleme-io/flows"
+              ],
+              "source": "gate",
+              "template": "pleme-io/flows",
+              "timeout_minutes": 30,
+              "workflow": "substrate-parity.yml"
+            },
+            "service": {
+              "branch": "main",
+              "cadence_minutes": 720,
+              "command": [
+                "nix",
+                "build",
+                ".#checks.{system}.project",
+                "--no-link"
+              ],
+              "dirs": [
+                "~/code/github/pleme-io/kensa",
+                "~/code/github/pleme-io/ola-mundo"
+              ],
+              "enable": true,
+              "kind": "service",
+              "read": "exit-status",
+              "red_window_hours": 24,
+              "repos": [],
+              "source": "command",
+              "template": "pleme-io/ola-mundo",
+              "timeout_minutes": 30,
+              "workflow": ""
+            },
+            "skill": {
+              "branch": "main",
+              "cadence_minutes": 360,
+              "command": [
+                "nix",
+                "run",
+                ".#lint"
+              ],
+              "dirs": [
+                "~/code/github/pleme-io/blackmatter-pleme"
+              ],
+              "enable": true,
+              "kind": "skill",
+              "read": "exit-status",
+              "red_window_hours": 24,
+              "repos": [],
+              "source": "command",
+              "template": "pleme-io/blackmatter-pleme",
+              "timeout_minutes": 30,
+              "workflow": ""
+            }
+          },
+          "type": "object"
+        },
+        "enable": {
+          "default": true,
+          "type": "boolean"
+        },
+        "interval_minutes": {
+          "default": 30,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "issues": {
+          "$ref": "#/$defs/DriftIssuesConfig",
+          "default": {
+            "enable": false,
+            "label": "tend-drift"
+          }
+        },
+        "rate_limit_floor": {
+          "default": 200,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "DriftIssuesConfig": {
+      "properties": {
+        "enable": {
+          "default": false,
+          "type": "boolean"
+        },
+        "label": {
+          "default": "tend-drift",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "FetchBackoffConfig": {
       "properties": {
         "base_secs": {
@@ -992,6 +1253,13 @@
       ],
       "type": "string"
     },
+    "ReadAs": {
+      "enum": [
+        "exit-status",
+        "repo-forge-ndjson"
+      ],
+      "type": "string"
+    },
     "ReconcileConfig": {
       "description": "Concurrency of the repo reconcile.",
       "properties": {
@@ -1222,6 +1490,13 @@
         }
       ],
       "description": "SOPS-encrypted file reference.\n\nAccepts either a bare path (`\"secrets/prod.yaml\"`) or a path+field\npair via the struct form. Bare paths decrypt the whole file; the\n`field` form extracts a single JSON/YAML key after decryption using\n`jq`."
+    },
+    "Source": {
+      "enum": [
+        "command",
+        "gate"
+      ],
+      "type": "string"
     },
     "StatusSnapshotConfig": {
       "properties": {
@@ -1527,6 +1802,160 @@
         "quiet": false
       },
       "description": "`tend daemon` — the reconciler loop."
+    },
+    "drift": {
+      "$ref": "#/$defs/DriftConfig",
+      "default": {
+        "checks": {
+          "action": {
+            "branch": "main",
+            "cadence_minutes": 60,
+            "command": [],
+            "dirs": [],
+            "enable": true,
+            "kind": "action",
+            "read": "exit-status",
+            "red_window_hours": 24,
+            "repos": [
+              "pleme-io/actions"
+            ],
+            "source": "gate",
+            "template": "pleme-io/actions",
+            "timeout_minutes": 30,
+            "workflow": "ci.yml"
+          },
+          "bidama": {
+            "branch": "main",
+            "cadence_minutes": 60,
+            "command": [],
+            "dirs": [],
+            "enable": true,
+            "kind": "bidama",
+            "read": "exit-status",
+            "red_window_hours": 24,
+            "repos": [
+              "pleme-io/blue"
+            ],
+            "source": "gate",
+            "template": "pleme-io/blue",
+            "timeout_minutes": 30,
+            "workflow": "ci.yml"
+          },
+          "chart": {
+            "branch": "main",
+            "cadence_minutes": 720,
+            "command": [
+              "nix",
+              "build",
+              ".#checks.{system}.values-schema-fresh",
+              "--no-link"
+            ],
+            "dirs": [
+              "~/code/github/pleme-io/helmworks"
+            ],
+            "enable": true,
+            "kind": "chart",
+            "read": "exit-status",
+            "red_window_hours": 24,
+            "repos": [],
+            "source": "command",
+            "template": "pleme-io/helmworks",
+            "timeout_minutes": 30,
+            "workflow": ""
+          },
+          "repo": {
+            "branch": "main",
+            "cadence_minutes": 360,
+            "command": [
+              "repo-forge",
+              "check",
+              "--catalog",
+              "repos.lisp",
+              "--json"
+            ],
+            "dirs": [
+              "~/code/github/pleme-io/repo-forge"
+            ],
+            "enable": true,
+            "kind": "repo",
+            "read": "repo-forge-ndjson",
+            "red_window_hours": 24,
+            "repos": [],
+            "source": "command",
+            "template": "pleme-io/repo-forge",
+            "timeout_minutes": 30,
+            "workflow": ""
+          },
+          "reusable-workflow": {
+            "branch": "main",
+            "cadence_minutes": 60,
+            "command": [],
+            "dirs": [],
+            "enable": true,
+            "kind": "reusable-workflow",
+            "read": "exit-status",
+            "red_window_hours": 24,
+            "repos": [
+              "pleme-io/flows"
+            ],
+            "source": "gate",
+            "template": "pleme-io/flows",
+            "timeout_minutes": 30,
+            "workflow": "substrate-parity.yml"
+          },
+          "service": {
+            "branch": "main",
+            "cadence_minutes": 720,
+            "command": [
+              "nix",
+              "build",
+              ".#checks.{system}.project",
+              "--no-link"
+            ],
+            "dirs": [
+              "~/code/github/pleme-io/kensa",
+              "~/code/github/pleme-io/ola-mundo"
+            ],
+            "enable": true,
+            "kind": "service",
+            "read": "exit-status",
+            "red_window_hours": 24,
+            "repos": [],
+            "source": "command",
+            "template": "pleme-io/ola-mundo",
+            "timeout_minutes": 30,
+            "workflow": ""
+          },
+          "skill": {
+            "branch": "main",
+            "cadence_minutes": 360,
+            "command": [
+              "nix",
+              "run",
+              ".#lint"
+            ],
+            "dirs": [
+              "~/code/github/pleme-io/blackmatter-pleme"
+            ],
+            "enable": true,
+            "kind": "skill",
+            "read": "exit-status",
+            "red_window_hours": 24,
+            "repos": [],
+            "source": "command",
+            "template": "pleme-io/blackmatter-pleme",
+            "timeout_minutes": 30,
+            "workflow": ""
+          }
+        },
+        "enable": true,
+        "interval_minutes": 30,
+        "issues": {
+          "enable": false,
+          "label": "tend-drift"
+        },
+        "rate_limit_floor": 200
+      }
     },
     "flake_update_daemon": {
       "$ref": "#/$defs/FlakeUpdateDaemonConfig",

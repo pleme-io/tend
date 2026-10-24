@@ -41,6 +41,8 @@ pub(crate) async fn run_with_kanshou(
     let mut cycle = 0u64;
     // When the cargo target-dir sweep last ran; `None` = on the first cycle.
     let mut last_cargo_sweep: Option<std::time::Instant> = None;
+    let mut last_drift_sweep: Option<std::time::Instant> = None;
+    let drift_running = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
     // Single drain coordinator for the whole loop — handles SIGTERM and
     // SIGINT. `tokio::signal::ctrl_c` alone misses SIGTERM from launchd.
@@ -275,6 +277,46 @@ pub(crate) async fn run_with_kanshou(
                 }
                 Err(e) => eprintln!("daemon: cargo target sweep panicked: {e}"),
             }
+        }
+
+        if cfg.drift.enable
+            && last_drift_sweep
+                .is_none_or(|t: std::time::Instant| t.elapsed() >= cfg.drift.interval())
+            && !drift_running.swap(true, Ordering::SeqCst)
+        {
+            last_drift_sweep = Some(std::time::Instant::now());
+            let drift = cfg.drift.clone();
+            let running = Arc::clone(&drift_running);
+            let kstate = Arc::clone(&kanshou_state);
+            let quiet = d.quiet;
+            let handle = tokio::runtime::Handle::current();
+            tokio::task::spawn_blocking(move || {
+                let path = crate::drift_sentinel::state_path();
+                let swept = handle.block_on(crate::drift_sentinel::run_live(
+                    &drift,
+                    crate::drift_sentinel::Due::Cadence,
+                    &path,
+                ));
+                match swept {
+                    Ok(state) => {
+                        audit::AuditLog::default_path().log(
+                            "drift_sweep",
+                            serde_json::json!({
+                                "verdict": state.report["verdict"],
+                                "alerts": state.report["alerts"],
+                                "blind": state.report["blind"],
+                                "issues": state.issues,
+                            }),
+                        );
+                        if !quiet || state.report["verdict"] != "green" {
+                            eprintln!("  {}", crate::drift_sentinel::status_line(Some(&state)));
+                        }
+                        *kstate.drift.write() = serde_json::to_value(&state).unwrap_or_default();
+                    }
+                    Err(e) => eprintln!("daemon: drift sweep refused: {e:#}"),
+                }
+                running.store(false, Ordering::SeqCst);
+            });
         }
 
         // Build the DAG of configured work BEFORE touching repos or the network.

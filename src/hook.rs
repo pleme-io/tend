@@ -121,6 +121,21 @@ pub(crate) fn run(event: Event, config: anyhow::Result<Config>, raw: &str) -> Op
                 .then(host_pressure)
                 .flatten()
                 .into_iter()
+                .chain(
+                    config
+                        .drift
+                        .enable
+                        .then(|| {
+                            crate::drift_sentinel::session_note(
+                                crate::drift_sentinel::read_state(
+                                    &crate::drift_sentinel::state_path(),
+                                )
+                                .as_ref(),
+                                SystemTime::now(),
+                            )
+                        })
+                        .flatten(),
+                )
                 .collect(),
             config.host_health.report_daemon,
         ),

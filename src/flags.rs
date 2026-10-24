@@ -340,6 +340,14 @@ pub(crate) fn status_overlay(no_fix: bool) -> Value {
     }
 }
 
+pub(crate) fn drift_overlay(no_issues: bool) -> Value {
+    if no_issues {
+        json!({ "drift": { "issues": { "enable": false } } })
+    } else {
+        Value::Null
+    }
+}
+
 /// `tend cargo-target apply --dry-run` is `cargo_target.dry_run: true`.
 pub(crate) fn cargo_target_overlay(dry_run: bool) -> Value {
     if dry_run {
