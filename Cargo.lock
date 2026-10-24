@@ -1287,9 +1287,9 @@ dependencies = [
 
 [[package]]
 name = "gen-macros"
-version = "0.1.51"
+version = "0.1.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b981d6e23ae392923db98dc5a96fd8f42a3a44c6ce4c7681461a6f0881ed59c0"
+checksum = "45aa54e78709c6e9644351c49be01154ea4e2ec8f52197e06312d594b3fc9b7b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1298,9 +1298,9 @@ dependencies = [
 
 [[package]]
 name = "gen-platform"
-version = "0.1.51"
+version = "0.1.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2ce1c250a8f7e6e026d731fdeee7ae0fdb7d882f899a076b8c1558eef6ddce3"
+checksum = "1bbe0fc580d799cdec0d3e87f0b70eac8958aaf5d5f2051652512aca3ea2c07b"
 dependencies = [
  "gen-macros",
  "gen-types",
@@ -1312,9 +1312,9 @@ dependencies = [
 
 [[package]]
 name = "gen-types"
-version = "0.1.51"
+version = "0.1.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25c13fba2c9360c684e7f068deddba4ae436111441285d7b54e0facb3ebe3bc5"
+checksum = "a36de42423d45a3a53484df348c00d9691603252d6630dd3f980e01d560da7eb"
 dependencies = [
  "blake3",
  "chrono",
@@ -4053,18 +4053,18 @@ dependencies = [
 
 [[package]]
 name = "tatara-closed-set"
-version = "0.4.8"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48271de537768bee5c34b58dee0f32fa99f69580346b1b7ee9497283c0360786"
+checksum = "b218856bd6451057eebc2abb1e01ca7f80ee2a9a13b87b47e3debfd0a6232bea"
 dependencies = [
  "tatara-closed-set-derive",
 ]
 
 [[package]]
 name = "tatara-closed-set-derive"
-version = "0.4.8"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f28331314d0184d656a4a9e802737af80e98f9eec3cd5648c8306e6d6daceac"
+checksum = "64b42b93bbb2b11bb63c159756739b0a98d7c241d40e38e9cf5e633ed6036e06"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4073,9 +4073,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp"
-version = "0.4.8"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ab6aee41203c4018d3e796d21ffab93ae53aa089477b7441a288c6d94704388"
+checksum = "05a1714ef7c3da2a0c0a0aa893b8907fff268fb2556dc0bcce414a096a5a9f14"
 dependencies = [
  "blake3",
  "serde",
@@ -4087,9 +4087,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-derive"
-version = "0.4.8"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a6ff78c6d5b3582c30ae69cc978bead3754029ce2eef4cc2b4ad0c288fe797b"
+checksum = "ee03c93f9f06f62a3e346f0219b0e61ebeac24e59f06a1b2cc77418dd3490e42"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4117,7 +4117,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.5",
  "windows-sys 0.61.2",
