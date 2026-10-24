@@ -1002,16 +1002,12 @@ pub fn decide(
         int(policy.pressure_budget_bytes),
         int(policy.active_window.as_secs())
     ]);
-    let to = blue_lang_runtime::json::json_to_value;
-    let mut program = crate::blue_policy::load_pure(None, POLICY_SOURCE, "cargo_target.b")?;
-    let out: blue_lang_host::Value = program
-        .call(
-            "decide",
-            (to(&Json::Array(rows)), to(&numbers), to(&json!(pressured))),
-            &mut (),
-        )
-        .map_err(|e| anyhow!("cargo_target.b: decide(): {e}"))?;
-    let out = blue_lang_runtime::json::value_to_json(&out);
+    let out = crate::blue_policy::call(
+        POLICY_SOURCE,
+        "cargo_target.b",
+        "decide",
+        &[Json::Array(rows), numbers, json!(pressured)],
+    )?;
     let parts = out
         .as_array()
         .filter(|p| p.len() == 5)

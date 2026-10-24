@@ -46,6 +46,7 @@ pub struct TendDaemonState {
     /// The last cargo target sweep's report (null before the first):
     /// `gen kanshou query tend cargo_target`.
     pub cargo_target: Arc<parking_lot::RwLock<serde_json::Value>>,
+    pub drift: Arc<parking_lot::RwLock<serde_json::Value>>,
 }
 
 impl Default for TendDaemonState {
@@ -70,6 +71,7 @@ impl TendDaemonState {
             current_workspace: Arc::new(parking_lot::RwLock::new(None)),
             effective_config: Arc::new(parking_lot::RwLock::new(serde_json::Value::Null)),
             cargo_target: Arc::new(parking_lot::RwLock::new(serde_json::Value::Null)),
+            drift: Arc::new(parking_lot::RwLock::new(serde_json::Value::Null)),
         }
     }
 }
@@ -129,6 +131,7 @@ impl Introspect for TendDaemonState {
             "backoff" => Ok(serde_json::json!(crate::backoff::snapshot())),
             "config" => Ok(self.effective_config.read().clone()),
             "cargo_target" => Ok(self.cargo_target.read().clone()),
+            "drift" => Ok(self.drift.read().clone()),
             other => Err(QueryError::unknown_field(other.to_string())),
         }
     }
@@ -143,6 +146,7 @@ impl Introspect for TendDaemonState {
             "backoff",
             "config",
             "cargo_target",
+            "drift",
         ]
     }
 }
