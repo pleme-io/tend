@@ -228,113 +228,55 @@ Post-hook `args` support these placeholders:
 
 ## Cargo target dirs (`src/cargo_target.rs`)
 
-Local `cargo`/rust-analyzer output under the workspace repos is unmanaged by
-nix and only grows (86.7 GiB across 35 dirs on the operator's Mac,
-2026-09-29); agent builds also put `CARGO_TARGET_DIR` under `~/.cache`
-(~20 GiB on ryn, 2026-10-23, outside every repo). The daemon sweeps every
-`interval_minutes` when `enable` is set, and, with `auto_apply` (default on),
-every `pressure_interval_minutes` while disk is pressured.
-
-```yaml
-cargo_target:
-  enable: false          # scheduled daemon sweep; `tend cargo-target report` works regardless
-  auto_apply: true       # relief sweep (apply) while disk is pressured, even with enable off
-  pressure_interval_minutes: 5
-  max_idle_days: 14      # newest mtime older than this -> removed whole
-  budget_gib: 50         # total ceiling; least-recently-used removed first
-  pressure_budget_gib: 10  # ceiling while pressure.rs reports disk pressure
-  active_minutes: 60     # written this recently -> in use, never removed
-  interval_minutes: 60   # minimum time between scheduled sweeps
-  search_depth: 2        # <repo>/target and <repo>/<dir>/target
-  extra_roots: []        # e.g. ["~/.cache"]: scanned one level deep, any name
-  adopt_untagged: false  # also remove a `target` with cargo's layout but no CACHEDIR.TAG
-  dry_run: false         # decide + report, delete nothing
-```
+The daemon sweeps unmanaged cargo `target` dirs under the workspace repos (and
+`extra_roots`) when `cargo_target.enable` is set, and, with `auto_apply`
+(default on), while disk is pressured. `tend cargo-target report` works
+regardless. Full config, forms, in-use signals, measurements:
+[docs/CARGO-TARGET.md](docs/CARGO-TARGET.md).
 
 - **Safety invariant:** only a `CargoTargetDir` can be removed, and
-  `CargoTargetDir::recognize` is its only constructor. A real directory (not a
-  symlink) in one of three forms: `named` (`target` + cargo's `CACHEDIR.TAG`),
-  `layout` (any name + cargo's tag + `.rustc_info.json` with a
-  `rustc_fingerprint` + a `.fingerprint/` at `<profile>/` or
-  `<triple>/<profile>/`), `adopted` (`target` + that layout + no tag, only with
-  `adopt_untagged`). `remove` re-recognizes under the same admission.
-- **Why tags go missing:** cargo writes the tag only into a directory it
-  creates. rust-analyzer's `--target-dir target/rust-analyzer` creates
-  `target/` as a plain parent first (`blue/target`, `kensa/target`, measured
-  2026-10-23). Such dirs report `untagged-cargo-layout`.
-- **In use** (any one keeps a dir): a held cargo lock; a same-user build
-  process (`cargo`, `rustc`, rust-analyzer, `cargo-*`, build scripts) whose
-  cwd is under the dir's parent or whose `CARGO_TARGET_DIR` /
-  `--target-dir` / argv overlaps it, or any same-user process running an
-  executable inside it; processes unseen (blind: table or a same-user build
-  process unreadable -> every dir kept); a write within `active_minutes`.
-  Other users' processes (`_nixbld` rustc) are skipped; `ps` names the owners
-  sysinfo cannot read. Removal holds every cargo lock exclusively.
-- **Policy is blue:** `blue/cargo_target.b` (`decide`) picks the verdicts and
-  the removal order (oldest first, larger first at equal age), loaded through
-  `src/blue_policy.rs` like `blue/align.b`. Rust refuses any plan that removes
-  a dir an in-use signal holds. Test the blue with the pinned CLI:
-  `BLUE_PATH=<blue checkout at the Cargo.lock rev>/bidamas blue test blue/cargo_target.b`.
-- The sweep runs BEFORE the pressure gate, since it frees disk. Each sweep
-  logs `cargo_target_sweep`, each removal `cargo_target_removed` (path,
-  bytes, form, verdict, trigger) plus a stderr line; `gen kanshou query tend
-  cargo_target` returns the last report. MCP: `tend_cargo_targets`
-  (read-only dry run, shows extra roots and process sight).
+  `CargoTargetDir::recognize` is its only constructor (a real directory, never
+  a symlink, in form `named`, `layout` or `adopted`). `remove` re-recognizes
+  under the same admission.
+- **In use, never removed:** a held cargo lock; a same-user build process whose
+  cwd, `CARGO_TARGET_DIR` or `--target-dir` overlaps the dir, or that runs an
+  executable inside it; a write within `active_minutes`. Blind process sight
+  keeps every dir. Removal holds every cargo lock exclusively.
+- **Policy is blue:** `blue/cargo_target.b` (`decide`) picks verdicts and
+  order, loaded through `src/blue_policy.rs`. Rust refuses any plan that
+  removes a dir an in-use signal holds.
+- The sweep runs BEFORE the pressure gate, since it frees disk. MCP:
+  `tend_cargo_targets` (read-only dry run).
 
 ## Clean git state: status states, session hooks, push_ahead
 
-The 2026-10-08 sweep of 1,335 repos found work `tend status` could not name: a
-commit unpushed for 8 weeks, branches with commits and no upstream, clones of
-empty repos. `status` now classifies from one `git status --porcelain=v2
---branch` per repo plus the remote witness: `ahead`, `no-upstream`, `behind`
-and `unborn` join the old states (precedence and JSON shape: README). There is
-no `archived-remote` state: discovery drops archived repos before caching, so
-tend holds no archive fact to report, and `status` makes no API calls.
+`tend status` classifies from one `git status --porcelain=v2 --branch` per repo
+plus the remote witness: `ahead`, `no-upstream`, `behind` and `unborn` join the
+old states. There is no `archived-remote` state, and `status` makes no API
+calls. Measurements and receipts: [docs/CLEAN-GIT-STATE.md](docs/CLEAN-GIT-STATE.md).
 
-- **`tend hook stop`** — candidates are the `cwd` repo plus repos whose
-  `.git/index`, `.git/HEAD` or `.git/refs/heads/<branch>` mtime is newer than
-  the transcript's birth time; only stat runs on the other repos. Candidates
-  are screened with one `git status` (`sync::observe_unsettled`: a clean,
-  not-ahead branch is settled) and fully observed only when unsettled. Blocks
-  once; with `stop_hook_active` it prints a `systemMessage` instead. A finding
-  (repo label plus its description) blocks a session once: the hook records
-  it under `<cache>/hook/stop/<session_id>.json`, and the same unchanged
-  finding never blocks that session again, while a changed state blocks once
-  more. Measured 2026-10-08: another session's edit in a shared akeylesslabs
-  worktree blocked every stop of this one, since mtimes cannot say which
-  session moved a repo.
-  Measured on 1,364 repos (debug build, 2026-10-08): 0.13-0.6 s for a fresh
-  session, 0.86-1.25 s for one started 12 h earlier (~160 repos touched,
-  mostly by the daemon's fast-forwards). Classification stops at 1.2 s.
-- **`tend hook session-start`** — a full live pass costs ~6 s here (git status
-  ×1,364 is kernel-bound; more workers do not help), so it reads the daemon's
-  snapshot (`status_snapshot`, `~/.cache/tend/status/local.json`) and
-  re-checks live only the snapshot's problem rows, repos new since it, repos
-  whose git state moved since it, and the `cwd` repo: 0.7-0.95 s measured.
-  Without a fresh snapshot it checks live, most recently active first, and
-  reports the coverage it reached.
+- **`tend hook stop`** blocks once per unchanged finding per session (state
+  under `<cache>/hook/stop/<session_id>.json`); with `stop_hook_active` it
+  prints a `systemMessage` instead. Candidates are the `cwd` repo plus repos
+  whose git mtimes are newer than the transcript's birth; a clean, not-ahead
+  branch is settled (`sync::observe_unsettled`).
+- **`tend hook session-start`** reads the daemon's snapshot
+  (`~/.cache/tend/status/local.json`) and re-checks live only problem rows,
+  new repos, moved repos and the `cwd` repo. Without a fresh snapshot it checks
+  live and reports the coverage it reached.
 - **Wording is data**: `push_policy: main | pr` and `pr_skill` per workspace.
-  The default is `main`; tend has no per-name tier, so a PR-only org
-  (akeylesslabs) must set `push_policy: pr` (and `pr_skill:
-  akeyless-pr-standards`) in config.
+  The default is `main`; a PR-only org (akeylesslabs) must set
+  `push_policy: pr` (and `pr_skill: akeyless-pr-standards`) in config.
 - **`push_ahead`** (per workspace, default `false`): with `push_policy: main`,
-  the daemon fast-forward-pushes a repo after its pull only through
-  `push_ahead::guard` — verdict `ahead` with `behind == 0`, clean, on a branch
-  equal to `refs/remotes/<remote>/HEAD`, tracking the same-named upstream.
-  Unknown default branch refuses rather than guessing. Each push is an
-  `ahead_pushed` audit event.
-- **SIGTERM ends a cycle in progress** (`daemon::join_or_drain`): the
-  workspace tasks are aborted and the daemon exits, rather than finishing a
-  cycle that runs 15+ minutes under load. A rebuild boots the agent out and
-  bootstraps the new plist at once; an old process still draining made that
-  bootstrap fail (`I/O error (code 5)`) on three rebuilds on 2026-10-08,
-  leaving the daemon unloaded while the rebuild printed `[OK]`.
+  the daemon fast-forward-pushes after its pull only through
+  `push_ahead::guard` (verdict `ahead`, `behind == 0`, clean, on the remote
+  HEAD branch, same-named upstream). Unknown default branch refuses. Each push
+  is an `ahead_pushed` audit event.
+- **SIGTERM ends a cycle in progress** (`daemon::join_or_drain`): workspace
+  tasks are aborted and the daemon exits, so a rebuild's bootstrap never meets
+  a draining process.
 - **The pull summary separates `failed` from `not reached`.** A job the
-  throttled drain never ran (`Pending`, `Gated`, `Ready`, `Running` in the
-  final snapshot; `reconcile::never_ran`) is not reached, never failed.
-  Measured 2026-10-08 under load at `max_inflight` 2: a cycle printed
-  `1056 failed` while its stderr held about 59 lines, one per real git
-  failure; the rest had not run.
+  throttled drain never ran (`reconcile::never_ran`) is never counted failed.
 
 ## Post-Hooks
 
