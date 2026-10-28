@@ -40,8 +40,8 @@ and automates version certification pipelines.
 | Command | Purpose |
 |---------|---------|
 | `sync` | Clone missing repos |
-| `status` | Show repo status (clean/dirty/ahead/no-upstream/behind/unborn/stuck/no-remote/missing/unknown); `--problems` drops clean and unborn; `--json` adds `ahead`/`behind`/`dirty_count` |
-| `hook stop\|session-start\|snapshot` | Claude Code hooks: block a Stop on touched dirty/unpushed repos; brief a new session on problem repos; refresh the snapshot SessionStart reads |
+| `status` | Show repo status (clean/dirty/ahead/no-upstream/behind/unborn/stuck/no-remote/missing/unknown); `--problems` drops clean and unborn; `--json` adds `ahead`/`behind`/`dirty_count`; then lists `wip/*` branches on origin (`wip:`) |
+| `hook stop\|session-start\|snapshot` | Claude Code hooks: block a Stop on touched dirty/unpushed repos; brief a new session on problem repos; refresh the snapshot SessionStart reads and on lingering `wip/*` branches (warn only) |
 | `list` | List configured repos |
 | `discover` | Discover repos from a GitHub org |
 | `watch` | Run watch cycle once (detect new versions) |
@@ -115,6 +115,7 @@ src/
 ├── sync.rs          # Repo resolution, cloning, status (RepoObservation → verdict + RepoFacts), fetching
 ├── scan.rs          # On-disk repo enumeration, bounded parallel classification, touched filter, status snapshot
 ├── hook.rs          # `tend hook stop|session-start`: Claude Code hook contracts
+├── wip.rs           # `wip/<domain-slug>` branches from each repo's last fetch; blue/wip.b judges active/lingering/landed (`wip:` config, `tend_wip` MCP)
 ├── push_ahead.rs    # Daemon knob: fast-forward-push ahead-only default branches (guard + push)
 ├── daemon.rs        # Persistent loop (parallel workspaces via JoinSet)
 ├── watch.rs         # Version detection + matrix appending + auto-certify/commit/propagate

@@ -130,7 +130,7 @@ impl fmt::Display for Freshness {
 ///
 /// Deliberately never rounds *down* across a unit boundary in a way that
 /// understates staleness: 119 minutes reads "1h", not "2h".
-fn human_age(secs: u64) -> String {
+pub(crate) fn human_age(secs: u64) -> String {
     const MIN: u64 = 60;
     const HOUR: u64 = 60 * MIN;
     const DAY: u64 = 24 * HOUR;

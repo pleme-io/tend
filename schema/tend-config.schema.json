@@ -1376,6 +1376,27 @@
       },
       "type": "object"
     },
+    "WipConfig": {
+      "properties": {
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "linger_hours": {
+          "default": 24,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_lines": {
+          "default": 5,
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "Workspace": {
       "properties": {
         "ai_tasks": {
@@ -1621,6 +1642,15 @@
         "workers": 4
       },
       "description": "The status snapshot `tend hook session-start` reads."
+    },
+    "wip": {
+      "$ref": "#/$defs/WipConfig",
+      "default": {
+        "enabled": true,
+        "linger_hours": 24,
+        "max_lines": 5
+      },
+      "description": "Lingering `wip/<domain-slug>` branches on origin, read from each\nrepo's last fetch and reported by `tend hook session-start`, `tend\nstatus` and the `tend_wip` MCP tool. A warning, never a block."
     },
     "workspaces": {
       "default": [],

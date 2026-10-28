@@ -123,6 +123,7 @@ pub(crate) fn run(event: Event, config: anyhow::Result<Config>, raw: &str) -> Op
                 .into_iter()
                 .collect(),
             config.host_health.report_daemon,
+            &config.wip,
         ),
     }
 }
@@ -451,6 +452,7 @@ pub(crate) fn session_start(
     now: SystemTime,
     mut notes: Vec<String>,
     report_daemon: bool,
+    wip: &crate::wip::WipConfig,
 ) -> Option<Value> {
     let deadline = Some(Instant::now() + budget);
     let repos = scan::local_repos(workspaces);
@@ -470,10 +472,24 @@ pub(crate) fn session_start(
     }
     let snapshot =
         raw.filter(|s| snapshot_config.enable && s.age(now) <= snapshot_config.max_age());
-    let (rows, coverage) = match snapshot {
-        Some(snapshot) => from_snapshot(snapshot, repos, cwd_repo, workers, deadline, now),
-        None => live(repos, cwd_repo, workers, deadline),
+    let wip_sentence = |snapshot: Option<&Snapshot>| {
+        wip.enabled
+            .then(|| crate::wip::report(snapshot, workspaces, wip, workers, deadline, now).ok())
+            .flatten()
+            .and_then(|r| crate::wip::sentence(&r.judged, wip, r.unchecked()))
     };
+    let (rows, coverage, wip_note) = match snapshot {
+        Some(snapshot) => {
+            let note = wip_sentence(Some(&snapshot));
+            let (rows, coverage) = from_snapshot(snapshot, repos, cwd_repo, workers, deadline, now);
+            (rows, coverage, note)
+        }
+        None => {
+            let (rows, coverage) = live(repos, cwd_repo, workers, deadline);
+            (rows, coverage, wip_sentence(None))
+        }
+    };
+    notes.extend(wip_note);
     render_session_start(&rows, total, &coverage, &Policies::of(workspaces), &notes)
 }
 
@@ -1170,7 +1186,7 @@ mod tests {
         let snapshot_path = tmp.path().join("snapshot.json");
         let now = SystemTime::now();
         let taken = now + Duration::from_secs(5);
-        scan::refresh_snapshot(&[&ws], 2, &snapshot_path, taken).unwrap();
+        scan::refresh_snapshot(&[&ws], 2, &snapshot_path, taken, true).unwrap();
 
         std::fs::write(quiet.join("f"), "dirty after the snapshot, no git touch\n").unwrap();
 
@@ -1186,6 +1202,7 @@ mod tests {
             taken + Duration::from_secs(60),
             Vec::new(),
             false,
+            &crate::wip::WipConfig::default(),
         )
         .unwrap();
         let text = out["hookSpecificOutput"]["additionalContext"]
@@ -1208,6 +1225,7 @@ mod tests {
             taken + config.max_age() + Duration::from_secs(1),
             Vec::new(),
             false,
+            &crate::wip::WipConfig::default(),
         )
         .unwrap();
         let text = stale["hookSpecificOutput"]["additionalContext"]
@@ -1218,6 +1236,99 @@ mod tests {
             "a stale snapshot is not trusted: {text}"
         );
         assert!(text.contains("checked live 2 of 2"), "{text}");
+    }
+
+    fn push_wip(repo: &Path, branch: &str, committed_unix: u64) {
+        let date = format!("@{committed_unix} +0000");
+        git(repo, &["checkout", "-q", "-b", branch]);
+        std::fs::write(repo.join("f"), format!("{branch}\n")).unwrap();
+        git(repo, &["add", "f"]);
+        let out = Command::new("git")
+            .args(["commit", "-q", "--no-verify", "-m", branch])
+            .env("GIT_COMMITTER_DATE", &date)
+            .env("GIT_AUTHOR_DATE", &date)
+            .current_dir(repo)
+            .output()
+            .unwrap();
+        assert!(out.status.success());
+        git(
+            repo,
+            &["push", "-q", "origin", &format!("HEAD:refs/heads/{branch}")],
+        );
+        git(repo, &["checkout", "-q", "main"]);
+        git(repo, &["branch", "-q", "-D", branch]);
+        git(repo, &["fetch", "-q", "--prune", "origin"]);
+    }
+
+    #[test]
+    fn session_start_warns_of_a_wip_branch_older_than_the_threshold_and_never_blocks() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let base = tmp.path().join("ws");
+        let magma = backed_repo(&base, "magma");
+        let now = SystemTime::now();
+        let unix = now
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        push_wip(&magma, "wip/refresh-speed", unix - 3 * 86_400);
+        let ws = workspace("ws", &base, PushPolicy::Main, None);
+        let snapshot_path = tmp.path().join("snapshot.json");
+        let config = StatusSnapshotConfig::default();
+        let run = |wip: &crate::wip::WipConfig, path: &Path| {
+            session_start(
+                &[&ws],
+                &config,
+                path,
+                &Payload::default(),
+                Duration::from_secs(30),
+                2,
+                now,
+                Vec::new(),
+                false,
+                wip,
+            )
+        };
+
+        let live = run(&crate::wip::WipConfig::default(), &snapshot_path).unwrap();
+        assert!(live.get("decision").is_none(), "{live}");
+        let text = live["hookSpecificOutput"]["additionalContext"]
+            .as_str()
+            .unwrap();
+        assert!(
+            text.contains("tend: 1 wip branch lingers (oldest 3d: magma wip/refresh-speed); finish, land, delete."),
+            "{text}"
+        );
+
+        scan::refresh_snapshot(&[&ws], 2, &snapshot_path, now, true).unwrap();
+        let from_snapshot = run(&crate::wip::WipConfig::default(), &snapshot_path).unwrap();
+        let text = from_snapshot["hookSpecificOutput"]["additionalContext"]
+            .as_str()
+            .unwrap();
+        assert!(text.contains("magma wip/refresh-speed"), "{text}");
+
+        let off = crate::wip::WipConfig {
+            enabled: false,
+            ..crate::wip::WipConfig::default()
+        };
+        assert!(
+            run(&off, &snapshot_path).is_none(),
+            "wip.enabled: false says nothing about wip branches"
+        );
+
+        let patient = crate::wip::WipConfig {
+            linger_hours: 24 * 7,
+            ..crate::wip::WipConfig::default()
+        };
+        let text = run(&patient, &snapshot_path).unwrap()["hookSpecificOutput"]
+            ["additionalContext"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert!(!text.contains("linger"), "{text}");
+        assert!(
+            text.contains("1 wip branch active (younger than 168h): ws/magma wip/refresh-speed"),
+            "{text}"
+        );
     }
 
     #[test]

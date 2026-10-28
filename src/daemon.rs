@@ -373,6 +373,7 @@ pub(crate) async fn run_with_kanshou(
 
         if cfg.status_snapshot.enable {
             let workers = cfg.status_snapshot.workers;
+            let wip = cfg.wip.enabled;
             let started = std::time::SystemTime::now();
             let refreshed = tokio::task::spawn_blocking(move || {
                 let refs: Vec<&crate::config::Workspace> = snapshot_workspaces.iter().collect();
@@ -381,6 +382,7 @@ pub(crate) async fn run_with_kanshou(
                     workers,
                     &crate::scan::snapshot_path(),
                     started,
+                    wip,
                 )
             })
             .await;

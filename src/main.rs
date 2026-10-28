@@ -26,6 +26,7 @@ mod mcp;
 mod pressure;
 mod push_ahead;
 mod scan;
+mod wip;
 mod worktree;
 mod xdg;
 // Typed failure classification for a reconcile cycle. See src/failure.rs --
@@ -718,6 +719,7 @@ async fn main() -> Result<()> {
                         cfg.status_snapshot.workers,
                         &path,
                         std::time::SystemTime::now(),
+                        cfg.wip.enabled,
                     )?;
                     println!(
                         "{} of {} repos classified -> {}",
@@ -1416,6 +1418,31 @@ async fn main() -> Result<()> {
                 // so it gets the summary instead — with its denominator, so
                 // "3 workspaces" is never read without "of 5".
                 degraded.report();
+                if cfg.wip.enabled {
+                    let selected =
+                        filter_workspaces_checked(&cfg.workspaces, ws_filter.as_deref())?;
+                    let listing = wip::WipConfig {
+                        max_lines: usize::MAX,
+                        ..cfg.wip.clone()
+                    };
+                    match wip::report(
+                        None,
+                        &selected,
+                        &listing,
+                        cfg.status_snapshot.workers,
+                        None,
+                        std::time::SystemTime::now(),
+                    ) {
+                        Ok(report) => {
+                            if let Some(text) =
+                                wip::sentence(&report.judged, &listing, report.unchecked())
+                            {
+                                println!("{text}");
+                            }
+                        }
+                        Err(e) => eprintln!("tend: wip branches unread: {e:#}"),
+                    }
+                }
                 let host_audit = audit::AuditLog::default_path();
                 let report = host_health::run_host_health_check(
                     &host_health::SystemProcessLister,

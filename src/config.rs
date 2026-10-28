@@ -79,6 +79,11 @@ pub struct Config {
     /// The status snapshot `tend hook session-start` reads.
     #[serde(default)]
     pub status_snapshot: crate::scan::StatusSnapshotConfig,
+    /// Lingering `wip/<domain-slug>` branches on origin, read from each
+    /// repo's last fetch and reported by `tend hook session-start`, `tend
+    /// status` and the `tend_wip` MCP tool. A warning, never a block.
+    #[serde(default)]
+    pub wip: crate::wip::WipConfig,
 }
 
 /// The `github_auth:` list — shikumi [`GithubAuth`] sources tried in order.
@@ -931,6 +936,10 @@ impl shikumi::TieredConfig for Config {
                 enable: false,
                 ..crate::scan::StatusSnapshotConfig::default()
             },
+            wip: crate::wip::WipConfig {
+                enabled: false,
+                ..crate::wip::WipConfig::default()
+            },
         }
     }
     /// What tend runs when a source says nothing — every daemon knob the
@@ -948,6 +957,7 @@ impl shikumi::TieredConfig for Config {
             host_health: HostHealthConfig::default(),
             cargo_target: crate::cargo_target::CargoTargetConfig::default(),
             status_snapshot: crate::scan::StatusSnapshotConfig::default(),
+            wip: crate::wip::WipConfig::default(),
         }
     }
 }

@@ -158,15 +158,15 @@ impl ScanResult {
     }
 }
 
-pub(crate) fn classify(
-    repos: Vec<LocalRepo>,
-    probe: Probe,
+pub(crate) fn parallel<T: Sync, R: Send>(
+    items: &[T],
     workers: usize,
     deadline: Option<Instant>,
-) -> ScanResult {
+    work: impl Fn(&T) -> R + Sync,
+) -> Vec<Option<R>> {
     let next = AtomicUsize::new(0);
-    let workers = workers.clamp(1, repos.len().max(1));
-    let finished: Vec<(usize, Result<Observed, String>)> = std::thread::scope(|scope| {
+    let workers = workers.clamp(1, items.len().max(1));
+    let finished: Vec<(usize, R)> = std::thread::scope(|scope| {
         let handles: Vec<_> = (0..workers)
             .map(|_| {
                 scope.spawn(|| {
@@ -176,10 +176,10 @@ pub(crate) fn classify(
                             break;
                         }
                         let i = next.fetch_add(1, Ordering::Relaxed);
-                        let Some(repo) = repos.get(i) else {
+                        let Some(item) = items.get(i) else {
                             break;
                         };
-                        out.push((i, probe(&repo.path).map_err(|e| format!("{e:#}"))));
+                        out.push((i, work(item)));
                     }
                     out
                 })
@@ -190,12 +190,22 @@ pub(crate) fn classify(
             .flat_map(|h| h.join().unwrap_or_default())
             .collect()
     });
-
-    let mut by_index: Vec<Option<Result<Observed, String>>> =
-        (0..repos.len()).map(|_| None).collect();
+    let mut by_index: Vec<Option<R>> = (0..items.len()).map(|_| None).collect();
     for (i, outcome) in finished {
         by_index[i] = Some(outcome);
     }
+    by_index
+}
+
+pub(crate) fn classify(
+    repos: Vec<LocalRepo>,
+    probe: Probe,
+    workers: usize,
+    deadline: Option<Instant>,
+) -> ScanResult {
+    let by_index = parallel(&repos, workers, deadline, |repo: &LocalRepo| {
+        probe(&repo.path).map_err(|e| format!("{e:#}"))
+    });
     let mut result = ScanResult::default();
     for (repo, outcome) in repos.into_iter().zip(by_index) {
         match outcome {
@@ -249,6 +259,8 @@ pub(crate) struct Snapshot {
     pub taken_at_unix: u64,
     pub total: usize,
     pub rows: Vec<ScanRow>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wip: Option<Vec<crate::wip::WipBranch>>,
 }
 
 impl Snapshot {
@@ -272,6 +284,14 @@ pub(crate) fn read_snapshot(path: &Path) -> Option<Snapshot> {
     serde_json::from_str(&text).ok()
 }
 
+pub(crate) fn fresh_snapshot(
+    path: &Path,
+    config: &StatusSnapshotConfig,
+    now: SystemTime,
+) -> Option<Snapshot> {
+    read_snapshot(path).filter(|s| config.enable && s.age(now) <= config.max_age())
+}
+
 pub(crate) fn write_snapshot(path: &Path, snapshot: &Snapshot) -> Result<()> {
     let dir = path
         .parent()
@@ -288,9 +308,11 @@ pub(crate) fn refresh_snapshot(
     workers: usize,
     path: &Path,
     started: SystemTime,
+    wip: bool,
 ) -> Result<Snapshot> {
     let repos = local_repos(workspaces);
     let total = repos.len();
+    let wip = wip.then(|| crate::wip::collect(&repos, workers, None).branches);
     let result = classify(repos, full_probe, workers, None);
     let snapshot = Snapshot {
         taken_at_unix: started
@@ -299,6 +321,7 @@ pub(crate) fn refresh_snapshot(
             .as_secs(),
         total,
         rows: result.rows(),
+        wip,
     };
     write_snapshot(path, &snapshot)?;
     Ok(snapshot)
@@ -416,7 +439,7 @@ mod tests {
         let path = tmp.path().join("cache/status/local.json");
         let started = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000);
 
-        let written = refresh_snapshot(&[&ws], 2, &path, started).unwrap();
+        let written = refresh_snapshot(&[&ws], 2, &path, started, true).unwrap();
         assert_eq!(written.total, 1);
         let read = read_snapshot(&path).unwrap();
         assert_eq!(read, written);

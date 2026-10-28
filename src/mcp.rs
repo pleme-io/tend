@@ -89,6 +89,14 @@ pub const TOOLS: &[Tool] = &[
         mutating: false,
     },
     Tool {
+        name: "tend_wip",
+        description: "wip/<domain-slug> branches on origin across the workspace \
+                      repos, from the daemon snapshot or a live read of each \
+                      repo's last fetch: age, ahead/behind main and the verdict \
+                      (active / lingering / landed).",
+        mutating: false,
+    },
+    Tool {
         name: "tend_worktree_prune",
         description: "Remove session worktrees that hold no work. Refuses on \
                       uncommitted or unpushed changes. Requires mutate authority.",
@@ -292,6 +300,40 @@ impl TendMcp {
                     Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
                 }
             }
+            Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
+        }
+    }
+
+    #[tool(
+        description = "wip/<domain-slug> branches on origin across every workspace repo: half-finished work snapshotted off a checkout, meant to be finished, landed on main and deleted. Read from the tend daemon's status snapshot when fresh, else live from each repo's last fetch (no network). Per branch: workspace, repo, branch, committed_unix, age_secs, ahead/behind its base (main), and the verdict: active (younger than wip.linger_hours), lingering (older, unlanded commits) or landed (older, nothing ahead of main: delete it). A warning surface; nothing here blocks."
+    )]
+    async fn tend_wip(&self) -> String {
+        let cfg = match crate::load_config(None) {
+            Ok(c) => c,
+            Err(e) => return json!({"ok": false, "error": e.to_string()}).to_string(),
+        };
+        let read = tokio::task::spawn_blocking(move || {
+            let now = std::time::SystemTime::now();
+            let workspaces: Vec<&crate::config::Workspace> = cfg.workspaces.iter().collect();
+            let snapshot = crate::scan::fresh_snapshot(
+                &crate::scan::snapshot_path(),
+                &cfg.status_snapshot,
+                now,
+            );
+            crate::wip::report(
+                snapshot.as_ref(),
+                &workspaces,
+                &cfg.wip,
+                cfg.status_snapshot.workers,
+                None,
+                now,
+            )
+            .map(|r| r.to_json(&cfg.wip))
+        })
+        .await;
+        match read {
+            Ok(Ok(v)) => v.to_string(),
+            Ok(Err(e)) => json!({"ok": false, "error": format!("{e:#}")}).to_string(),
             Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
         }
     }
