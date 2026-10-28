@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "046ec43f6e49ba59c50355846a2dbe3381ea53dac52b713a0144276081d880f9",
+  "cargo_lock_sha256": "5409b4d4d680f7ea73e28146cffda368e11f0a4c5fed0ad70aa4dbfec8f28830",
   "manifest_sha256": {
-    "Cargo.toml": "30d96d4156313db3ce34f0623556cfd1d18b62a488323fb3112c0731d3e1d99d"
+    "Cargo.toml": "6e56a0cb80bbe369905de66da91a7311a2e206eedf63236a5247d0cf50aa226c"
   },
   "target_resolves": {
     "base": {
@@ -138,7 +138,7 @@
           },
           {
             "name": "unicode_width",
-            "package_key": "unicode-width-0.2.2",
+            "package_key": "unicode-width-0.2.3",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1063,7 +1063,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.9",
+            "package_key": "tatara-lisp-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1089,7 +1089,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.9",
+            "package_key": "tatara-lisp-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1155,7 +1155,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.9",
+            "package_key": "tatara-lisp-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1165,7 +1165,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.9",
+            "package_key": "tatara-lisp-eval-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1314,7 +1314,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.9",
+            "package_key": "tatara-lisp-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1324,7 +1324,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.9",
+            "package_key": "tatara-lisp-eval-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1372,7 +1372,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.9",
+            "package_key": "tatara-lisp-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1382,7 +1382,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.9",
+            "package_key": "tatara-lisp-eval-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1539,7 +1539,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.9",
+            "package_key": "tatara-lisp-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1549,7 +1549,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.9",
+            "package_key": "tatara-lisp-eval-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1575,7 +1575,7 @@
         "runtime_dependencies": [
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.9",
+            "package_key": "tatara-lisp-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1601,7 +1601,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.9",
+            "package_key": "tatara-lisp-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1613,7 +1613,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "brotli-9.0.0": {
+      "brotli-9.1.1": {
         "runtime_dependencies": [
           {
             "name": "alloc_no_stdlib",
@@ -1637,7 +1637,7 @@
           },
           {
             "name": "brotli_decompressor",
-            "package_key": "brotli-decompressor-6.0.1",
+            "package_key": "brotli-decompressor-6.2.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -1653,7 +1653,7 @@
           "std"
         ]
       },
-      "brotli-decompressor-6.0.1": {
+      "brotli-decompressor-6.2.0": {
         "runtime_dependencies": [
           {
             "name": "alloc_no_stdlib",
@@ -2003,7 +2003,7 @@
         "runtime_dependencies": [
           {
             "name": "brotli",
-            "package_key": "brotli-9.0.0",
+            "package_key": "brotli-9.1.1",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3188,16 +3188,6 @@
             "tree": "target"
           },
           {
-            "name": "serde_yaml",
-            "package_key": "serde_yaml-0.9.34+deprecated",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
             "name": "toml",
             "package_key": "toml-0.8.23",
             "kind": "normal",
@@ -3234,9 +3224,7 @@
           "env",
           "parse-value",
           "pear",
-          "serde_yaml",
-          "toml",
-          "yaml"
+          "toml"
         ]
       },
       "find-msvc-tools-0.1.15": {
@@ -3663,7 +3651,7 @@
           "std"
         ]
       },
-      "gen-macros-0.1.53": {
+      "gen-macros-0.1.54": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -3702,11 +3690,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "gen-platform-0.1.53": {
+      "gen-platform-0.1.54": {
         "runtime_dependencies": [
           {
             "name": "gen_macros",
-            "package_key": "gen-macros-0.1.53",
+            "package_key": "gen-macros-0.1.54",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3716,7 +3704,7 @@
           },
           {
             "name": "gen_types",
-            "package_key": "gen-types-0.1.53",
+            "package_key": "gen-types-0.1.54",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3770,7 +3758,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "gen-types-0.1.53": {
+      "gen-types-0.1.54": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -5586,7 +5574,7 @@
         "runtime_dependencies": [
           {
             "name": "pest",
-            "package_key": "pest-2.9.4",
+            "package_key": "pest-2.9.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5596,7 +5584,7 @@
           },
           {
             "name": "pest_derive",
-            "package_key": "pest_derive-2.9.4",
+            "package_key": "pest_derive-2.9.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5831,11 +5819,11 @@
           "v1_35"
         ]
       },
-      "kanshou-0.1.11-c6f1aa39f31b902f023fb37f9f83aee71e890871": {
+      "kanshou-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e": {
         "runtime_dependencies": [
           {
             "name": "kanshou_derive",
-            "package_key": "kanshou-derive-0.1.11-c6f1aa39f31b902f023fb37f9f83aee71e890871",
+            "package_key": "kanshou-derive-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5919,7 +5907,7 @@
           "derive"
         ]
       },
-      "kanshou-derive-0.1.11-c6f1aa39f31b902f023fb37f9f83aee71e890871": {
+      "kanshou-derive-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -6992,7 +6980,7 @@
           "os-poll"
         ]
       },
-      "monosashi-0.4.9": {
+      "monosashi-0.4.10": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
@@ -7078,7 +7066,7 @@
           "std"
         ]
       },
-      "notify-types-2.1.0": {
+      "notify-types-2.2.0": {
         "runtime_dependencies": [
           {
             "name": "bitflags",
@@ -7261,7 +7249,7 @@
           "std"
         ]
       },
-      "opencode-zen-0.1.3-fb69579b841e4549fcb91eb5c612094d1a74a053": {
+      "opencode-zen-0.1.3-fba032bcc1e72646c93fdf0ce2e5c622eefdbe86": {
         "runtime_dependencies": [
           {
             "name": "reqwest",
@@ -7561,7 +7549,7 @@
           "std"
         ]
       },
-      "pest-2.9.4": {
+      "pest-2.9.5": {
         "runtime_dependencies": [
           {
             "name": "memchr",
@@ -7574,18 +7562,8 @@
             "tree": "target"
           },
           {
-            "name": "psm",
-            "package_key": "psm-0.1.24",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "stacker",
-            "package_key": "stacker-0.1.25",
+            "name": "pest_stack_guard",
+            "package_key": "pest_stack_guard-1.0.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7611,11 +7589,11 @@
           "std"
         ]
       },
-      "pest_derive-2.9.4": {
+      "pest_derive-2.9.5": {
         "runtime_dependencies": [
           {
             "name": "pest",
-            "package_key": "pest-2.9.4",
+            "package_key": "pest-2.9.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -7625,7 +7603,7 @@
           },
           {
             "name": "pest_generator",
-            "package_key": "pest_generator-2.9.4",
+            "package_key": "pest_generator-2.9.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -7640,11 +7618,11 @@
           "std"
         ]
       },
-      "pest_generator-2.9.4": {
+      "pest_generator-2.9.5": {
         "runtime_dependencies": [
           {
             "name": "pest",
-            "package_key": "pest-2.9.4",
+            "package_key": "pest-2.9.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -7654,7 +7632,7 @@
           },
           {
             "name": "pest_meta",
-            "package_key": "pest_meta-2.9.4",
+            "package_key": "pest_meta-2.9.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7698,11 +7676,11 @@
           "std"
         ]
       },
-      "pest_meta-2.9.4": {
+      "pest_meta-2.9.5": {
         "runtime_dependencies": [
           {
             "name": "pest",
-            "package_key": "pest-2.9.4",
+            "package_key": "pest-2.9.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7848,7 +7826,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "pleme-tend-0.3.28": {
+      "pleme-tend-0.3.29": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -8043,7 +8021,7 @@
           },
           {
             "name": "kanshou",
-            "package_key": "kanshou-0.1.11-c6f1aa39f31b902f023fb37f9f83aee71e890871",
+            "package_key": "kanshou-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8067,7 +8045,7 @@
           },
           {
             "name": "notify",
-            "package_key": "notify-8.2.0",
+            "package_key": "notify-8.2.1",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8097,7 +8075,7 @@
           },
           {
             "name": "opencode_zen",
-            "package_key": "opencode-zen-0.1.3-fb69579b841e4549fcb91eb5c612094d1a74a053",
+            "package_key": "opencode-zen-0.1.3-fba032bcc1e72646c93fdf0ce2e5c622eefdbe86",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8203,7 +8181,7 @@
           },
           {
             "name": "samba",
-            "package_key": "samba-0.1.4-e294dd25d35bb3943d0be1c1d682ea178bca76cc",
+            "package_key": "samba-0.1.5-0639394aa4a356a168975814333a715bfefbb9fd",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8267,7 +8245,7 @@
           },
           {
             "name": "shigoto_budget",
-            "package_key": "shigoto-budget-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-budget-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8277,7 +8255,7 @@
           },
           {
             "name": "shigoto_dag",
-            "package_key": "shigoto-dag-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-dag-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8287,7 +8265,7 @@
           },
           {
             "name": "shigoto_emit",
-            "package_key": "shigoto-emit-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-emit-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8297,7 +8275,7 @@
           },
           {
             "name": "shigoto_gate",
-            "package_key": "shigoto-gate-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-gate-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8307,7 +8285,7 @@
           },
           {
             "name": "shigoto_retry",
-            "package_key": "shigoto-retry-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-retry-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8317,7 +8295,7 @@
           },
           {
             "name": "shigoto_scheduler",
-            "package_key": "shigoto-scheduler-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-scheduler-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8327,7 +8305,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8337,7 +8315,7 @@
           },
           {
             "name": "shikumi",
-            "package_key": "shikumi-0.1.1083",
+            "package_key": "shikumi-0.1.1084",
             "kind": "normal",
             "features": [
               "cli",
@@ -8372,7 +8350,7 @@
           },
           {
             "name": "todoku",
-            "package_key": "todoku-0.1.9-76b8216d17b331dfa2ee0c70ee0a4779d47de1e3",
+            "package_key": "todoku-0.1.11-4082452328f309a53c213527fe540c7171a18586",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8436,7 +8414,7 @@
           },
           {
             "name": "tsunagu",
-            "package_key": "tsunagu-0.1.10-11aa4cc5c36ebf10536278571a5a229342490bc9",
+            "package_key": "tsunagu-0.1.10-e9606aa77af290e57ca389fa2d74a4c379fdfab3",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10580,7 +10558,7 @@
           "default"
         ]
       },
-      "samba-0.1.4-e294dd25d35bb3943d0be1c1d682ea178bca76cc": {
+      "samba-0.1.5-0639394aa4a356a168975814333a715bfefbb9fd": {
         "runtime_dependencies": [
           {
             "name": "async_nats",
@@ -10701,8 +10679,8 @@
             "tree": "target"
           },
           {
-            "name": "serde_yaml_ng",
-            "package_key": "serde_yaml_ng-0.10.0",
+            "name": "serde_norway",
+            "package_key": "serde_norway-0.9.42",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11402,6 +11380,62 @@
         "build_dependencies": [],
         "features": []
       },
+      "serde_norway-0.9.42": {
+        "runtime_dependencies": [
+          {
+            "name": "indexmap",
+            "package_key": "indexmap-2.14.2",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "itoa",
+            "package_key": "itoa-1.0.18",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "ryu",
+            "package_key": "ryu-1.0.23",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde",
+            "package_key": "serde-1.0.229",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "unsafe_libyaml_norway",
+            "package_key": "unsafe-libyaml-norway-0.2.15",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
       "serde_repr-0.1.21": {
         "runtime_dependencies": [
           {
@@ -11491,62 +11525,6 @@
           {
             "name": "serde",
             "package_key": "serde-1.0.229",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
-      },
-      "serde_yaml-0.9.34+deprecated": {
-        "runtime_dependencies": [
-          {
-            "name": "indexmap",
-            "package_key": "indexmap-2.14.2",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "itoa",
-            "package_key": "itoa-1.0.18",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "ryu",
-            "package_key": "ryu-1.0.23",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "serde",
-            "package_key": "serde-1.0.229",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "unsafe_libyaml",
-            "package_key": "unsafe-libyaml-0.2.11",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11727,7 +11705,7 @@
           "tilde"
         ]
       },
-      "shigoto-budget-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": {
+      "shigoto-budget-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
         "runtime_dependencies": [
           {
             "name": "serde",
@@ -11743,7 +11721,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11765,7 +11743,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-dag-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": {
+      "shigoto-dag-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
         "runtime_dependencies": [
           {
             "name": "petgraph",
@@ -11791,7 +11769,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11813,7 +11791,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-emit-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": {
+      "shigoto-emit-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
         "runtime_dependencies": [
           {
             "name": "async_trait",
@@ -11849,7 +11827,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11871,11 +11849,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-gate-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": {
+      "shigoto-gate-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
         "runtime_dependencies": [
           {
             "name": "shigoto_dag",
-            "package_key": "shigoto-dag-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-dag-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11885,7 +11863,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11897,7 +11875,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-retry-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": {
+      "shigoto-retry-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
         "runtime_dependencies": [
           {
             "name": "serde",
@@ -11913,7 +11891,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11925,7 +11903,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-scheduler-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": {
+      "shigoto-scheduler-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -11983,7 +11961,7 @@
           },
           {
             "name": "shigoto_budget",
-            "package_key": "shigoto-budget-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-budget-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11993,7 +11971,7 @@
           },
           {
             "name": "shigoto_dag",
-            "package_key": "shigoto-dag-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-dag-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12003,7 +11981,7 @@
           },
           {
             "name": "shigoto_emit",
-            "package_key": "shigoto-emit-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-emit-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12013,7 +11991,7 @@
           },
           {
             "name": "shigoto_gate",
-            "package_key": "shigoto-gate-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-gate-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12023,7 +12001,7 @@
           },
           {
             "name": "shigoto_retry",
-            "package_key": "shigoto-retry-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-retry-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12033,7 +12011,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b",
+            "package_key": "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12080,7 +12058,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-types-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": {
+      "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
         "runtime_dependencies": [
           {
             "name": "async_trait",
@@ -12116,7 +12094,7 @@
           },
           {
             "name": "gen_platform",
-            "package_key": "gen-platform-0.1.53",
+            "package_key": "gen-platform-0.1.54",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12126,7 +12104,7 @@
           },
           {
             "name": "gen_types",
-            "package_key": "gen-types-0.1.53",
+            "package_key": "gen-types-0.1.54",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12192,7 +12170,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shikumi-0.1.1083": {
+      "shikumi-0.1.1084": {
         "runtime_dependencies": [
           {
             "name": "arc_swap",
@@ -12242,8 +12220,7 @@
             "kind": "normal",
             "features": [
               "env",
-              "toml",
-              "yaml"
+              "toml"
             ],
             "uses_default_features": true,
             "optional": false,
@@ -12252,7 +12229,7 @@
           },
           {
             "name": "gen_platform",
-            "package_key": "gen-platform-0.1.53",
+            "package_key": "gen-platform-0.1.54",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12262,7 +12239,7 @@
           },
           {
             "name": "gen_types",
-            "package_key": "gen-types-0.1.53",
+            "package_key": "gen-types-0.1.54",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12285,7 +12262,7 @@
           },
           {
             "name": "notify",
-            "package_key": "notify-8.2.0",
+            "package_key": "notify-8.2.1",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -12295,7 +12272,7 @@
           },
           {
             "name": "notify",
-            "package_key": "notify-8.2.0",
+            "package_key": "notify-8.2.1",
             "kind": "normal",
             "features": [
               "macos_fsevent"
@@ -12351,8 +12328,8 @@
             "tree": "target"
           },
           {
-            "name": "serde_yaml",
-            "package_key": "serde_yaml-0.9.34+deprecated",
+            "name": "serde_norway",
+            "package_key": "serde_norway-0.9.42",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12841,11 +12818,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "tatara-closed-set-0.4.9": {
+      "tatara-closed-set-0.4.10": {
         "runtime_dependencies": [
           {
             "name": "tatara_closed_set_derive",
-            "package_key": "tatara-closed-set-derive-0.4.9",
+            "package_key": "tatara-closed-set-derive-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12857,7 +12834,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "tatara-closed-set-derive-0.4.9": {
+      "tatara-closed-set-derive-0.4.10": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -12895,7 +12872,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "tatara-lisp-0.4.9": {
+      "tatara-lisp-0.4.10": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -12931,7 +12908,7 @@
           },
           {
             "name": "tatara_closed_set",
-            "package_key": "tatara-closed-set-0.4.9",
+            "package_key": "tatara-closed-set-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12941,7 +12918,7 @@
           },
           {
             "name": "tatara_lisp_derive",
-            "package_key": "tatara-lisp-derive-0.4.9",
+            "package_key": "tatara-lisp-derive-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12965,7 +12942,7 @@
           "default"
         ]
       },
-      "tatara-lisp-derive-0.4.9": {
+      "tatara-lisp-derive-0.4.10": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -13003,7 +12980,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "tatara-lisp-eval-0.4.9": {
+      "tatara-lisp-eval-0.4.10": {
         "runtime_dependencies": [
           {
             "name": "imbl",
@@ -13017,7 +12994,7 @@
           },
           {
             "name": "monosashi",
-            "package_key": "monosashi-0.4.9",
+            "package_key": "monosashi-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -13037,7 +13014,7 @@
           },
           {
             "name": "tatara_closed_set",
-            "package_key": "tatara-closed-set-0.4.9",
+            "package_key": "tatara-closed-set-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -13047,7 +13024,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.9",
+            "package_key": "tatara-lisp-0.4.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -13105,7 +13082,7 @@
           },
           {
             "name": "rustix",
-            "package_key": "rustix-1.1.5",
+            "package_key": "rustix-1.1.6",
             "kind": "normal",
             "features": [
               "fs"
@@ -13396,7 +13373,7 @@
           "default"
         ]
       },
-      "todoku-0.1.9-76b8216d17b331dfa2ee0c70ee0a4779d47de1e3": {
+      "todoku-0.1.11-4082452328f309a53c213527fe540c7171a18586": {
         "runtime_dependencies": [
           {
             "name": "async_trait",
@@ -14865,7 +14842,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "tsunagu-0.1.10-11aa4cc5c36ebf10536278571a5a229342490bc9": {
+      "tsunagu-0.1.10-e9606aa77af290e57ca389fa2d74a4c379fdfab3": {
         "runtime_dependencies": [
           {
             "name": "dirs",
@@ -15013,7 +14990,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "unicode-width-0.2.2": {
+      "unicode-width-0.2.3": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": [
@@ -15022,6 +14999,11 @@
         ]
       },
       "unsafe-libyaml-0.2.11": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
+      },
+      "unsafe-libyaml-norway-0.2.15": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
@@ -15921,22 +15903,6 @@
               "default"
             ]
           },
-          "fsevent-sys-4.1.0": {
-            "runtime_dependencies": [
-              {
-                "name": "libc",
-                "package_key": "libc-0.2.191",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": true,
-                "optional": false,
-                "target": null,
-                "tree": "target"
-              }
-            ],
-            "build_dependencies": [],
-            "features": []
-          },
           "hyper-util-0.1.21": {
             "runtime_dependencies": [
               {
@@ -16145,7 +16111,7 @@
               "fallback"
             ]
           },
-          "notify-8.2.0": {
+          "notify-8.2.1": {
             "runtime_dependencies": [
               {
                 "name": "bitflags",
@@ -16154,16 +16120,6 @@
                 "features": [],
                 "uses_default_features": true,
                 "optional": false,
-                "target": "cfg(target_os = \"macos\")",
-                "tree": "target"
-              },
-              {
-                "name": "fsevent_sys",
-                "package_key": "fsevent-sys-4.1.0",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": true,
-                "optional": true,
                 "target": "cfg(target_os = \"macos\")",
                 "tree": "target"
               },
@@ -16189,12 +16145,44 @@
               },
               {
                 "name": "notify_types",
-                "package_key": "notify-types-2.1.0",
+                "package_key": "notify-types-2.2.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
                 "optional": false,
                 "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "objc2_core_foundation",
+                "package_key": "objc2-core-foundation-0.3.2",
+                "kind": "normal",
+                "features": [
+                  "CFArray",
+                  "CFDate",
+                  "CFError",
+                  "CFRunLoop",
+                  "CFString",
+                  "CFURL",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": true,
+                "target": "cfg(target_os = \"macos\")",
+                "tree": "target"
+              },
+              {
+                "name": "objc2_core_services",
+                "package_key": "objc2-core-services-0.3.2",
+                "kind": "normal",
+                "features": [
+                  "FSEvents",
+                  "libc",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": true,
+                "target": "cfg(target_os = \"macos\")",
                 "tree": "target"
               },
               {
@@ -16212,7 +16200,9 @@
             "features": [
               "default",
               "fsevent-sys",
-              "macos_fsevent"
+              "macos_fsevent",
+              "objc2-core-foundation",
+              "objc2-core-services"
             ]
           },
           "objc2-core-foundation-0.3.2": {
@@ -16235,7 +16225,9 @@
               "CFArray",
               "CFBase",
               "CFData",
+              "CFDate",
               "CFDictionary",
+              "CFError",
               "CFPlugInCOM",
               "CFRunLoop",
               "CFString",
@@ -16243,6 +16235,37 @@
               "CFUUID",
               "alloc",
               "bitflags",
+              "std"
+            ]
+          },
+          "objc2-core-services-0.3.2": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "objc2_core_foundation",
+                "package_key": "objc2-core-foundation-0.3.2",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "FSEvents",
+              "alloc",
+              "libc",
               "std"
             ]
           },
@@ -16283,6 +16306,132 @@
               "libc",
               "std"
             ]
+          },
+          "pest_stack_guard-1.0.0": {
+            "runtime_dependencies": [
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-unknown-linux-gnu",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-unknown-linux-gnu",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-unknown-linux-gnu",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-unknown-linux-gnu",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           },
           "ring-0.17.14": {
             "runtime_dependencies": [
@@ -16429,7 +16578,7 @@
               "use-libc-auxv"
             ]
           },
-          "rustix-1.1.5": {
+          "rustix-1.1.6": {
             "runtime_dependencies": [
               {
                 "name": "bitflags",
@@ -17318,7 +17467,7 @@
               "prctl"
             ]
           },
-          "notify-8.2.0": {
+          "notify-8.2.1": {
             "runtime_dependencies": [
               {
                 "name": "inotify",
@@ -17376,7 +17525,7 @@
               },
               {
                 "name": "notify_types",
-                "package_key": "notify-types-2.1.0",
+                "package_key": "notify-types-2.2.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17399,11 +17548,139 @@
             "features": [
               "default",
               "fsevent-sys",
-              "macos_fsevent"
+              "macos_fsevent",
+              "objc2-core-foundation",
+              "objc2-core-services"
             ]
           },
-          "openssl-probe-0.2.1": {
+          "openssl-probe-0.2.2": {
             "runtime_dependencies": [],
+            "build_dependencies": [],
+            "features": []
+          },
+          "pest_stack_guard-1.0.0": {
+            "runtime_dependencies": [
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-unknown-linux-gnu",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-unknown-linux-gnu",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-unknown-linux-gnu",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-unknown-linux-gnu",
+                "tree": "target"
+              }
+            ],
             "build_dependencies": [],
             "features": []
           },
@@ -17582,7 +17859,7 @@
               "use-libc-auxv"
             ]
           },
-          "rustix-1.1.5": {
+          "rustix-1.1.6": {
             "runtime_dependencies": [
               {
                 "name": "bitflags",
@@ -17688,7 +17965,7 @@
             "runtime_dependencies": [
               {
                 "name": "openssl_probe",
-                "package_key": "openssl-probe-0.2.1",
+                "package_key": "openssl-probe-0.2.2",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18325,7 +18602,7 @@
               "prctl"
             ]
           },
-          "notify-8.2.0": {
+          "notify-8.2.1": {
             "runtime_dependencies": [
               {
                 "name": "inotify",
@@ -18383,7 +18660,7 @@
               },
               {
                 "name": "notify_types",
-                "package_key": "notify-types-2.1.0",
+                "package_key": "notify-types-2.2.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18406,10 +18683,17 @@
             "features": [
               "default",
               "fsevent-sys",
-              "macos_fsevent"
+              "macos_fsevent",
+              "objc2-core-foundation",
+              "objc2-core-services"
             ]
           },
-          "openssl-probe-0.2.1": {
+          "openssl-probe-0.2.2": {
+            "runtime_dependencies": [],
+            "build_dependencies": [],
+            "features": []
+          },
+          "pest_stack_guard-1.0.0": {
             "runtime_dependencies": [],
             "build_dependencies": [],
             "features": []
@@ -18589,7 +18873,7 @@
               "use-libc-auxv"
             ]
           },
-          "rustix-1.1.5": {
+          "rustix-1.1.6": {
             "runtime_dependencies": [
               {
                 "name": "bitflags",
@@ -18695,7 +18979,7 @@
             "runtime_dependencies": [
               {
                 "name": "openssl_probe",
-                "package_key": "openssl-probe-0.2.1",
+                "package_key": "openssl-probe-0.2.2",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -19194,22 +19478,6 @@
               "default"
             ]
           },
-          "fsevent-sys-4.1.0": {
-            "runtime_dependencies": [
-              {
-                "name": "libc",
-                "package_key": "libc-0.2.191",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": true,
-                "optional": false,
-                "target": null,
-                "tree": "target"
-              }
-            ],
-            "build_dependencies": [],
-            "features": []
-          },
           "hyper-util-0.1.21": {
             "runtime_dependencies": [
               {
@@ -19418,7 +19686,7 @@
               "fallback"
             ]
           },
-          "notify-8.2.0": {
+          "notify-8.2.1": {
             "runtime_dependencies": [
               {
                 "name": "bitflags",
@@ -19427,16 +19695,6 @@
                 "features": [],
                 "uses_default_features": true,
                 "optional": false,
-                "target": "cfg(target_os = \"macos\")",
-                "tree": "target"
-              },
-              {
-                "name": "fsevent_sys",
-                "package_key": "fsevent-sys-4.1.0",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": true,
-                "optional": true,
                 "target": "cfg(target_os = \"macos\")",
                 "tree": "target"
               },
@@ -19462,12 +19720,44 @@
               },
               {
                 "name": "notify_types",
-                "package_key": "notify-types-2.1.0",
+                "package_key": "notify-types-2.2.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
                 "optional": false,
                 "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "objc2_core_foundation",
+                "package_key": "objc2-core-foundation-0.3.2",
+                "kind": "normal",
+                "features": [
+                  "CFArray",
+                  "CFDate",
+                  "CFError",
+                  "CFRunLoop",
+                  "CFString",
+                  "CFURL",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": true,
+                "target": "cfg(target_os = \"macos\")",
+                "tree": "target"
+              },
+              {
+                "name": "objc2_core_services",
+                "package_key": "objc2-core-services-0.3.2",
+                "kind": "normal",
+                "features": [
+                  "FSEvents",
+                  "libc",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": true,
+                "target": "cfg(target_os = \"macos\")",
                 "tree": "target"
               },
               {
@@ -19485,7 +19775,9 @@
             "features": [
               "default",
               "fsevent-sys",
-              "macos_fsevent"
+              "macos_fsevent",
+              "objc2-core-foundation",
+              "objc2-core-services"
             ]
           },
           "objc2-core-foundation-0.3.2": {
@@ -19508,7 +19800,9 @@
               "CFArray",
               "CFBase",
               "CFData",
+              "CFDate",
               "CFDictionary",
+              "CFError",
               "CFPlugInCOM",
               "CFRunLoop",
               "CFString",
@@ -19516,6 +19810,37 @@
               "CFUUID",
               "alloc",
               "bitflags",
+              "std"
+            ]
+          },
+          "objc2-core-services-0.3.2": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "objc2_core_foundation",
+                "package_key": "objc2-core-foundation-0.3.2",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "FSEvents",
+              "alloc",
+              "libc",
               "std"
             ]
           },
@@ -19556,6 +19881,132 @@
               "libc",
               "std"
             ]
+          },
+          "pest_stack_guard-1.0.0": {
+            "runtime_dependencies": [
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-unknown-linux-gnu",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-unknown-linux-gnu",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-unknown-linux-gnu",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-unknown-linux-gnu",
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           },
           "ring-0.17.14": {
             "runtime_dependencies": [
@@ -19682,7 +20133,7 @@
               "use-libc-auxv"
             ]
           },
-          "rustix-1.1.5": {
+          "rustix-1.1.6": {
             "runtime_dependencies": [
               {
                 "name": "bitflags",
@@ -20630,7 +21081,7 @@
               "prctl"
             ]
           },
-          "notify-8.2.0": {
+          "notify-8.2.1": {
             "runtime_dependencies": [
               {
                 "name": "inotify",
@@ -20688,7 +21139,7 @@
               },
               {
                 "name": "notify_types",
-                "package_key": "notify-types-2.1.0",
+                "package_key": "notify-types-2.2.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -20711,11 +21162,139 @@
             "features": [
               "default",
               "fsevent-sys",
-              "macos_fsevent"
+              "macos_fsevent",
+              "objc2-core-foundation",
+              "objc2-core-services"
             ]
           },
-          "openssl-probe-0.2.1": {
+          "openssl-probe-0.2.2": {
             "runtime_dependencies": [],
+            "build_dependencies": [],
+            "features": []
+          },
+          "pest_stack_guard-1.0.0": {
+            "runtime_dependencies": [
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-unknown-linux-gnu",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "psm",
+                "package_key": "psm-0.1.24",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-unknown-linux-gnu",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "aarch64-unknown-linux-gnu",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-apple-darwin",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-pc-windows-msvc",
+                "tree": "target"
+              },
+              {
+                "name": "stacker",
+                "package_key": "stacker-0.1.25",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "x86_64-unknown-linux-gnu",
+                "tree": "target"
+              }
+            ],
             "build_dependencies": [],
             "features": []
           },
@@ -20874,7 +21453,7 @@
               "use-libc-auxv"
             ]
           },
-          "rustix-1.1.5": {
+          "rustix-1.1.6": {
             "runtime_dependencies": [
               {
                 "name": "bitflags",
@@ -20980,7 +21559,7 @@
             "runtime_dependencies": [
               {
                 "name": "openssl_probe",
-                "package_key": "openssl-probe-0.2.1",
+                "package_key": "openssl-probe-0.2.2",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21676,7 +22255,7 @@
               "prctl"
             ]
           },
-          "notify-8.2.0": {
+          "notify-8.2.1": {
             "runtime_dependencies": [
               {
                 "name": "inotify",
@@ -21734,7 +22313,7 @@
               },
               {
                 "name": "notify_types",
-                "package_key": "notify-types-2.1.0",
+                "package_key": "notify-types-2.2.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21757,10 +22336,17 @@
             "features": [
               "default",
               "fsevent-sys",
-              "macos_fsevent"
+              "macos_fsevent",
+              "objc2-core-foundation",
+              "objc2-core-services"
             ]
           },
-          "openssl-probe-0.2.1": {
+          "openssl-probe-0.2.2": {
+            "runtime_dependencies": [],
+            "build_dependencies": [],
+            "features": []
+          },
+          "pest_stack_guard-1.0.0": {
             "runtime_dependencies": [],
             "build_dependencies": [],
             "features": []
@@ -21920,7 +22506,7 @@
               "use-libc-auxv"
             ]
           },
-          "rustix-1.1.5": {
+          "rustix-1.1.6": {
             "runtime_dependencies": [
               {
                 "name": "bitflags",
@@ -22026,7 +22612,7 @@
             "runtime_dependencies": [
               {
                 "name": "openssl_probe",
-                "package_key": "openssl-probe-0.2.1",
+                "package_key": "openssl-probe-0.2.2",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -22306,7 +22892,7 @@
     "blue-lang-waku-0.0.120-af406867a76f51cc0a06c77496fcc47a6b1e3ff0": {
       "edition": "2021"
     },
-    "brotli-9.0.0": {
+    "brotli-9.1.1": {
       "edition": "2015",
       "binaries": [
         {
@@ -22319,7 +22905,7 @@
         }
       ]
     },
-    "brotli-decompressor-6.0.1": {
+    "brotli-decompressor-6.2.0": {
       "edition": "2015",
       "binaries": [
         {
@@ -22572,9 +23158,6 @@
     "fs_extra-1.3.0": {
       "edition": "2018"
     },
-    "fsevent-sys-4.1.0": {
-      "edition": "2018"
-    },
     "futures-0.3.34": {
       "edition": "2018"
     },
@@ -22603,14 +23186,14 @@
     "futures-util-0.3.34": {
       "edition": "2018"
     },
-    "gen-macros-0.1.53": {
+    "gen-macros-0.1.54": {
       "edition": "2024",
       "proc_macro": true
     },
-    "gen-platform-0.1.53": {
+    "gen-platform-0.1.54": {
       "edition": "2024"
     },
-    "gen-types-0.1.53": {
+    "gen-types-0.1.54": {
       "edition": "2024"
     },
     "generic-array-0.14.7": {
@@ -22795,10 +23378,10 @@
       "build_script": "build.rs",
       "links": "k8s-openapi-0.28.0"
     },
-    "kanshou-0.1.11-c6f1aa39f31b902f023fb37f9f83aee71e890871": {
+    "kanshou-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e": {
       "edition": "2024"
     },
-    "kanshou-derive-0.1.11-c6f1aa39f31b902f023fb37f9f83aee71e890871": {
+    "kanshou-derive-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e": {
       "edition": "2024",
       "proc_macro": true
     },
@@ -22875,7 +23458,7 @@
     "mio-1.2.4": {
       "edition": "2021"
     },
-    "monosashi-0.4.9": {
+    "monosashi-0.4.10": {
       "edition": "2021"
     },
     "multiversion_no_op-1.0.0": {
@@ -22894,11 +23477,11 @@
     "nohash-hasher-0.2.0": {
       "edition": "2018"
     },
-    "notify-8.2.0": {
+    "notify-8.2.1": {
       "edition": "2021"
     },
-    "notify-types-2.1.0": {
-      "edition": "2021"
+    "notify-types-2.2.0": {
+      "edition": "2024"
     },
     "nu-ansi-term-0.50.3": {
       "edition": "2021"
@@ -22922,6 +23505,9 @@
     "objc2-core-foundation-0.3.2": {
       "edition": "2021"
     },
+    "objc2-core-services-0.3.2": {
+      "edition": "2021"
+    },
     "objc2-io-kit-0.3.2": {
       "edition": "2021"
     },
@@ -22937,10 +23523,10 @@
     "once_cell-1.21.4": {
       "edition": "2021"
     },
-    "opencode-zen-0.1.3-fb69579b841e4549fcb91eb5c612094d1a74a053": {
+    "opencode-zen-0.1.3-fba032bcc1e72646c93fdf0ce2e5c622eefdbe86": {
       "edition": "2021"
     },
-    "openssl-probe-0.2.1": {
+    "openssl-probe-0.2.2": {
       "edition": "2021"
     },
     "option-ext-0.2.0": {
@@ -22979,18 +23565,22 @@
     "percent-encoding-2.3.2": {
       "edition": "2018"
     },
-    "pest-2.9.4": {
+    "pest-2.9.5": {
       "edition": "2021"
     },
-    "pest_derive-2.9.4": {
+    "pest_derive-2.9.5": {
       "edition": "2021",
       "proc_macro": true
     },
-    "pest_generator-2.9.4": {
+    "pest_generator-2.9.5": {
       "edition": "2021"
     },
-    "pest_meta-2.9.4": {
+    "pest_meta-2.9.5": {
       "edition": "2021"
+    },
+    "pest_stack_guard-1.0.0": {
+      "edition": "2021",
+      "build_script": "build.rs"
     },
     "petgraph-0.6.5": {
       "edition": "2018"
@@ -23011,7 +23601,7 @@
     "pkg-config-0.3.34": {
       "edition": "2021"
     },
-    "pleme-tend-0.3.28": {
+    "pleme-tend-0.3.29": {
       "edition": "2021",
       "binaries": [
         {
@@ -23165,7 +23755,7 @@
       "edition": "2021",
       "build_script": "build.rs"
     },
-    "rustix-1.1.5": {
+    "rustix-1.1.6": {
       "edition": "2021",
       "build_script": "build.rs"
     },
@@ -23203,7 +23793,7 @@
     "safe_arch-0.7.4": {
       "edition": "2018"
     },
-    "samba-0.1.4-e294dd25d35bb3943d0be1c1d682ea178bca76cc": {
+    "samba-0.1.5-0639394aa4a356a168975814333a715bfefbb9fd": {
       "edition": "2024"
     },
     "same-file-1.0.6": {
@@ -23284,6 +23874,9 @@
     "serde_nanos-0.1.4": {
       "edition": "2018"
     },
+    "serde_norway-0.9.42": {
+      "edition": "2021"
+    },
     "serde_repr-0.1.21": {
       "edition": "2021",
       "proc_macro": true
@@ -23293,9 +23886,6 @@
     },
     "serde_urlencoded-0.7.1": {
       "edition": "2018"
-    },
-    "serde_yaml-0.9.34+deprecated": {
-      "edition": "2021"
     },
     "serde_yaml_ng-0.10.0": {
       "edition": "2021"
@@ -23312,28 +23902,28 @@
     "shellexpand-3.1.2": {
       "edition": "2018"
     },
-    "shigoto-budget-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": {
+    "shigoto-budget-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
       "edition": "2024"
     },
-    "shigoto-dag-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": {
+    "shigoto-dag-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
       "edition": "2024"
     },
-    "shigoto-emit-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": {
+    "shigoto-emit-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
       "edition": "2024"
     },
-    "shigoto-gate-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": {
+    "shigoto-gate-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
       "edition": "2024"
     },
-    "shigoto-retry-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": {
+    "shigoto-retry-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
       "edition": "2024"
     },
-    "shigoto-scheduler-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": {
+    "shigoto-scheduler-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
       "edition": "2024"
     },
-    "shigoto-types-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": {
+    "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
       "edition": "2024"
     },
-    "shikumi-0.1.1083": {
+    "shikumi-0.1.1084": {
       "edition": "2024"
     },
     "shlex-2.0.1": {
@@ -23407,21 +23997,21 @@
       "edition": "2021",
       "build_script": "build.rs"
     },
-    "tatara-closed-set-0.4.9": {
+    "tatara-closed-set-0.4.10": {
       "edition": "2021"
     },
-    "tatara-closed-set-derive-0.4.9": {
+    "tatara-closed-set-derive-0.4.10": {
       "edition": "2021",
       "proc_macro": true
     },
-    "tatara-lisp-0.4.9": {
+    "tatara-lisp-0.4.10": {
       "edition": "2021"
     },
-    "tatara-lisp-derive-0.4.9": {
+    "tatara-lisp-derive-0.4.10": {
       "edition": "2021",
       "proc_macro": true
     },
-    "tatara-lisp-eval-0.4.9": {
+    "tatara-lisp-eval-0.4.10": {
       "edition": "2021"
     },
     "tempfile-3.27.0": {
@@ -23465,7 +24055,7 @@
     "tinyvec-1.13.3": {
       "edition": "2018"
     },
-    "todoku-0.1.9-76b8216d17b331dfa2ee0c70ee0a4779d47de1e3": {
+    "todoku-0.1.11-4082452328f309a53c213527fe540c7171a18586": {
       "edition": "2024",
       "binaries": [
         {
@@ -23542,7 +24132,7 @@
     "tryhard-0.5.2": {
       "edition": "2018"
     },
-    "tsunagu-0.1.10-11aa4cc5c36ebf10536278571a5a229342490bc9": {
+    "tsunagu-0.1.10-e9606aa77af290e57ca389fa2d74a4c379fdfab3": {
       "edition": "2024"
     },
     "twox-hash-2.1.5": {
@@ -23564,10 +24154,23 @@
     "unicode-ident-1.0.27": {
       "edition": "2021"
     },
-    "unicode-width-0.2.2": {
+    "unicode-width-0.2.3": {
       "edition": "2021"
     },
     "unsafe-libyaml-0.2.11": {
+      "edition": "2021",
+      "binaries": [
+        {
+          "name": "run-emitter-test-suite",
+          "path": "src/bin/run-emitter-test-suite.rs"
+        },
+        {
+          "name": "run-parser-test-suite",
+          "path": "src/bin/run-parser-test-suite.rs"
+        }
+      ]
+    },
+    "unsafe-libyaml-norway-0.2.15": {
       "edition": "2021",
       "binaries": [
         {
@@ -23687,19 +24290,19 @@
     "blue-lang-syntax-0.0.120-af406867a76f51cc0a06c77496fcc47a6b1e3ff0": "sha256-HYm0jjbD9mNHbgKJurVvR1NLah/cwnO2F16X77lQgqo=",
     "blue-lang-waku-0.0.120-af406867a76f51cc0a06c77496fcc47a6b1e3ff0": "sha256-HYm0jjbD9mNHbgKJurVvR1NLah/cwnO2F16X77lQgqo=",
     "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686": "sha256-B/Zlbtl+tNdhX1Br9NkFq8oAl8nZJRjphCpoF+QivVA=",
-    "kanshou-0.1.11-c6f1aa39f31b902f023fb37f9f83aee71e890871": "sha256-XZuB742jnGRgwRivAtNoyzML8kJoLCa4QM2Kw+aJ5nQ=",
-    "kanshou-derive-0.1.11-c6f1aa39f31b902f023fb37f9f83aee71e890871": "sha256-XZuB742jnGRgwRivAtNoyzML8kJoLCa4QM2Kw+aJ5nQ=",
-    "opencode-zen-0.1.3-fb69579b841e4549fcb91eb5c612094d1a74a053": "sha256-xo5AH2wNM68v8anUB+18Z27p+91dMZr9q9jel3NCvFE=",
-    "samba-0.1.4-e294dd25d35bb3943d0be1c1d682ea178bca76cc": "sha256-6FJMlvRU2UOKTA0tp7g83U4ENsKHQWjkZS8IpOQtvZ4=",
-    "shigoto-budget-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": "sha256-85LtQ9ujhkPysvu2AlGwH9Mb1XcRQMw21WI/Ch76SIY=",
-    "shigoto-dag-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": "sha256-85LtQ9ujhkPysvu2AlGwH9Mb1XcRQMw21WI/Ch76SIY=",
-    "shigoto-emit-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": "sha256-85LtQ9ujhkPysvu2AlGwH9Mb1XcRQMw21WI/Ch76SIY=",
-    "shigoto-gate-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": "sha256-85LtQ9ujhkPysvu2AlGwH9Mb1XcRQMw21WI/Ch76SIY=",
-    "shigoto-retry-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": "sha256-85LtQ9ujhkPysvu2AlGwH9Mb1XcRQMw21WI/Ch76SIY=",
-    "shigoto-scheduler-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": "sha256-85LtQ9ujhkPysvu2AlGwH9Mb1XcRQMw21WI/Ch76SIY=",
-    "shigoto-types-0.1.16-7af7d9a24d66cb98737c27b2c4482b2f5fbedc3b": "sha256-85LtQ9ujhkPysvu2AlGwH9Mb1XcRQMw21WI/Ch76SIY=",
-    "todoku-0.1.9-76b8216d17b331dfa2ee0c70ee0a4779d47de1e3": "sha256-F7QP7njbG8DqeJhXaHPUOZESG22YWHrVMqSk0mSUUBM=",
-    "tsunagu-0.1.10-11aa4cc5c36ebf10536278571a5a229342490bc9": "sha256-tqXWE1QgorVFIqRrH07SP6CtJwVVwmNcZFBp+YAfDBM="
+    "kanshou-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e": "sha256-+WBm1sEQQEyeDt+4is5SjfLWUzCTWM9cTPOD7l3G89w=",
+    "kanshou-derive-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e": "sha256-+WBm1sEQQEyeDt+4is5SjfLWUzCTWM9cTPOD7l3G89w=",
+    "opencode-zen-0.1.3-fba032bcc1e72646c93fdf0ce2e5c622eefdbe86": "sha256-ZaC5XVPMbROv7Z4CIp6M9N2bInsTYhCOluQaRoIeFlk=",
+    "samba-0.1.5-0639394aa4a356a168975814333a715bfefbb9fd": "sha256-HJyEL3An/pbZzcoIW2QrFy3GUYj892/XzfBtlyOAT0s=",
+    "shigoto-budget-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
+    "shigoto-dag-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
+    "shigoto-emit-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
+    "shigoto-gate-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
+    "shigoto-retry-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
+    "shigoto-scheduler-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
+    "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
+    "todoku-0.1.11-4082452328f309a53c213527fe540c7171a18586": "sha256-FEfw6ynDTbpSJSdTUh/Fh1SDfCZ927SeY758Cu+CHlw=",
+    "tsunagu-0.1.10-e9606aa77af290e57ca389fa2d74a4c379fdfab3": "sha256-2wF3I9Yy0n591RxiynAW8d2Lzg+7dasJnv586SKmUDg="
   },
   "flake_metadata": {}
 }

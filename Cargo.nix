@@ -361,7 +361,7 @@ rec {
         dependencies = [
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.60.2";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_System_Console" "Win32_Foundation" ];
           }
@@ -386,7 +386,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.60.2";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_System_Console" "Win32_Foundation" ];
           }
@@ -1139,13 +1139,13 @@ rec {
       };
       "blue-lang-bidama" = rec {
         crateName = "blue-lang-bidama";
-        version = "0.0.101";
+        version = "0.0.120";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "2308bfe900b83a96aa6f7136ef7d5bd182bbefe1";
-          sha256 = "036s6dnsah895mh3rqfc7k2bx0hdbkws8lfgjsa6iv2caz58qmhm";
+          rev = "af406867a76f51cc0a06c77496fcc47a6b1e3ff0";
+          sha256 = "1al2a2wyz5sy2yv77hnw3xm4nls7dysvm282dr3n7xn36s7b928x";
         };
         libName = "blue_lang_bidama";
         authors = [
@@ -1161,13 +1161,13 @@ rec {
       };
       "blue-lang-check" = rec {
         crateName = "blue-lang-check";
-        version = "0.0.101";
+        version = "0.0.120";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "2308bfe900b83a96aa6f7136ef7d5bd182bbefe1";
-          sha256 = "036s6dnsah895mh3rqfc7k2bx0hdbkws8lfgjsa6iv2caz58qmhm";
+          rev = "af406867a76f51cc0a06c77496fcc47a6b1e3ff0";
+          sha256 = "1al2a2wyz5sy2yv77hnw3xm4nls7dysvm282dr3n7xn36s7b928x";
         };
         libName = "blue_lang_check";
         authors = [
@@ -1187,13 +1187,13 @@ rec {
       };
       "blue-lang-fmt" = rec {
         crateName = "blue-lang-fmt";
-        version = "0.0.101";
+        version = "0.0.120";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "2308bfe900b83a96aa6f7136ef7d5bd182bbefe1";
-          sha256 = "036s6dnsah895mh3rqfc7k2bx0hdbkws8lfgjsa6iv2caz58qmhm";
+          rev = "af406867a76f51cc0a06c77496fcc47a6b1e3ff0";
+          sha256 = "1al2a2wyz5sy2yv77hnw3xm4nls7dysvm282dr3n7xn36s7b928x";
         };
         libName = "blue_lang_fmt";
         authors = [
@@ -1217,13 +1217,13 @@ rec {
       };
       "blue-lang-host" = rec {
         crateName = "blue-lang-host";
-        version = "0.0.101";
+        version = "0.0.120";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "2308bfe900b83a96aa6f7136ef7d5bd182bbefe1";
-          sha256 = "036s6dnsah895mh3rqfc7k2bx0hdbkws8lfgjsa6iv2caz58qmhm";
+          rev = "af406867a76f51cc0a06c77496fcc47a6b1e3ff0";
+          sha256 = "1al2a2wyz5sy2yv77hnw3xm4nls7dysvm282dr3n7xn36s7b928x";
         };
         libName = "blue_lang_host";
         authors = [
@@ -1267,13 +1267,13 @@ rec {
       };
       "blue-lang-host-macros" = rec {
         crateName = "blue-lang-host-macros";
-        version = "0.0.101";
+        version = "0.0.120";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "2308bfe900b83a96aa6f7136ef7d5bd182bbefe1";
-          sha256 = "036s6dnsah895mh3rqfc7k2bx0hdbkws8lfgjsa6iv2caz58qmhm";
+          rev = "af406867a76f51cc0a06c77496fcc47a6b1e3ff0";
+          sha256 = "1al2a2wyz5sy2yv77hnw3xm4nls7dysvm282dr3n7xn36s7b928x";
         };
         procMacro = true;
         libName = "blue_lang_host_macros";
@@ -1299,13 +1299,13 @@ rec {
       };
       "blue-lang-pkg" = rec {
         crateName = "blue-lang-pkg";
-        version = "0.0.101";
+        version = "0.0.120";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "2308bfe900b83a96aa6f7136ef7d5bd182bbefe1";
-          sha256 = "036s6dnsah895mh3rqfc7k2bx0hdbkws8lfgjsa6iv2caz58qmhm";
+          rev = "af406867a76f51cc0a06c77496fcc47a6b1e3ff0";
+          sha256 = "1al2a2wyz5sy2yv77hnw3xm4nls7dysvm282dr3n7xn36s7b928x";
         };
         libName = "blue_lang_pkg";
         authors = [
@@ -1364,13 +1364,13 @@ rec {
       };
       "blue-lang-proc" = rec {
         crateName = "blue-lang-proc";
-        version = "0.0.101";
+        version = "0.0.120";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "2308bfe900b83a96aa6f7136ef7d5bd182bbefe1";
-          sha256 = "036s6dnsah895mh3rqfc7k2bx0hdbkws8lfgjsa6iv2caz58qmhm";
+          rev = "af406867a76f51cc0a06c77496fcc47a6b1e3ff0";
+          sha256 = "1al2a2wyz5sy2yv77hnw3xm4nls7dysvm282dr3n7xn36s7b928x";
         };
         libName = "blue_lang_proc";
         authors = [
@@ -1404,13 +1404,13 @@ rec {
       };
       "blue-lang-runtime" = rec {
         crateName = "blue-lang-runtime";
-        version = "0.0.101";
+        version = "0.0.120";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "2308bfe900b83a96aa6f7136ef7d5bd182bbefe1";
-          sha256 = "036s6dnsah895mh3rqfc7k2bx0hdbkws8lfgjsa6iv2caz58qmhm";
+          rev = "af406867a76f51cc0a06c77496fcc47a6b1e3ff0";
+          sha256 = "1al2a2wyz5sy2yv77hnw3xm4nls7dysvm282dr3n7xn36s7b928x";
         };
         libName = "blue_lang_runtime";
         authors = [
@@ -1496,13 +1496,13 @@ rec {
       };
       "blue-lang-syntax" = rec {
         crateName = "blue-lang-syntax";
-        version = "0.0.101";
+        version = "0.0.120";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "2308bfe900b83a96aa6f7136ef7d5bd182bbefe1";
-          sha256 = "036s6dnsah895mh3rqfc7k2bx0hdbkws8lfgjsa6iv2caz58qmhm";
+          rev = "af406867a76f51cc0a06c77496fcc47a6b1e3ff0";
+          sha256 = "1al2a2wyz5sy2yv77hnw3xm4nls7dysvm282dr3n7xn36s7b928x";
         };
         libName = "blue_lang_syntax";
         authors = [
@@ -1518,13 +1518,13 @@ rec {
       };
       "blue-lang-waku" = rec {
         crateName = "blue-lang-waku";
-        version = "0.0.101";
+        version = "0.0.120";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "2308bfe900b83a96aa6f7136ef7d5bd182bbefe1";
-          sha256 = "036s6dnsah895mh3rqfc7k2bx0hdbkws8lfgjsa6iv2caz58qmhm";
+          rev = "af406867a76f51cc0a06c77496fcc47a6b1e3ff0";
+          sha256 = "1al2a2wyz5sy2yv77hnw3xm4nls7dysvm282dr3n7xn36s7b928x";
         };
         libName = "blue_lang_waku";
         authors = [
@@ -3023,7 +3023,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.59.0";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_UI_Shell" "Win32_Foundation" "Win32_Globalization" "Win32_System_Com" ];
           }
@@ -3424,7 +3424,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.52.0";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_System_Diagnostics_Debug" ];
           }
@@ -4020,9 +4020,9 @@ rec {
       };
       "gen-macros" = rec {
         crateName = "gen-macros";
-        version = "0.1.52";
+        version = "0.1.53";
         edition = "2024";
-        sha256 = "0ywvzjrr9m8jcgh9f8gmr0p4xsjl27h9pi2i8djfkih9hzkm9aj5";
+        sha256 = "0jdqjsm68rdnv0ggzjqikilvrqghyvvmha7cjp03kdxl5i5lj6pi";
         procMacro = true;
         libName = "gen_macros";
         authors = [
@@ -4047,9 +4047,9 @@ rec {
       };
       "gen-platform" = rec {
         crateName = "gen-platform";
-        version = "0.1.52";
+        version = "0.1.53";
         edition = "2024";
-        sha256 = "0yy0l8zclajia8b0bwnmynm5i2dc1svz11ry1pncv6fph32hzghv";
+        sha256 = "0590b4lmx8prbqvl43yqzcp4kzz4s1js15zsq3cx6yhr7vc1zj83";
         libName = "gen_platform";
         authors = [
           "pleme-io"
@@ -4085,9 +4085,9 @@ rec {
       };
       "gen-types" = rec {
         crateName = "gen-types";
-        version = "0.1.52";
+        version = "0.1.53";
         edition = "2024";
-        sha256 = "1sx71mb1vq40z79hsqyna8r614cn1p04iwsd919klnnl4cjf8vd3";
+        sha256 = "1nlhjmw3davh4kdgjk9sx20ilhhwvxb0vbs32zpiqs184a2apvgd";
         libName = "gen_types";
         authors = [
           "pleme-io"
@@ -6457,8 +6457,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/kanshou";
-          rev = "ce51886f6818e0ceb7a8c12b676594e8b8117f12";
-          sha256 = "0sil4qy0xifwgv6c20zm4lac3ka6y183qb0dv0693vylr1m09a1x";
+          rev = "c6f1aa39f31b902f023fb37f9f83aee71e890871";
+          sha256 = "0x76i7kc72nd82w2cb388br0ncybd39h5bqqq5h69753ippq36sx";
         };
         authors = [
           "pleme-io"
@@ -6516,8 +6516,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/kanshou";
-          rev = "ce51886f6818e0ceb7a8c12b676594e8b8117f12";
-          sha256 = "0sil4qy0xifwgv6c20zm4lac3ka6y183qb0dv0693vylr1m09a1x";
+          rev = "c6f1aa39f31b902f023fb37f9f83aee71e890871";
+          sha256 = "0x76i7kc72nd82w2cb388br0ncybd39h5bqqq5h69753ippq36sx";
         };
         procMacro = true;
         libName = "kanshou_derive";
@@ -7494,9 +7494,9 @@ rec {
       };
       "monosashi" = rec {
         crateName = "monosashi";
-        version = "0.4.8";
+        version = "0.4.9";
         edition = "2021";
-        sha256 = "14vhvb4b9n7jcnldd51ajpv43zrxky78v0vz0kq6bxk8a9lyf4mm";
+        sha256 = "1shicj46w0x2n4yv1big99k8xnj58ydf7ryqq51k2dccvy4p82qv";
         authors = [
           "Pleme.io <engineering@pleme.io>"
         ];
@@ -7734,7 +7734,7 @@ rec {
         dependencies = [
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.59.0";
             rename = "windows";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_System_Console" "Win32_Storage_FileSystem" "Win32_Security" ];
@@ -8576,7 +8576,7 @@ rec {
       };
       "pleme-tend" = rec {
         crateName = "pleme-tend";
-        version = "0.3.28";
+        version = "0.3.29";
         edition = "2021";
         crateBin = [
           {
@@ -9410,7 +9410,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.52.0";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_System_IO" "Win32_Networking_WinSock" ];
           }
@@ -10833,7 +10833,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.52.0";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Networking_WinSock" ];
           }
@@ -11099,7 +11099,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.52.0";
             usesDefaultFeatures = false;
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Security_Cryptography" ];
@@ -12956,7 +12956,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.60.2";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Networking_WinSock" "Win32_System_IO" "Win32_System_Threading" "Win32_System_WindowsProgramming" ];
           }
@@ -13034,13 +13034,13 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.60.2";
             target = { target, features }: (target.name == "arm64ec-pc-windows-msvc");
             features = [ "Win32_System_Memory" "Win32_System_Threading" "Win32_Foundation" ];
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.60.2";
             target = { target, features }: ((target."windows" or false) && (!("arm64ec" == target."arch" or null)));
             features = [ "Win32_System_Memory" "Win32_System_Threading" "Win32_Foundation" ];
           }
@@ -13427,9 +13427,9 @@ rec {
       };
       "tatara-lisp-eval" = rec {
         crateName = "tatara-lisp-eval";
-        version = "0.4.8";
+        version = "0.4.9";
         edition = "2021";
-        sha256 = "0ydkjln7w1ykazx5pkf1mc3a298yfhww8b7rr8y24wfg4m4l3syj";
+        sha256 = "1lpv4gxn72qhdp1nfhq69wcam6g795n519k65wdynbj9i4f5nkhl";
         libName = "tatara_lisp_eval";
         authors = [
           "Pleme.io <engineering@pleme.io>"
@@ -13481,7 +13481,7 @@ rec {
           }
           {
             name = "getrandom";
-            packageId = "getrandom 0.3.4";
+            packageId = "getrandom 0.4.3";
             optional = true;
             usesDefaultFeatures = false;
             target = { target, features }: ((target."unix" or false) || (target."windows" or false) || ("wasi" == target."os" or null));
@@ -13500,7 +13500,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.52.0";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Storage_FileSystem" "Win32_Foundation" ];
           }
@@ -16248,7 +16248,7 @@ rec {
         dependencies = [
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.52.0";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Storage_FileSystem" "Win32_System_Console" "Win32_System_SystemInformation" ];
           }
@@ -17453,7 +17453,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_System" "Win32_System_Threading" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Security_Cryptography" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_Diagnostics" "Win32_System_Diagnostics_Debug" "Win32_System_IO" "Win32_System_SystemInformation" "Win32_System_Threading" "default" ];
       };
       "windows-sys 0.59.0" = rec {
         crateName = "windows-sys";
@@ -17712,7 +17712,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_NetworkManagement" "Win32_NetworkManagement_IpHelper" "Win32_Networking" "Win32_Networking_WinSock" "Win32_System" "Win32_System_Console" "Win32_System_Threading" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Globalization" "Win32_NetworkManagement" "Win32_NetworkManagement_IpHelper" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Com" "Win32_System_Console" "Win32_System_Threading" "Win32_UI" "Win32_UI_Shell" "default" ];
       };
       "windows-sys 0.60.2" = rec {
         crateName = "windows-sys";
@@ -17977,7 +17977,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_IO" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_IO" "Win32_System_Memory" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
       };
       "windows-sys 0.61.2" = rec {
         crateName = "windows-sys";
@@ -18239,7 +18239,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Wdk" "Wdk_Foundation" "Wdk_Storage" "Wdk_Storage_FileSystem" "Wdk_System" "Wdk_System_IO" "Win32" "Win32_Foundation" "Win32_Globalization" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Security_Authentication" "Win32_Security_Authentication_Identity" "Win32_Security_Credentials" "Win32_Security_Cryptography" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Com" "Win32_System_Console" "Win32_System_Diagnostics" "Win32_System_Diagnostics_Debug" "Win32_System_IO" "Win32_System_LibraryLoader" "Win32_System_Memory" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_SystemServices" "Win32_System_Threading" "Win32_System_WindowsProgramming" "Win32_UI" "Win32_UI_Shell" "default" ];
+        resolvedDefaultFeatures = [ "Wdk" "Wdk_Foundation" "Wdk_Storage" "Wdk_Storage_FileSystem" "Wdk_System" "Wdk_System_IO" "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Security_Authentication" "Win32_Security_Authentication_Identity" "Win32_Security_Credentials" "Win32_Security_Cryptography" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_IO" "Win32_System_LibraryLoader" "Win32_System_Memory" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_SystemServices" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
       };
       "windows-targets 0.52.6" = rec {
         crateName = "windows-targets";
