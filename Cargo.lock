@@ -357,16 +357,16 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-bidama"
-version = "0.0.120"
-source = "git+https://github.com/pleme-io/blue#af406867a76f51cc0a06c77496fcc47a6b1e3ff0"
+version = "0.0.121"
+source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
 dependencies = [
  "blue-lang-waku",
 ]
 
 [[package]]
 name = "blue-lang-check"
-version = "0.0.120"
-source = "git+https://github.com/pleme-io/blue#af406867a76f51cc0a06c77496fcc47a6b1e3ff0"
+version = "0.0.121"
+source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -374,8 +374,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-fmt"
-version = "0.0.120"
-source = "git+https://github.com/pleme-io/blue#af406867a76f51cc0a06c77496fcc47a6b1e3ff0"
+version = "0.0.121"
+source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -384,8 +384,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-host"
-version = "0.0.120"
-source = "git+https://github.com/pleme-io/blue#af406867a76f51cc0a06c77496fcc47a6b1e3ff0"
+version = "0.0.121"
+source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
 dependencies = [
  "blue-lang-host-macros",
  "blue-lang-pkg",
@@ -398,8 +398,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-host-macros"
-version = "0.0.120"
-source = "git+https://github.com/pleme-io/blue#af406867a76f51cc0a06c77496fcc47a6b1e3ff0"
+version = "0.0.121"
+source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -408,8 +408,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-pkg"
-version = "0.0.120"
-source = "git+https://github.com/pleme-io/blue#af406867a76f51cc0a06c77496fcc47a6b1e3ff0"
+version = "0.0.121"
+source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
 dependencies = [
  "blue-lang-bidama",
  "blue-lang-check",
@@ -426,8 +426,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-proc"
-version = "0.0.120"
-source = "git+https://github.com/pleme-io/blue#af406867a76f51cc0a06c77496fcc47a6b1e3ff0"
+version = "0.0.121"
+source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
 dependencies = [
  "blue-lang-waku",
  "serde_json",
@@ -437,8 +437,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-runtime"
-version = "0.0.120"
-source = "git+https://github.com/pleme-io/blue#af406867a76f51cc0a06c77496fcc47a6b1e3ff0"
+version = "0.0.121"
+source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
 dependencies = [
  "blake3",
  "blue-lang-check",
@@ -460,16 +460,16 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-syntax"
-version = "0.0.120"
-source = "git+https://github.com/pleme-io/blue#af406867a76f51cc0a06c77496fcc47a6b1e3ff0"
+version = "0.0.121"
+source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
 dependencies = [
  "tatara-lisp",
 ]
 
 [[package]]
 name = "blue-lang-waku"
-version = "0.0.120"
-source = "git+https://github.com/pleme-io/blue#af406867a76f51cc0a06c77496fcc47a6b1e3ff0"
+version = "0.0.121"
+source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -1277,9 +1277,9 @@ dependencies = [
 
 [[package]]
 name = "gen-macros"
-version = "0.1.54"
+version = "0.1.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95031891fe4a8b7893adac592e70b63b3601db258e6c855bc8b447d414247520"
+checksum = "522e8f4d0f4af82ee13c37507c12907c0587a982f8a17c8b378b14ae81ac24c8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1288,9 +1288,9 @@ dependencies = [
 
 [[package]]
 name = "gen-platform"
-version = "0.1.54"
+version = "0.1.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42f8754d46d4c50c8b38377d45a595f7ab208e94adc6585c110ec97125bd53f7"
+checksum = "c2626761d01e0f872bb5ab92aa45fcfd1f820904a4da36f96b1b9a101ffa44fd"
 dependencies = [
  "gen-macros",
  "gen-types",
@@ -1302,9 +1302,9 @@ dependencies = [
 
 [[package]]
 name = "gen-types"
-version = "0.1.54"
+version = "0.1.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3e137370b9fd815da59dfde4533d8f784d1195bf446f4eaabc1451b11b93683"
+checksum = "f6d5dd9f013ffd978542607400199cf39f3fdff3feb36e52d13a4f7c20b6b0bd"
 dependencies = [
  "blake3",
  "chrono",
@@ -2275,9 +2275,9 @@ dependencies = [
 
 [[package]]
 name = "monosashi"
-version = "0.4.10"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c666ba61168a8e8154e97b501f043244d51117415c2dff02a079a5bcf108f6a2"
+checksum = "75fd057add645b7eb52e3c41626ede0758ed362038ced9d405279ea48d08e33a"
 
 [[package]]
 name = "multiversion_no_op"
@@ -2682,7 +2682,7 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.29"
+version = "0.3.30"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -4063,18 +4063,18 @@ dependencies = [
 
 [[package]]
 name = "tatara-closed-set"
-version = "0.4.10"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90551acd884e6ab8c3af765d350221257fb3807d8a2648dca1ff251323cbe7aa"
+checksum = "ebe3133b9b20556d4e092f38d50b129ab39fffe504badd19efc61cf7e6206a0d"
 dependencies = [
  "tatara-closed-set-derive",
 ]
 
 [[package]]
 name = "tatara-closed-set-derive"
-version = "0.4.10"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "569268790de48bbd9865bb6db806561501568d7163e02968e278c1ec7c8b17cb"
+checksum = "bdcb575553053eaf349ab7514575bb43ffc72bf32782f90076b83a2e6ecbd73a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4083,9 +4083,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp"
-version = "0.4.10"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72cae5913b76d5f63c4de507538fc69dd29040c5dc29b30e93f6ab92a47b8b86"
+checksum = "fb593f03efc0d4211b180d66b81504257c1f9113a9af71ab784b4582b9701f2e"
 dependencies = [
  "blake3",
  "serde",
@@ -4097,9 +4097,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-derive"
-version = "0.4.10"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f161323482a7779e1ae646a320b385fe842a144e6663276a79191638002a404b"
+checksum = "284f38d6ade0854d7a645a382dd934179f9b580b787a05044ea8a79aa692a412"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4108,9 +4108,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-eval"
-version = "0.4.10"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc4603bcdd3e517009ff07a8e89419154e88bbc57b512df8cf738028e5162538"
+checksum = "3911263cf2377232045f26d4c3306a2d8cc7248f26ea536baf4d58727f50e98c"
 dependencies = [
  "imbl",
  "monosashi",
