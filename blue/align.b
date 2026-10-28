@@ -6,7 +6,7 @@ def edge_repo(e)
 end
 
 def edge_dep(e)
-  nth(1, e)
+  e[1]
 end
 
 def pin_repo(p)
@@ -14,11 +14,11 @@ def pin_repo(p)
 end
 
 def pin_item(p)
-  nth(1, p)
+  p[1]
 end
 
 def pin_version(p)
-  nth(2, p)
+  p[2]
 end
 
 def lookup(m, k, fallback)
@@ -240,7 +240,7 @@ def propose(ns, edges, pins)
   down = down_map(edges)
   walked = walk(down, ns, {}, [])
   waves = first(walked)
-  stuck = nth(1, walked)
+  stuck = walked[1]
   index = wave_index(waves, 0, {})
   placed = filter((n) -> get(index, n).nil? == false, ns)
   free = filter((e) -> get(index, edge_repo(e)).nil? == false, edges)
@@ -250,8 +250,8 @@ def propose(ns, edges, pins)
     [
       "ok",
       waves,
-      map((s) -> [first(s), nth(1, s), nth(2, s)], found),
-      sort_stable_by((m) -> first(m), flat_map(found, (s) -> nth(3, s))),
+      map((s) -> [first(s), s[1], s[2]], found),
+      sort_stable_by((m) -> first(m), flat_map(found, (s) -> s[3])),
       stuck
     ]
   else
@@ -263,16 +263,16 @@ test "dependencies come before dependents, wave by wave"
   edges = [["app", "lib"], ["lib", "base"], ["tool", "base"]]
   ns = ["app", "base", "lib", "tool"]
   out = propose(ns, edges, [])
-  assert nth(1, out) == [["base"], ["lib", "tool"], ["app"]]
-  assert nth(4, out) == []
+  assert out[1] == [["base"], ["lib", "tool"], ["app"]]
+  assert out[4] == []
 end
 
 test "a cycle and what hangs off it are named, other trees stand"
   edges = [["a", "b"], ["b", "c"], ["c", "a"], ["d", "a"], ["x", "y"]]
   ns = ["a", "b", "c", "d", "x", "y"]
   out = propose(ns, edges, [])
-  assert nth(1, out) == [["y"], ["x"]]
-  assert nth(4, out) == ["a", "b", "c", "d"]
+  assert out[1] == [["y"], ["x"]]
+  assert out[4] == ["a", "b", "c", "d"]
 end
 
 test "a wrong order is caught by the checker"
@@ -285,10 +285,10 @@ end
 test "trees are the connected parts of the dependency graph"
   edges = [["app", "lib"], ["x", "y"]]
   ids = tree_ids(down_map(edges), up_map(edges), ["app", "lib", "x", "y"])
-  assert get(ids, "app") == "app"
-  assert get(ids, "lib") == "app"
-  assert get(ids, "x") == "x"
-  assert get(ids, "y") == "x"
+  assert ids["app"] == "app"
+  assert ids["lib"] == "app"
+  assert ids["x"] == "x"
+  assert ids["y"] == "x"
 end
 
 test "a pin that differs inside one tree is proposed for alignment, dependency first"
@@ -301,36 +301,36 @@ test "a pin that differs inside one tree is proposed for alignment, dependency f
   ]
   out = propose(["app", "base", "lib"], edges, pins)
   assert first(out) == "ok"
-  assert nth(3, out) == [[1, "lib", "flake:base", "r1", "r2"]]
+  assert out[3] == [[1, "lib", "flake:base", "r1", "r2"]]
 end
 
 test "the pin most repos hold is the target, and the highest breaks a tie"
   edges = [["a", "root"], ["b", "root"], ["c", "root"]]
   ns = ["a", "b", "c", "root"]
   majority = [["a", "i", "x"], ["b", "i", "y"], ["c", "i", "y"]]
-  assert nth(1, first(nth(2, propose(ns, edges, majority)))) == "y"
+  assert first(propose(ns, edges, majority)[2])[1] == "y"
   tie = [["a", "i", "x"], ["b", "i", "y"]]
-  assert nth(1, first(nth(2, propose(ns, edges, tie)))) == "y"
+  assert first(propose(ns, edges, tie)[2])[1] == "y"
 end
 
 test "pins in different trees never skew each other"
   edges = [["a", "lib1"], ["b", "lib2"]]
   pins = [["a", "i", "x"], ["b", "i", "y"]]
   out = propose(["a", "b", "lib1", "lib2"], edges, pins)
-  assert nth(2, out) == []
-  assert nth(3, out) == []
+  assert out[2] == []
+  assert out[3] == []
 end
 
 test "equal pins propose nothing"
   edges = [["a", "lib"]]
   pins = [["a", "i", "x"], ["lib", "i", "x"]]
-  assert nth(3, propose(["a", "lib"], edges, pins)) == []
+  assert propose(["a", "lib"], edges, pins)[3] == []
 end
 
 test "a skew in a healthy tree is proposed while another tree is cyclic"
   edges = [["a", "b"], ["b", "a"], ["app", "lib"]]
   pins = [["app", "i", "x"], ["lib", "i", "y"]]
   out = propose(["a", "app", "b", "lib"], edges, pins)
-  assert nth(3, out) == [[1, "app", "i", "x", "y"]]
-  assert nth(4, out) == ["a", "b"]
+  assert out[3] == [[1, "app", "i", "x", "y"]]
+  assert out[4] == ["a", "b"]
 end

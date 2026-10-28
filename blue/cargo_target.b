@@ -6,15 +6,15 @@ def bytes_of(c)
 end
 
 def age_of(c)
-  nth(1, c)
+  c[1]
 end
 
 def lock_held(c)
-  nth(2, c)
+  c[2]
 end
 
 def process_of(c)
-  nth(3, c)
+  c[3]
 end
 
 def max_idle(p)
@@ -22,15 +22,15 @@ def max_idle(p)
 end
 
 def budget(p)
-  nth(1, p)
+  p[1]
 end
 
 def pressure_budget(p)
-  nth(2, p)
+  p[2]
 end
 
 def active_window(p)
-  nth(3, p)
+  p[3]
 end
 
 def removes(v)
@@ -64,7 +64,7 @@ end
 def kept_bytes(cands, verdicts)
   reduce(
     fn(acc, cv)
-      if removes(nth(1, cv))
+      if removes(cv[1])
         acc
       else
         acc + bytes_of(first(cv))
@@ -76,9 +76,9 @@ def kept_bytes(cands, verdicts)
 end
 
 def removal_order(cands, verdicts)
-  keep = filter((i) -> nth(i, verdicts) == "keep", indexes(cands))
-  largest = sort_stable_by((i) -> -bytes_of(nth(i, cands)), keep)
-  sort_stable_by((i) -> -age_of(nth(i, cands)), largest)
+  keep = filter((i) -> verdicts[i] == "keep", indexes(cands))
+  largest = sort_stable_by((i) -> -bytes_of(cands[i]), keep)
+  sort_stable_by((i) -> -age_of(cands[i]), largest)
 end
 
 def trim(cands, verdicts, order, after, limit)
@@ -90,7 +90,7 @@ def trim(cands, verdicts, order, after, limit)
       cands,
       update_at(verdicts, i, "remove-over-budget"),
       rest(order),
-      after - bytes_of(nth(i, cands)),
+      after - bytes_of(cands[i]),
       limit
     )
   end
@@ -107,7 +107,7 @@ def decide(cands, p, pressured)
     kept_bytes(cands, verdicts),
     limit
   )
-  after = nth(1, trimmed)
+  after = trimmed[1]
   [first(trimmed), total, after, limit, after > limit]
 end
 
@@ -126,7 +126,7 @@ end
 test "idle past the limit is removed, fresh is kept"
   out = decide([idle(10, 30), idle(10, 3)], policy, false)
   assert first(out) == ["remove-idle", "keep"]
-  assert nth(2, out) == 10
+  assert out[2] == 10
 end
 
 test "exactly at the idle limit is kept"
@@ -136,8 +136,8 @@ end
 test "over budget removes the least recently used first, and no more than needed"
   out = decide([idle(50, 2), idle(50, 9), idle(50, 5)], policy, false)
   assert first(out) == ["keep", "remove-over-budget", "keep"]
-  assert nth(2, out) == 100
-  assert nth(4, out) == false
+  assert out[2] == 100
+  assert out[4] == false
 end
 
 test "idle removals count toward the budget"
@@ -149,13 +149,13 @@ test "pressure tightens the budget"
   cands = [idle(20, 1), idle(20, 2), idle(20, 3)]
   assert first(decide(cands, policy, false)) == ["keep", "keep", "keep"]
   tight = decide(cands, policy, true)
-  assert nth(3, tight) == 30
+  assert tight[3] == 30
   assert first(tight) == ["keep", "remove-over-budget", "remove-over-budget"]
 end
 
 test "pressure never loosens the budget"
   loose = [14 * day, 100, 500, 3600]
-  assert nth(3, decide([idle(1, 1)], loose, true)) == 100
+  assert decide([idle(1, 1)], loose, true)[3] == 100
 end
 
 test "at equal age the larger goes first"
@@ -171,7 +171,7 @@ test "every in-use signal keeps a dir that is idle and over budget"
   out = decide([locked, used, unseen, recent], policy, true)
   assert first(out) ==
     ["in-use-lock", "in-use-process", "in-use-unseen", "in-use-recent"]
-  assert nth(4, out) == true
+  assert out[4] == true
 end
 
 test "a future mtime reads as in use, not idle"
