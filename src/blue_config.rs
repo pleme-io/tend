@@ -105,7 +105,7 @@ def org_workspace(org)
 end
 
 def config()
-  {workspaces: map(org_workspace, [\"pleme-io\", \"drzln\"])}
+  {workspaces: map(org_workspace, %w[pleme-io drzln])}
 end
 ";
         let out = evaluate_text(None, src).unwrap();
