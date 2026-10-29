@@ -357,16 +357,16 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-bidama"
-version = "0.0.121"
-source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
+version = "0.0.124"
+source = "git+https://github.com/pleme-io/blue#8922b04c13a44fe7220e614ed32bbebf8368f81f"
 dependencies = [
  "blue-lang-waku",
 ]
 
 [[package]]
 name = "blue-lang-check"
-version = "0.0.121"
-source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
+version = "0.0.124"
+source = "git+https://github.com/pleme-io/blue#8922b04c13a44fe7220e614ed32bbebf8368f81f"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -374,8 +374,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-fmt"
-version = "0.0.121"
-source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
+version = "0.0.124"
+source = "git+https://github.com/pleme-io/blue#8922b04c13a44fe7220e614ed32bbebf8368f81f"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -384,8 +384,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-host"
-version = "0.0.121"
-source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
+version = "0.0.124"
+source = "git+https://github.com/pleme-io/blue#8922b04c13a44fe7220e614ed32bbebf8368f81f"
 dependencies = [
  "blue-lang-host-macros",
  "blue-lang-pkg",
@@ -398,8 +398,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-host-macros"
-version = "0.0.121"
-source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
+version = "0.0.124"
+source = "git+https://github.com/pleme-io/blue#8922b04c13a44fe7220e614ed32bbebf8368f81f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -407,13 +407,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "blue-lang-mondou"
+version = "0.0.124"
+source = "git+https://github.com/pleme-io/blue#8922b04c13a44fe7220e614ed32bbebf8368f81f"
+dependencies = [
+ "blake3",
+ "blue-lang-check",
+ "blue-lang-fmt",
+ "blue-lang-runtime",
+ "blue-lang-syntax",
+ "blue-lang-waku",
+ "serde_json",
+ "tatara-lisp-eval",
+]
+
+[[package]]
 name = "blue-lang-pkg"
-version = "0.0.121"
-source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
+version = "0.0.124"
+source = "git+https://github.com/pleme-io/blue#8922b04c13a44fe7220e614ed32bbebf8368f81f"
 dependencies = [
  "blue-lang-bidama",
  "blue-lang-check",
  "blue-lang-fmt",
+ "blue-lang-mondou",
  "blue-lang-runtime",
  "blue-lang-syntax",
  "blue-lang-waku",
@@ -426,8 +442,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-proc"
-version = "0.0.121"
-source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
+version = "0.0.124"
+source = "git+https://github.com/pleme-io/blue#8922b04c13a44fe7220e614ed32bbebf8368f81f"
 dependencies = [
  "blue-lang-waku",
  "serde_json",
@@ -437,8 +453,8 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-runtime"
-version = "0.0.121"
-source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
+version = "0.0.124"
+source = "git+https://github.com/pleme-io/blue#8922b04c13a44fe7220e614ed32bbebf8368f81f"
 dependencies = [
  "blake3",
  "blue-lang-check",
@@ -448,6 +464,7 @@ dependencies = [
  "blue-lang-waku",
  "ed25519-dalek",
  "hmac",
+ "quick-xml",
  "rnix 0.14.0",
  "rowan 0.16.1",
  "serde_json",
@@ -460,16 +477,16 @@ dependencies = [
 
 [[package]]
 name = "blue-lang-syntax"
-version = "0.0.121"
-source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
+version = "0.0.124"
+source = "git+https://github.com/pleme-io/blue#8922b04c13a44fe7220e614ed32bbebf8368f81f"
 dependencies = [
  "tatara-lisp",
 ]
 
 [[package]]
 name = "blue-lang-waku"
-version = "0.0.121"
-source = "git+https://github.com/pleme-io/blue#f655a0c5cbc27ae78507085dbd716c7d4c602490"
+version = "0.0.124"
+source = "git+https://github.com/pleme-io/blue#8922b04c13a44fe7220e614ed32bbebf8368f81f"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -954,7 +971,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1088,7 +1105,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2349,7 +2366,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2866,6 +2883,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "quick-xml"
+version = "0.38.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b66c2058c55a409d601666cffe35f04333cf1013010882cec174a7467cd4e21c"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "quinn"
 version = "0.11.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2918,7 +2944,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3286,7 +3312,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3344,7 +3370,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4130,7 +4156,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.6",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4822,7 +4848,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

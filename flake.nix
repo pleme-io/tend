@@ -9,9 +9,19 @@
     { substrate, ... }:
     let
       tool = substrate.rust.tool { src = ./.; };
+      embeddedBlue =
+        system: tend:
+        substrate.inputs.nixpkgs.legacyPackages.${system}.runCommand "tend-embedded-blue" { } ''
+          export HOME=$TMPDIR && cd $TMPDIR
+          ${tend}/bin/tend cargo-target report
+          touch $out
+        '';
     in
     tool
     // {
+      checks = builtins.mapAttrs (
+        system: checks: checks // { embedded-blue = embeddedBlue system tool.packages.${system}.default; }
+      ) tool.checks;
       lib = (tool.lib or { }) // {
         # tend's config, as JSON Schema (draft 2020-12) — the committed,
         # golden-tested output of `src/schema.rs` (`tend config-schema`).
