@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "a500239b8e95c7af2c746fae42de53e6050dccb460c323f7b275bcb8490b90fe",
+  "cargo_lock_sha256": "b2065e348b0aeade060e3d20ea7b69a75b22712f8f62f0c1ed3d325904954362",
   "manifest_sha256": {
-    "Cargo.toml": "ae14f5231ea40a35502784bff20699f4c826f8511a5eb2c49c4fb1e33ed6e2b8"
+    "Cargo.toml": "5ca7cde0fc03d25066222192123c46531db607c8a9415019b90b45d5c8b7a846"
   },
   "target_resolves": {
     "base": {
@@ -843,11 +843,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "aws-lc-rs-1.18.2": {
+      "aws-lc-rs-1.19.0": {
         "runtime_dependencies": [
           {
             "name": "aws_lc_sys",
-            "package_key": "aws-lc-sys-0.46.0",
+            "package_key": "aws-lc-sys-0.47.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -885,7 +885,7 @@
           "ring-sig-verify"
         ]
       },
-      "aws-lc-sys-0.46.0": {
+      "aws-lc-sys-0.47.0": {
         "runtime_dependencies": [],
         "build_dependencies": [
           {
@@ -1033,11 +1033,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-bidama-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+      "blue-lang-bidama-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-waku-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1049,11 +1049,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-check-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+      "blue-lang-check-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-syntax-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1075,11 +1075,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-fmt-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+      "blue-lang-fmt-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-syntax-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1111,11 +1111,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-host-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+      "blue-lang-host-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_host_macros",
-            "package_key": "blue-lang-host-macros-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-host-macros-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1125,7 +1125,7 @@
           },
           {
             "name": "blue_lang_pkg",
-            "package_key": "blue-lang-pkg-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-pkg-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1135,7 +1135,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-runtime-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1145,7 +1145,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-waku-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1190,7 +1190,7 @@
           "packages"
         ]
       },
-      "blue-lang-host-macros-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+      "blue-lang-host-macros-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -1228,7 +1228,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-mondou-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+      "blue-lang-mondou-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -1245,7 +1245,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-check-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1255,7 +1255,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-fmt-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1265,7 +1265,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-runtime-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1275,7 +1275,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-syntax-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1285,7 +1285,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-waku-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1317,11 +1317,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-pkg-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+      "blue-lang-pkg-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_bidama",
-            "package_key": "blue-lang-bidama-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-bidama-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1331,7 +1331,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-check-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1341,7 +1341,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-fmt-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1351,7 +1351,7 @@
           },
           {
             "name": "blue_lang_mondou",
-            "package_key": "blue-lang-mondou-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-mondou-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1361,7 +1361,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-runtime-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1371,7 +1371,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-syntax-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1381,7 +1381,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-waku-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1447,11 +1447,11 @@
           "embedded"
         ]
       },
-      "blue-lang-proc-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+      "blue-lang-proc-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-waku-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1493,7 +1493,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-runtime-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+      "blue-lang-runtime-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -1510,7 +1510,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-check-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1520,7 +1520,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-fmt-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1530,7 +1530,7 @@
           },
           {
             "name": "blue_lang_proc",
-            "package_key": "blue-lang-proc-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-proc-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1540,7 +1540,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-syntax-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1550,7 +1550,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-waku-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1680,7 +1680,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-syntax-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+      "blue-lang-syntax-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
         "runtime_dependencies": [
           {
             "name": "tatara_lisp",
@@ -1696,11 +1696,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-waku-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+      "blue-lang-waku-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-syntax-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5777,7 +5777,7 @@
         "runtime_dependencies": [
           {
             "name": "aws_lc_rs",
-            "package_key": "aws-lc-rs-1.18.2",
+            "package_key": "aws-lc-rs-1.19.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5928,11 +5928,11 @@
           "v1_35"
         ]
       },
-      "kanshou-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e": {
+      "kanshou-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688": {
         "runtime_dependencies": [
           {
             "name": "kanshou_derive",
-            "package_key": "kanshou-derive-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e",
+            "package_key": "kanshou-derive-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6016,7 +6016,7 @@
           "derive"
         ]
       },
-      "kanshou-derive-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e": {
+      "kanshou-derive-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -7935,7 +7935,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "pleme-tend-0.3.30": {
+      "pleme-tend-0.3.31": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -7979,7 +7979,7 @@
           },
           {
             "name": "blue_lang_host",
-            "package_key": "blue-lang-host-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-host-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7989,7 +7989,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f",
+            "package_key": "blue-lang-runtime-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8130,7 +8130,7 @@
           },
           {
             "name": "kanshou",
-            "package_key": "kanshou-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e",
+            "package_key": "kanshou-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8523,7 +8523,7 @@
           },
           {
             "name": "tsunagu",
-            "package_key": "tsunagu-0.1.10-e9606aa77af290e57ca389fa2d74a4c379fdfab3",
+            "package_key": "tsunagu-0.1.11-f99b0498b573183f4794197a74625ed85d7f9244",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -14967,7 +14967,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "tsunagu-0.1.10-e9606aa77af290e57ca389fa2d74a4c379fdfab3": {
+      "tsunagu-0.1.11-f99b0498b573183f4794197a74625ed85d7f9244": {
         "runtime_dependencies": [
           {
             "name": "dirs",
@@ -22950,15 +22950,15 @@
     "autocfg-1.5.1": {
       "edition": "2015"
     },
-    "aws-lc-rs-1.18.2": {
+    "aws-lc-rs-1.19.0": {
       "edition": "2021",
       "build_script": "build.rs",
-      "links": "aws_lc_rs_1_18_2_sys"
+      "links": "aws_lc_rs_1_19_0_sys"
     },
-    "aws-lc-sys-0.46.0": {
+    "aws-lc-sys-0.47.0": {
       "edition": "2021",
       "build_script": "builder/main.rs",
-      "links": "aws_lc_0_46_0"
+      "links": "aws_lc_0_47_0"
     },
     "backon-1.6.0": {
       "edition": "2024"
@@ -22985,39 +22985,39 @@
     "block-buffer-0.10.4": {
       "edition": "2018"
     },
-    "blue-lang-bidama-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+    "blue-lang-bidama-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
       "edition": "2021"
     },
-    "blue-lang-check-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+    "blue-lang-check-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
       "edition": "2021"
     },
-    "blue-lang-fmt-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+    "blue-lang-fmt-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
       "edition": "2021"
     },
-    "blue-lang-host-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+    "blue-lang-host-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
       "edition": "2021"
     },
-    "blue-lang-host-macros-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+    "blue-lang-host-macros-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
       "edition": "2021",
       "proc_macro": true
     },
-    "blue-lang-mondou-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+    "blue-lang-mondou-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
       "edition": "2021"
     },
-    "blue-lang-pkg-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+    "blue-lang-pkg-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
       "edition": "2021",
       "build_script": "build.rs"
     },
-    "blue-lang-proc-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+    "blue-lang-proc-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
       "edition": "2021"
     },
-    "blue-lang-runtime-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+    "blue-lang-runtime-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
       "edition": "2021"
     },
-    "blue-lang-syntax-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+    "blue-lang-syntax-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
       "edition": "2021"
     },
-    "blue-lang-waku-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": {
+    "blue-lang-waku-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": {
       "edition": "2021"
     },
     "brotli-9.1.1": {
@@ -23506,10 +23506,10 @@
       "build_script": "build.rs",
       "links": "k8s-openapi-0.28.0"
     },
-    "kanshou-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e": {
+    "kanshou-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688": {
       "edition": "2024"
     },
-    "kanshou-derive-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e": {
+    "kanshou-derive-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688": {
       "edition": "2024",
       "proc_macro": true
     },
@@ -23729,7 +23729,7 @@
     "pkg-config-0.3.34": {
       "edition": "2021"
     },
-    "pleme-tend-0.3.30": {
+    "pleme-tend-0.3.31": {
       "edition": "2021",
       "binaries": [
         {
@@ -24263,7 +24263,7 @@
     "tryhard-0.5.2": {
       "edition": "2018"
     },
-    "tsunagu-0.1.10-e9606aa77af290e57ca389fa2d74a4c379fdfab3": {
+    "tsunagu-0.1.11-f99b0498b573183f4794197a74625ed85d7f9244": {
       "edition": "2024"
     },
     "twox-hash-2.1.5": {
@@ -24410,20 +24410,20 @@
     }
   },
   "git_nar_sha256": {
-    "blue-lang-bidama-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": "sha256-GuFaCI4063yU0qieQlimdbTydxdodu/Oog5y+JmSNX0=",
-    "blue-lang-check-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": "sha256-GuFaCI4063yU0qieQlimdbTydxdodu/Oog5y+JmSNX0=",
-    "blue-lang-fmt-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": "sha256-GuFaCI4063yU0qieQlimdbTydxdodu/Oog5y+JmSNX0=",
-    "blue-lang-host-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": "sha256-GuFaCI4063yU0qieQlimdbTydxdodu/Oog5y+JmSNX0=",
-    "blue-lang-host-macros-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": "sha256-GuFaCI4063yU0qieQlimdbTydxdodu/Oog5y+JmSNX0=",
-    "blue-lang-mondou-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": "sha256-GuFaCI4063yU0qieQlimdbTydxdodu/Oog5y+JmSNX0=",
-    "blue-lang-pkg-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": "sha256-GuFaCI4063yU0qieQlimdbTydxdodu/Oog5y+JmSNX0=",
-    "blue-lang-proc-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": "sha256-GuFaCI4063yU0qieQlimdbTydxdodu/Oog5y+JmSNX0=",
-    "blue-lang-runtime-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": "sha256-GuFaCI4063yU0qieQlimdbTydxdodu/Oog5y+JmSNX0=",
-    "blue-lang-syntax-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": "sha256-GuFaCI4063yU0qieQlimdbTydxdodu/Oog5y+JmSNX0=",
-    "blue-lang-waku-0.0.124-8922b04c13a44fe7220e614ed32bbebf8368f81f": "sha256-GuFaCI4063yU0qieQlimdbTydxdodu/Oog5y+JmSNX0=",
+    "blue-lang-bidama-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": "sha256-6ywwh0m8l7H332xh0GDpOC9QG9z2D0UeHQVbfm+D+dI=",
+    "blue-lang-check-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": "sha256-6ywwh0m8l7H332xh0GDpOC9QG9z2D0UeHQVbfm+D+dI=",
+    "blue-lang-fmt-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": "sha256-6ywwh0m8l7H332xh0GDpOC9QG9z2D0UeHQVbfm+D+dI=",
+    "blue-lang-host-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": "sha256-6ywwh0m8l7H332xh0GDpOC9QG9z2D0UeHQVbfm+D+dI=",
+    "blue-lang-host-macros-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": "sha256-6ywwh0m8l7H332xh0GDpOC9QG9z2D0UeHQVbfm+D+dI=",
+    "blue-lang-mondou-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": "sha256-6ywwh0m8l7H332xh0GDpOC9QG9z2D0UeHQVbfm+D+dI=",
+    "blue-lang-pkg-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": "sha256-6ywwh0m8l7H332xh0GDpOC9QG9z2D0UeHQVbfm+D+dI=",
+    "blue-lang-proc-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": "sha256-6ywwh0m8l7H332xh0GDpOC9QG9z2D0UeHQVbfm+D+dI=",
+    "blue-lang-runtime-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": "sha256-6ywwh0m8l7H332xh0GDpOC9QG9z2D0UeHQVbfm+D+dI=",
+    "blue-lang-syntax-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": "sha256-6ywwh0m8l7H332xh0GDpOC9QG9z2D0UeHQVbfm+D+dI=",
+    "blue-lang-waku-0.0.124-45671728d2ee83860c9720aeddd24d11cc642187": "sha256-6ywwh0m8l7H332xh0GDpOC9QG9z2D0UeHQVbfm+D+dI=",
     "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686": "sha256-B/Zlbtl+tNdhX1Br9NkFq8oAl8nZJRjphCpoF+QivVA=",
-    "kanshou-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e": "sha256-+WBm1sEQQEyeDt+4is5SjfLWUzCTWM9cTPOD7l3G89w=",
-    "kanshou-derive-0.1.11-cf6887c9ee1ab4e3b3b9f9115eb3990ac5ef5d2e": "sha256-+WBm1sEQQEyeDt+4is5SjfLWUzCTWM9cTPOD7l3G89w=",
+    "kanshou-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688": "sha256-56EyNrn7Lf/mPZtrR8efukiDK/uD54KntRfGwxGtV4M=",
+    "kanshou-derive-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688": "sha256-56EyNrn7Lf/mPZtrR8efukiDK/uD54KntRfGwxGtV4M=",
     "opencode-zen-0.1.3-fba032bcc1e72646c93fdf0ce2e5c622eefdbe86": "sha256-ZaC5XVPMbROv7Z4CIp6M9N2bInsTYhCOluQaRoIeFlk=",
     "samba-0.1.5-0639394aa4a356a168975814333a715bfefbb9fd": "sha256-HJyEL3An/pbZzcoIW2QrFy3GUYj892/XzfBtlyOAT0s=",
     "shigoto-budget-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
@@ -24434,7 +24434,7 @@
     "shigoto-scheduler-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
     "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
     "todoku-0.1.11-4082452328f309a53c213527fe540c7171a18586": "sha256-FEfw6ynDTbpSJSdTUh/Fh1SDfCZ927SeY758Cu+CHlw=",
-    "tsunagu-0.1.10-e9606aa77af290e57ca389fa2d74a4c379fdfab3": "sha256-2wF3I9Yy0n591RxiynAW8d2Lzg+7dasJnv586SKmUDg="
+    "tsunagu-0.1.11-f99b0498b573183f4794197a74625ed85d7f9244": "sha256-LJIRApuKbbPrs5jkyYzUA0SfNAI8bNib+/arpNXUlmw="
   },
   "flake_metadata": {}
 }
