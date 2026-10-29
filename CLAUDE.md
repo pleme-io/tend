@@ -118,7 +118,7 @@ src/
 ├── wip.rs           # `wip/*` branches: docs/WIP.md
 ├── push_ahead.rs    # fast-forward-push ahead-only default branches
 ├── daemon.rs        # Persistent loop, workspaces in parallel
-├── watch.rs         # Version detection + matrix appending + auto-certify/commit/propagate
+├── watch.rs         # Version detection, matrix append, certify, commit, propagate
 ├── watch_cache.rs   # Watch state persistence (~/.cache/tend/watch/)
 ├── github.rs        # GitHubClient trait (abstracts API calls)
 ├── git.rs           # GitOps trait (abstracts git add/commit/push)
