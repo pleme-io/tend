@@ -1,5 +1,5 @@
 use("junjo", [:sort_stable_by])
-use("retsu", [:first, :indexes, :is_empty, :rest, :update_at, :zip])
+use("retsu", %i[first indexes is_empty rest update_at zip])
 
 def bytes_of(c)
   first(c)
@@ -125,7 +125,7 @@ end
 
 test "idle past the limit is removed, fresh is kept"
   out = decide([idle(10, 30), idle(10, 3)], policy, false)
-  assert first(out) == ["remove-idle", "keep"]
+  assert first(out) == %w[remove-idle keep]
   assert out[2] == 10
 end
 
@@ -135,22 +135,22 @@ end
 
 test "over budget removes the least recently used first, and no more than needed"
   out = decide([idle(50, 2), idle(50, 9), idle(50, 5)], policy, false)
-  assert first(out) == ["keep", "remove-over-budget", "keep"]
+  assert first(out) == %w[keep remove-over-budget keep]
   assert out[2] == 100
   assert out[4] == false
 end
 
 test "idle removals count toward the budget"
   out = decide([idle(80, 30), idle(60, 2)], policy, false)
-  assert first(out) == ["remove-idle", "keep"]
+  assert first(out) == %w[remove-idle keep]
 end
 
 test "pressure tightens the budget"
   cands = [idle(20, 1), idle(20, 2), idle(20, 3)]
-  assert first(decide(cands, policy, false)) == ["keep", "keep", "keep"]
+  assert first(decide(cands, policy, false)) == %w[keep keep keep]
   tight = decide(cands, policy, true)
   assert tight[3] == 30
-  assert first(tight) == ["keep", "remove-over-budget", "remove-over-budget"]
+  assert first(tight) == %w[keep remove-over-budget remove-over-budget]
 end
 
 test "pressure never loosens the budget"
@@ -160,7 +160,7 @@ end
 
 test "at equal age the larger goes first"
   out = decide([idle(40, 5), idle(70, 5), idle(40, 1)], policy, false)
-  assert first(out) == ["keep", "remove-over-budget", "keep"]
+  assert first(out) == %w[keep remove-over-budget keep]
 end
 
 test "every in-use signal keeps a dir that is idle and over budget"
@@ -170,7 +170,7 @@ test "every in-use signal keeps a dir that is idle and over budget"
   recent = [500, 600, false, "free"]
   out = decide([locked, used, unseen, recent], policy, true)
   assert first(out) ==
-    ["in-use-lock", "in-use-process", "in-use-unseen", "in-use-recent"]
+    %w[in-use-lock in-use-process in-use-unseen in-use-recent]
   assert out[4] == true
 end
 

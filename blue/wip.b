@@ -1,5 +1,5 @@
 use("junjo", [:sort_stable_by])
-use("retsu", [:first, :indexes])
+use("retsu", %i[first indexes])
 
 def age_of(b)
   first(b)
@@ -31,7 +31,7 @@ end
 
 test "younger than the threshold is active, whatever it carries"
   out = decide([[3 * hour, 4], [1 * hour, 0]], 24 * hour)
-  assert first(out) == ["active", "active"]
+  assert first(out) == %w[active active]
 end
 
 test "past the threshold with unlanded commits it lingers"

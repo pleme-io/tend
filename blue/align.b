@@ -1,5 +1,5 @@
-use("junjo", [:sort, :sort_stable_by])
-use("retsu", [:first, :flat_map, :is_empty, :rest, :size])
+use("junjo", %i[sort sort_stable_by])
+use("retsu", %i[first flat_map is_empty rest size])
 
 def edge_repo(e)
   first(e)
@@ -255,36 +255,36 @@ def propose(ns, edges, pins)
       stuck
     ]
   else
-    ["refused", "order"]
+    %w[refused order]
   end
 end
 
 test "dependencies come before dependents, wave by wave"
-  edges = [["app", "lib"], ["lib", "base"], ["tool", "base"]]
-  ns = ["app", "base", "lib", "tool"]
+  edges = [%w[app lib], %w[lib base], %w[tool base]]
+  ns = %w[app base lib tool]
   out = propose(ns, edges, [])
-  assert out[1] == [["base"], ["lib", "tool"], ["app"]]
+  assert out[1] == [["base"], %w[lib tool], ["app"]]
   assert out[4] == []
 end
 
 test "a cycle and what hangs off it are named, other trees stand"
-  edges = [["a", "b"], ["b", "c"], ["c", "a"], ["d", "a"], ["x", "y"]]
-  ns = ["a", "b", "c", "d", "x", "y"]
+  edges = [%w[a b], %w[b c], %w[c a], %w[d a], %w[x y]]
+  ns = %w[a b c d x y]
   out = propose(ns, edges, [])
   assert out[1] == [["y"], ["x"]]
-  assert out[4] == ["a", "b", "c", "d"]
+  assert out[4] == %w[a b c d]
 end
 
 test "a wrong order is caught by the checker"
-  edges = [["app", "lib"]]
+  edges = [%w[app lib]]
   assert is_topological(edges, wave_index([["app"], ["lib"]], 0, {})) == false
   assert is_topological(edges, wave_index([["lib"], ["app"]], 0, {})) == true
-  assert covers(["app", "lib"], wave_index([["lib"]], 0, {})) == false
+  assert covers(%w[app lib], wave_index([["lib"]], 0, {})) == false
 end
 
 test "trees are the connected parts of the dependency graph"
-  edges = [["app", "lib"], ["x", "y"]]
-  ids = tree_ids(down_map(edges), up_map(edges), ["app", "lib", "x", "y"])
+  edges = [%w[app lib], %w[x y]]
+  ids = tree_ids(down_map(edges), up_map(edges), %w[app lib x y])
   assert ids["app"] == "app"
   assert ids["lib"] == "app"
   assert ids["x"] == "x"
@@ -292,45 +292,45 @@ test "trees are the connected parts of the dependency graph"
 end
 
 test "a pin that differs inside one tree is proposed for alignment, dependency first"
-  edges = [["app", "lib"], ["lib", "base"]]
+  edges = [%w[app lib], %w[lib base]]
   pins = [
-    ["lib", "flake:base", "r1"],
-    ["app", "flake:base", "r2"],
-    ["app", "crate:kit", "k1"],
-    ["lib", "crate:kit", "k1"]
+    %w[lib flake:base r1],
+    %w[app flake:base r2],
+    %w[app crate:kit k1],
+    %w[lib crate:kit k1]
   ]
-  out = propose(["app", "base", "lib"], edges, pins)
+  out = propose(%w[app base lib], edges, pins)
   assert first(out) == "ok"
   assert out[3] == [[1, "lib", "flake:base", "r1", "r2"]]
 end
 
 test "the pin most repos hold is the target, and the highest breaks a tie"
-  edges = [["a", "root"], ["b", "root"], ["c", "root"]]
-  ns = ["a", "b", "c", "root"]
-  majority = [["a", "i", "x"], ["b", "i", "y"], ["c", "i", "y"]]
+  edges = [%w[a root], %w[b root], %w[c root]]
+  ns = %w[a b c root]
+  majority = [%w[a i x], %w[b i y], %w[c i y]]
   assert first(propose(ns, edges, majority)[2])[1] == "y"
-  tie = [["a", "i", "x"], ["b", "i", "y"]]
+  tie = [%w[a i x], %w[b i y]]
   assert first(propose(ns, edges, tie)[2])[1] == "y"
 end
 
 test "pins in different trees never skew each other"
-  edges = [["a", "lib1"], ["b", "lib2"]]
-  pins = [["a", "i", "x"], ["b", "i", "y"]]
-  out = propose(["a", "b", "lib1", "lib2"], edges, pins)
+  edges = [%w[a lib1], %w[b lib2]]
+  pins = [%w[a i x], %w[b i y]]
+  out = propose(%w[a b lib1 lib2], edges, pins)
   assert out[2] == []
   assert out[3] == []
 end
 
 test "equal pins propose nothing"
-  edges = [["a", "lib"]]
-  pins = [["a", "i", "x"], ["lib", "i", "x"]]
-  assert propose(["a", "lib"], edges, pins)[3] == []
+  edges = [%w[a lib]]
+  pins = [%w[a i x], %w[lib i x]]
+  assert propose(%w[a lib], edges, pins)[3] == []
 end
 
 test "a skew in a healthy tree is proposed while another tree is cyclic"
-  edges = [["a", "b"], ["b", "a"], ["app", "lib"]]
-  pins = [["app", "i", "x"], ["lib", "i", "y"]]
-  out = propose(["a", "app", "b", "lib"], edges, pins)
+  edges = [%w[a b], %w[b a], %w[app lib]]
+  pins = [%w[app i x], %w[lib i y]]
+  out = propose(%w[a app b lib], edges, pins)
   assert out[3] == [[1, "app", "i", "x", "y"]]
-  assert out[4] == ["a", "b"]
+  assert out[4] == %w[a b]
 end
