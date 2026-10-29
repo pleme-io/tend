@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "0df8e5ac1fa3c083c81245e4732580c7cd912ce5159ca1fc40c82f37ec67920e",
+  "cargo_lock_sha256": "4682d3b5cabda1158610176c9eae5aeef5339d46803809b7023802dc2c608488",
   "manifest_sha256": {
-    "Cargo.toml": "3929dc4c98a4bbfe08e9d7727b742402bde8990262f7a4d42c79072a657f321e"
+    "Cargo.toml": "d7869c78fbac27fee56729f2b7cfc51946097e12a675ca5b7dfa4b0e8e68e612"
   },
   "target_resolves": {
     "base": {
@@ -7935,7 +7935,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "pleme-tend-0.3.33": {
+      "pleme-tend-0.3.34": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -23729,7 +23729,7 @@
     "pkg-config-0.3.34": {
       "edition": "2021"
     },
-    "pleme-tend-0.3.33": {
+    "pleme-tend-0.3.34": {
       "edition": "2021",
       "binaries": [
         {
