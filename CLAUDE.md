@@ -117,7 +117,7 @@ src/
 ├── hook.rs          # `tend hook stop|session-start`: Claude Code hook contracts
 ├── wip.rs           # `wip/*` branches: docs/WIP.md
 ├── push_ahead.rs    # fast-forward-push ahead-only default branches
-├── daemon.rs        # Persistent loop, workspaces in parallel
+├── daemon.rs        # Persistent loop
 ├── watch.rs         # Version detection, matrix append, certify, commit, propagate
 ├── watch_cache.rs   # Watch state persistence (~/.cache/tend/watch/)
 ├── github.rs        # GitHubClient trait (abstracts API calls)
