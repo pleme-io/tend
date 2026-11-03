@@ -341,6 +341,13 @@
           },
           "type": "array"
         },
+        "drift_on": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "enable": {
           "default": true,
           "type": "boolean"
@@ -399,6 +406,7 @@
               "cadence_minutes": 60,
               "command": [],
               "dirs": [],
+              "drift_on": [],
               "enable": true,
               "kind": "action",
               "read": "exit-status",
@@ -416,6 +424,7 @@
               "cadence_minutes": 60,
               "command": [],
               "dirs": [],
+              "drift_on": [],
               "enable": true,
               "kind": "bidama",
               "read": "exit-status",
@@ -440,6 +449,7 @@
               "dirs": [
                 "~/code/github/pleme-io/helmworks"
               ],
+              "drift_on": [],
               "enable": true,
               "kind": "chart",
               "read": "exit-status",
@@ -463,6 +473,7 @@
               "dirs": [
                 "~/code/github/pleme-io/repo-forge"
               ],
+              "drift_on": [],
               "enable": true,
               "kind": "repo",
               "read": "repo-forge-ndjson",
@@ -478,6 +489,7 @@
               "cadence_minutes": 60,
               "command": [],
               "dirs": [],
+              "drift_on": [],
               "enable": true,
               "kind": "reusable-workflow",
               "read": "exit-status",
@@ -503,6 +515,7 @@
                 "~/code/github/pleme-io/kensa",
                 "~/code/github/pleme-io/ola-mundo"
               ],
+              "drift_on": [],
               "enable": true,
               "kind": "service",
               "read": "exit-status",
@@ -524,6 +537,7 @@
               "dirs": [
                 "~/code/github/pleme-io/blackmatter-pleme"
               ],
+              "drift_on": [],
               "enable": true,
               "kind": "skill",
               "read": "exit-status",
@@ -1833,6 +1847,7 @@
             "cadence_minutes": 60,
             "command": [],
             "dirs": [],
+            "drift_on": [],
             "enable": true,
             "kind": "action",
             "read": "exit-status",
@@ -1850,6 +1865,7 @@
             "cadence_minutes": 60,
             "command": [],
             "dirs": [],
+            "drift_on": [],
             "enable": true,
             "kind": "bidama",
             "read": "exit-status",
@@ -1874,6 +1890,7 @@
             "dirs": [
               "~/code/github/pleme-io/helmworks"
             ],
+            "drift_on": [],
             "enable": true,
             "kind": "chart",
             "read": "exit-status",
@@ -1897,6 +1914,7 @@
             "dirs": [
               "~/code/github/pleme-io/repo-forge"
             ],
+            "drift_on": [],
             "enable": true,
             "kind": "repo",
             "read": "repo-forge-ndjson",
@@ -1912,6 +1930,7 @@
             "cadence_minutes": 60,
             "command": [],
             "dirs": [],
+            "drift_on": [],
             "enable": true,
             "kind": "reusable-workflow",
             "read": "exit-status",
@@ -1937,6 +1956,7 @@
               "~/code/github/pleme-io/kensa",
               "~/code/github/pleme-io/ola-mundo"
             ],
+            "drift_on": [],
             "enable": true,
             "kind": "service",
             "read": "exit-status",
@@ -1958,6 +1978,7 @@
             "dirs": [
               "~/code/github/pleme-io/blackmatter-pleme"
             ],
+            "drift_on": [],
             "enable": true,
             "kind": "skill",
             "read": "exit-status",

@@ -1,5 +1,5 @@
 use("moji", [:includes])
-use("retsu", [:first, :is_empty, :last, :size, :take_while])
+use("retsu", %i[first is_empty last size take_while])
 
 def text(parts)
   join(parts, "")
@@ -21,7 +21,7 @@ end
 
 def finding(inst, state, why, since)
   {
-    "instance" => get(inst, "name"),
+    "instance" => inst["name"],
     "state" => state,
     "detail" => why,
     "since" => since
@@ -37,35 +37,30 @@ def red_state(age, window)
 end
 
 def gate_state(inst, window, now)
-  runs = filter(conclusive, get(inst, "runs"))
+  runs = filter(conclusive, inst["runs"])
   if is_empty(runs)
     finding(inst, "blind", "no finished run on the gate branch", "")
   elsif passes(first(first(runs)))
     finding(inst, "green", "", "")
   else
     oldest = last(take_while((r) -> fails(first(r)), runs))
-    finding(
-      inst,
-      red_state(now - nth(1, oldest), window),
-      nth(3, first(runs)),
-      nth(2, oldest)
-    )
+    finding(inst, red_state(now - oldest[1], window), first(runs)[3], oldest[2])
   end
 end
 
 def command_state(inst)
-  if get(inst, "drifted")
-    finding(inst, "drifted", get(inst, "detail"), "")
+  if inst["drifted"]
+    finding(inst, "drifted", inst["detail"], "")
   else
     finding(inst, "green", "", "")
   end
 end
 
 def instance_state(check, inst, now)
-  if get(inst, "sight") == "blind"
-    finding(inst, "blind", get(inst, "why"), "")
-  elsif get(check, "source") == "gate"
-    gate_state(inst, get(check, "window"), now)
+  if inst["sight"] == "blind"
+    finding(inst, "blind", inst["why"], "")
+  elsif check["source"] == "gate"
+    gate_state(inst, check["window"], now)
   else
     command_state(inst)
   end
@@ -76,30 +71,30 @@ def alerting(state)
 end
 
 def with_state(fs, pred)
-  filter((f) -> pred(get(f, "state")), fs)
+  filter((f) -> pred(f["state"]), fs)
 end
 
 def blind_rows(check, found)
-  whole = if get(check, "sight") == "blind"
+  whole = if check["sight"] == "blind"
     [
       {
-        "instance" => get(check, "name"),
+        "instance" => check["name"],
         "state" => "blind",
-        "detail" => get(check, "why"),
+        "detail" => check["why"],
         "since" => ""
       }
     ]
   else
     []
   end
-  part = if get(check, "complete") or get(check, "sight") == "blind"
+  part = if check["complete"] or check["sight"] == "blind"
     []
   else
     [
       {
         "instance" => "(rest of the check)",
         "state" => "blind",
-        "detail" => get(check, "why"),
+        "detail" => check["why"],
         "since" => ""
       }
     ]
@@ -109,7 +104,7 @@ end
 
 def verdict_of(alerts, blind, watch)
   if not is_empty(alerts)
-    get(first(alerts), "state")
+    first(alerts)["state"]
   elsif not is_empty(blind)
     "blind"
   elsif not is_empty(watch)
@@ -121,18 +116,18 @@ end
 
 def judge_check(check, now)
   base = {
-    "name" => get(check, "name"),
-    "kind" => get(check, "kind"),
-    "template" => get(check, "template")
+    "name" => check["name"],
+    "kind" => check["kind"],
+    "template" => check["template"]
   }
-  if get(check, "enabled") == false
+  if check["enabled"] == false
     assoc(
       assoc(assoc(assoc(base, "verdict", "off"), "alerts", []), "blind", []),
       "watch",
       []
     )
   else
-    found = map((i) -> instance_state(check, i, now), get(check, "instances"))
+    found = map((i) -> instance_state(check, i, now), check["instances"])
     alerts = with_state(found, alerting)
     blind = blind_rows(check, found)
     watch = with_state(found, (s) -> s == "red-within-window")
@@ -155,7 +150,7 @@ def judge_check(check, now)
 end
 
 def group_key(r)
-  text([get(r, "kind"), " ", get(r, "template")])
+  text([r["kind"], " ", r["template"]])
 end
 
 def groups(results)
@@ -179,24 +174,18 @@ def title_of(kind, template)
 end
 
 def row_line(r, a)
-  since = if get(a, "since") == ""
+  since = if a["since"] == ""
     "-"
   else
-    get(a, "since")
+    a["since"]
   end
-  cells = [
-    get(r, "name"),
-    get(a, "instance"),
-    get(a, "state"),
-    since,
-    get(a, "detail")
-  ]
+  cells = [r["name"], a["instance"], a["state"], since, a["detail"]]
   text(["| ", join(cells, " | "), " |"])
 end
 
 def alert_lines(rs)
   reduce(
-    (acc, r) -> append(acc, map((a) -> row_line(r, a), get(r, "alerts"))),
+    (acc, r) -> append(acc, map((a) -> row_line(r, a), r["alerts"])),
     [],
     rs
   )
@@ -221,7 +210,7 @@ def open_body(kind, template, rs)
     "",
     "tend updates this issue on each sweep and closes it when every check of this kind is green. A blind check never closes it. The checks are `drift.checks.<name>` in tend's config."
   ]
-  join(append(append(head, alert_lines(rs)), tail), "\n")
+  join(append(append(head, alert_lines(rs)), tail), line_break)
 end
 
 def close_body(kind, template)
@@ -238,15 +227,15 @@ end
 
 def plan_group(rs)
   r0 = first(rs)
-  kind = get(r0, "kind")
-  template = get(r0, "template")
+  kind = r0["kind"]
+  template = r0["template"]
   base = {
     "kind" => kind,
     "template" => template,
     "title" => title_of(kind, template)
   }
-  any_alert = not is_empty(filter((r) -> not is_empty(get(r, "alerts")), rs))
-  all_green = is_empty(filter((r) -> get(r, "verdict") != "green", rs))
+  any_alert = not is_empty(filter((r) -> not is_empty(r["alerts"]), rs))
+  all_green = is_empty(filter((r) -> r["verdict"] != "green", rs))
   if any_alert
     assoc(assoc(base, "action", "open"), "body", open_body(kind, template, rs))
   elsif all_green
@@ -257,16 +246,16 @@ def plan_group(rs)
 end
 
 def count_verdict(results, v)
-  size(filter((r) -> get(r, "verdict") == v, results))
+  size(filter((r) -> r["verdict"] == v, results))
 end
 
 def overall(results)
-  live = filter((r) -> get(r, "verdict") != "off", results)
-  if not is_empty(filter((r) -> not is_empty(get(r, "alerts")), live))
+  live = filter((r) -> r["verdict"] != "off", results)
+  if not is_empty(filter((r) -> not is_empty(r["alerts"]), live))
     "alert"
-  elsif not is_empty(filter((r) -> not is_empty(get(r, "blind")), live))
+  elsif not is_empty(filter((r) -> not is_empty(r["blind"]), live))
     "blind"
-  elsif not is_empty(filter((r) -> not is_empty(get(r, "watch")), live))
+  elsif not is_empty(filter((r) -> not is_empty(r["watch"]), live))
     "watch"
   else
     "green"
@@ -278,12 +267,9 @@ def judge(checks, now)
   {
     "verdict" => overall(results),
     "checks" => results,
-    "issues" => map(
-      plan_group,
-      map((e) -> nth(1, e), map_entries(groups(results)))
-    ),
-    "alerts" => reduce((n, r) -> n + size(get(r, "alerts")), 0, results),
-    "blind" => size(filter((r) -> not is_empty(get(r, "blind")), results)),
+    "issues" => map(plan_group, map((e) -> e[1], map_entries(groups(results)))),
+    "alerts" => reduce((n, r) -> n + size(r["alerts"]), 0, results),
+    "blind" => size(filter((r) -> not is_empty(r["blind"]), results)),
     "off" => count_verdict(results, "off")
   }
 end
@@ -347,11 +333,11 @@ test "a gate red past its window alerts and names when it went red"
     ]
   )
   out = judge([check("parity", "flows", "gate", [red])], now)
-  r = first(get(out, "checks"))
-  assert get(r, "verdict") == "red-past-window"
-  assert get(first(get(r, "alerts")), "since") == "t180000"
-  assert get(out, "verdict") == "alert"
-  assert get(first(get(out, "issues")), "action") == "open"
+  r = first(out["checks"])
+  assert r["verdict"] == "red-past-window"
+  assert first(r["alerts"])["since"] == "t180000"
+  assert out["verdict"] == "alert"
+  assert first(out["issues"])["action"] == "open"
 end
 
 test "a gate red within its window is watched, not alerted, and holds the issue"
@@ -360,11 +346,11 @@ test "a gate red within its window is watched, not alerted, and holds the issue"
     [run("failure", 90 * hour), run("success", 80 * hour)]
   )
   out = judge([check("parity", "flows", "gate", [red])], now)
-  r = first(get(out, "checks"))
-  assert get(r, "verdict") == "red-within-window"
-  assert is_empty(get(r, "alerts"))
-  assert get(out, "verdict") == "watch"
-  assert get(first(get(out, "issues")), "action") == "hold"
+  r = first(out["checks"])
+  assert r["verdict"] == "red-within-window"
+  assert is_empty(r["alerts"])
+  assert out["verdict"] == "watch"
+  assert first(out["issues"])["action"] == "hold"
 end
 
 test "cancelled and skipped runs are not evidence either way"
@@ -376,17 +362,17 @@ test "cancelled and skipped runs are not evidence either way"
       run("failure", 10 * hour)
     ]
   )
-  r = first(get(judge([check("parity", "flows", "gate", [g])], now), "checks"))
-  assert get(r, "verdict") == "green"
+  r = first(judge([check("parity", "flows", "gate", [g])], now)["checks"])
+  assert r["verdict"] == "green"
 end
 
 test "a gate with no finished run is blind, never green"
   g = gate("pleme-io/flows", [run("cancelled", 99 * hour)])
   out = judge([check("parity", "flows", "gate", [g])], now)
-  r = first(get(out, "checks"))
-  assert get(r, "verdict") == "blind"
-  assert get(out, "verdict") == "blind"
-  assert get(first(get(out, "issues")), "action") == "hold"
+  r = first(out["checks"])
+  assert r["verdict"] == "blind"
+  assert out["verdict"] == "blind"
+  assert first(out["issues"])["action"] == "hold"
 end
 
 test "a drifted instance alerts; the clean one is counted green"
@@ -397,12 +383,12 @@ test "a drifted instance alerts; the clean one is counted green"
     [tool("acervo", true, "2 missing"), tool("kensa", false, "")]
   )
   out = judge([c], now)
-  r = first(get(out, "checks"))
-  assert get(r, "verdict") == "drifted"
-  assert get(r, "green") == 1
-  assert get(first(get(r, "alerts")), "instance") == "acervo"
+  r = first(out["checks"])
+  assert r["verdict"] == "drifted"
+  assert r["green"] == 1
+  assert first(r["alerts"])["instance"] == "acervo"
   assert includes(
-    get(first(get(out, "issues")), "body"),
+    first(out["issues"])["body"],
     "| repo | acervo | drifted | - | 2 missing |"
   )
 end
@@ -417,9 +403,9 @@ test "a check that stopped early reports what it saw and is blind for the rest"
     "why",
     "render arnes failed"
   )
-  r = first(get(judge([c], now), "checks"))
-  assert get(r, "verdict") == "blind"
-  assert get(first(get(r, "blind")), "detail") == "render arnes failed"
+  r = first(judge([c], now)["checks"])
+  assert r["verdict"] == "blind"
+  assert first(r["blind"])["detail"] == "render arnes failed"
 end
 
 test "a blind check is blind and never closes its issue"
@@ -429,8 +415,8 @@ test "a blind check is blind and never closes its issue"
     "skill-lint: not found"
   )
   out = judge([c], now)
-  assert get(first(get(out, "checks")), "verdict") == "blind"
-  assert get(first(get(out, "issues")), "action") == "hold"
+  assert first(out["checks"])["verdict"] == "blind"
+  assert first(out["issues"])["action"] == "hold"
 end
 
 test "an instance that could not be read is blind"
@@ -439,8 +425,8 @@ test "an instance that could not be read is blind"
     "why",
     "rate limited"
   )
-  r = first(get(judge([check("parity", "flows", "gate", [g])], now), "checks"))
-  assert get(r, "verdict") == "blind"
+  r = first(judge([check("parity", "flows", "gate", [g])], now)["checks"])
+  assert r["verdict"] == "blind"
 end
 
 test "green on every check of a kind closes its issue"
@@ -449,17 +435,17 @@ test "green on every check of a kind closes its issue"
     [run("success", 99 * hour), run("failure", 98 * hour)]
   )
   out = judge([check("parity", "flows", "gate", [g])], now)
-  assert get(out, "verdict") == "green"
-  assert get(first(get(out, "issues")), "action") == "close"
+  assert out["verdict"] == "green"
+  assert first(out["issues"])["action"] == "close"
 end
 
 test "an off check is off and holds its issue"
   c = assoc(check("parity", "flows", "gate", []), "enabled", false)
   out = judge([c], now)
-  assert get(first(get(out, "checks")), "verdict") == "off"
-  assert get(out, "off") == 1
-  assert get(out, "verdict") == "green"
-  assert get(first(get(out, "issues")), "action") == "hold"
+  assert first(out["checks"])["verdict"] == "off"
+  assert out["off"] == 1
+  assert out["verdict"] == "green"
+  assert first(out["issues"])["action"] == "hold"
 end
 
 test "one issue per kind and template, however many checks feed it"
@@ -476,6 +462,6 @@ test "one issue per kind and template, however many checks feed it"
     [gate("y", [run("failure", 2 * hour)])]
   )
   out = judge([a, b], now)
-  assert size(get(out, "issues")) == 1
-  assert get(out, "alerts") == 2
+  assert size(out["issues"]) == 1
+  assert out["alerts"] == 2
 end
