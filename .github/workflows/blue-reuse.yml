@@ -1,0 +1,3 @@
+name: blue-reuse
+on: { push: { branches: [main], paths: ["**/*.b", reuse.baseline, .github/workflows/blue-reuse.yml] }, pull_request: { paths: ["**/*.b", reuse.baseline] }, workflow_dispatch: {} }
+jobs: { reuse: { uses: pleme-io/substrate/.github/workflows/blue-reuse.yml@main } }
