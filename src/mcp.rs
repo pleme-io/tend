@@ -252,36 +252,45 @@ impl TendMcp {
     }
 }
 
+fn pressure_answer(reading: anyhow::Result<crate::pressure::Reading>, sweep: Value) -> Value {
+    match reading {
+        Ok(reading) => {
+            let v = crate::pressure::assess(reading, crate::pressure::Thresholds::default(), 8);
+            json!({
+                "ok": true,
+                "disk_free_gib": reading.disk_free_gib,
+                "disk_total_gib": reading.disk_total_gib,
+                "disk_free_pct": reading.disk_free_pct(),
+                "fd_ratio": reading.fd_ratio,
+                "verdict": match v.inflight(8) {
+                    None => "run_nothing",
+                    Some(n) if n == 8 => "proceed",
+                    Some(_) => "throttle",
+                },
+                "max_inflight": v.inflight(8),
+                "reason": v.why(),
+                "sweep": sweep,
+            })
+        }
+        Err(e) => json!({"ok": false, "error": e.to_string(), "sweep": sweep}),
+    }
+}
+
 #[tool_router]
 impl TendMcp {
     #[tool(
-        description = "Host pressure and the verdict tend's daemon acts on: proceed, throttle to a smaller concurrency, or run nothing. Returns disk_free_pct, fd_ratio, the verdict and its reason. Ask this FIRST when the daemon appears idle — a skipped cycle is usually a deliberate refusal, not a hang."
+        description = "Host pressure and the verdict tend's daemon acts on: proceed, throttle to a smaller concurrency, or run nothing. Returns disk_free_pct, fd_ratio, the verdict and its reason, plus `sweep`: whether the daemon's disk sweep ran or its policy was refused (outcome ok, refused or unseen; refused means nothing frees disk), with why, refused_count, and whether this binary's policy loads. Ask this FIRST when the daemon appears idle — a skipped cycle is usually a deliberate refusal, not a hang."
     )]
     async fn tend_pressure(&self) -> String {
         let reader = crate::pressure::SystemPressureReader {
             path: self.repo.clone(),
         };
-        match crate::pressure::PressureReader::read(&reader) {
-            Ok(reading) => {
-                let v = crate::pressure::assess(reading, crate::pressure::Thresholds::default(), 8);
-                json!({
-                    "ok": true,
-                    "disk_free_gib": reading.disk_free_gib,
-                    "disk_total_gib": reading.disk_total_gib,
-                    "disk_free_pct": reading.disk_free_pct(),
-                    "fd_ratio": reading.fd_ratio,
-                    "verdict": match v.inflight(8) {
-                        None => "run_nothing",
-                        Some(n) if n == 8 => "proceed",
-                        Some(_) => "throttle",
-                    },
-                    "max_inflight": v.inflight(8),
-                    "reason": v.why(),
-                })
-                .to_string()
-            }
-            Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
-        }
+        let sweep = crate::sweep_record::status(
+            crate::sweep_record::read(&crate::sweep_record::path()).as_ref(),
+            crate::sweep_record::policy_probe(),
+            std::time::SystemTime::now(),
+        );
+        pressure_answer(crate::pressure::PressureReader::read(&reader), sweep).to_string()
     }
 
     #[tool(
@@ -435,7 +444,9 @@ impl TendMcp {
         .await;
         match read {
             Ok(Ok(v)) => v.to_string(),
-            Ok(Err(e)) => json!({"ok": false, "outcome": "blind", "error": format!("{e:#}")}).to_string(),
+            Ok(Err(e)) => {
+                json!({"ok": false, "outcome": "blind", "error": format!("{e:#}")}).to_string()
+            }
             Err(e) => json!({"ok": false, "outcome": "blind", "error": e.to_string()}).to_string(),
         }
     }
@@ -532,6 +543,23 @@ pub async fn run(authority: Authority, repo: std::path::PathBuf) -> anyhow::Resu
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn tend_pressure_carries_a_refused_sweep_whatever_the_disk_reads() {
+        let sweep = json!({"outcome": "refused", "why": "cannot load bidama"});
+        let read = crate::pressure::Reading {
+            disk_free_gib: 500.0,
+            disk_total_gib: 1000.0,
+            load_per_cpu: None,
+            fd_ratio: None,
+        };
+        let healthy = super::pressure_answer(Ok(read), sweep.clone());
+        assert_eq!(healthy["verdict"], "proceed");
+        assert_eq!(healthy["sweep"]["outcome"], "refused");
+        let unread = super::pressure_answer(Err(anyhow::anyhow!("df failed")), sweep);
+        assert_eq!(unread["ok"], false);
+        assert_eq!(unread["sweep"]["outcome"], "refused");
+    }
+
     use super::*;
 
     #[test]

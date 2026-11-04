@@ -122,6 +122,9 @@ pub(crate) fn run(event: Event, config: anyhow::Result<Config>, raw: &str) -> Op
                 .then(host_pressure)
                 .flatten()
                 .into_iter()
+                .chain(crate::sweep_record::session_note(
+                    crate::sweep_record::read(&crate::sweep_record::path()).as_ref(),
+                ))
                 .chain(
                     config
                         .drift
@@ -1316,7 +1319,9 @@ mod tests {
         let halt = Verdict::Halt {
             why: "disk free 0.2 GiB is under the halt floor".to_string(),
         };
-        assert!(pressure_sentence(0.2, 460.4, &halt).unwrap().contains("halt"));
+        assert!(pressure_sentence(0.2, 460.4, &halt)
+            .unwrap()
+            .contains("halt"));
         assert!(pressure_sentence(200.0, 460.4, &Verdict::Proceed).is_none());
     }
 

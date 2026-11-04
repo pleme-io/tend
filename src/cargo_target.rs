@@ -439,9 +439,9 @@ fn fingerprint_within(dir: &Path) -> bool {
 
 fn has_output_layout(dir: &Path) -> bool {
     any_profile(dir, &|profile| {
-        CARGO_LOCK_NAMES.iter().any(|name| {
-            std::fs::symlink_metadata(profile.join(name)).is_ok_and(|m| m.is_file())
-        })
+        CARGO_LOCK_NAMES
+            .iter()
+            .any(|name| std::fs::symlink_metadata(profile.join(name)).is_ok_and(|m| m.is_file()))
     })
 }
 
@@ -1453,7 +1453,11 @@ pub fn print_report(r: &Report, cfg: &CargoTargetConfig) {
         r.reclaim_gib,
         r.after_gib,
         r.effective_budget_gib,
-        if r.pressured { " (disk pressure)" } else { "" }
+        match (r.pressured, r.disk.as_ref().map(|d| d.state)) {
+            (false, _) => "",
+            (true, Some(crate::disk::GoalState::Below)) => " (below the free goal)",
+            (true, _) => " (disk pressure)",
+        }
     );
     if r.budget_unreachable {
         println!("              in-use dirs alone exceed the budget; they are kept");
@@ -2130,7 +2134,10 @@ mod tests {
         match ps_owners() {
             Some(owners) => assert!(owners.contains_key(&std::process::id())),
             None => assert!(
-                std::process::Command::new("ps").arg("-p1").output().is_err(),
+                std::process::Command::new("ps")
+                    .arg("-p1")
+                    .output()
+                    .is_err(),
                 "ps runs here, so ps_owners must read it"
             ),
         }

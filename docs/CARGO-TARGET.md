@@ -130,5 +130,12 @@ disk:
   `disk`. `apply --dry-run` sets `dry_run` on both blocks. The daemon logs
   `disk_cache_removed` per child; `cargo_target_sweep` gains `trigger` `goal`
   and a `disk` summary.
+- **A refused policy is loud:** daemon 0.3.34 logged 61 `cannot load bidama
+  "junjo"` lines to stderr and nothing else knew (cid, 2026-11-04). The daemon
+  now probes the policy at start and records every sweep in
+  `<tend cache>/daemon/sweep.json`. A refusal shows in `tend_pressure` (`sweep`,
+  with `outcome`, `why`, `refused_count` and a live `policy.loads`), in `tend
+  pressure`, in a session-start line and as a `disk_sweep_refused` audit event.
+  No record reads `unseen`, never `ok`.
 - **Policy tests:** the goal and the cache plan are in `blue/cargo_target.b`, so
   the `blue test` line above covers them.

@@ -42,6 +42,21 @@ pub(crate) async fn run_with_kanshou(
     // When the cargo target-dir sweep last ran; `None` = on the first cycle.
     let mut last_cargo_sweep: Option<std::time::Instant> = None;
     let mut last_sweep_freed: u64 = 0;
+    let note_sweep = |outcome: Result<(), String>| {
+        let refused = outcome.is_err();
+        if let Some(loud) = crate::sweep_record::note_probe(
+            &crate::sweep_record::path(),
+            outcome,
+            std::time::SystemTime::now(),
+        ) {
+            eprintln!("daemon: disk sweep refused: {loud}");
+            if refused {
+                audit::AuditLog::default_path()
+                    .log("disk_sweep_refused", serde_json::json!({ "why": loud }));
+            }
+        }
+    };
+    note_sweep(crate::sweep_record::policy_probe());
     let mut last_drift_sweep: Option<std::time::Instant> = None;
     let drift_running = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let mut last_skip_beat: Option<std::time::Instant> = None;
@@ -198,7 +213,7 @@ pub(crate) async fn run_with_kanshou(
         let due = match crate::disk::trigger(&cfg.cargo_target, &cfg.disk, &disk_now, last_sweep) {
             Ok(due) => due,
             Err(e) => {
-                eprintln!("daemon: disk goal refused: {e:#}");
+                note_sweep(Err(format!("{e:#}")));
                 None
             }
         };
@@ -222,8 +237,9 @@ pub(crate) async fn run_with_kanshou(
             })
             .await;
             match swept {
-                Ok(Err(e)) => eprintln!("daemon: cargo target sweep refused: {e:#}"),
+                Ok(Err(e)) => note_sweep(Err(format!("{e:#}"))),
                 Ok(Ok(report)) => {
+                    note_sweep(Ok(()));
                     last_sweep_freed = crate::disk::freed_bytes(&report);
                     for e in report.entries.iter().filter(|e| e.removed == Some(true)) {
                         eprintln!(

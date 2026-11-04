@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as Json};
 
 use crate::cargo_target::{
-    self, age, candidate_row, guard, int, policy_row, to_gib, walk_tree, CargoTargetConfig,
-    Candidate, Mode, Policy, ProcessTable, ProcessUse, ProcessView, Report, Verdict,
+    self, age, candidate_row, guard, int, policy_row, to_gib, walk_tree, Candidate,
+    CargoTargetConfig, Mode, Policy, ProcessTable, ProcessUse, ProcessView, Report, Verdict,
     DEFAULT_ACTIVE_MINUTES, DEFAULT_MAX_IDLE_DAYS, POLICY_SOURCE,
 };
 
@@ -104,7 +104,9 @@ impl NotCache {
     #[must_use]
     pub const fn reason(self) -> &'static str {
         match self {
-            Self::Malformed => "entry does not match {name, path, budget_gib, max_idle_days, enable, owners}",
+            Self::Malformed => {
+                "entry does not match {name, path, budget_gib, max_idle_days, enable, owners}"
+            }
             Self::EmptyName => "name is empty",
             Self::DuplicateName => "another entry already has this name",
             Self::NotAbsolute => "path is not absolute after expanding ~",
@@ -174,7 +176,9 @@ impl CacheDir {
         if canon == root {
             return Err(NotCache::IsHome);
         }
-        let inside = canon.strip_prefix(root).map_err(|_| NotCache::OutsideAllowed)?;
+        let inside = canon
+            .strip_prefix(root)
+            .map_err(|_| NotCache::OutsideAllowed)?;
         let user_data = USER_DATA_TREES.iter().any(|d| inside.starts_with(d))
             || AGGREGATE_ROOTS.iter().any(|d| inside == Path::new(d));
         if user_data {
@@ -364,7 +368,11 @@ pub struct DiskReading {
 }
 
 #[must_use]
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
 pub fn read_at(path: &Path, inflight: u32) -> DiskReading {
     let reader = crate::pressure::SystemPressureReader {
         path: path.to_path_buf(),
@@ -888,7 +896,9 @@ pub fn cycle(
             .map(|e| e.bytes)
             .sum();
         let free = reading.free_bytes.saturating_add(cargo_frees);
-        report.disk = Some(sweep_caches(disk, reading, free, mode, now, procs, allowed)?);
+        report.disk = Some(sweep_caches(
+            disk, reading, free, mode, now, procs, allowed,
+        )?);
     }
     Ok(report)
 }
@@ -901,13 +911,18 @@ pub fn freed_bytes(report: &Report) -> u64 {
         .filter(|e| e.removed == Some(true))
         .map(|e| e.bytes)
         .sum();
-    let caches: u64 = report.disk.iter().flat_map(|d| d.caches.iter()).map(|c| {
-        c.removing
-            .iter()
-            .filter(|r| r.removed == Some(true))
-            .map(|r| r.bytes)
-            .sum::<u64>()
-    }).sum();
+    let caches: u64 = report
+        .disk
+        .iter()
+        .flat_map(|d| d.caches.iter())
+        .map(|c| {
+            c.removing
+                .iter()
+                .filter(|r| r.removed == Some(true))
+                .map(|r| r.bytes)
+                .sum::<u64>()
+        })
+        .sum();
     cargo + caches
 }
 
@@ -1385,7 +1400,10 @@ mod tests {
             &allowed,
         )
         .unwrap();
-        assert_eq!(r.caches[0].children, 1, "a symlink child is not a candidate");
+        assert_eq!(
+            r.caches[0].children, 1,
+            "a symlink child is not a candidate"
+        );
         assert!(!nested.exists());
         assert!(kept.exists(), "the referent survives");
         assert!(dir.join("a-child-link").symlink_metadata().is_ok());
@@ -1438,7 +1456,10 @@ mod tests {
         let child = root.children().unwrap().pop().unwrap();
 
         std::fs::create_dir_all(tree.join("late/.git")).unwrap();
-        assert!(matches!(remove_child(&child), Err(CacheRemoveError::HasGit)));
+        assert!(matches!(
+            remove_child(&child),
+            Err(CacheRemoveError::HasGit)
+        ));
         assert!(inside.exists());
         std::fs::remove_dir_all(tree.join("late")).unwrap();
 
@@ -1454,7 +1475,10 @@ mod tests {
         let precious = home.join("precious");
         let kept = file(&precious, "f", 90);
         std::os::unix::fs::symlink(&precious, &tree).unwrap();
-        assert!(matches!(remove_child(&child), Err(CacheRemoveError::Symlink)));
+        assert!(matches!(
+            remove_child(&child),
+            Err(CacheRemoveError::Symlink)
+        ));
         assert!(kept.exists());
     }
 
@@ -1552,7 +1576,13 @@ mod tests {
         assert!(target.exists(), "goal met: the ordinary budget holds");
         assert!(!r.pressured);
 
-        let r = cycle_of(&cargo_recent(), &disk(50, vec![]), &repo, &below(), &allowed);
+        let r = cycle_of(
+            &cargo_recent(),
+            &disk(50, vec![]),
+            &repo,
+            &below(),
+            &allowed,
+        );
         assert!(!target.exists(), "below the goal: the tighter budget");
         assert!(r.pressured);
         assert_eq!(r.disk.unwrap().state, GoalState::Below);
@@ -1621,9 +1651,8 @@ mod tests {
         let cargo = CargoTargetConfig::default();
         let on = disk(50, vec![]);
         let off = DiskConfig::default();
-        let kind = |d: &DiskConfig, r: &DiskReading, l| {
-            trigger(&cargo, d, r, l).unwrap().map(|t| t.kind)
-        };
+        let kind =
+            |d: &DiskConfig, r: &DiskReading, l| trigger(&cargo, d, r, l).unwrap().map(|t| t.kind);
         assert_eq!(kind(&off, &below(), None), None);
         assert_eq!(kind(&on, &met(), None), None);
         assert_eq!(kind(&on, &below(), None), Some(TriggerKind::Goal));

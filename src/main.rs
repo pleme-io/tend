@@ -11,25 +11,25 @@ mod blue_config;
 mod blue_policy;
 mod cache;
 mod cargo_target;
-mod disk;
 mod ci_trim;
 mod conditions;
 mod config;
 mod config_layers;
 mod daemon;
+mod disk;
+mod display;
 mod flags;
 mod gh_auth;
-mod schema;
-mod display;
+mod heartbeat;
 mod hook;
 mod kanshou_state;
 mod mcp;
 mod pressure;
 mod push_ahead;
 mod scan;
-mod wip;
+mod schema;
 mod sprawl;
-mod heartbeat;
+mod wip;
 mod worktree;
 mod xdg;
 // Typed failure classification for a reconcile cycle. See src/failure.rs --
@@ -62,6 +62,7 @@ mod release_swarm_http;
 mod remote_url;
 mod report;
 mod secret;
+mod sweep_record;
 mod sync;
 mod watch;
 mod watch_cache;
@@ -91,7 +92,10 @@ struct Cli {
     config: shikumi::cli::ConfigArgs,
 
     /// `--github-token-file`, `--github-app-*`: partials over `github_auth`.
-    #[command(flatten, next_help_heading = "GitHub credential (replaces `github_auth`)")]
+    #[command(
+        flatten,
+        next_help_heading = "GitHub credential (replaces `github_auth`)"
+    )]
     github: flags::GithubFlags,
 
     #[command(subcommand)]
@@ -164,7 +168,10 @@ enum Commands {
         repo: Option<String>,
         #[arg(long, help = "Only this verdict")]
         verdict: Option<String>,
-        #[arg(long, help = "At most this many items (30 by default; --json lists all)")]
+        #[arg(
+            long,
+            help = "At most this many items (30 by default; --json lists all)"
+        )]
         limit: Option<usize>,
     },
 
@@ -769,6 +776,13 @@ async fn main() -> Result<()> {
                 Some(n) if n == max_inflight => println!("verdict       proceed at {n}"),
                 Some(n) => println!("verdict       throttle to {n} — {}", verdict.why()),
                 None => println!("verdict       run nothing — {}", verdict.why()),
+            }
+            println!(
+                "{}",
+                sweep_record::line(sweep_record::read(&sweep_record::path()).as_ref())
+            );
+            if let Err(why) = sweep_record::policy_probe() {
+                println!("policy        REFUSED in this binary: {why}");
             }
         }
 
@@ -2314,7 +2328,10 @@ async fn main() -> Result<()> {
         }
 
         Commands::ConfigSchema => {
-            println!("{}", serde_json::to_string_pretty(&schema::config_schema())?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&schema::config_schema())?
+            );
         }
     }
 
