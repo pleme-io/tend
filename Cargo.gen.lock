@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "4682d3b5cabda1158610176c9eae5aeef5339d46803809b7023802dc2c608488",
+  "cargo_lock_sha256": "074713b0ad2dfe46d91fda490d70571f0449f7e1cfc0753c1b5c583bdb011c58",
   "manifest_sha256": {
-    "Cargo.toml": "d7869c78fbac27fee56729f2b7cfc51946097e12a675ca5b7dfa4b0e8e68e612"
+    "Cargo.toml": "178ff9d4b22b28c930be91c3078cecd31275ba791cd83d3bf0c1666b8e9bdb24"
   },
   "target_resolves": {
     "base": {
@@ -263,6 +263,25 @@
           "std"
         ]
       },
+      "ar_archive_writer-0.5.3": {
+        "runtime_dependencies": [
+          {
+            "name": "object",
+            "package_key": "object-0.39.1",
+            "kind": "normal",
+            "features": [
+              "read",
+              "std"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": []
+      },
       "arc-swap-1.9.3": {
         "runtime_dependencies": [
           {
@@ -340,11 +359,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "async-compression-0.4.51": {
+      "async-compression-0.4.52": {
         "runtime_dependencies": [
           {
             "name": "compression_codecs",
-            "package_key": "compression-codecs-0.4.46",
+            "package_key": "compression-codecs-0.4.47",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -890,7 +909,7 @@
         "build_dependencies": [
           {
             "name": "cc",
-            "package_key": "cc-1.10.0",
+            "package_key": "cc-1.11.0",
             "kind": "build",
             "features": [
               "parallel"
@@ -1033,11 +1052,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-bidama-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+      "blue-lang-bidama-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-waku-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1049,11 +1068,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-check-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+      "blue-lang-check-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-syntax-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1063,7 +1082,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.11",
+            "package_key": "tatara-lisp-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1075,11 +1094,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-fmt-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+      "blue-lang-fmt-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-syntax-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1089,7 +1108,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.11",
+            "package_key": "tatara-lisp-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1111,11 +1130,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-host-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+      "blue-lang-host-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_host_macros",
-            "package_key": "blue-lang-host-macros-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-host-macros-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1125,7 +1144,7 @@
           },
           {
             "name": "blue_lang_pkg",
-            "package_key": "blue-lang-pkg-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-pkg-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1135,7 +1154,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-runtime-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1145,7 +1164,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-waku-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1155,7 +1174,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.11",
+            "package_key": "tatara-lisp-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1165,7 +1184,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.11",
+            "package_key": "tatara-lisp-eval-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1190,7 +1209,7 @@
           "packages"
         ]
       },
-      "blue-lang-host-macros-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+      "blue-lang-host-macros-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -1228,7 +1247,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-mondou-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+      "blue-lang-mondou-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -1245,7 +1264,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-check-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1255,7 +1274,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-fmt-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1265,7 +1284,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-runtime-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1275,7 +1294,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-syntax-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1285,7 +1304,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-waku-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1305,7 +1324,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.11",
+            "package_key": "tatara-lisp-eval-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1317,11 +1336,24 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-pkg-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+      "blue-lang-pkg-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
         "runtime_dependencies": [
           {
+            "name": "blake3",
+            "package_key": "blake3-1.8.7",
+            "kind": "normal",
+            "features": [
+              "pure",
+              "std"
+            ],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "blue_lang_bidama",
-            "package_key": "blue-lang-bidama-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-bidama-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1331,7 +1363,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-check-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1341,7 +1373,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-fmt-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1351,7 +1383,17 @@
           },
           {
             "name": "blue_lang_mondou",
-            "package_key": "blue-lang-mondou-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-mondou-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "blue_lang_proc",
+            "package_key": "blue-lang-proc-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1361,7 +1403,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-runtime-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1371,7 +1413,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-syntax-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1381,7 +1423,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-waku-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1413,7 +1455,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.11",
+            "package_key": "tatara-lisp-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1423,7 +1465,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.11",
+            "package_key": "tatara-lisp-eval-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1447,53 +1489,7 @@
           "embedded"
         ]
       },
-      "blue-lang-proc-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
-        "runtime_dependencies": [
-          {
-            "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "serde_json",
-            "package_key": "serde_json-1.0.154",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.11",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.11",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
-      },
-      "blue-lang-runtime-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+      "blue-lang-runtime-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -1510,7 +1506,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-check-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1520,7 +1516,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-fmt-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1530,7 +1526,7 @@
           },
           {
             "name": "blue_lang_proc",
-            "package_key": "blue-lang-proc-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-proc-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1540,7 +1536,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-syntax-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1550,7 +1546,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-waku-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1648,7 +1644,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.11",
+            "package_key": "tatara-lisp-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1658,7 +1654,7 @@
           },
           {
             "name": "tatara_lisp_eval",
-            "package_key": "tatara-lisp-eval-0.4.11",
+            "package_key": "tatara-lisp-eval-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1680,11 +1676,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-syntax-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+      "blue-lang-syntax-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
         "runtime_dependencies": [
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.11",
+            "package_key": "tatara-lisp-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1696,11 +1692,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-waku-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+      "blue-lang-waku-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-syntax-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1709,8 +1705,20 @@
             "tree": "target"
           },
           {
+            "name": "serde",
+            "package_key": "serde-1.0.229",
+            "kind": "normal",
+            "features": [
+              "derive"
+            ],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.11",
+            "package_key": "tatara-lisp-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1818,7 +1826,7 @@
           "std"
         ]
       },
-      "cc-1.10.0": {
+      "cc-1.11.0": {
         "runtime_dependencies": [
           {
             "name": "find_msvc_tools",
@@ -2075,7 +2083,7 @@
         "runtime_dependencies": [
           {
             "name": "cc",
-            "package_key": "cc-1.10.0",
+            "package_key": "cc-1.11.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -2108,7 +2116,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "compression-codecs-0.4.46": {
+      "compression-codecs-0.4.47": {
         "runtime_dependencies": [
           {
             "name": "brotli",
@@ -2257,7 +2265,7 @@
           },
           {
             "name": "log",
-            "package_key": "log-0.4.34",
+            "package_key": "log-0.4.35",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -2339,7 +2347,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "crc32fast-1.5.3": {
+      "crc32fast-1.5.4": {
         "runtime_dependencies": [
           {
             "name": "cfg_if",
@@ -3096,7 +3104,7 @@
         "runtime_dependencies": [
           {
             "name": "encoding_rs",
-            "package_key": "encoding_rs-0.8.42",
+            "package_key": "encoding_rs-0.8.44",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3350,7 +3358,7 @@
         "runtime_dependencies": [
           {
             "name": "crc32fast",
-            "package_key": "crc32fast-1.5.3",
+            "package_key": "crc32fast-1.5.4",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -4828,7 +4836,7 @@
           },
           {
             "name": "log",
-            "package_key": "log-0.4.34",
+            "package_key": "log-0.4.35",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -4996,7 +5004,7 @@
           },
           {
             "name": "utf8_iter",
-            "package_key": "utf8_iter-1.0.4",
+            "package_key": "utf8_iter-1.1.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -5372,7 +5380,7 @@
           },
           {
             "name": "utf8_iter",
-            "package_key": "utf8_iter-1.0.4",
+            "package_key": "utf8_iter-1.1.0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5572,11 +5580,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "jiff-0.2.38": {
+      "jiff-0.2.39": {
         "runtime_dependencies": [
           {
             "name": "jcore",
-            "package_key": "jiff-core-0.1.1",
+            "package_key": "jiff-core-0.1.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -5602,7 +5610,7 @@
           "std"
         ]
       },
-      "jiff-core-0.1.1": {
+      "jiff-core-0.1.2": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": [
@@ -5887,7 +5895,7 @@
           },
           {
             "name": "jiff",
-            "package_key": "jiff-0.2.38",
+            "package_key": "jiff-0.2.39",
             "kind": "normal",
             "features": [
               "alloc",
@@ -5928,11 +5936,11 @@
           "v1_35"
         ]
       },
-      "kanshou-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688": {
+      "kanshou-0.1.11-42d3c5c820f7fc3621e980d683986a4ac9945aba": {
         "runtime_dependencies": [
           {
             "name": "kanshou_derive",
-            "package_key": "kanshou-derive-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688",
+            "package_key": "kanshou-derive-0.1.11-42d3c5c820f7fc3621e980d683986a4ac9945aba",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -6016,7 +6024,7 @@
           "derive"
         ]
       },
-      "kanshou-derive-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688": {
+      "kanshou-derive-0.1.11-42d3c5c820f7fc3621e980d683986a4ac9945aba": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -6250,7 +6258,7 @@
           },
           {
             "name": "jiff",
-            "package_key": "jiff-0.2.38",
+            "package_key": "jiff-0.2.39",
             "kind": "normal",
             "features": [
               "serde",
@@ -6510,7 +6518,7 @@
           },
           {
             "name": "jiff",
-            "package_key": "jiff-0.2.38",
+            "package_key": "jiff-0.2.39",
             "kind": "normal",
             "features": [
               "std"
@@ -6924,7 +6932,7 @@
           "default"
         ]
       },
-      "log-0.4.34": {
+      "log-0.4.35": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": [
@@ -7071,7 +7079,7 @@
           },
           {
             "name": "log",
-            "package_key": "log-0.4.34",
+            "package_key": "log-0.4.35",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7089,7 +7097,7 @@
           "os-poll"
         ]
       },
-      "monosashi-0.4.11": {
+      "monosashi-0.4.13": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
@@ -7135,7 +7143,7 @@
           },
           {
             "name": "log",
-            "package_key": "log-0.4.34",
+            "package_key": "log-0.4.35",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7290,6 +7298,32 @@
           "std"
         ]
       },
+      "object-0.39.1": {
+        "runtime_dependencies": [
+          {
+            "name": "memchr",
+            "package_key": "memchr-2.8.3",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": false,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
+        "build_dependencies": [],
+        "features": [
+          "archive",
+          "coff",
+          "elf",
+          "macho",
+          "pe",
+          "read",
+          "read_core",
+          "std",
+          "xcoff"
+        ]
+      },
       "object-0.40.0": {
         "runtime_dependencies": [
           {
@@ -7358,7 +7392,7 @@
           "std"
         ]
       },
-      "opencode-zen-0.1.3-fba032bcc1e72646c93fdf0ce2e5c622eefdbe86": {
+      "opencode-zen-0.1.3-dd3d21d237bebc6c92e7f52285a60ba444710a91": {
         "runtime_dependencies": [
           {
             "name": "reqwest",
@@ -7672,7 +7706,7 @@
           },
           {
             "name": "pest_stack_guard",
-            "package_key": "pest_stack_guard-1.0.0",
+            "package_key": "pest_stack_guard-1.0.1",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7935,7 +7969,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "pleme-tend-0.3.34": {
+      "pleme-tend-0.3.35": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -7979,7 +8013,7 @@
           },
           {
             "name": "blue_lang_host",
-            "package_key": "blue-lang-host-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-host-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7989,7 +8023,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016",
+            "package_key": "blue-lang-runtime-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8130,7 +8164,7 @@
           },
           {
             "name": "kanshou",
-            "package_key": "kanshou-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688",
+            "package_key": "kanshou-0.1.11-42d3c5c820f7fc3621e980d683986a4ac9945aba",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8184,7 +8218,7 @@
           },
           {
             "name": "opencode_zen",
-            "package_key": "opencode-zen-0.1.3-fba032bcc1e72646c93fdf0ce2e5c622eefdbe86",
+            "package_key": "opencode-zen-0.1.3-dd3d21d237bebc6c92e7f52285a60ba444710a91",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8290,7 +8324,7 @@
           },
           {
             "name": "samba",
-            "package_key": "samba-0.1.5-0639394aa4a356a168975814333a715bfefbb9fd",
+            "package_key": "samba-0.1.5-a8de3c7577a44168993ca69387f04869c7c007f5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8354,7 +8388,7 @@
           },
           {
             "name": "shigoto_budget",
-            "package_key": "shigoto-budget-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-budget-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8364,7 +8398,7 @@
           },
           {
             "name": "shigoto_dag",
-            "package_key": "shigoto-dag-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-dag-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8374,7 +8408,7 @@
           },
           {
             "name": "shigoto_emit",
-            "package_key": "shigoto-emit-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-emit-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8384,7 +8418,7 @@
           },
           {
             "name": "shigoto_gate",
-            "package_key": "shigoto-gate-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-gate-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8394,7 +8428,7 @@
           },
           {
             "name": "shigoto_retry",
-            "package_key": "shigoto-retry-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-retry-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8404,7 +8438,7 @@
           },
           {
             "name": "shigoto_scheduler",
-            "package_key": "shigoto-scheduler-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-scheduler-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8414,7 +8448,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-types-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8459,7 +8493,7 @@
           },
           {
             "name": "todoku",
-            "package_key": "todoku-0.1.11-4082452328f309a53c213527fe540c7171a18586",
+            "package_key": "todoku-0.1.11-cc03eb5301d3b5c1d95bd6ded07263569498c740",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8523,7 +8557,7 @@
           },
           {
             "name": "tsunagu",
-            "package_key": "tsunagu-0.1.11-f99b0498b573183f4794197a74625ed85d7f9244",
+            "package_key": "tsunagu-0.1.11-ef92a013d8f7bba902b41a12f0e1b1f8f6efef8a",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8821,12 +8855,22 @@
         "build_dependencies": [],
         "features": []
       },
-      "psm-0.1.24": {
+      "psm-0.1.32": {
         "runtime_dependencies": [],
         "build_dependencies": [
           {
+            "name": "ar_archive_writer",
+            "package_key": "ar_archive_writer-0.5.3",
+            "kind": "build",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "host"
+          },
+          {
             "name": "cc",
-            "package_key": "cc-1.10.0",
+            "package_key": "cc-1.11.0",
             "kind": "build",
             "features": [],
             "uses_default_features": true,
@@ -9722,7 +9766,7 @@
           },
           {
             "name": "encoding_rs",
-            "package_key": "encoding_rs-0.8.42",
+            "package_key": "encoding_rs-0.8.44",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -9844,7 +9888,7 @@
           },
           {
             "name": "log",
-            "package_key": "log-0.4.34",
+            "package_key": "log-0.4.35",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10485,7 +10529,7 @@
         "runtime_dependencies": [
           {
             "name": "log",
-            "package_key": "log-0.4.34",
+            "package_key": "log-0.4.35",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10683,7 +10727,7 @@
           "default"
         ]
       },
-      "samba-0.1.5-0639394aa4a356a168975814333a715bfefbb9fd": {
+      "samba-0.1.5-a8de3c7577a44168993ca69387f04869c7c007f5": {
         "runtime_dependencies": [
           {
             "name": "async_nats",
@@ -11830,7 +11874,7 @@
           "tilde"
         ]
       },
-      "shigoto-budget-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
+      "shigoto-budget-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": {
         "runtime_dependencies": [
           {
             "name": "serde",
@@ -11846,7 +11890,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-types-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11868,7 +11912,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-dag-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
+      "shigoto-dag-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": {
         "runtime_dependencies": [
           {
             "name": "petgraph",
@@ -11894,7 +11938,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-types-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11916,7 +11960,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-emit-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
+      "shigoto-emit-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": {
         "runtime_dependencies": [
           {
             "name": "async_trait",
@@ -11952,7 +11996,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-types-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11974,11 +12018,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-gate-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
+      "shigoto-gate-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": {
         "runtime_dependencies": [
           {
             "name": "shigoto_dag",
-            "package_key": "shigoto-dag-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-dag-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11988,7 +12032,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-types-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12000,7 +12044,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-retry-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
+      "shigoto-retry-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": {
         "runtime_dependencies": [
           {
             "name": "serde",
@@ -12016,7 +12060,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-types-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12028,7 +12072,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-scheduler-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
+      "shigoto-scheduler-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -12086,7 +12130,7 @@
           },
           {
             "name": "shigoto_budget",
-            "package_key": "shigoto-budget-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-budget-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12096,7 +12140,7 @@
           },
           {
             "name": "shigoto_dag",
-            "package_key": "shigoto-dag-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-dag-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12106,7 +12150,7 @@
           },
           {
             "name": "shigoto_emit",
-            "package_key": "shigoto-emit-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-emit-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12116,7 +12160,7 @@
           },
           {
             "name": "shigoto_gate",
-            "package_key": "shigoto-gate-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-gate-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12126,7 +12170,7 @@
           },
           {
             "name": "shigoto_retry",
-            "package_key": "shigoto-retry-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-retry-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12136,7 +12180,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5",
+            "package_key": "shigoto-types-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12183,7 +12227,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
+      "shigoto-types-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": {
         "runtime_dependencies": [
           {
             "name": "async_trait",
@@ -12745,7 +12789,7 @@
           },
           {
             "name": "psm",
-            "package_key": "psm-0.1.24",
+            "package_key": "psm-0.1.32",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12757,7 +12801,7 @@
         "build_dependencies": [
           {
             "name": "cc",
-            "package_key": "cc-1.10.0",
+            "package_key": "cc-1.11.0",
             "kind": "build",
             "features": [],
             "uses_default_features": true,
@@ -12943,11 +12987,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "tatara-closed-set-0.4.11": {
+      "tatara-closed-set-0.4.13": {
         "runtime_dependencies": [
           {
             "name": "tatara_closed_set_derive",
-            "package_key": "tatara-closed-set-derive-0.4.11",
+            "package_key": "tatara-closed-set-derive-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12959,7 +13003,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "tatara-closed-set-derive-0.4.11": {
+      "tatara-closed-set-derive-0.4.13": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -12997,7 +13041,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "tatara-lisp-0.4.11": {
+      "tatara-lisp-0.4.13": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -13033,7 +13077,7 @@
           },
           {
             "name": "tatara_closed_set",
-            "package_key": "tatara-closed-set-0.4.11",
+            "package_key": "tatara-closed-set-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -13043,7 +13087,7 @@
           },
           {
             "name": "tatara_lisp_derive",
-            "package_key": "tatara-lisp-derive-0.4.11",
+            "package_key": "tatara-lisp-derive-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -13067,7 +13111,7 @@
           "default"
         ]
       },
-      "tatara-lisp-derive-0.4.11": {
+      "tatara-lisp-derive-0.4.13": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -13105,8 +13149,18 @@
         "build_dependencies": [],
         "features": []
       },
-      "tatara-lisp-eval-0.4.11": {
+      "tatara-lisp-eval-0.4.13": {
         "runtime_dependencies": [
+          {
+            "name": "blake3",
+            "package_key": "blake3-1.8.7",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
           {
             "name": "imbl",
             "package_key": "imbl-7.0.2",
@@ -13119,9 +13173,21 @@
           },
           {
             "name": "monosashi",
-            "package_key": "monosashi-0.4.11",
+            "package_key": "monosashi-0.4.13",
             "kind": "normal",
             "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          },
+          {
+            "name": "serde",
+            "package_key": "serde-1.0.229",
+            "kind": "normal",
+            "features": [
+              "derive"
+            ],
             "uses_default_features": true,
             "optional": false,
             "target": null,
@@ -13139,7 +13205,7 @@
           },
           {
             "name": "tatara_closed_set",
-            "package_key": "tatara-closed-set-0.4.11",
+            "package_key": "tatara-closed-set-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -13149,7 +13215,7 @@
           },
           {
             "name": "tatara_lisp",
-            "package_key": "tatara-lisp-0.4.11",
+            "package_key": "tatara-lisp-0.4.13",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -13498,7 +13564,7 @@
           "default"
         ]
       },
-      "todoku-0.1.11-4082452328f309a53c213527fe540c7171a18586": {
+      "todoku-0.1.11-cc03eb5301d3b5c1d95bd6ded07263569498c740": {
         "runtime_dependencies": [
           {
             "name": "async_trait",
@@ -14375,7 +14441,7 @@
         "runtime_dependencies": [
           {
             "name": "async_compression",
-            "package_key": "async-compression-0.4.51",
+            "package_key": "async-compression-0.4.52",
             "kind": "normal",
             "features": [
               "tokio"
@@ -14592,7 +14658,7 @@
         "runtime_dependencies": [
           {
             "name": "log",
-            "package_key": "log-0.4.34",
+            "package_key": "log-0.4.35",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -14708,7 +14774,7 @@
         "runtime_dependencies": [
           {
             "name": "log",
-            "package_key": "log-0.4.34",
+            "package_key": "log-0.4.35",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -14967,7 +15033,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "tsunagu-0.1.11-f99b0498b573183f4794197a74625ed85d7f9244": {
+      "tsunagu-0.1.11-ef92a013d8f7bba902b41a12f0e1b1f8f6efef8a": {
         "runtime_dependencies": [
           {
             "name": "dirs",
@@ -15189,8 +15255,19 @@
           "std"
         ]
       },
-      "utf8_iter-1.0.4": {
-        "runtime_dependencies": [],
+      "utf8_iter-1.1.0": {
+        "runtime_dependencies": [
+          {
+            "name": "utf_types",
+            "package_key": "utf_types-1.0.0",
+            "kind": "normal",
+            "features": [],
+            "uses_default_features": true,
+            "optional": false,
+            "target": null,
+            "tree": "target"
+          }
+        ],
         "build_dependencies": [],
         "features": []
       },
@@ -15200,6 +15277,11 @@
         "features": [
           "default"
         ]
+      },
+      "utf_types-1.0.0": {
+        "runtime_dependencies": [],
+        "build_dependencies": [],
+        "features": []
       },
       "uuid-1.29.0": {
         "runtime_dependencies": [
@@ -15748,7 +15830,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -15762,6 +15844,75 @@
               "pure",
               "std"
             ]
+          },
+          "blue-lang-proc-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
+            "runtime_dependencies": [
+              {
+                "name": "blake3",
+                "package_key": "blake3-1.8.7",
+                "kind": "normal",
+                "features": [
+                  "pure",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(target_vendor = \"apple\")",
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.154",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
@@ -15965,7 +16116,7 @@
               "zeroize"
             ]
           },
-          "encoding_rs-0.8.42": {
+          "encoding_rs-0.8.44": {
             "runtime_dependencies": [
               {
                 "name": "cfg_if",
@@ -16260,7 +16411,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16432,11 +16583,11 @@
               "std"
             ]
           },
-          "pest_stack_guard-1.0.0": {
+          "pest_stack_guard-1.0.1": {
             "runtime_dependencies": [
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16446,7 +16597,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16456,7 +16607,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16466,7 +16617,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16476,7 +16627,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16486,7 +16637,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16614,7 +16765,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": false,
@@ -16771,7 +16922,9 @@
               "alloc",
               "default",
               "fs",
-              "std"
+              "process",
+              "std",
+              "thread"
             ]
           },
           "rustls-native-certs-0.8.5": {
@@ -16826,7 +16979,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17115,7 +17268,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -17129,6 +17282,79 @@
               "pure",
               "std"
             ]
+          },
+          "blue-lang-proc-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
+            "runtime_dependencies": [
+              {
+                "name": "blake3",
+                "package_key": "blake3-1.8.7",
+                "kind": "normal",
+                "features": [
+                  "pure",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.6",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std",
+                  "thread"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(any(target_os = \"linux\", target_os = \"android\"))",
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.154",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
@@ -17266,7 +17492,7 @@
               "zeroize"
             ]
           },
-          "encoding_rs-0.8.42": {
+          "encoding_rs-0.8.44": {
             "runtime_dependencies": [
               {
                 "name": "cfg_if",
@@ -17577,7 +17803,8 @@
               "errno",
               "general",
               "ioctl",
-              "no_std"
+              "no_std",
+              "prctl"
             ]
           },
           "linux-raw-sys-0.4.15": {
@@ -17616,7 +17843,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17683,11 +17910,11 @@
             "build_dependencies": [],
             "features": []
           },
-          "pest_stack_guard-1.0.0": {
+          "pest_stack_guard-1.0.1": {
             "runtime_dependencies": [
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17697,7 +17924,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17707,7 +17934,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17717,7 +17944,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17727,7 +17954,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17737,7 +17964,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17865,7 +18092,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": false,
@@ -18083,7 +18310,9 @@
               "alloc",
               "default",
               "fs",
-              "std"
+              "process",
+              "std",
+              "thread"
             ]
           },
           "rustls-native-certs-0.8.5": {
@@ -18118,7 +18347,7 @@
             "runtime_dependencies": [
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18250,7 +18479,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -18264,6 +18493,79 @@
               "pure",
               "std"
             ]
+          },
+          "blue-lang-proc-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
+            "runtime_dependencies": [
+              {
+                "name": "blake3",
+                "package_key": "blake3-1.8.7",
+                "kind": "normal",
+                "features": [
+                  "pure",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.6",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std",
+                  "thread"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(any(target_os = \"linux\", target_os = \"android\"))",
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.154",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
@@ -18401,7 +18703,7 @@
               "zeroize"
             ]
           },
-          "encoding_rs-0.8.42": {
+          "encoding_rs-0.8.44": {
             "runtime_dependencies": [
               {
                 "name": "cfg_if",
@@ -18712,7 +19014,8 @@
               "errno",
               "general",
               "ioctl",
-              "no_std"
+              "no_std",
+              "prctl"
             ]
           },
           "linux-raw-sys-0.4.15": {
@@ -18751,7 +19054,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18818,7 +19121,7 @@
             "build_dependencies": [],
             "features": []
           },
-          "pest_stack_guard-1.0.0": {
+          "pest_stack_guard-1.0.1": {
             "runtime_dependencies": [],
             "build_dependencies": [],
             "features": []
@@ -18879,7 +19182,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": false,
@@ -19097,7 +19400,9 @@
               "alloc",
               "default",
               "fs",
-              "std"
+              "process",
+              "std",
+              "thread"
             ]
           },
           "rustls-native-certs-0.8.5": {
@@ -19132,7 +19437,7 @@
             "runtime_dependencies": [
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -19274,7 +19579,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -19288,6 +19593,75 @@
               "pure",
               "std"
             ]
+          },
+          "blue-lang-proc-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
+            "runtime_dependencies": [
+              {
+                "name": "blake3",
+                "package_key": "blake3-1.8.7",
+                "kind": "normal",
+                "features": [
+                  "pure",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.191",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(target_vendor = \"apple\")",
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.154",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
@@ -19530,7 +19904,7 @@
             "build_dependencies": [],
             "features": []
           },
-          "encoding_rs-0.8.42": {
+          "encoding_rs-0.8.44": {
             "runtime_dependencies": [
               {
                 "name": "cfg_if",
@@ -19835,7 +20209,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -20007,11 +20381,11 @@
               "std"
             ]
           },
-          "pest_stack_guard-1.0.0": {
+          "pest_stack_guard-1.0.1": {
             "runtime_dependencies": [
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -20021,7 +20395,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -20031,7 +20405,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -20041,7 +20415,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -20051,7 +20425,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -20061,7 +20435,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -20169,7 +20543,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": false,
@@ -20326,7 +20700,9 @@
               "alloc",
               "default",
               "fs",
-              "std"
+              "process",
+              "std",
+              "thread"
             ]
           },
           "rustls-native-certs-0.8.5": {
@@ -20381,7 +20757,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -20680,7 +21056,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -20694,6 +21070,79 @@
               "pure",
               "std"
             ]
+          },
+          "blue-lang-proc-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
+            "runtime_dependencies": [
+              {
+                "name": "blake3",
+                "package_key": "blake3-1.8.7",
+                "kind": "normal",
+                "features": [
+                  "pure",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.6",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std",
+                  "thread"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(any(target_os = \"linux\", target_os = \"android\"))",
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.154",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
@@ -20870,7 +21319,7 @@
             "build_dependencies": [],
             "features": []
           },
-          "encoding_rs-0.8.42": {
+          "encoding_rs-0.8.44": {
             "runtime_dependencies": [
               {
                 "name": "cfg_if",
@@ -21191,7 +21640,8 @@
               "errno",
               "general",
               "ioctl",
-              "no_std"
+              "no_std",
+              "prctl"
             ]
           },
           "linux-raw-sys-0.4.15": {
@@ -21230,7 +21680,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21297,11 +21747,11 @@
             "build_dependencies": [],
             "features": []
           },
-          "pest_stack_guard-1.0.0": {
+          "pest_stack_guard-1.0.1": {
             "runtime_dependencies": [
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21311,7 +21761,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21321,7 +21771,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21331,7 +21781,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21341,7 +21791,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21351,7 +21801,7 @@
               },
               {
                 "name": "psm",
-                "package_key": "psm-0.1.24",
+                "package_key": "psm-0.1.32",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21459,7 +21909,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": false,
@@ -21677,7 +22127,9 @@
               "alloc",
               "default",
               "fs",
-              "std"
+              "process",
+              "std",
+              "thread"
             ]
           },
           "rustls-native-certs-0.8.5": {
@@ -21712,7 +22164,7 @@
             "runtime_dependencies": [
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21854,7 +22306,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -21868,6 +22320,79 @@
               "pure",
               "std"
             ]
+          },
+          "blue-lang-proc-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
+            "runtime_dependencies": [
+              {
+                "name": "blake3",
+                "package_key": "blake3-1.8.7",
+                "kind": "normal",
+                "features": [
+                  "pure",
+                  "std"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "blue_lang_waku",
+                "package_key": "blue-lang-waku-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "rustix",
+                "package_key": "rustix-1.1.6",
+                "kind": "normal",
+                "features": [
+                  "process",
+                  "std",
+                  "thread"
+                ],
+                "uses_default_features": false,
+                "optional": false,
+                "target": "cfg(any(target_os = \"linux\", target_os = \"android\"))",
+                "tree": "target"
+              },
+              {
+                "name": "serde_json",
+                "package_key": "serde_json-1.0.154",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp",
+                "package_key": "tatara-lisp-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              },
+              {
+                "name": "tatara_lisp_eval",
+                "package_key": "tatara-lisp-eval-0.4.13",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": []
           },
           "chacha20-0.10.2": {
             "runtime_dependencies": [
@@ -22044,7 +22569,7 @@
             "build_dependencies": [],
             "features": []
           },
-          "encoding_rs-0.8.42": {
+          "encoding_rs-0.8.44": {
             "runtime_dependencies": [
               {
                 "name": "cfg_if",
@@ -22365,7 +22890,8 @@
               "errno",
               "general",
               "ioctl",
-              "no_std"
+              "no_std",
+              "prctl"
             ]
           },
           "linux-raw-sys-0.4.15": {
@@ -22404,7 +22930,7 @@
               },
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -22471,7 +22997,7 @@
             "build_dependencies": [],
             "features": []
           },
-          "pest_stack_guard-1.0.0": {
+          "pest_stack_guard-1.0.1": {
             "runtime_dependencies": [],
             "build_dependencies": [],
             "features": []
@@ -22512,7 +23038,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.10.0",
+                "package_key": "cc-1.11.0",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": false,
@@ -22730,7 +23256,9 @@
               "alloc",
               "default",
               "fs",
-              "std"
+              "process",
+              "std",
+              "thread"
             ]
           },
           "rustls-native-certs-0.8.5": {
@@ -22765,7 +23293,7 @@
             "runtime_dependencies": [
               {
                 "name": "log",
-                "package_key": "log-0.4.34",
+                "package_key": "log-0.4.35",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -22912,6 +23440,9 @@
       "edition": "2021",
       "build_script": "build.rs"
     },
+    "ar_archive_writer-0.5.3": {
+      "edition": "2024"
+    },
     "arc-swap-1.9.3": {
       "edition": "2018"
     },
@@ -22927,7 +23458,7 @@
     "async-broadcast-0.7.2": {
       "edition": "2021"
     },
-    "async-compression-0.4.51": {
+    "async-compression-0.4.52": {
       "edition": "2018"
     },
     "async-nats-0.50.0": {
@@ -22985,39 +23516,39 @@
     "block-buffer-0.10.4": {
       "edition": "2018"
     },
-    "blue-lang-bidama-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+    "blue-lang-bidama-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
       "edition": "2021"
     },
-    "blue-lang-check-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+    "blue-lang-check-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
       "edition": "2021"
     },
-    "blue-lang-fmt-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+    "blue-lang-fmt-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
       "edition": "2021"
     },
-    "blue-lang-host-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+    "blue-lang-host-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
       "edition": "2021"
     },
-    "blue-lang-host-macros-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+    "blue-lang-host-macros-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
       "edition": "2021",
       "proc_macro": true
     },
-    "blue-lang-mondou-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+    "blue-lang-mondou-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
       "edition": "2021"
     },
-    "blue-lang-pkg-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+    "blue-lang-pkg-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
       "edition": "2021",
       "build_script": "build.rs"
     },
-    "blue-lang-proc-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+    "blue-lang-proc-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
       "edition": "2021"
     },
-    "blue-lang-runtime-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+    "blue-lang-runtime-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
       "edition": "2021"
     },
-    "blue-lang-syntax-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+    "blue-lang-syntax-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
       "edition": "2021"
     },
-    "blue-lang-waku-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": {
+    "blue-lang-waku-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": {
       "edition": "2021"
     },
     "brotli-9.1.1": {
@@ -23048,7 +23579,7 @@
     "bytes-1.12.1": {
       "edition": "2021"
     },
-    "cc-1.10.0": {
+    "cc-1.11.0": {
       "edition": "2021"
     },
     "cfg-if-1.0.5": {
@@ -23091,7 +23622,7 @@
     "colored-2.2.0": {
       "edition": "2021"
     },
-    "compression-codecs-0.4.46": {
+    "compression-codecs-0.4.47": {
       "edition": "2018"
     },
     "compression-core-0.4.34": {
@@ -23131,7 +23662,7 @@
     "cpufeatures-0.3.1": {
       "edition": "2024"
     },
-    "crc32fast-1.5.3": {
+    "crc32fast-1.5.4": {
       "edition": "2021",
       "build_script": "build.rs"
     },
@@ -23228,7 +23759,7 @@
     "either-1.19.0": {
       "edition": "2021"
     },
-    "encoding_rs-0.8.42": {
+    "encoding_rs-0.8.44": {
       "edition": "2024",
       "build_script": "build.rs"
     },
@@ -23480,10 +24011,10 @@
     "itoa-1.0.18": {
       "edition": "2021"
     },
-    "jiff-0.2.38": {
+    "jiff-0.2.39": {
       "edition": "2021"
     },
-    "jiff-core-0.1.1": {
+    "jiff-core-0.1.2": {
       "edition": "2021"
     },
     "jobserver-0.1.35": {
@@ -23506,10 +24037,10 @@
       "build_script": "build.rs",
       "links": "k8s-openapi-0.28.0"
     },
-    "kanshou-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688": {
+    "kanshou-0.1.11-42d3c5c820f7fc3621e980d683986a4ac9945aba": {
       "edition": "2024"
     },
-    "kanshou-derive-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688": {
+    "kanshou-derive-0.1.11-42d3c5c820f7fc3621e980d683986a4ac9945aba": {
       "edition": "2024",
       "proc_macro": true
     },
@@ -23551,7 +24082,7 @@
     "lock_api-0.4.14": {
       "edition": "2021"
     },
-    "log-0.4.34": {
+    "log-0.4.35": {
       "edition": "2021"
     },
     "lru-slab-0.1.3": {
@@ -23586,7 +24117,7 @@
     "mio-1.2.4": {
       "edition": "2021"
     },
-    "monosashi-0.4.11": {
+    "monosashi-0.4.13": {
       "edition": "2021"
     },
     "multiversion_no_op-1.0.0": {
@@ -23639,6 +24170,10 @@
     "objc2-io-kit-0.3.2": {
       "edition": "2021"
     },
+    "object-0.39.1": {
+      "edition": "2018",
+      "build_script": "build.rs"
+    },
     "object-0.40.0": {
       "edition": "2024"
     },
@@ -23651,7 +24186,7 @@
     "once_cell-1.21.4": {
       "edition": "2021"
     },
-    "opencode-zen-0.1.3-fba032bcc1e72646c93fdf0ce2e5c622eefdbe86": {
+    "opencode-zen-0.1.3-dd3d21d237bebc6c92e7f52285a60ba444710a91": {
       "edition": "2021"
     },
     "openssl-probe-0.2.2": {
@@ -23706,7 +24241,7 @@
     "pest_meta-2.9.5": {
       "edition": "2021"
     },
-    "pest_stack_guard-1.0.0": {
+    "pest_stack_guard-1.0.1": {
       "edition": "2021",
       "build_script": "build.rs"
     },
@@ -23729,7 +24264,7 @@
     "pkg-config-0.3.34": {
       "edition": "2021"
     },
-    "pleme-tend-0.3.34": {
+    "pleme-tend-0.3.35": {
       "edition": "2021",
       "binaries": [
         {
@@ -23773,8 +24308,8 @@
     "psl-types-2.0.11": {
       "edition": "2018"
     },
-    "psm-0.1.24": {
-      "edition": "2015",
+    "psm-0.1.32": {
+      "edition": "2021",
       "build_script": "build.rs"
     },
     "publicsuffix-2.3.0": {
@@ -23924,7 +24459,7 @@
     "safe_arch-0.7.4": {
       "edition": "2018"
     },
-    "samba-0.1.5-0639394aa4a356a168975814333a715bfefbb9fd": {
+    "samba-0.1.5-a8de3c7577a44168993ca69387f04869c7c007f5": {
       "edition": "2024"
     },
     "same-file-1.0.6": {
@@ -24033,25 +24568,25 @@
     "shellexpand-3.1.2": {
       "edition": "2018"
     },
-    "shigoto-budget-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
+    "shigoto-budget-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": {
       "edition": "2024"
     },
-    "shigoto-dag-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
+    "shigoto-dag-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": {
       "edition": "2024"
     },
-    "shigoto-emit-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
+    "shigoto-emit-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": {
       "edition": "2024"
     },
-    "shigoto-gate-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
+    "shigoto-gate-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": {
       "edition": "2024"
     },
-    "shigoto-retry-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
+    "shigoto-retry-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": {
       "edition": "2024"
     },
-    "shigoto-scheduler-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
+    "shigoto-scheduler-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": {
       "edition": "2024"
     },
-    "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": {
+    "shigoto-types-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": {
       "edition": "2024"
     },
     "shikumi-0.1.1084": {
@@ -24128,21 +24663,21 @@
       "edition": "2021",
       "build_script": "build.rs"
     },
-    "tatara-closed-set-0.4.11": {
+    "tatara-closed-set-0.4.13": {
       "edition": "2021"
     },
-    "tatara-closed-set-derive-0.4.11": {
+    "tatara-closed-set-derive-0.4.13": {
       "edition": "2021",
       "proc_macro": true
     },
-    "tatara-lisp-0.4.11": {
+    "tatara-lisp-0.4.13": {
       "edition": "2021"
     },
-    "tatara-lisp-derive-0.4.11": {
+    "tatara-lisp-derive-0.4.13": {
       "edition": "2021",
       "proc_macro": true
     },
-    "tatara-lisp-eval-0.4.11": {
+    "tatara-lisp-eval-0.4.13": {
       "edition": "2021"
     },
     "tempfile-3.27.0": {
@@ -24186,7 +24721,7 @@
     "tinyvec-1.13.3": {
       "edition": "2018"
     },
-    "todoku-0.1.11-4082452328f309a53c213527fe540c7171a18586": {
+    "todoku-0.1.11-cc03eb5301d3b5c1d95bd6ded07263569498c740": {
       "edition": "2024",
       "binaries": [
         {
@@ -24263,7 +24798,7 @@
     "tryhard-0.5.2": {
       "edition": "2018"
     },
-    "tsunagu-0.1.11-f99b0498b573183f4794197a74625ed85d7f9244": {
+    "tsunagu-0.1.11-ef92a013d8f7bba902b41a12f0e1b1f8f6efef8a": {
       "edition": "2024"
     },
     "twox-hash-2.1.5": {
@@ -24327,11 +24862,14 @@
     "url-2.5.8": {
       "edition": "2018"
     },
-    "utf8_iter-1.0.4": {
+    "utf8_iter-1.1.0": {
       "edition": "2021"
     },
     "utf8parse-0.2.2": {
       "edition": "2018"
+    },
+    "utf_types-1.0.0": {
+      "edition": "2021"
     },
     "uuid-1.29.0": {
       "edition": "2021"
@@ -24410,31 +24948,31 @@
     }
   },
   "git_nar_sha256": {
-    "blue-lang-bidama-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": "sha256-yxhZZJGpv5CQc16VV0ORV7gnKUJuF3J9NhQjPnvwPbE=",
-    "blue-lang-check-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": "sha256-yxhZZJGpv5CQc16VV0ORV7gnKUJuF3J9NhQjPnvwPbE=",
-    "blue-lang-fmt-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": "sha256-yxhZZJGpv5CQc16VV0ORV7gnKUJuF3J9NhQjPnvwPbE=",
-    "blue-lang-host-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": "sha256-yxhZZJGpv5CQc16VV0ORV7gnKUJuF3J9NhQjPnvwPbE=",
-    "blue-lang-host-macros-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": "sha256-yxhZZJGpv5CQc16VV0ORV7gnKUJuF3J9NhQjPnvwPbE=",
-    "blue-lang-mondou-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": "sha256-yxhZZJGpv5CQc16VV0ORV7gnKUJuF3J9NhQjPnvwPbE=",
-    "blue-lang-pkg-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": "sha256-yxhZZJGpv5CQc16VV0ORV7gnKUJuF3J9NhQjPnvwPbE=",
-    "blue-lang-proc-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": "sha256-yxhZZJGpv5CQc16VV0ORV7gnKUJuF3J9NhQjPnvwPbE=",
-    "blue-lang-runtime-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": "sha256-yxhZZJGpv5CQc16VV0ORV7gnKUJuF3J9NhQjPnvwPbE=",
-    "blue-lang-syntax-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": "sha256-yxhZZJGpv5CQc16VV0ORV7gnKUJuF3J9NhQjPnvwPbE=",
-    "blue-lang-waku-0.0.125-dfd6d905792b0fc12aab7821870e8b6c609ef016": "sha256-yxhZZJGpv5CQc16VV0ORV7gnKUJuF3J9NhQjPnvwPbE=",
+    "blue-lang-bidama-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": "sha256-LCI3kigg9hoOHJbMTWSHq94UwPfkCpx48PuQV/Tshi8=",
+    "blue-lang-check-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": "sha256-LCI3kigg9hoOHJbMTWSHq94UwPfkCpx48PuQV/Tshi8=",
+    "blue-lang-fmt-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": "sha256-LCI3kigg9hoOHJbMTWSHq94UwPfkCpx48PuQV/Tshi8=",
+    "blue-lang-host-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": "sha256-LCI3kigg9hoOHJbMTWSHq94UwPfkCpx48PuQV/Tshi8=",
+    "blue-lang-host-macros-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": "sha256-LCI3kigg9hoOHJbMTWSHq94UwPfkCpx48PuQV/Tshi8=",
+    "blue-lang-mondou-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": "sha256-LCI3kigg9hoOHJbMTWSHq94UwPfkCpx48PuQV/Tshi8=",
+    "blue-lang-pkg-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": "sha256-LCI3kigg9hoOHJbMTWSHq94UwPfkCpx48PuQV/Tshi8=",
+    "blue-lang-proc-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": "sha256-LCI3kigg9hoOHJbMTWSHq94UwPfkCpx48PuQV/Tshi8=",
+    "blue-lang-runtime-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": "sha256-LCI3kigg9hoOHJbMTWSHq94UwPfkCpx48PuQV/Tshi8=",
+    "blue-lang-syntax-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": "sha256-LCI3kigg9hoOHJbMTWSHq94UwPfkCpx48PuQV/Tshi8=",
+    "blue-lang-waku-0.0.150-ab4e47767250d229cf363db6f1dd0a20d979ce21": "sha256-LCI3kigg9hoOHJbMTWSHq94UwPfkCpx48PuQV/Tshi8=",
     "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686": "sha256-B/Zlbtl+tNdhX1Br9NkFq8oAl8nZJRjphCpoF+QivVA=",
-    "kanshou-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688": "sha256-56EyNrn7Lf/mPZtrR8efukiDK/uD54KntRfGwxGtV4M=",
-    "kanshou-derive-0.1.11-6d69c2277b7be12a8c150721bc3093748d792688": "sha256-56EyNrn7Lf/mPZtrR8efukiDK/uD54KntRfGwxGtV4M=",
-    "opencode-zen-0.1.3-fba032bcc1e72646c93fdf0ce2e5c622eefdbe86": "sha256-ZaC5XVPMbROv7Z4CIp6M9N2bInsTYhCOluQaRoIeFlk=",
-    "samba-0.1.5-0639394aa4a356a168975814333a715bfefbb9fd": "sha256-HJyEL3An/pbZzcoIW2QrFy3GUYj892/XzfBtlyOAT0s=",
-    "shigoto-budget-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
-    "shigoto-dag-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
-    "shigoto-emit-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
-    "shigoto-gate-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
-    "shigoto-retry-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
-    "shigoto-scheduler-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
-    "shigoto-types-0.1.16-e47f161c9a7c953961ecc98e81be569e4cb493a5": "sha256-gB8atdDzfA93SegwAwzJsgV3W0w/idvpnJ5MQVyKnnU=",
-    "todoku-0.1.11-4082452328f309a53c213527fe540c7171a18586": "sha256-FEfw6ynDTbpSJSdTUh/Fh1SDfCZ927SeY758Cu+CHlw=",
-    "tsunagu-0.1.11-f99b0498b573183f4794197a74625ed85d7f9244": "sha256-LJIRApuKbbPrs5jkyYzUA0SfNAI8bNib+/arpNXUlmw="
+    "kanshou-0.1.11-42d3c5c820f7fc3621e980d683986a4ac9945aba": "sha256-mEvLGKdaElEylkHguflLKVbFZwvLQcIsXKTiJCAjQus=",
+    "kanshou-derive-0.1.11-42d3c5c820f7fc3621e980d683986a4ac9945aba": "sha256-mEvLGKdaElEylkHguflLKVbFZwvLQcIsXKTiJCAjQus=",
+    "opencode-zen-0.1.3-dd3d21d237bebc6c92e7f52285a60ba444710a91": "sha256-9goong88UcC4wA2Q2CUbC2n+E71GKkavFGVSmr397ik=",
+    "samba-0.1.5-a8de3c7577a44168993ca69387f04869c7c007f5": "sha256-0b8dwyLRsiNINtKou0EwwSKxMPoq9eNRC8YN4DeacEk=",
+    "shigoto-budget-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": "sha256-lf1WWE4S/liv2HVA+aYjXXfqkXd7xpesqJUrPgiMAOc=",
+    "shigoto-dag-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": "sha256-lf1WWE4S/liv2HVA+aYjXXfqkXd7xpesqJUrPgiMAOc=",
+    "shigoto-emit-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": "sha256-lf1WWE4S/liv2HVA+aYjXXfqkXd7xpesqJUrPgiMAOc=",
+    "shigoto-gate-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": "sha256-lf1WWE4S/liv2HVA+aYjXXfqkXd7xpesqJUrPgiMAOc=",
+    "shigoto-retry-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": "sha256-lf1WWE4S/liv2HVA+aYjXXfqkXd7xpesqJUrPgiMAOc=",
+    "shigoto-scheduler-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": "sha256-lf1WWE4S/liv2HVA+aYjXXfqkXd7xpesqJUrPgiMAOc=",
+    "shigoto-types-0.1.16-7f864d2c75a71b13e7372c30612ee8a0af190b87": "sha256-lf1WWE4S/liv2HVA+aYjXXfqkXd7xpesqJUrPgiMAOc=",
+    "todoku-0.1.11-cc03eb5301d3b5c1d95bd6ded07263569498c740": "sha256-9/N4rTBYLtuZraWial3aFW1c28QFqin3TWUMQcwdI4k=",
+    "tsunagu-0.1.11-ef92a013d8f7bba902b41a12f0e1b1f8f6efef8a": "sha256-GO3MT5Alak84WSxO+8kTo2/tS8xjW4YsEj2cdapJ65w="
   },
   "flake_metadata": {}
 }
