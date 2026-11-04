@@ -367,7 +367,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-bidama"
 version = "0.0.150"
-source = "git+https://github.com/pleme-io/blue#ab4e47767250d229cf363db6f1dd0a20d979ce21"
+source = "git+https://github.com/pleme-io/blue#a13bfba204d474f8cd8943f74dae41d43ddb8009"
 dependencies = [
  "blue-lang-waku",
 ]
@@ -375,7 +375,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-check"
 version = "0.0.150"
-source = "git+https://github.com/pleme-io/blue#ab4e47767250d229cf363db6f1dd0a20d979ce21"
+source = "git+https://github.com/pleme-io/blue#a13bfba204d474f8cd8943f74dae41d43ddb8009"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -384,7 +384,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-fmt"
 version = "0.0.150"
-source = "git+https://github.com/pleme-io/blue#ab4e47767250d229cf363db6f1dd0a20d979ce21"
+source = "git+https://github.com/pleme-io/blue#a13bfba204d474f8cd8943f74dae41d43ddb8009"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -394,7 +394,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-host"
 version = "0.0.150"
-source = "git+https://github.com/pleme-io/blue#ab4e47767250d229cf363db6f1dd0a20d979ce21"
+source = "git+https://github.com/pleme-io/blue#a13bfba204d474f8cd8943f74dae41d43ddb8009"
 dependencies = [
  "blue-lang-host-macros",
  "blue-lang-pkg",
@@ -408,7 +408,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-host-macros"
 version = "0.0.150"
-source = "git+https://github.com/pleme-io/blue#ab4e47767250d229cf363db6f1dd0a20d979ce21"
+source = "git+https://github.com/pleme-io/blue#a13bfba204d474f8cd8943f74dae41d43ddb8009"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -418,7 +418,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-mondou"
 version = "0.0.150"
-source = "git+https://github.com/pleme-io/blue#ab4e47767250d229cf363db6f1dd0a20d979ce21"
+source = "git+https://github.com/pleme-io/blue#a13bfba204d474f8cd8943f74dae41d43ddb8009"
 dependencies = [
  "blake3",
  "blue-lang-check",
@@ -433,7 +433,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-pkg"
 version = "0.0.150"
-source = "git+https://github.com/pleme-io/blue#ab4e47767250d229cf363db6f1dd0a20d979ce21"
+source = "git+https://github.com/pleme-io/blue#a13bfba204d474f8cd8943f74dae41d43ddb8009"
 dependencies = [
  "blake3",
  "blue-lang-bidama",
@@ -454,7 +454,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-proc"
 version = "0.0.150"
-source = "git+https://github.com/pleme-io/blue#ab4e47767250d229cf363db6f1dd0a20d979ce21"
+source = "git+https://github.com/pleme-io/blue#a13bfba204d474f8cd8943f74dae41d43ddb8009"
 dependencies = [
  "blake3",
  "blue-lang-waku",
@@ -468,7 +468,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-runtime"
 version = "0.0.150"
-source = "git+https://github.com/pleme-io/blue#ab4e47767250d229cf363db6f1dd0a20d979ce21"
+source = "git+https://github.com/pleme-io/blue#a13bfba204d474f8cd8943f74dae41d43ddb8009"
 dependencies = [
  "blake3",
  "blue-lang-check",
@@ -492,7 +492,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-syntax"
 version = "0.0.150"
-source = "git+https://github.com/pleme-io/blue#ab4e47767250d229cf363db6f1dd0a20d979ce21"
+source = "git+https://github.com/pleme-io/blue#a13bfba204d474f8cd8943f74dae41d43ddb8009"
 dependencies = [
  "tatara-lisp",
 ]
@@ -500,7 +500,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-waku"
 version = "0.0.150"
-source = "git+https://github.com/pleme-io/blue#ab4e47767250d229cf363db6f1dd0a20d979ce21"
+source = "git+https://github.com/pleme-io/blue#a13bfba204d474f8cd8943f74dae41d43ddb8009"
 dependencies = [
  "blue-lang-syntax",
  "serde",
@@ -2723,7 +2723,7 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.35"
+version = "0.3.36"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3447,8 +3447,8 @@ dependencies = [
 
 [[package]]
 name = "samba"
-version = "0.1.5"
-source = "git+https://github.com/pleme-io/samba#a8de3c7577a44168993ca69387f04869c7c007f5"
+version = "0.1.6"
+source = "git+https://github.com/pleme-io/samba#3a47d740944443f9ebd74e040c0aeb287ae2c3b8"
 dependencies = [
  "async-nats",
  "async-trait",
