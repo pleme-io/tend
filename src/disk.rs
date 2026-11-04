@@ -710,6 +710,15 @@ fn plan(
             json!(int(goal.goal_bytes)),
         ],
     )?;
+    decode_plan(cfg, opens, &out, now)
+}
+
+fn decode_plan(
+    cfg: &DiskConfig,
+    opens: &[Open],
+    out: &Json,
+    now: SystemTime,
+) -> Result<Vec<Vec<Verdict>>> {
     let answered = out
         .as_array()
         .filter(|a| a.len() == opens.len())
@@ -1358,6 +1367,22 @@ mod tests {
         .unwrap();
         assert!(old.exists());
         assert_eq!(r.caches[0].status, EntryStatus::Blind);
+    }
+
+    #[test]
+    fn rust_refuses_a_plan_that_evicts_from_a_held_entry() {
+        let (_tmp, home, allowed) = home();
+        let dir = home.join("caches/x");
+        file(&dir, "old", 90);
+        let root = CacheDir::recognize(&at(&dir), &allowed).unwrap();
+        let cfg = disk(50, vec![]);
+        let now = SystemTime::now();
+        let raw = serde_json::from_value(entry("x", &dir, 0)).unwrap();
+        let open = open_entry(raw, &root, &ProcessView::Blind("unread".into())).unwrap();
+        assert!(decode_plan(&cfg, &[open], &json!([["remove-idle"]]), now).is_err());
+        let raw = serde_json::from_value(entry("x", &dir, 0)).unwrap();
+        let open = open_entry(raw, &root, &ProcessView::Seen(Vec::new())).unwrap();
+        assert!(decode_plan(&cfg, &[open], &json!([["remove-idle"]]), now).is_ok());
     }
 
     #[test]
