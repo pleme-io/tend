@@ -16,14 +16,14 @@
 //! Measured 2026-10-23 on ryn: agent builds set `CARGO_TARGET_DIR` to
 //! `~/.cache/<x>-target`, outside every repo. Those held ~20 GiB that the
 //! repo walk never saw, and filled the disk mid-build twice. `extra_roots`
-//! names such directories; each is scanned one level deep.
+//! names such directories; each is scanned `extra_root_depth` levels deep.
 //!
 //! # The safety invariant
 //!
 //! **A directory is removable only if it is a [`CargoTargetDir`], and the
 //! only constructor is [`CargoTargetDir::recognize`].** Every form needs a
 //! real directory (not a symlink: removing through one deletes its
-//! referent). Then one of three forms:
+//! referent). Then one of four forms:
 //!
 //! - [`Form::Named`]: the name is exactly `target` (byte comparison, so a
 //!   `Target/` React folder on a case-insensitive volume is not it) and it
@@ -35,6 +35,10 @@
 //!   `.fingerprint/` directory one or two levels down (`<profile>/` or
 //!   `<triple>/<profile>/`). A tag alone does not prove a directory of any
 //!   other name is cargo's whole output root.
+//! - [`Form::Output`]: any name, cargo's tag, AND a cargo lock file at
+//!   `<profile>/` or `<triple>/<profile>/`. With `build.build-dir` set, cargo
+//!   keeps `.rustc_info.json` and `.fingerprint/` in the build dir, so the
+//!   target dir holds only the tag, the locks and the final artifacts.
 //! - [`Form::Adopted`]: the name `target`, cargo's layout, NO tag, and
 //!   `adopt_untagged: true`. Off by default, so such a directory is refused
 //!   as [`NotCargoTarget::UntaggedCargoLayout`] and reported.
@@ -148,6 +152,8 @@ pub(crate) const DEFAULT_PRESSURE_INTERVAL_MINUTES: u64 = 5;
 /// measured directories were at depth 1.
 pub(crate) const DEFAULT_SEARCH_DEPTH: u32 = 2;
 
+pub(crate) const DEFAULT_EXTRA_ROOT_DEPTH: u32 = 2;
+
 /// `cargo_target:` in tend's config. Every field defaults, so a partial
 /// block is valid.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
@@ -170,10 +176,11 @@ pub struct CargoTargetConfig {
     pub search_depth: u32,
     /// Decide and report, but delete nothing.
     pub dry_run: bool,
-    /// Directories scanned one level deep for cargo target dirs of any
-    /// name, such as `~/.cache` holding agents' `CARGO_TARGET_DIR`s. `~`
-    /// expands. Default empty.
+    /// Directories scanned `extra_root_depth` levels deep for cargo target
+    /// dirs of any name, such as `~/.cache` holding agents'
+    /// `CARGO_TARGET_DIR`s. `~` expands. Default empty.
     pub extra_roots: Vec<String>,
+    pub extra_root_depth: u32,
     /// Also remove a directory named `target` that has cargo's layout but
     /// no `CACHEDIR.TAG`. Default false: such directories are reported as
     /// `untagged-cargo-layout` and kept.
@@ -198,6 +205,7 @@ impl Default for CargoTargetConfig {
             search_depth: DEFAULT_SEARCH_DEPTH,
             dry_run: false,
             extra_roots: Vec::new(),
+            extra_root_depth: DEFAULT_EXTRA_ROOT_DEPTH,
             adopt_untagged: false,
             auto_apply: true,
             pressure_interval_minutes: DEFAULT_PRESSURE_INTERVAL_MINUTES,
@@ -287,6 +295,7 @@ pub enum Form {
     Layout,
     /// Named `target`, cargo's layout, no tag; admitted by `adopt_untagged`.
     Adopted,
+    Output,
 }
 
 /// Why a directory is NOT a cargo target dir. Reported, never acted on.
@@ -321,7 +330,7 @@ impl NotCargoTarget {
             Self::NoCachedirTag => "has no CACHEDIR.TAG",
             Self::ForeignTag => "CACHEDIR.TAG was not written by cargo",
             Self::NoCargoLayout => {
-                "cargo CACHEDIR.TAG but no cargo layout (.rustc_info.json and a .fingerprint/)"
+                "cargo CACHEDIR.TAG but no cargo layout (.rustc_info.json and a .fingerprint/, or a cargo lock in a profile dir)"
             }
             Self::UntaggedCargoLayout => {
                 "cargo layout but no CACHEDIR.TAG; kept unless adopt_untagged is on"
@@ -369,6 +378,7 @@ impl CargoTargetDir {
             (true, Tag::Absent) if admission.untagged => Form::Adopted,
             (true, Tag::Absent) => return Err(NotCargoTarget::UntaggedCargoLayout),
             (false, Tag::Cargo) if has_cargo_layout(path) => Form::Layout,
+            (false, Tag::Cargo) if has_output_layout(path) => Form::Output,
             (false, Tag::Cargo) => return Err(NotCargoTarget::NoCargoLayout),
             (false, _) => return Err(NotCargoTarget::WrongName),
         };
@@ -424,6 +434,18 @@ fn rustc_info_is_cargos(path: &Path) -> bool {
 }
 
 fn fingerprint_within(dir: &Path) -> bool {
+    any_profile(dir, &|profile| real_dir(&profile.join(FINGERPRINT_DIR)))
+}
+
+fn has_output_layout(dir: &Path) -> bool {
+    any_profile(dir, &|profile| {
+        CARGO_LOCK_NAMES.iter().any(|name| {
+            std::fs::symlink_metadata(profile.join(name)).is_ok_and(|m| m.is_file())
+        })
+    })
+}
+
+fn any_profile(dir: &Path, holds: &dyn Fn(&Path) -> bool) -> bool {
     let children = |d: &Path| -> Vec<PathBuf> {
         std::fs::read_dir(d)
             .map(|es| {
@@ -434,12 +456,9 @@ fn fingerprint_within(dir: &Path) -> bool {
             })
             .unwrap_or_default()
     };
-    children(dir).iter().any(|profile| {
-        real_dir(&profile.join(FINGERPRINT_DIR))
-            || children(profile)
-                .iter()
-                .any(|p| real_dir(&p.join(FINGERPRINT_DIR)))
-    })
+    children(dir)
+        .iter()
+        .any(|profile| holds(profile) || children(profile).iter().any(|p| holds(p)))
 }
 
 // ── discovery ──────────────────────────────────────────────────────────
@@ -458,69 +477,52 @@ pub struct Discovered {
     pub refused: Vec<(PathBuf, NotCargoTarget)>,
 }
 
-/// Find `target/` directories up to `depth` levels below each repo root.
-/// Hidden directories are not descended into, and nothing inside a `target`
-/// is searched.
+/// Find cargo target directories up to `depth` levels below each root: the
+/// name `target`, or any name that proves itself through
+/// [`CargoTargetDir::recognize`]. Hidden directories are recognized but not
+/// descended into, and nothing inside a cargo-tagged directory is searched.
+/// A directory of another name is reported only when it carries part of
+/// cargo's proof; the rest of a tree is other tools' business.
 #[must_use]
-pub fn discover(repos: &[PathBuf], depth: u32, admission: Admission) -> Discovered {
+pub fn discover(roots: &[PathBuf], depth: u32, admission: Admission) -> Discovered {
     let mut out = Discovered::default();
-    for repo in repos {
-        let mut stack: Vec<(PathBuf, u32)> = vec![(repo.clone(), 1)];
+    for root in roots {
+        let mut stack: Vec<(PathBuf, u32)> = vec![(root.clone(), 1)];
         while let Some((dir, level)) = stack.pop() {
             let Ok(entries) = std::fs::read_dir(&dir) else {
                 continue;
             };
             for entry in entries.flatten() {
                 let Ok(ft) = entry.file_type() else { continue };
+                let name = entry.file_name();
                 if !ft.is_dir() {
-                    if ft.is_symlink() && entry.file_name() == TARGET_DIR_NAME {
+                    if ft.is_symlink() && name == TARGET_DIR_NAME {
                         out.refused.push((entry.path(), NotCargoTarget::Symlink));
                     }
                     continue;
                 }
-                let name = entry.file_name();
-                if name == TARGET_DIR_NAME {
-                    match CargoTargetDir::recognize(&entry.path(), admission) {
-                        Ok(d) => out.dirs.push((repo.clone(), d)),
-                        Err(why) => out.refused.push((entry.path(), why)),
-                    }
+                let name = name.to_string_lossy();
+                if SKIP_DIRS.contains(&name.as_ref()) {
                     continue;
                 }
-                let name = name.to_string_lossy();
-                if level < depth && !name.starts_with('.') && !SKIP_DIRS.contains(&name.as_ref()) {
+                match CargoTargetDir::recognize(&entry.path(), admission) {
+                    Ok(d) => {
+                        out.dirs.push((root.clone(), d));
+                        continue;
+                    }
+                    Err(why) if name == TARGET_DIR_NAME => {
+                        out.refused.push((entry.path(), why));
+                        continue;
+                    }
+                    Err(why @ NotCargoTarget::NoCargoLayout) => {
+                        out.refused.push((entry.path(), why));
+                        continue;
+                    }
+                    Err(_) => {}
+                }
+                if level < depth && !name.starts_with('.') {
                     stack.push((entry.path(), level + 1));
                 }
-            }
-        }
-    }
-    out.dirs.sort_by(|a, b| a.1.path.cmp(&b.1.path));
-    out.refused.sort();
-    out
-}
-
-/// Recognize each directory directly inside each extra root. A refusal is
-/// reported only when the directory carries part of cargo's proof (a tag
-/// without the layout, the layout without a tag); the rest of a cache root
-/// is other tools' business and is passed over silently.
-#[must_use]
-pub fn discover_roots(roots: &[PathBuf], admission: Admission) -> Discovered {
-    let mut out = Discovered::default();
-    for root in roots {
-        let Ok(entries) = std::fs::read_dir(root) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            if !entry.file_type().is_ok_and(|t| t.is_dir()) {
-                continue;
-            }
-            match CargoTargetDir::recognize(&entry.path(), admission) {
-                Ok(d) => out.dirs.push((root.clone(), d)),
-                Err(
-                    why @ (NotCargoTarget::NoCargoLayout | NotCargoTarget::UntaggedCargoLayout),
-                ) => {
-                    out.refused.push((entry.path(), why));
-                }
-                Err(_) => {}
             }
         }
     }
@@ -540,7 +542,11 @@ const BUILD_PROCESS_NAMES: &[&str] = &[
     "clippy-driver",
 ];
 const BUILD_PROCESS_PREFIXES: &[&str] = &["cargo-", "build-script-", "rust-analyzer-"];
-const TARGET_DIR_ENV: &[&str] = &["CARGO_TARGET_DIR", "CARGO_BUILD_TARGET_DIR"];
+const TARGET_DIR_ENV: &[&str] = &[
+    "CARGO_TARGET_DIR",
+    "CARGO_BUILD_TARGET_DIR",
+    "CARGO_BUILD_BUILD_DIR",
+];
 const TARGET_DIR_FLAG: &str = "--target-dir";
 
 /// What one process says about where it builds.
@@ -1220,7 +1226,7 @@ pub fn sweep(
     let admission = cfg.admission();
     let roots = cfg.extra_root_paths();
     let mut found = discover(repos, cfg.search_depth.max(1), admission);
-    let extra = discover_roots(&roots, admission);
+    let extra = discover(&roots, cfg.extra_root_depth.max(1), admission);
     found.dirs.extend(extra.dirs);
     found.refused.extend(extra.refused);
     found.dirs.sort_by(|a, b| a.1.path.cmp(&b.1.path));
@@ -1363,6 +1369,7 @@ pub fn print_report(r: &Report, cfg: &CargoTargetConfig) {
         let form = match e.form {
             Form::Named => "",
             Form::Layout => "  [by layout]",
+            Form::Output => "  [by output layout]",
             Form::Adopted => "  [adopted, untagged]",
         };
         println!(
@@ -1547,6 +1554,7 @@ mod tests {
         let t = cargo_target(tmp.path(), "r", 10);
         let other = tmp.path().join("agent-target");
         std::fs::rename(&t, &other).unwrap();
+        std::fs::remove_file(other.join("debug/.cargo-lock")).unwrap();
         assert_eq!(
             CargoTargetDir::recognize(&other, ADOPT),
             Err(NotCargoTarget::NoCargoLayout)
@@ -1740,7 +1748,7 @@ mod tests {
         std::fs::write(deep.join("CACHEDIR.TAG"), CARGO_TAG).unwrap();
         std::os::unix::fs::symlink(&agent, cache.join("link-target")).unwrap();
 
-        let found = discover_roots(std::slice::from_ref(&cache), STRICT);
+        let found = discover(std::slice::from_ref(&cache), 1, STRICT);
         let dirs: Vec<_> = found
             .dirs
             .iter()
@@ -1750,6 +1758,162 @@ mod tests {
         assert_eq!(
             found.refused,
             vec![(tag_only, NotCargoTarget::NoCargoLayout)]
+        );
+    }
+
+    fn agent_target(dir: &Path) {
+        layout(dir);
+        std::fs::write(dir.join("CACHEDIR.TAG"), CARGO_TAG).unwrap();
+    }
+
+    fn dirs_of(found: &Discovered) -> Vec<PathBuf> {
+        found
+            .dirs
+            .iter()
+            .map(|(_, d)| d.path().to_path_buf())
+            .collect()
+    }
+
+    #[test]
+    fn a_target_foo_inside_a_repo_is_found_and_its_lookalike_is_not() {
+        let tmp = TempDir::new().unwrap();
+        let repo = tmp.path().join("sui");
+        let agent = repo.join("target-clean");
+        agent_target(&agent);
+        let nested = repo.join("crates/target-act");
+        agent_target(&nested);
+        let lookalike = repo.join("target-docs");
+        std::fs::create_dir_all(lookalike.join("debug")).unwrap();
+        std::fs::write(lookalike.join("debug/page.md"), "hi").unwrap();
+        let tag_only = repo.join("target-half");
+        std::fs::create_dir_all(&tag_only).unwrap();
+        std::fs::write(tag_only.join("CACHEDIR.TAG"), CARGO_TAG).unwrap();
+
+        let found = discover(std::slice::from_ref(&repo), 2, STRICT);
+        assert_eq!(dirs_of(&found), vec![nested, agent.clone()]);
+        assert_eq!(
+            found.refused,
+            vec![(tag_only.clone(), NotCargoTarget::NoCargoLayout)]
+        );
+
+        let cfg = CargoTargetConfig {
+            max_idle_days: 0,
+            budget_gib: 0,
+            pressure_budget_gib: 0,
+            active_minutes: 0,
+            ..CargoTargetConfig::default()
+        };
+        let r = sweep(
+            &cfg,
+            std::slice::from_ref(&repo),
+            true,
+            Mode::Apply,
+            later(),
+            &nobody(),
+        )
+        .unwrap();
+        assert_eq!(r.count, 2);
+        assert!(!agent.exists());
+        assert!(lookalike.join("debug/page.md").exists());
+        assert!(tag_only.join("CACHEDIR.TAG").exists());
+    }
+
+    #[test]
+    fn nothing_inside_a_recognized_any_name_dir_is_searched() {
+        let tmp = TempDir::new().unwrap();
+        let repo = tmp.path().join("r");
+        let agent = repo.join("target-clean");
+        agent_target(&agent);
+        agent_target(&agent.join("rust-analyzer"));
+        let found = discover(std::slice::from_ref(&repo), 3, STRICT);
+        assert_eq!(dirs_of(&found), vec![agent]);
+    }
+
+    #[test]
+    fn a_held_lock_keeps_an_any_name_dir_in_a_repo() {
+        let tmp = TempDir::new().unwrap();
+        let repo = tmp.path().join("r");
+        let agent = repo.join("target-clean");
+        agent_target(&agent);
+        std::fs::write(agent.join("debug/.cargo-lock"), "").unwrap();
+        let lock = File::open(agent.join("debug/.cargo-lock")).unwrap();
+        lock.lock().unwrap();
+        let r = sweep(
+            &reap_all(),
+            std::slice::from_ref(&repo),
+            true,
+            Mode::Apply,
+            later(),
+            &nobody(),
+        )
+        .unwrap();
+        assert!(agent.exists());
+        assert_eq!(
+            r.entries[0].verdict,
+            Verdict::Active {
+                signal: ActiveSignal::LockHeld
+            }
+        );
+    }
+
+    #[test]
+    fn an_output_dir_without_fingerprints_is_recognized_by_its_lock() {
+        let tmp = TempDir::new().unwrap();
+        let dir = cargo_target(tmp.path(), "blue-target/1234", 10);
+        let out = tmp.path().join("blue-target/5678");
+        std::fs::rename(&dir, &out).unwrap();
+        assert_eq!(
+            CargoTargetDir::recognize(&out, STRICT).unwrap().form(),
+            Form::Output
+        );
+        std::fs::remove_file(out.join("debug/.cargo-lock")).unwrap();
+        assert_eq!(
+            CargoTargetDir::recognize(&out, ADOPT),
+            Err(NotCargoTarget::NoCargoLayout)
+        );
+        std::fs::write(out.join("debug/.cargo-artifact-lock"), "").unwrap();
+        assert_eq!(
+            CargoTargetDir::recognize(&out, STRICT).unwrap().form(),
+            Form::Output
+        );
+    }
+
+    #[test]
+    fn extra_roots_reach_a_cache_two_levels_down_only_at_that_depth() {
+        let tmp = TempDir::new().unwrap();
+        let cache = tmp.path().join("cache");
+        let dir = cargo_target(&cache, "blue-target/1234", 10);
+        let out = cache.join("blue-target/5678");
+        std::fs::rename(&dir, &out).unwrap();
+
+        let roots = std::slice::from_ref(&cache);
+        assert_eq!(discover(roots, 1, STRICT).dirs.len(), 0);
+        assert_eq!(dirs_of(&discover(roots, 2, STRICT)), vec![out]);
+        assert_eq!(
+            CargoTargetConfig::default().extra_root_depth,
+            2,
+            "the shipped default reaches ~/.cache/blue-target/<n>"
+        );
+    }
+
+    #[test]
+    fn a_build_dir_env_counts_as_using_the_dir() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path().join("agents/target");
+        std::fs::create_dir_all(&dir).unwrap();
+        let elsewhere = tmp.path().join("cwd");
+        std::fs::create_dir_all(&elsewhere).unwrap();
+        let env = ["CARGO_BUILD_BUILD_DIR=".to_string() + dir.to_str().unwrap()];
+        let facts = facts_of(
+            7,
+            &elsewhere,
+            &[OsString::from(&env[0])],
+            &[OsString::from("rustc")],
+            None,
+        );
+        assert_eq!(
+            use_of(&ProcessView::Seen(vec![facts]), &dir),
+            ProcessUse::Used
         );
     }
 

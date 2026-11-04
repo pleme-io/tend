@@ -171,9 +171,15 @@
           "description": "Run the sweep from the daemon every `interval_minutes`. Default\nfalse. `tend cargo-target report` works either way.",
           "type": "boolean"
         },
+        "extra_root_depth": {
+          "default": 2,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
         "extra_roots": {
           "default": [],
-          "description": "Directories scanned one level deep for cargo target dirs of any\nname, such as `~/.cache` holding agents' `CARGO_TARGET_DIR`s. `~`\nexpands. Default empty.",
+          "description": "Directories scanned `extra_root_depth` levels deep for cargo target\ndirs of any name, such as `~/.cache` holding agents'\n`CARGO_TARGET_DIR`s. `~` expands. Default empty.",
           "items": {
             "type": "string"
           },
@@ -1882,6 +1888,7 @@
         "budget_gib": 50,
         "dry_run": false,
         "enable": false,
+        "extra_root_depth": 2,
         "extra_roots": [],
         "interval_minutes": 60,
         "max_idle_days": 14,
