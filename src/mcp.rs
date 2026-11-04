@@ -84,8 +84,9 @@ pub const TOOLS: &[Tool] = &[
         name: "tend_cargo_targets",
         description: "Cargo target directories in the workspace repos and the \
                       cargo_target.extra_roots: size, idle days, form, process use \
-                      and the verdict the cargo_target policy reaches. A dry \
-                      run — never deletes.",
+                      and the verdict the cargo_target policy reaches, plus the \
+                      disk free goal and the declared caches. A dry run — never \
+                      deletes.",
         mutating: false,
     },
     Tool {
@@ -360,7 +361,7 @@ impl TendMcp {
     }
 
     #[tool(
-        description = "Cargo target directories across the configured workspace repos and the cargo_target.extra_roots (agent CARGO_TARGET_DIRs such as ~/.cache/<x>-target), as a DRY RUN of the cargo_target policy: per directory the size, idle days, how it was recognized (named / layout / adopted), whether a running process uses it, and the verdict (in-use / keep / remove-idle / remove-over-budget), plus totals, the budget in force (tighter under disk pressure), whether the process table was seen or blind (blind keeps everything), and refused dirs with their reason (no-cachedir-tag, untagged-cargo-layout, no-cargo-layout, ...). Never deletes; `tend cargo-target apply` does."
+        description = "Cargo target directories across the configured workspace repos and the cargo_target.extra_roots (agent CARGO_TARGET_DIRs such as ~/.cache/<x>-target), as a DRY RUN of the cargo_target policy: per directory the size, idle days, how it was recognized (named / layout / adopted), whether a running process uses it, and the verdict (in-use / keep / remove-idle / remove-over-budget), plus totals, the budget in force (tighter under disk pressure), whether the process table was seen or blind (blind keeps everything), and refused dirs with their reason (no-cachedir-tag, untagged-cargo-layout, no-cargo-layout, ...). `disk` carries the free goal state (off, refused, blind, met, below, pressure) and each declared cache: status (open, owner-live, blind), what it would reclaim, protected children, off entries and refused entries with the reason. Never deletes; `tend cargo-target apply` does."
     )]
     async fn tend_cargo_targets(&self) -> String {
         let loaded = crate::load_config(None);
@@ -375,14 +376,17 @@ impl TendMcp {
                 .first()
                 .and_then(|w| w.resolved_base_dir().ok())
                 .unwrap_or_else(|| std::path::PathBuf::from("."));
-            let pressured = crate::cargo_target::disk_pressured_at(&probe, 8);
-            crate::cargo_target::sweep(
+            let reading = crate::disk::read_at(&probe, 8);
+            crate::disk::cycle(
                 &cfg.cargo_target,
+                &cfg.disk,
                 &repos,
-                pressured,
+                &reading,
+                crate::cargo_target::Mode::DryRun,
                 crate::cargo_target::Mode::DryRun,
                 std::time::SystemTime::now(),
                 &crate::cargo_target::SystemProcessTable,
+                &crate::disk::Allowed::host(),
             )
         })
         .await;

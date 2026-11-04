@@ -41,6 +41,7 @@ pub(crate) async fn run_with_kanshou(
     let mut cycle = 0u64;
     // When the cargo target-dir sweep last ran; `None` = on the first cycle.
     let mut last_cargo_sweep: Option<std::time::Instant> = None;
+    let mut last_sweep_freed: u64 = 0;
     let mut last_drift_sweep: Option<std::time::Instant> = None;
     let drift_running = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let mut last_skip_beat: Option<std::time::Instant> = None;
@@ -183,39 +184,47 @@ pub(crate) async fn run_with_kanshou(
         // a gate that halts on low disk must not also stop the one step that
         // relieves it. Rate-limited by `interval_minutes`, because measuring
         // stats every file in every target dir. The schedule is
-        // `enable`; `auto_apply` adds a relief sweep while disk is pressured.
+        // `enable`; `auto_apply` adds a relief sweep while disk is pressured;
+        // `disk.enable` adds one below the free goal.
         let ct_probe = workspaces
             .first()
             .and_then(|w| w.resolved_base_dir().ok())
             .unwrap_or_else(|| PathBuf::from("."));
-        let since_sweep = |every: Duration| {
-            last_cargo_sweep.is_none_or(|t: std::time::Instant| t.elapsed() >= every)
+        let disk_now = crate::disk::read_at(&ct_probe, max_inflight);
+        let last_sweep = last_cargo_sweep.map(|t: std::time::Instant| crate::disk::LastSweep {
+            elapsed: t.elapsed(),
+            freed_bytes: last_sweep_freed,
+        });
+        let due = match crate::disk::trigger(&cfg.cargo_target, &cfg.disk, &disk_now, last_sweep) {
+            Ok(due) => due,
+            Err(e) => {
+                eprintln!("daemon: disk goal refused: {e:#}");
+                None
+            }
         };
-        let scheduled = cfg.cargo_target.enable && since_sweep(cfg.cargo_target.interval());
-        let relief = cfg.cargo_target.auto_apply
-            && since_sweep(cfg.cargo_target.pressure_interval())
-            && crate::cargo_target::disk_pressured_at(&ct_probe, max_inflight);
-        if scheduled || relief {
+        if let Some(due) = due {
             last_cargo_sweep = Some(std::time::Instant::now());
             let ct = cfg.cargo_target.clone();
+            let dk = cfg.disk.clone();
             let repos = daemon_repo_paths(&workspaces);
-            let probe = ct_probe;
-            let inflight = max_inflight;
             let swept = tokio::task::spawn_blocking(move || {
-                let pressured = crate::cargo_target::disk_pressured_at(&probe, inflight);
-                crate::cargo_target::sweep(
+                crate::disk::cycle(
                     &ct,
+                    &dk,
                     &repos,
-                    pressured,
+                    &disk_now,
+                    due.cargo_mode,
                     crate::cargo_target::Mode::Apply,
                     std::time::SystemTime::now(),
                     &crate::cargo_target::SystemProcessTable,
+                    &crate::disk::Allowed::host(),
                 )
             })
             .await;
             match swept {
                 Ok(Err(e)) => eprintln!("daemon: cargo target sweep refused: {e:#}"),
                 Ok(Ok(report)) => {
+                    last_sweep_freed = crate::disk::freed_bytes(&report);
                     for e in report.entries.iter().filter(|e| e.removed == Some(true)) {
                         eprintln!(
                             "  cargo target removed {} ({:.2} GiB, {})",
@@ -230,7 +239,32 @@ pub(crate) async fn run_with_kanshou(
                                 "bytes": e.bytes,
                                 "form": e.form,
                                 "verdict": e.verdict,
-                                "trigger": if scheduled { "schedule" } else { "pressure" },
+                                "trigger": due.kind,
+                            }),
+                        );
+                    }
+                    for (cache, row) in report.disk.iter().flat_map(|d| {
+                        d.caches.iter().flat_map(|c| {
+                            c.removing
+                                .iter()
+                                .filter(|r| r.removed == Some(true))
+                                .map(move |r| (c.name.as_str(), r))
+                        })
+                    }) {
+                        eprintln!(
+                            "  cache {cache} removed {} ({:.2} GiB, {})",
+                            row.path,
+                            row.gib,
+                            row.verdict.label()
+                        );
+                        audit::AuditLog::default_path().log(
+                            "disk_cache_removed",
+                            serde_json::json!({
+                                "cache": cache,
+                                "path": row.path,
+                                "bytes": row.bytes,
+                                "verdict": row.verdict,
+                                "trigger": due.kind,
                             }),
                         );
                     }
@@ -253,8 +287,16 @@ pub(crate) async fn run_with_kanshou(
                             "freed_gib": report.freed_gib,
                             "budget_unreachable": report.budget_unreachable,
                             "processes": report.processes,
-                            "trigger": if scheduled { "schedule" } else { "pressure" },
+                            "trigger": due.kind,
                             "removed": removed,
+                            "disk": report.disk.as_ref().map(|d| serde_json::json!({
+                                "state": d.state,
+                                "mode": d.mode,
+                                "free_gib": d.free_gib,
+                                "goal_gib": d.goal_gib,
+                                "reclaim_gib": d.reclaim_gib,
+                                "freed_gib": d.freed_gib,
+                            })),
                         }),
                     );
                     if !d.quiet || !removed.is_empty() {

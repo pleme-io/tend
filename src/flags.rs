@@ -348,10 +348,10 @@ pub(crate) fn drift_overlay(no_issues: bool) -> Value {
     }
 }
 
-/// `tend cargo-target apply --dry-run` is `cargo_target.dry_run: true`.
+/// `tend cargo-target apply --dry-run` is `dry_run: true` on both blocks.
 pub(crate) fn cargo_target_overlay(dry_run: bool) -> Value {
     if dry_run {
-        json!({ "cargo_target": { "dry_run": true } })
+        json!({ "cargo_target": { "dry_run": true }, "disk": { "dry_run": true } })
     } else {
         Value::Null
     }

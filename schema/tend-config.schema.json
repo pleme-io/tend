@@ -321,6 +321,36 @@
       },
       "type": "object"
     },
+    "DiskConfig": {
+      "properties": {
+        "active_minutes": {
+          "default": 60,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "caches": {
+          "default": [],
+          "items": true,
+          "type": "array"
+        },
+        "dry_run": {
+          "default": false,
+          "type": "boolean"
+        },
+        "enable": {
+          "default": false,
+          "type": "boolean"
+        },
+        "free_goal_pct": {
+          "default": 0,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "DriftCheck": {
       "properties": {
         "branch": {
@@ -1912,6 +1942,16 @@
         "quiet": false
       },
       "description": "`tend daemon` — the reconciler loop."
+    },
+    "disk": {
+      "$ref": "#/$defs/DiskConfig",
+      "default": {
+        "active_minutes": 60,
+        "caches": [],
+        "dry_run": false,
+        "enable": false,
+        "free_goal_pct": 0
+      }
     },
     "drift": {
       "$ref": "#/$defs/DriftConfig",

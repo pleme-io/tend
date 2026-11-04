@@ -11,6 +11,7 @@ mod blue_config;
 mod blue_policy;
 mod cache;
 mod cargo_target;
+mod disk;
 mod ci_trim;
 mod conditions;
 mod config;
@@ -827,21 +828,24 @@ async fn main() -> Result<()> {
                 .first()
                 .and_then(|w| w.resolved_base_dir().ok())
                 .unwrap_or(std::env::current_dir()?);
-            let pressured = cargo_target::disk_pressured_at(&probe, 8);
-            let report = cargo_target::sweep(
+            let reading = disk::read_at(&probe, 8);
+            let report = disk::cycle(
                 &cfg.cargo_target,
+                &cfg.disk,
                 &repos,
-                pressured,
+                &reading,
+                mode,
                 mode,
                 std::time::SystemTime::now(),
                 &cargo_target::SystemProcessTable,
+                &disk::Allowed::host(),
             )?;
             if json {
                 println!("{}", serde_json::to_string_pretty(&report)?);
             } else {
                 cargo_target::print_report(&report, &cfg.cargo_target);
             }
-            if report.entries.iter().any(|e| e.removed == Some(false)) {
+            if disk::failed_removal(&report) {
                 std::process::exit(1);
             }
         }

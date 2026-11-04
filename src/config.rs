@@ -77,6 +77,8 @@ pub struct Config {
     #[serde(default)]
     pub cargo_target: crate::cargo_target::CargoTargetConfig,
     #[serde(default)]
+    pub disk: crate::disk::DiskConfig,
+    #[serde(default)]
     pub drift: crate::drift_sentinel::DriftConfig,
     /// The status snapshot `tend hook session-start` reads.
     #[serde(default)]
@@ -936,6 +938,7 @@ impl shikumi::TieredConfig for Config {
             prebuild: <PrebuildConfig as shikumi::TieredConfig>::bare(),
             host_health: HostHealthConfig::default(),
             cargo_target: crate::cargo_target::CargoTargetConfig::default(),
+            disk: crate::disk::DiskConfig::default(),
             drift: crate::drift_sentinel::DriftConfig {
                 enable: false,
                 checks: std::collections::BTreeMap::new(),
@@ -969,6 +972,7 @@ impl shikumi::TieredConfig for Config {
             prebuild: PrebuildConfig::default(),
             host_health: HostHealthConfig::default(),
             cargo_target: crate::cargo_target::CargoTargetConfig::default(),
+            disk: crate::disk::DiskConfig::default(),
             drift: crate::drift_sentinel::DriftConfig::default(),
             status_snapshot: crate::scan::StatusSnapshotConfig::default(),
             wip: crate::wip::WipConfig::default(),

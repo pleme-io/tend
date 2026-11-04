@@ -65,3 +65,70 @@ cargo_target:
   bytes, form, verdict, trigger) plus a stderr line; `gen kanshou query tend
   cargo_target` returns the last report. MCP: `tend_cargo_targets`
   (read-only dry run, shows extra roots and process sight).
+
+## The disk block (`src/disk.rs`)
+
+Pressure reacts near empty: about 28 GiB free on a 926 GiB disk (`halt 20 +
+inflight x 1`). Measured on cid, 2026-11-04: tend did nothing between 157 GiB
+and 28 GiB free, and it knew no cache but cargo's (`Mozilla.sccache` 20 GiB,
+`~/go/pkg` 19, nvim mason 13, `~/.cache/sui/inputs` 12). `disk:` keeps a disk
+comfortably free. It is off by default, and off changes nothing.
+
+```yaml
+disk:
+  enable: false
+  free_goal_pct: 0       # 1 to 99; 0 = no goal; anything else is refused alone
+  active_minutes: 60     # a child written this recently is in use
+  dry_run: false         # caches only: decide + report, delete nothing
+  caches:
+    - name: go-mod
+      path: ~/go/pkg/mod
+      budget_gib: 8
+      max_idle_days: 30  # default 14
+      enable: true       # default false
+      owners: [go]       # process names that hold the whole entry; optional
+```
+
+- **The goal:** `goal_of` in `blue/cargo_target.b` answers `off`, `refused`,
+  `blind`, `met`, `below` or `pressure`. `below` and `pressure` tighten: the
+  target sweep uses `pressure_budget_gib` and caches evict. The emergency floor
+  in `pressure.rs` stays as it was and wins over the goal.
+- **The clock:** below the goal the daemon sweeps every
+  `pressure_interval_minutes`. A sweep that freed nothing waits for
+  `interval_minutes` instead (`goal_sweep_due`), because measuring walks every
+  inode. With `auto_apply` off, a goal sweep leaves the target dirs in dry run.
+- **Eviction:** `plan_caches` decides each entry with the same `decide` as the
+  target dirs: an in-use child stays, a child past `max_idle_days` goes, then
+  the oldest go until the entry is under `budget_gib`. Those removals then run
+  oldest first across all entries and stop when the goal is reached. What the
+  target sweep frees counts first. A disk at its goal evicts nothing.
+- **Safety invariant:** only a `CacheChild` can be removed, only
+  `CacheDir::children` makes one, and `CacheDir::recognize` is the only way to a
+  `CacheDir`. Recognize refuses a path that is relative, has `..`, is missing,
+  is a symlink, is not a directory, resolves outside the home or
+  `/private/var/cache`, is the home or that root itself, is user data (`.ssh`,
+  `.gnupg`, `.config`, `.claude`, `Documents`, `Desktop`, `Downloads`,
+  `Pictures`, `Movies`, `Music`, `Public`, `code`, anything inside them) or an
+  aggregate of many tools' state (`.cache`, `.local`, `.local/share`,
+  `.local/state`, `Library`, `Library/Caches`, `Library/Application Support`),
+  or has a `.git` in it or in a parent below the home.
+- **Children:** a symlink child is not a candidate and a symlink inside a child
+  is never followed. A child holding a `.git` at any depth, or a directory that
+  cannot be read, is `protected`: reported, kept, counted against the budget.
+  `remove_child` re-recognizes the root, re-checks the child and re-walks the
+  tree first. It then adds `u+rwx` through a handle proven to be the same inode
+  as the lstat, so `go/pkg/mod`'s read-only trees delete.
+- **Owner live:** a same-user process named in `owners`, or whose executable,
+  working directory or an absolute argv path lies inside the entry, keeps the
+  whole entry (`owner-live`). A blind process table keeps every entry (`blind`).
+- **Refused alone:** a malformed entry, a typo in a key, an empty or a duplicate
+  name, or a refused path is listed under `disk.refused` with its reason. Its
+  siblings still run. An entry with `enable` false is listed under `disk.off`.
+- **Granularity:** a child is one direct entry of `path`. `~/go/pkg/mod/github.com`
+  is one child, so name the level you want evicted.
+- **Reports:** `tend cargo-target report|apply` and `tend_cargo_targets` carry
+  `disk`. `apply --dry-run` sets `dry_run` on both blocks. The daemon logs
+  `disk_cache_removed` per child; `cargo_target_sweep` gains `trigger` `goal`
+  and a `disk` summary.
+- **Policy tests:** the goal and the cache plan are in `blue/cargo_target.b`, so
+  the `blue test` line above covers them.

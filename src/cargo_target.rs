@@ -559,6 +559,8 @@ pub struct ProcessFacts {
     pub target_dirs: Vec<PathBuf>,
     /// Absolute paths in its argv, and its executable.
     pub paths: Vec<PathBuf>,
+    pub names: Vec<String>,
+    pub other_paths: Vec<PathBuf>,
 }
 
 impl ProcessFacts {
@@ -626,13 +628,31 @@ fn read_process(p: &sysinfo::Process, uid: &sysinfo::Uid) -> Read {
         None => return Read::Skip,
     }
     let exe = p.exe().map(Path::to_path_buf);
+    let mut names = vec![name.to_string()];
+    names.extend(
+        exe.as_deref()
+            .and_then(Path::file_name)
+            .map(|n| n.to_string_lossy().into_owned()),
+    );
     if !build {
-        return exe.map_or(Read::Skip, |exe| {
-            Read::Facts(ProcessFacts {
-                pid,
-                paths: vec![canonical_or(exe)],
-                ..ProcessFacts::default()
-            })
+        let other_paths = p
+            .cwd()
+            .map(Path::to_path_buf)
+            .into_iter()
+            .chain(
+                p.cmd()
+                    .iter()
+                    .filter(|a| Path::new(a).is_absolute())
+                    .map(PathBuf::from),
+            )
+            .map(canonical_or)
+            .collect();
+        return Read::Facts(ProcessFacts {
+            pid,
+            paths: exe.map(canonical_or).into_iter().collect(),
+            names,
+            other_paths,
+            ..ProcessFacts::default()
         });
     }
     let Some(cwd) = p.cwd() else {
@@ -641,7 +661,9 @@ fn read_process(p: &sysinfo::Process, uid: &sysinfo::Uid) -> Read {
     if p.environ().is_empty() {
         return Read::Unreadable(format!("pid {pid} ({name}): environment unreadable"));
     }
-    Read::Facts(facts_of(pid, cwd, p.environ(), p.cmd(), exe))
+    let mut facts = facts_of(pid, cwd, p.environ(), p.cmd(), exe);
+    facts.names = names;
+    Read::Facts(facts)
 }
 
 impl ProcessTable for SystemProcessTable {
@@ -776,6 +798,7 @@ pub fn facts_of(
         cwd: Some(canonical_or(cwd.to_path_buf())),
         target_dirs,
         paths,
+        ..ProcessFacts::default()
     }
 }
 
@@ -823,22 +846,30 @@ pub struct Candidate {
     pub process: ProcessUse,
 }
 
-/// Walk `dir` without following symlinks: size, newest mtime, lock state.
-/// The process signal starts as [`ProcessUse::Unseen`]; [`sweep`] fills it.
-///
-/// # Errors
-/// Only when the root itself cannot be read; unreadable entries below it are
-/// skipped (they can only make the size an under-estimate).
-pub fn measure(repo: &Path, dir: CargoTargetDir) -> io::Result<Measured> {
-    let root_meta = std::fs::symlink_metadata(dir.path())?;
-    let mut bytes: u64 = root_meta.blocks() * 512;
-    let mut newest = root_meta.modified()?;
-    let mut seen: HashSet<(u64, u64)> = HashSet::new();
-    let mut locks: Vec<PathBuf> = Vec::new();
+pub(crate) struct TreeFacts {
+    pub bytes: u64,
+    pub newest: SystemTime,
+    pub unread: bool,
+}
 
-    let mut stack: Vec<(PathBuf, usize)> = vec![(dir.path().to_path_buf(), 0)];
+pub(crate) fn walk_tree(
+    root: &Path,
+    visit: &mut dyn FnMut(&Path, &std::fs::Metadata, usize),
+) -> io::Result<TreeFacts> {
+    let root_meta = std::fs::symlink_metadata(root)?;
+    let mut facts = TreeFacts {
+        bytes: root_meta.blocks() * 512,
+        newest: root_meta.modified()?,
+        unread: false,
+    };
+    if !root_meta.is_dir() {
+        return Ok(facts);
+    }
+    let mut seen: HashSet<(u64, u64)> = HashSet::new();
+    let mut stack: Vec<(PathBuf, usize)> = vec![(root.to_path_buf(), 0)];
     while let Some((d, level)) = stack.pop() {
         let Ok(entries) = std::fs::read_dir(&d) else {
+            facts.unread = true;
             continue;
         };
         for entry in entries.flatten() {
@@ -847,34 +878,48 @@ pub fn measure(repo: &Path, dir: CargoTargetDir) -> io::Result<Measured> {
                 continue;
             };
             if let Ok(m) = meta.modified() {
-                newest = newest.max(m);
+                facts.newest = facts.newest.max(m);
             }
             // Hard links (cargo links `target/debug/<bin>` to `deps/<bin>-<hash>`)
             // occupy their blocks once.
             if meta.nlink() <= 1 || seen.insert((meta.dev(), meta.ino())) {
-                bytes += meta.blocks() * 512;
+                facts.bytes += meta.blocks() * 512;
             }
+            visit(&path, &meta, level);
             if meta.is_dir() {
                 stack.push((path, level + 1));
-            } else if meta.is_file()
-                && level < LOCK_MAX_DEPTH
-                && entry
-                    .file_name()
-                    .to_str()
-                    .is_some_and(|n| CARGO_LOCK_NAMES.contains(&n))
-            {
-                locks.push(path);
             }
         }
     }
+    Ok(facts)
+}
 
+/// Walk `dir` without following symlinks: size, newest mtime, lock state.
+/// The process signal starts as [`ProcessUse::Unseen`]; [`sweep`] fills it.
+///
+/// # Errors
+/// Only when the root itself cannot be read; unreadable entries below it are
+/// skipped (they can only make the size an under-estimate).
+pub fn measure(repo: &Path, dir: CargoTargetDir) -> io::Result<Measured> {
+    let mut locks: Vec<PathBuf> = Vec::new();
+    let facts = walk_tree(dir.path(), &mut |path, meta, level| {
+        if meta.is_file()
+            && level < LOCK_MAX_DEPTH
+            && path
+                .file_name()
+                .and_then(OsStr::to_str)
+                .is_some_and(|n| CARGO_LOCK_NAMES.contains(&n))
+        {
+            locks.push(path.to_path_buf());
+        }
+    })?;
     let lock_held = locks.iter().any(|l| lock_is_held(l));
     Ok(Measured {
         repo: repo.to_path_buf(),
         dir,
         candidate: Candidate {
-            bytes,
-            newest,
+            bytes: facts.bytes,
+            newest: facts.newest,
             lock_held,
             process: ProcessUse::Unseen,
         },
@@ -893,7 +938,7 @@ fn lock_is_held(path: &Path) -> bool {
 
 // ── the policy, in blue ────────────────────────────────────────────────
 
-const POLICY_SOURCE: &str = include_str!("../blue/cargo_target.b");
+pub(crate) const POLICY_SOURCE: &str = include_str!("../blue/cargo_target.b");
 
 /// The numbers the policy applies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -938,7 +983,7 @@ impl Verdict {
         matches!(self, Self::RemoveIdle | Self::RemoveOverBudget)
     }
 
-    fn from_word(w: &str) -> Option<Self> {
+    pub(crate) fn from_word(w: &str) -> Option<Self> {
         let active = |signal| Some(Self::Active { signal });
         match w {
             "in-use-lock" => active(ActiveSignal::LockHeld),
@@ -966,17 +1011,35 @@ pub struct Plan {
     pub budget_unreachable: bool,
 }
 
-fn age(c: &Candidate, now: SystemTime) -> Duration {
+pub(crate) fn age(c: &Candidate, now: SystemTime) -> Duration {
     now.duration_since(c.newest).unwrap_or(Duration::ZERO)
 }
 
-fn int(n: u64) -> i64 {
+pub(crate) fn int(n: u64) -> i64 {
     i64::try_from(n).unwrap_or(i64::MAX)
 }
 
 fn uint(v: &Json) -> Result<u64> {
     v.as_u64()
         .ok_or_else(|| anyhow!("cargo_target.b: expected a count, got {v}"))
+}
+
+pub(crate) fn candidate_row(c: &Candidate, now: SystemTime) -> Json {
+    json!([
+        int(c.bytes),
+        int(age(c, now).as_secs()),
+        c.lock_held,
+        c.process.word()
+    ])
+}
+
+pub(crate) fn policy_row(policy: Policy) -> Json {
+    json!([
+        int(policy.max_idle.as_secs()),
+        int(policy.budget_bytes),
+        int(policy.pressure_budget_bytes),
+        int(policy.active_window.as_secs())
+    ])
 }
 
 /// Ask `blue/cargo_target.b` for the plan, then refuse it if it removes a
@@ -991,23 +1054,8 @@ pub fn decide(
     now: SystemTime,
     pressured: bool,
 ) -> Result<Plan> {
-    let rows: Vec<Json> = cands
-        .iter()
-        .map(|c| {
-            json!([
-                int(c.bytes),
-                int(age(c, now).as_secs()),
-                c.lock_held,
-                c.process.word()
-            ])
-        })
-        .collect();
-    let numbers = json!([
-        int(policy.max_idle.as_secs()),
-        int(policy.budget_bytes),
-        int(policy.pressure_budget_bytes),
-        int(policy.active_window.as_secs())
-    ]);
+    let rows: Vec<Json> = cands.iter().map(|c| candidate_row(c, now)).collect();
+    let numbers = policy_row(policy);
     let out = crate::blue_policy::call(
         POLICY_SOURCE,
         "cargo_target.b",
@@ -1048,7 +1096,12 @@ pub fn decide(
 }
 
 /// The in-use rule, held in Rust whatever the policy answers.
-fn guard(cands: &[Candidate], verdicts: &[Verdict], policy: Policy, now: SystemTime) -> Result<()> {
+pub(crate) fn guard(
+    cands: &[Candidate],
+    verdicts: &[Verdict],
+    policy: Policy,
+    now: SystemTime,
+) -> Result<()> {
     for (c, v) in cands.iter().zip(verdicts) {
         let in_use =
             c.lock_held || c.process != ProcessUse::Free || age(c, now) < policy.active_window;
@@ -1200,6 +1253,8 @@ pub struct Report {
     pub entries: Vec<Entry>,
     pub refused: Vec<Refused>,
     pub unmeasurable: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disk: Option<crate::disk::DiskReport>,
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -1308,6 +1363,7 @@ pub fn sweep(
             })
             .collect(),
         unmeasurable,
+        disk: None,
     })
 }
 
@@ -1406,18 +1462,9 @@ pub fn print_report(r: &Report, cfg: &CargoTargetConfig) {
         Mode::DryRun => println!("mode          dry run: nothing deleted"),
         Mode::Apply => println!("mode          applied: freed {:.1} GiB", r.freed_gib),
     }
-}
-
-/// Disk pressure as [`crate::pressure`] defines it, measured at `path`. An
-/// unreadable reading is "not pressured": the idle and budget rules still
-/// apply, only the tighter pressure budget is lost.
-#[must_use]
-pub fn disk_pressured_at(path: &Path, inflight: u32) -> bool {
-    let reader = crate::pressure::SystemPressureReader {
-        path: path.to_path_buf(),
-    };
-    crate::pressure::PressureReader::read(&reader)
-        .is_ok_and(|r| crate::pressure::Thresholds::default().disk_pressured(&r, inflight))
+    if let Some(disk) = &r.disk {
+        crate::disk::print_report(disk);
+    }
 }
 
 #[cfg(test)]
@@ -2065,6 +2112,7 @@ mod tests {
             cwd: None,
             target_dirs: Vec::new(),
             paths: vec![PathBuf::from("/bin/zsh")],
+            ..ProcessFacts::default()
         };
         assert_eq!(
             use_of(&ProcessView::Seen(vec![shell]), &t),
