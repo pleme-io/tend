@@ -23,6 +23,15 @@ pub(crate) fn load_pure(path: Option<&Path>, text: &str, shown: &str) -> Result<
 
 pub(crate) fn call(text: &str, shown: &str, name: &str, args: &[Json]) -> Result<Json> {
     let mut program = load_pure(None, text, shown)?;
+    call_on(&mut program, shown, name, args)
+}
+
+pub(crate) fn call_on(
+    program: &mut Program<()>,
+    shown: &str,
+    name: &str,
+    args: &[Json],
+) -> Result<Json> {
     let values: Vec<blue_lang_host::Value> = args
         .iter()
         .map(blue_lang_runtime::json::json_to_maps)

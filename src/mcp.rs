@@ -105,6 +105,15 @@ pub const TOOLS: &[Tool] = &[
         mutating: false,
     },
     Tool {
+        name: "tend_sprawl",
+        description: "Branch, stash, worktree and backup-ref sprawl across the workspace, \
+                      from the daemon's snapshot: per item the verdict, severity, report_only \
+                      and the next command as text, filtered by org, repo, verdict, limit; \
+                      with the snapshot's age and an outcome of found / empty / blind. \
+                      Report only; nothing here changes a ref.",
+        mutating: false,
+    },
+    Tool {
         name: "tend_worktree_prune",
         description: "Remove session worktrees that hold no work. Refuses on \
                       uncommitted or unpushed changes. Requires mutate authority.",
@@ -203,8 +212,12 @@ impl ConfigSurface {
 // ═══════════════════════════════════════════════════════════════════
 
 use rmcp::{
-    handler::server::router::tool::ToolRouter, model::ServerCapabilities, model::ServerInfo, tool,
-    tool_handler, tool_router, transport::stdio, ServerHandler, ServiceExt,
+    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
+    model::ServerCapabilities,
+    model::ServerInfo,
+    tool, tool_handler, tool_router,
+    transport::stdio,
+    ServerHandler, ServiceExt,
 };
 
 /// The stdio MCP server.
@@ -401,6 +414,25 @@ impl TendMcp {
                 "why": "no drift sweep has run on this host; run `tend drift run`",
             })
             .to_string(),
+        }
+    }
+
+    #[tool(
+        description = "Branch and stash sprawl across every workspace repo, read from the tend daemon's snapshot (no scan, no network): local and remote branches, stashes, linked worktrees, refs/backup/*, and a default branch with no merge base with origin. Filters: org, repo (exact), verdict, limit (default 100). Answers `outcome`: found, empty (read and nothing there, a finding) or blind (no snapshot, or an unread repo in scope; conclude nothing); `age_secs`, `stale` and `stale_why` say how old the snapshot is and why; `classes` are the per-verdict counts; each item carries verdict, severity, report_only and `next`, a suggested command as text. akeylesslabs repos and branches by another author are report_only and their `next` never deletes. Verdicts: landed, lingering, active, checked-out, foreign-author, bulk-sweep-stash, individual-stash, dead-worktree, dirty-worktree, idle-worktree, backup-ref, default-branch-diverged, unclassified, plus operator rules. Read-only: nothing here deletes or changes a ref."
+    )]
+    async fn tend_sprawl(&self, Parameters(filters): Parameters<crate::sprawl::Filters>) -> String {
+        let cfg = match crate::load_config(None) {
+            Ok(c) => c,
+            Err(e) => return json!({"ok": false, "error": e.to_string()}).to_string(),
+        };
+        let read = tokio::task::spawn_blocking(move || {
+            crate::sprawl::mcp_report(&cfg.sprawl, &filters, std::time::SystemTime::now())
+        })
+        .await;
+        match read {
+            Ok(Ok(v)) => v.to_string(),
+            Ok(Err(e)) => json!({"ok": false, "outcome": "blind", "error": format!("{e:#}")}).to_string(),
+            Err(e) => json!({"ok": false, "outcome": "blind", "error": e.to_string()}).to_string(),
         }
     }
 

@@ -86,6 +86,8 @@ pub struct Config {
     /// status` and the `tend_wip` MCP tool. A warning, never a block.
     #[serde(default)]
     pub wip: crate::wip::WipConfig,
+    #[serde(default)]
+    pub sprawl: crate::sprawl::SprawlConfig,
 }
 
 /// The `github_auth:` list — shikumi [`GithubAuth`] sources tried in order.
@@ -947,6 +949,10 @@ impl shikumi::TieredConfig for Config {
                 enabled: false,
                 ..crate::wip::WipConfig::default()
             },
+            sprawl: crate::sprawl::SprawlConfig {
+                enabled: false,
+                ..crate::sprawl::SprawlConfig::default()
+            },
         }
     }
     /// What tend runs when a source says nothing — every daemon knob the
@@ -966,6 +972,7 @@ impl shikumi::TieredConfig for Config {
             drift: crate::drift_sentinel::DriftConfig::default(),
             status_snapshot: crate::scan::StatusSnapshotConfig::default(),
             wip: crate::wip::WipConfig::default(),
+            sprawl: crate::sprawl::SprawlConfig::default(),
         }
     }
 }

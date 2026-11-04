@@ -190,13 +190,19 @@ fn shared_refs(repo: &LocalRepo) -> std::path::PathBuf {
         .unwrap_or_else(|| repo.path.clone())
 }
 
-pub(crate) fn collect(repos: &[LocalRepo], workers: usize, deadline: Option<Instant>) -> Collected {
+pub(crate) fn distinct(repos: &[LocalRepo]) -> Vec<LocalRepo> {
     let mut seen = std::collections::BTreeSet::new();
-    let distinct: Vec<LocalRepo> = repos
-        .iter()
+    let (main, linked): (Vec<&LocalRepo>, Vec<&LocalRepo>) =
+        repos.iter().partition(|r| r.path.join(".git").is_dir());
+    main.into_iter()
+        .chain(linked)
         .filter(|r| seen.insert(shared_refs(r)))
         .cloned()
-        .collect();
+        .collect()
+}
+
+pub(crate) fn collect(repos: &[LocalRepo], workers: usize, deadline: Option<Instant>) -> Collected {
+    let distinct = distinct(repos);
     let results = crate::scan::parallel(&distinct, workers, deadline, observe);
     let mut branches = Vec::new();
     let mut unchecked = 0usize;
@@ -611,6 +617,22 @@ mod tests {
         assert_eq!(collected.unchecked, 0);
         assert_eq!(collected.branches.len(), 1);
         assert_eq!(collected.branches[0].repo, "magma");
+    }
+
+    #[test]
+    fn a_linked_worktree_named_before_its_repo_still_counts_under_the_repo() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = repo_with_wip(tmp.path(), "magma", &[]);
+        let linked = tmp.path().join("a-guard");
+        git(&repo.path, &["worktree", "add", "-q", "--detach", &linked.to_string_lossy()]);
+        let worktree = LocalRepo {
+            workspace: "ws".into(),
+            name: "a-guard".into(),
+            path: linked,
+        };
+        let kept = distinct(&[worktree, repo]);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].name, "magma");
     }
 
     #[test]

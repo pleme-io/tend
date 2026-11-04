@@ -27,6 +27,8 @@ mod pressure;
 mod push_ahead;
 mod scan;
 mod wip;
+mod sprawl;
+mod heartbeat;
 mod worktree;
 mod xdg;
 // Typed failure classification for a reconcile cycle. See src/failure.rs --
@@ -144,6 +146,25 @@ enum Commands {
     Drift {
         #[command(subcommand)]
         action: DriftAction,
+    },
+
+    #[command(
+        about = "Branch, stash, worktree and backup-ref sprawl on every repo, judged in blue/sprawl.b; report only",
+        long_about = "Reads the daemon's snapshot (a first run scans) and prints per class the count and the repos that hold it, then items with a next command as text. Rules are kousei entries in tend.b `sprawl.rules`; each is on, tuned, off or refused alone. Nothing here deletes or changes a ref. docs/SPRAWL.md."
+    )]
+    Sprawl {
+        #[command(subcommand)]
+        action: Option<SprawlAction>,
+        #[arg(long, help = "Emit the report as JSON")]
+        json: bool,
+        #[arg(long, help = "Only this org")]
+        org: Option<String>,
+        #[arg(long, help = "Only this repo (exact name)")]
+        repo: Option<String>,
+        #[arg(long, help = "Only this verdict")]
+        verdict: Option<String>,
+        #[arg(long, help = "At most this many items (30 by default; --json lists all)")]
+        limit: Option<usize>,
     },
 
     /// Per-session git worktrees — real isolation for concurrent agents.
@@ -569,6 +590,17 @@ enum CargoTargetAction {
 }
 
 #[derive(Subcommand)]
+enum SprawlAction {
+    #[command(about = "Scan every workspace repo now and save the snapshot; no network")]
+    Refresh,
+    #[command(about = "Run every rule's examples; fails on a refused entry or a wrong example")]
+    Validate {
+        #[arg(long, help = "Emit the result as JSON")]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
 enum DriftAction {
     #[command(about = "Show the last sweep's verdicts and findings; runs no check")]
     Report {
@@ -811,6 +843,88 @@ async fn main() -> Result<()> {
             }
             if report.entries.iter().any(|e| e.removed == Some(false)) {
                 std::process::exit(1);
+            }
+        }
+
+        Commands::Sprawl {
+            action,
+            json,
+            org,
+            repo,
+            verdict,
+            limit,
+        } => {
+            let cfg = loader(none()).load()?;
+            let path = sprawl::snapshot_path();
+            let now = std::time::SystemTime::now();
+            let refresh = |cfg: &config::Config| -> Result<sprawl::Snapshot> {
+                let workspaces: Vec<&config::Workspace> = cfg.workspaces.iter().collect();
+                let probe = workspaces
+                    .first()
+                    .and_then(|w| w.resolved_base_dir().ok())
+                    .unwrap_or_else(|| std::path::PathBuf::from("."));
+                let (workers, throttled) = sprawl::admitted_workers(&cfg.sprawl, &probe)
+                    .map_err(|why| anyhow::anyhow!("host pressure refuses a scan: {why}"))?;
+                sprawl::refresh(&workspaces, &cfg.sprawl, workers, throttled, &path, now)
+            };
+            match action {
+                Some(SprawlAction::Validate { json }) => {
+                    let mut policy = sprawl::Policy::load(&cfg.sprawl, now)?;
+                    let answer = policy.validate(&cfg.sprawl)?;
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&answer)?);
+                    } else {
+                        sprawl::print_validate(&answer);
+                    }
+                    if answer["ok"] != serde_json::Value::Bool(true) {
+                        anyhow::bail!("sprawl rules did not validate");
+                    }
+                }
+                Some(SprawlAction::Refresh) => {
+                    let snapshot = refresh(&cfg)?;
+                    println!(
+                        "{} items, {} of {} repos read ({} on disk), {} blind, {:.1}s -> {}",
+                        snapshot.rows.len(),
+                        snapshot.read,
+                        snapshot.total,
+                        snapshot.on_disk,
+                        snapshot.blind.len(),
+                        snapshot.scan_secs,
+                        path.display()
+                    );
+                }
+                None => {
+                    let snapshot = match sprawl::read_snapshot(&path) {
+                        Some(s) => Some(s),
+                        None if cfg.sprawl.enabled => Some(refresh(&cfg)?),
+                        None => None,
+                    };
+                    let filters = sprawl::Filters {
+                        org,
+                        repo,
+                        verdict,
+                        limit,
+                    };
+                    let report = sprawl::report(
+                        &cfg.sprawl,
+                        snapshot,
+                        &filters,
+                        if json { usize::MAX } else { 30 },
+                        now,
+                        || {
+                            heartbeat::observe(
+                                &heartbeat::path(),
+                                now,
+                                heartbeat::process_named_tend,
+                            )
+                        },
+                    )?;
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&report)?);
+                    } else {
+                        sprawl::print_report(&report);
+                    }
+                }
             }
         }
 
@@ -1510,6 +1624,16 @@ async fn main() -> Result<()> {
                         }
                         Err(e) => eprintln!("tend: wip branches unread: {e:#}"),
                     }
+                }
+                if cfg.sprawl.enabled && cfg.sprawl.status_line {
+                    println!(
+                        "{}",
+                        sprawl::status_text(
+                            &cfg.sprawl,
+                            &sprawl::snapshot_path(),
+                            std::time::SystemTime::now()
+                        )
+                    );
                 }
                 if cfg.drift.enable {
                     println!();

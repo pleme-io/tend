@@ -96,17 +96,18 @@ pub(crate) fn run(event: Event, config: anyhow::Result<Config>, raw: &str) -> Op
         .map_or(4, std::num::NonZeroUsize::get)
         .min(MAX_WORKERS);
     match event {
-        Event::Stop => stop(
-            &workspaces,
-            &payload,
-            BUDGET,
-            workers,
-            payload
-                .session_id
-                .as_deref()
-                .and_then(reported_path)
-                .as_deref(),
-        ),
+        Event::Stop => {
+            let memory = payload.session_id.as_deref().and_then(reported_path);
+            let answer = stop(&workspaces, &payload, BUDGET, workers, memory.as_deref());
+            if config.sprawl.enabled && config.sprawl.hook_stop {
+                with_system_note(
+                    answer,
+                    sprawl_stop_note(&workspaces, &payload, &config.sprawl, memory.as_deref()),
+                )
+            } else {
+                answer
+            }
+        }
         Event::SessionStart => session_start(
             &workspaces,
             &config.status_snapshot,
@@ -136,11 +137,82 @@ pub(crate) fn run(event: Event, config: anyhow::Result<Config>, raw: &str) -> Op
                         })
                         .flatten(),
                 )
+                .chain(
+                    (config.sprawl.enabled && config.sprawl.hook_session_start)
+                        .then(|| {
+                            crate::sprawl::session_lines(
+                                &config.sprawl,
+                                &crate::sprawl::snapshot_path(),
+                                SystemTime::now(),
+                            )
+                        })
+                        .into_iter()
+                        .flatten(),
+                )
                 .collect(),
             config.host_health.report_daemon,
             &config.wip,
         ),
     }
+}
+
+pub(crate) fn with_system_note(answer: Option<Value>, note: Option<String>) -> Option<Value> {
+    let Some(note) = note else { return answer };
+    let mut value = answer.unwrap_or_else(|| json!({}));
+    let text = match value.get("systemMessage").and_then(Value::as_str) {
+        Some(existing) => format!("{existing}\n{note}"),
+        None => note,
+    };
+    value["systemMessage"] = Value::String(text);
+    Some(value)
+}
+
+fn sprawl_stop_note(
+    workspaces: &[&Workspace],
+    payload: &Payload,
+    config: &crate::sprawl::SprawlConfig,
+    memory: Option<&Path>,
+) -> Option<String> {
+    let since = session_started(payload.transcript_path.as_deref());
+    let touched = touched_repos(workspaces, payload.cwd.as_deref(), since);
+    if touched.is_empty() {
+        return None;
+    }
+    sprawl_note_for(workspaces, &touched, config, memory, SystemTime::now())
+}
+
+pub(crate) fn sprawl_note_for(
+    workspaces: &[&Workspace],
+    touched: &[LocalRepo],
+    config: &crate::sprawl::SprawlConfig,
+    memory: Option<&Path>,
+    now: SystemTime,
+) -> Option<String> {
+    let note = match crate::sprawl::touched_note(
+        workspaces,
+        touched,
+        config,
+        &crate::sprawl::snapshot_path(),
+        BUDGET,
+        now,
+    ) {
+        Ok(note) => note,
+        Err(e) => return Some(format!("tend sprawl: blind, judgement failed: {e:#}")),
+    };
+    let mut lines = note.lines;
+    if note.unread > 0 {
+        lines.push(format!(
+            "tend sprawl: {} touched repo{} not read within the hook budget (blind, not zero).",
+            note.unread,
+            plural(note.unread as u64)
+        ));
+    }
+    if let Some(memory) = memory {
+        let mut reported = read_reported(memory);
+        lines.retain(|line| reported.insert(line.clone()));
+        write_reported(memory, &reported);
+    }
+    (!lines.is_empty()).then(|| lines.join("\n"))
 }
 
 // The session's own view of the host. tend throttled itself at 20.4 GiB free
@@ -481,6 +553,13 @@ pub(crate) fn session_start(
         if let Some(note) = daemon_sentence(
             raw.as_ref().map(|s| s.age(now)),
             snapshot_config.max_age(),
+            || {
+                crate::heartbeat::observe(
+                    &crate::heartbeat::path(),
+                    now,
+                    crate::heartbeat::process_named_tend,
+                )
+            },
         ) {
             notes.push(note);
         }
@@ -600,34 +679,23 @@ fn live(
     )
 }
 
-/// The daemon's liveness, read from its own heartbeat: it writes a status
-/// snapshot every cycle, so a missing or overdue snapshot means it is not
-/// running. On 2026-10-22 it had been unloaded since 06:54 and every session
-/// start said only "no fresh daemon snapshot", which no reader took as "dead".
-pub(crate) fn daemon_sentence(snapshot_age: Option<Duration>, max_age: Duration) -> Option<String> {
-    let restart = if cfg!(target_os = "macos") {
-        "launchctl kickstart -k gui/$(id -u)/io.pleme.tend-daemon"
-    } else {
-        "restart tend's daemon service"
-    };
-    let mut s = String::new();
+pub(crate) fn daemon_sentence(
+    snapshot_age: Option<Duration>,
+    max_age: Duration,
+    liveness: impl FnOnce() -> crate::heartbeat::Liveness,
+) -> Option<String> {
     match snapshot_age {
-        None => {
-            let _ = write!(
-                s,
-                "tend: the daemon has never written a status snapshot here, so it is not running; start it: {restart}."
-            );
-        }
-        Some(age) if age > max_age => {
-            let _ = write!(
-                s,
-                "tend: the daemon's last status snapshot is {} old (it writes one every cycle), so it is probably not running; restart it: {restart}.",
-                human_age(age)
-            );
-        }
-        Some(_) => return None,
+        None => Some(format!(
+            "tend: the daemon has never written a status snapshot here. {}",
+            liveness().sentence()
+        )),
+        Some(age) if age > max_age => Some(format!(
+            "tend: the daemon's last status snapshot is {} old. {}",
+            human_age(age),
+            liveness().sentence()
+        )),
+        Some(_) => None,
     }
-    Some(s)
 }
 
 pub(crate) fn pressure_sentence(
@@ -1160,15 +1228,77 @@ mod tests {
     }
 
     #[test]
-    fn an_overdue_or_missing_snapshot_says_the_daemon_is_not_running() {
+    fn an_overdue_snapshot_asks_the_daemon_and_never_guesses_it_is_dead() {
+        use crate::heartbeat::Liveness;
         let max = Duration::from_secs(30 * 60);
-        let never = daemon_sentence(None, max).unwrap();
+        let gone = || Liveness::Gone { pid: 7 };
+        let never = daemon_sentence(None, max, gone).unwrap();
         assert!(never.contains("never written a status snapshot"), "{never}");
-        let overdue = daemon_sentence(Some(Duration::from_secs(8 * 3600)), max).unwrap();
+        assert!(never.contains("restart it"), "{never}");
+        let eight = Some(Duration::from_secs(8 * 3600));
+        let overdue = daemon_sentence(eight, max, gone).unwrap();
         assert!(overdue.contains("8h0m old"), "{overdue}");
-        assert!(overdue.contains("probably not running"), "{overdue}");
+        assert!(overdue.contains("not running"), "{overdue}");
         assert!(overdue.contains("restart it"), "{overdue}");
-        assert!(daemon_sentence(Some(Duration::from_secs(60)), max).is_none());
+        let running = daemon_sentence(eight, max, || Liveness::Running {
+            pid: 7,
+            tick_age_secs: 600,
+            state: "throttle".into(),
+            why: "load average is 300%".into(),
+        })
+        .unwrap();
+        assert!(running.contains("The daemon runs"), "{running}");
+        assert!(running.contains("load average is 300%"), "{running}");
+        assert!(!running.contains("not running"), "{running}");
+        assert!(!running.contains("restart it:"), "{running}");
+        let unseen = daemon_sentence(eight, max, || Liveness::Unseen).unwrap();
+        assert!(unseen.contains("unseen, not dead"), "{unseen}");
+        assert!(!unseen.contains("restart it"), "{unseen}");
+        let fresh = daemon_sentence(Some(Duration::from_secs(60)), max, || {
+            panic!("a fresh snapshot asks nothing")
+        });
+        assert!(fresh.is_none());
+    }
+
+    #[test]
+    fn a_stop_note_joins_a_block_or_stands_alone_and_says_nothing_without_one() {
+        assert_eq!(with_system_note(None, None), None);
+        let alone = with_system_note(None, Some("n".into())).unwrap();
+        assert_eq!(alone["systemMessage"], "n");
+        assert!(alone.get("decision").is_none(), "a note never blocks");
+        let block = json!({"decision": "block", "reason": "r"});
+        let joined = with_system_note(Some(block), Some("n".into())).unwrap();
+        assert_eq!(joined["decision"], "block");
+        assert_eq!(joined["systemMessage"], "n");
+        let told = json!({"systemMessage": "first"});
+        let both = with_system_note(Some(told), Some("n".into())).unwrap();
+        assert_eq!(both["systemMessage"], "first\nn");
+    }
+
+    #[test]
+    fn a_stop_note_is_said_once_per_session() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = backed_repo(tmp.path(), "r");
+        git(&repo, &["checkout", "-q", "-b", "side"]);
+        std::fs::write(repo.join("g"), "x\n").unwrap();
+        git(&repo, &["add", "."]);
+        git(&repo, &["commit", "-q", "--no-verify", "-m", "side"]);
+        git(&repo, &["checkout", "-q", "main"]);
+        let ws = workspace("ws", tmp.path(), PushPolicy::Main, None);
+        let touched = vec![LocalRepo {
+            workspace: "ws".into(),
+            name: "r".into(),
+            path: repo,
+        }];
+        let config = crate::sprawl::SprawlConfig {
+            own_authors: vec!["t".into()],
+            ..crate::sprawl::SprawlConfig::default()
+        };
+        let memory = tmp.path().join("memory/stop.json");
+        let later = SystemTime::now() + Duration::from_secs(40 * 86_400);
+        let first = sprawl_note_for(&[&ws], &touched, &config, Some(&memory), later).unwrap();
+        assert!(first.contains("r holds 1 lingering"), "{first}");
+        assert!(sprawl_note_for(&[&ws], &touched, &config, Some(&memory), later).is_none());
     }
 
     #[test]

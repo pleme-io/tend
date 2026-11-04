@@ -1512,6 +1512,74 @@
       ],
       "type": "string"
     },
+    "SprawlConfig": {
+      "properties": {
+        "daemon": {
+          "default": true,
+          "type": "boolean"
+        },
+        "deep_repo_seconds": {
+          "default": 20,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "hook_session_start": {
+          "default": true,
+          "type": "boolean"
+        },
+        "hook_stop": {
+          "default": true,
+          "type": "boolean"
+        },
+        "max_age_minutes": {
+          "default": 30,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "own_authors": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "report_only_orgs": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "rules": {
+          "default": [],
+          "items": true,
+          "type": "array"
+        },
+        "scan_minutes": {
+          "default": 20,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "status_line": {
+          "default": true,
+          "type": "boolean"
+        },
+        "workers": {
+          "default": 4,
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "StatusSnapshotConfig": {
       "properties": {
         "enable": {
@@ -2083,6 +2151,23 @@
         "max_inflight": 16
       },
       "description": "Concurrency of the repo reconcile (`git pull`), shared by `tend\ndaemon`, `tend reconcile` and `tend pressure`."
+    },
+    "sprawl": {
+      "$ref": "#/$defs/SprawlConfig",
+      "default": {
+        "daemon": true,
+        "deep_repo_seconds": 20,
+        "enabled": true,
+        "hook_session_start": true,
+        "hook_stop": true,
+        "max_age_minutes": 30,
+        "own_authors": [],
+        "report_only_orgs": [],
+        "rules": [],
+        "scan_minutes": 20,
+        "status_line": true,
+        "workers": 4
+      }
     },
     "status_snapshot": {
       "$ref": "#/$defs/StatusSnapshotConfig",

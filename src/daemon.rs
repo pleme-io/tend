@@ -43,6 +43,7 @@ pub(crate) async fn run_with_kanshou(
     let mut last_cargo_sweep: Option<std::time::Instant> = None;
     let mut last_drift_sweep: Option<std::time::Instant> = None;
     let drift_running = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let mut last_skip_beat: Option<std::time::Instant> = None;
 
     // Single drain coordinator for the whole loop — handles SIGTERM and
     // SIGINT. `tokio::signal::ctrl_c` alone misses SIGTERM from launchd.
@@ -345,6 +346,16 @@ pub(crate) async fn run_with_kanshou(
         // Failure to READ pressure is not a reason to stop: an unreadable `df`
         // must not silently stall the reconciler, or the guard becomes an
         // outage of its own. Only a real, measured reading can stop a cycle.
+        let beat = |state: &str, why: &str| {
+            if let Err(e) = crate::heartbeat::beat(
+                &crate::heartbeat::path(),
+                state,
+                why,
+                std::time::SystemTime::now(),
+            ) {
+                eprintln!("daemon: heartbeat unwritten: {e:#}");
+            }
+        };
         let effective_inflight = {
             let reader = crate::pressure::SystemPressureReader {
                 path: workspaces.first().map_or_else(
@@ -363,6 +374,9 @@ pub(crate) async fn run_with_kanshou(
                         Some(n) => {
                             if n != max_inflight {
                                 eprintln!("tend: throttling to {n} — {}", verdict.why());
+                                beat("throttle", &verdict.why());
+                            } else {
+                                beat("proceed", "");
                             }
                             n
                         }
@@ -371,6 +385,12 @@ pub(crate) async fn run_with_kanshou(
                             // without explanation is indistinguishable from one
                             // that has crashed.
                             eprintln!("tend: skipping cycle — {}", verdict.why());
+                            if last_skip_beat.is_none_or(|t: std::time::Instant| {
+                                t.elapsed() >= Duration::from_secs(60)
+                            }) {
+                                last_skip_beat = Some(std::time::Instant::now());
+                                beat("skip", &verdict.why());
+                            }
                             continue;
                         }
                     }
@@ -379,6 +399,7 @@ pub(crate) async fn run_with_kanshou(
                     eprintln!(
                         "tend: pressure unreadable ({e}); proceeding at configured concurrency"
                     );
+                    beat("proceed", "");
                     max_inflight
                 }
             }
@@ -411,6 +432,45 @@ pub(crate) async fn run_with_kanshou(
         let mut tok = shutdown.token();
         if let CycleEnd::Drained = join_or_drain(&mut tasks, &mut tok).await {
             break;
+        }
+
+        if cfg.sprawl.enabled && cfg.sprawl.daemon {
+            let sprawl = cfg.sprawl.clone();
+            let workers = sprawl.workers.min(effective_inflight as usize).max(1);
+            let throttled = (workers < sprawl.workers).then(|| {
+                format!(
+                    "{workers} of {} workers under host pressure",
+                    sprawl.workers
+                )
+            });
+            let owned: Vec<crate::config::Workspace> = cfg.workspaces.clone();
+            let refreshed = tokio::task::spawn_blocking(move || {
+                let refs: Vec<&crate::config::Workspace> = owned.iter().collect();
+                crate::sprawl::refresh(
+                    &refs,
+                    &sprawl,
+                    workers,
+                    throttled,
+                    &crate::sprawl::snapshot_path(),
+                    std::time::SystemTime::now(),
+                )
+            })
+            .await;
+            match refreshed {
+                Ok(Ok(snapshot)) => {
+                    if !d.quiet {
+                        eprintln!(
+                            "  sprawl snapshot: {} items, {} of {} repos read, {:.1}s",
+                            snapshot.rows.len(),
+                            snapshot.read,
+                            snapshot.total,
+                            snapshot.scan_secs
+                        );
+                    }
+                }
+                Ok(Err(e)) => eprintln!("daemon: sprawl snapshot failed: {e:#}"),
+                Err(e) => eprintln!("daemon: sprawl snapshot panicked: {e}"),
+            }
         }
 
         if cfg.status_snapshot.enable {

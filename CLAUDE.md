@@ -48,6 +48,7 @@ and automates version certification pipelines.
 | `daemon` | Persistent loop: sync + fetch + watch (`daemon.interval`, default 300s) |
 | `flake-update` | Propagate nix flake updates through dependency chain |
 | `init` | Generate starter config |
+| `sprawl [refresh\|validate]` | Branch, stash, worktree and backup-ref sprawl, judged in blue, report only: [docs/SPRAWL.md](docs/SPRAWL.md) |
 | `cargo-target report\|apply` | Size, idle days, form and verdict for every cargo target dir (repos + `extra_roots`); `apply` removes what the policy selects |
 | `config-show [--effective [--provenance]]` | The config at a tier, or the one this invocation resolves and which layer set each leaf |
 | `config-schema` | The config's JSON Schema (`schema/tend-config.schema.json`) |
@@ -116,6 +117,8 @@ src/
 ├── scan.rs          # On-disk repo enumeration, bounded parallel classification, touched filter, status snapshot
 ├── hook.rs          # `tend hook stop|session-start`: Claude Code hook contracts
 ├── wip.rs           # `wip/*` branches: docs/WIP.md
+├── sprawl.rs        # Sprawl facts, snapshot, report; blue/sprawl.b judges: docs/SPRAWL.md
+├── heartbeat.rs     # The daemon's pid and gate verdict; a stale snapshot asks it
 ├── push_ahead.rs    # fast-forward-push ahead-only default branches
 ├── daemon.rs        # Persistent loop
 ├── watch.rs         # Version detection, matrix append, certify, commit, propagate
