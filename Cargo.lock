@@ -2726,7 +2726,7 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.38"
+version = "0.3.39"
 dependencies = [
  "anyhow",
  "async-nats",

@@ -1163,13 +1163,13 @@ rec {
       };
       "blue-lang-bidama" = rec {
         crateName = "blue-lang-bidama";
-        version = "0.0.151";
+        version = "0.0.153";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "d05ef2fe4968201b30d5a35cd6593a812fd58abd";
-          sha256 = "1ggzdskrhqaa666f5fzvyx4fg033i01hs3r97if5fbwd9xd18p8x";
+          rev = "6434ce31807b8674c489f989b34368c697f7a8bc";
+          sha256 = "1c6vjf1g0ypx2fp4pvmjgjm2ah2sm0plr6caz5ybvvjp81wxa3c2";
         };
         libName = "blue_lang_bidama";
         authors = [
@@ -1185,13 +1185,13 @@ rec {
       };
       "blue-lang-check" = rec {
         crateName = "blue-lang-check";
-        version = "0.0.151";
+        version = "0.0.153";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "d05ef2fe4968201b30d5a35cd6593a812fd58abd";
-          sha256 = "1ggzdskrhqaa666f5fzvyx4fg033i01hs3r97if5fbwd9xd18p8x";
+          rev = "6434ce31807b8674c489f989b34368c697f7a8bc";
+          sha256 = "1c6vjf1g0ypx2fp4pvmjgjm2ah2sm0plr6caz5ybvvjp81wxa3c2";
         };
         libName = "blue_lang_check";
         authors = [
@@ -1211,13 +1211,13 @@ rec {
       };
       "blue-lang-fmt" = rec {
         crateName = "blue-lang-fmt";
-        version = "0.0.151";
+        version = "0.0.153";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "d05ef2fe4968201b30d5a35cd6593a812fd58abd";
-          sha256 = "1ggzdskrhqaa666f5fzvyx4fg033i01hs3r97if5fbwd9xd18p8x";
+          rev = "6434ce31807b8674c489f989b34368c697f7a8bc";
+          sha256 = "1c6vjf1g0ypx2fp4pvmjgjm2ah2sm0plr6caz5ybvvjp81wxa3c2";
         };
         libName = "blue_lang_fmt";
         authors = [
@@ -1241,13 +1241,13 @@ rec {
       };
       "blue-lang-host" = rec {
         crateName = "blue-lang-host";
-        version = "0.0.151";
+        version = "0.0.153";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "d05ef2fe4968201b30d5a35cd6593a812fd58abd";
-          sha256 = "1ggzdskrhqaa666f5fzvyx4fg033i01hs3r97if5fbwd9xd18p8x";
+          rev = "6434ce31807b8674c489f989b34368c697f7a8bc";
+          sha256 = "1c6vjf1g0ypx2fp4pvmjgjm2ah2sm0plr6caz5ybvvjp81wxa3c2";
         };
         libName = "blue_lang_host";
         authors = [
@@ -1307,13 +1307,13 @@ rec {
       };
       "blue-lang-host-macros" = rec {
         crateName = "blue-lang-host-macros";
-        version = "0.0.151";
+        version = "0.0.153";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "d05ef2fe4968201b30d5a35cd6593a812fd58abd";
-          sha256 = "1ggzdskrhqaa666f5fzvyx4fg033i01hs3r97if5fbwd9xd18p8x";
+          rev = "6434ce31807b8674c489f989b34368c697f7a8bc";
+          sha256 = "1c6vjf1g0ypx2fp4pvmjgjm2ah2sm0plr6caz5ybvvjp81wxa3c2";
         };
         procMacro = true;
         libName = "blue_lang_host_macros";
@@ -1339,13 +1339,13 @@ rec {
       };
       "blue-lang-mondou" = rec {
         crateName = "blue-lang-mondou";
-        version = "0.0.151";
+        version = "0.0.153";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "d05ef2fe4968201b30d5a35cd6593a812fd58abd";
-          sha256 = "1ggzdskrhqaa666f5fzvyx4fg033i01hs3r97if5fbwd9xd18p8x";
+          rev = "6434ce31807b8674c489f989b34368c697f7a8bc";
+          sha256 = "1c6vjf1g0ypx2fp4pvmjgjm2ah2sm0plr6caz5ybvvjp81wxa3c2";
         };
         libName = "blue_lang_mondou";
         authors = [
@@ -1398,13 +1398,13 @@ rec {
       };
       "blue-lang-pkg" = rec {
         crateName = "blue-lang-pkg";
-        version = "0.0.151";
+        version = "0.0.153";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "d05ef2fe4968201b30d5a35cd6593a812fd58abd";
-          sha256 = "1ggzdskrhqaa666f5fzvyx4fg033i01hs3r97if5fbwd9xd18p8x";
+          rev = "6434ce31807b8674c489f989b34368c697f7a8bc";
+          sha256 = "1c6vjf1g0ypx2fp4pvmjgjm2ah2sm0plr6caz5ybvvjp81wxa3c2";
         };
         libName = "blue_lang_pkg";
         authors = [
@@ -1477,13 +1477,13 @@ rec {
       };
       "blue-lang-proc" = rec {
         crateName = "blue-lang-proc";
-        version = "0.0.151";
+        version = "0.0.153";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "d05ef2fe4968201b30d5a35cd6593a812fd58abd";
-          sha256 = "1ggzdskrhqaa666f5fzvyx4fg033i01hs3r97if5fbwd9xd18p8x";
+          rev = "6434ce31807b8674c489f989b34368c697f7a8bc";
+          sha256 = "1c6vjf1g0ypx2fp4pvmjgjm2ah2sm0plr6caz5ybvvjp81wxa3c2";
         };
         libName = "blue_lang_proc";
         authors = [
@@ -1535,13 +1535,13 @@ rec {
       };
       "blue-lang-runtime" = rec {
         crateName = "blue-lang-runtime";
-        version = "0.0.151";
+        version = "0.0.153";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "d05ef2fe4968201b30d5a35cd6593a812fd58abd";
-          sha256 = "1ggzdskrhqaa666f5fzvyx4fg033i01hs3r97if5fbwd9xd18p8x";
+          rev = "6434ce31807b8674c489f989b34368c697f7a8bc";
+          sha256 = "1c6vjf1g0ypx2fp4pvmjgjm2ah2sm0plr6caz5ybvvjp81wxa3c2";
         };
         libName = "blue_lang_runtime";
         authors = [
@@ -1633,13 +1633,13 @@ rec {
       };
       "blue-lang-syntax" = rec {
         crateName = "blue-lang-syntax";
-        version = "0.0.151";
+        version = "0.0.153";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "d05ef2fe4968201b30d5a35cd6593a812fd58abd";
-          sha256 = "1ggzdskrhqaa666f5fzvyx4fg033i01hs3r97if5fbwd9xd18p8x";
+          rev = "6434ce31807b8674c489f989b34368c697f7a8bc";
+          sha256 = "1c6vjf1g0ypx2fp4pvmjgjm2ah2sm0plr6caz5ybvvjp81wxa3c2";
         };
         libName = "blue_lang_syntax";
         authors = [
@@ -1655,13 +1655,13 @@ rec {
       };
       "blue-lang-waku" = rec {
         crateName = "blue-lang-waku";
-        version = "0.0.151";
+        version = "0.0.153";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/blue";
-          rev = "d05ef2fe4968201b30d5a35cd6593a812fd58abd";
-          sha256 = "1ggzdskrhqaa666f5fzvyx4fg033i01hs3r97if5fbwd9xd18p8x";
+          rev = "6434ce31807b8674c489f989b34368c697f7a8bc";
+          sha256 = "1c6vjf1g0ypx2fp4pvmjgjm2ah2sm0plr6caz5ybvvjp81wxa3c2";
         };
         libName = "blue_lang_waku";
         authors = [
@@ -1732,10 +1732,10 @@ rec {
       };
       "brotli-decompressor" = rec {
         crateName = "brotli-decompressor";
-        version = "6.2.0";
+        version = "6.3.0";
         edition = "2015";
         crateBin = [];
-        sha256 = "1bzsf3idc8q5nsqsbknyx5h0gwd21d7kaaqiswm9a76288zpiiil";
+        sha256 = "019cd5lhijajg2b1ah10ik4a5zv5g8xg3fh6kid4r525bcg0gncp";
         libName = "brotli_decompressor";
         authors = [
           "Daniel Reiter Horn <danielrh@dropbox.com>"
@@ -1822,9 +1822,9 @@ rec {
       };
       "cc" = rec {
         crateName = "cc";
-        version = "1.11.0";
+        version = "1.11.1";
         edition = "2021";
-        sha256 = "0ssz5frnjb3x873yhp2790xf9v8jz8hdbgj28i1gm861rvg8jn9p";
+        sha256 = "0mgicvynjmz4xan2nbdi1dr62pjqb9kikml0j21qq3zzdw9aiwjg";
         dependencies = [
           {
             name = "find-msvc-tools";
@@ -3752,9 +3752,9 @@ rec {
       };
       "flate2" = rec {
         crateName = "flate2";
-        version = "1.1.10";
+        version = "1.1.11";
         edition = "2018";
-        sha256 = "1jvd2cl8j5hyf8imi62y1x7gwzz1hajirni0801yxhds1qp4wqvf";
+        sha256 = "1i44w2j9sw5lqvkrw0d0d3dnn84zrz3nzlsyyrq6wr3b68l4jvb2";
         authors = [
           "Alex Crichton <alex@alexcrichton.com>"
           "Josh Triplett <josh@joshtriplett.org>"
@@ -6577,8 +6577,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/kanshou";
-          rev = "42d3c5c820f7fc3621e980d683986a4ac9945aba";
-          sha256 = "1ss24ch29qm4bhnc4hfb1dkwami99gwvkq21jqr524jslwccnjwq";
+          rev = "c3f488f50902eb8e9fa294e8fa9628e680be442f";
+          sha256 = "0axcgj6izlwkp691yj0j1cv6f7i9hlwagbdr10k9j8hw89prz9l8";
         };
         authors = [
           "pleme-io"
@@ -6636,8 +6636,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/kanshou";
-          rev = "42d3c5c820f7fc3621e980d683986a4ac9945aba";
-          sha256 = "1ss24ch29qm4bhnc4hfb1dkwami99gwvkq21jqr524jslwccnjwq";
+          rev = "c3f488f50902eb8e9fa294e8fa9628e680be442f";
+          sha256 = "0axcgj6izlwkp691yj0j1cv6f7i9hlwagbdr10k9j8hw89prz9l8";
         };
         procMacro = true;
         libName = "kanshou_derive";
@@ -7501,9 +7501,9 @@ rec {
       };
       "mime" = rec {
         crateName = "mime";
-        version = "0.3.17";
+        version = "0.3.18";
         edition = "2015";
-        sha256 = "16hkibgvb9klh0w0jk5crr5xv90l3wlf77ggymzjmvl1818vnxv8";
+        sha256 = "18dzfqp5gaza7lg8qqpq1xh83zw79b1al3zryaacy5w1krd8z16m";
         authors = [
           "Sean McArthur <sean@seanmonstar.com>"
         ];
@@ -8230,13 +8230,13 @@ rec {
       };
       "opencode-zen" = rec {
         crateName = "opencode-zen";
-        version = "0.1.3";
+        version = "0.1.4";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/opencode-zen";
-          rev = "801eb09fc3bc987b7f2de8f14c7fb2ccba60ce45";
-          sha256 = "1br5jzq7xny63cx304nh9agki593v6j50hqkdrihjkifvyykpndz";
+          rev = "712a765fd6f6e0a23c5ec9586e61e466e6e8b348";
+          sha256 = "13jxlsk0h6zm43l7mrnhjmw79hl6lqzz03fwyb6z8qkws855zyg0";
         };
         libName = "opencode_zen";
         authors = [
@@ -8871,7 +8871,7 @@ rec {
       };
       "pleme-tend" = rec {
         crateName = "pleme-tend";
-        version = "0.3.38";
+        version = "0.3.39";
         edition = "2021";
         crateBin = [
           {
@@ -11569,8 +11569,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/samba";
-          rev = "3a47d740944443f9ebd74e040c0aeb287ae2c3b8";
-          sha256 = "1vwd92r1r1nca38ipiw4k6j42fsi6fdrcp6vqw7ax14q6fj1g58p";
+          rev = "fc0110f01a94500422f619b1ab057b5ca746586b";
+          sha256 = "03pbh9gnniy45ks3iiihn2ll6pysvdjp09ixx4r2xmahavbafn1w";
         };
         dependencies = [
           {
@@ -12622,8 +12622,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
-          rev = "7f864d2c75a71b13e7372c30612ee8a0af190b87";
-          sha256 = "1rq0ih43wawmm2n9gikvfy8ylxsx4fkgjh3mv2pmizhj9rc5dzcm";
+          rev = "57a76b9aafd2902f565d5db069bf2504c38c2cf3";
+          sha256 = "0pn99lhhg4qb1jbhh5f6mxppaj19q2wihx2xcl42qasr9j8qxcsj";
         };
         libName = "shigoto_budget";
         authors = [
@@ -12653,8 +12653,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
-          rev = "7f864d2c75a71b13e7372c30612ee8a0af190b87";
-          sha256 = "1rq0ih43wawmm2n9gikvfy8ylxsx4fkgjh3mv2pmizhj9rc5dzcm";
+          rev = "57a76b9aafd2902f565d5db069bf2504c38c2cf3";
+          sha256 = "0pn99lhhg4qb1jbhh5f6mxppaj19q2wihx2xcl42qasr9j8qxcsj";
         };
         libName = "shigoto_dag";
         authors = [
@@ -12688,8 +12688,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
-          rev = "7f864d2c75a71b13e7372c30612ee8a0af190b87";
-          sha256 = "1rq0ih43wawmm2n9gikvfy8ylxsx4fkgjh3mv2pmizhj9rc5dzcm";
+          rev = "57a76b9aafd2902f565d5db069bf2504c38c2cf3";
+          sha256 = "0pn99lhhg4qb1jbhh5f6mxppaj19q2wihx2xcl42qasr9j8qxcsj";
         };
         libName = "shigoto_emit";
         authors = [
@@ -12727,8 +12727,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
-          rev = "7f864d2c75a71b13e7372c30612ee8a0af190b87";
-          sha256 = "1rq0ih43wawmm2n9gikvfy8ylxsx4fkgjh3mv2pmizhj9rc5dzcm";
+          rev = "57a76b9aafd2902f565d5db069bf2504c38c2cf3";
+          sha256 = "0pn99lhhg4qb1jbhh5f6mxppaj19q2wihx2xcl42qasr9j8qxcsj";
         };
         libName = "shigoto_gate";
         authors = [
@@ -12753,8 +12753,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
-          rev = "7f864d2c75a71b13e7372c30612ee8a0af190b87";
-          sha256 = "1rq0ih43wawmm2n9gikvfy8ylxsx4fkgjh3mv2pmizhj9rc5dzcm";
+          rev = "57a76b9aafd2902f565d5db069bf2504c38c2cf3";
+          sha256 = "0pn99lhhg4qb1jbhh5f6mxppaj19q2wihx2xcl42qasr9j8qxcsj";
         };
         libName = "shigoto_retry";
         authors = [
@@ -12780,8 +12780,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
-          rev = "7f864d2c75a71b13e7372c30612ee8a0af190b87";
-          sha256 = "1rq0ih43wawmm2n9gikvfy8ylxsx4fkgjh3mv2pmizhj9rc5dzcm";
+          rev = "57a76b9aafd2902f565d5db069bf2504c38c2cf3";
+          sha256 = "0pn99lhhg4qb1jbhh5f6mxppaj19q2wihx2xcl42qasr9j8qxcsj";
         };
         libName = "shigoto_scheduler";
         authors = [
@@ -12857,8 +12857,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/shigoto";
-          rev = "7f864d2c75a71b13e7372c30612ee8a0af190b87";
-          sha256 = "1rq0ih43wawmm2n9gikvfy8ylxsx4fkgjh3mv2pmizhj9rc5dzcm";
+          rev = "57a76b9aafd2902f565d5db069bf2504c38c2cf3";
+          sha256 = "0pn99lhhg4qb1jbhh5f6mxppaj19q2wihx2xcl42qasr9j8qxcsj";
         };
         libName = "shigoto_types";
         authors = [
@@ -14131,8 +14131,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/todoku";
-          rev = "cc03eb5301d3b5c1d95bd6ded07263569498c740";
-          sha256 = "12933p6423359pvjkah5qkdmqv8mv9fnm8m5mncxnbjq62npiwzp";
+          rev = "f3046048ce953434e7576fb85f312aef29d742f1";
+          sha256 = "0ib9rzpmpsmdw93akg2f3w4q2wfdz8qf8li3vwmcz8cp3y9xdsf8";
         };
         dependencies = [
           {
@@ -15358,8 +15358,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/tsunagu";
-          rev = "ef92a013d8f7bba902b41a12f0e1b1f8f6efef8a";
-          sha256 = "177b96m7b71x28n8cnv3ri5ysvx32g4znkicb4w4ysi5j17wrv8q";
+          rev = "de0209d0224a5fb57ab69546a4ddb2276ee1657a";
+          sha256 = "1nmg3rgrrg2lbfhnj6pqng6g382x47q22fi7sab90dnyaka7xndv";
         };
         dependencies = [
           {
