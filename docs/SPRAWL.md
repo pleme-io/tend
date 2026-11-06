@@ -19,6 +19,7 @@ judgement. `blue/sprawl.b` judges them in a pure frame. `git` runs with
 | `tend hook session-start` | one line per class with a count, then one line per branch an alert names (repo, age, pushed or local only), at most `sprawl.alert_lines` (default 12) | `sprawl.hook_session_start` |
 | `tend hook stop` | a `systemMessage` per touched repo, once per session; it never blocks | `sprawl.hook_stop` |
 | `tend status` | one summary line | `sprawl.status_line` |
+| `tend status [--problems]` | the branch view: every own branch, local and on origin, per repo, oldest first, with age, pushed / local only, merged / patch-applied / open, its worktree and its verdict, marked ❌ alert, ⚠️ warn, ✅ active, ➖ other; `--problems` keeps ❌ and ⚠️. The same judgement as `tend sprawl`, read from the daemon's snapshot | `sprawl.status_branches` |
 | the daemon | refreshes the snapshot each cycle, with workers bounded by the pressure verdict | `sprawl.daemon` |
 
 The snapshot is `<cache>/sprawl/snapshot.json`. A report carries `age_secs`,
@@ -93,6 +94,9 @@ sprawl:
     enabled: true
     max_age_hours: 48
 ```
+
+A worktree hides a branch only while it is young: with the alert on, a
+checked-out branch past the age is judged like any other.
 
 `enabled: false` turns the rule off: such a branch lingers at warn as before,
 and young work is active for 72 hours. An unknown count is never landed, so a

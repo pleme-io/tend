@@ -59,6 +59,7 @@ pub struct SprawlConfig {
     pub daemon: bool,
     pub open_branch: OpenBranchConfig,
     pub alert_lines: usize,
+    pub status_branches: bool,
 }
 
 impl Default for SprawlConfig {
@@ -78,6 +79,7 @@ impl Default for SprawlConfig {
             daemon: true,
             open_branch: OpenBranchConfig::default(),
             alert_lines: 12,
+            status_branches: true,
         }
     }
 }
@@ -136,6 +138,8 @@ pub(crate) struct Fact {
     pub no_merge_base: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pushed: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub worktree: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -454,6 +458,7 @@ fn ref_facts(
             fact.email = r.email.clone();
             fact.upstream_gone = (kind == "branch").then_some(r.track == "gone");
             fact.checked_out = (kind == "branch").then_some(!r.worktree.is_empty());
+            fact.worktree = (kind == "branch").then(|| non_empty(&r.worktree)).flatten();
             fact.pushed = match kind {
                 "branch" => Some(on_origin.contains(short)),
                 "remote-branch" => Some(true),
@@ -941,6 +946,72 @@ fn live_liveness(now: SystemTime) -> crate::heartbeat::Liveness {
     )
 }
 
+fn rejudged(snapshot: &mut Snapshot, policy: &mut Policy, config: &SprawlConfig) -> Result<()> {
+    if snapshot.digest != digest(config) {
+        let facts = snapshot.rows.drain(..).map(|r| r.fact).collect();
+        snapshot.rows = policy.judge(facts)?;
+        snapshot.refusals.clone_from(&policy.refusals);
+        snapshot.off.clone_from(&policy.off);
+    }
+    Ok(())
+}
+
+fn pushed_of(fact: &Fact) -> Option<bool> {
+    fact.pushed
+        .or_else(|| (fact.kind == "remote-branch").then_some(true))
+}
+
+fn merge_word(fact: &Fact, landed: Option<bool>) -> &'static str {
+    match (fact.ahead, landed) {
+        (Some(0), _) => "merged",
+        (_, Some(true)) => "patch-applied",
+        (_, Some(false)) => "open",
+        (_, None) => "unread",
+    }
+}
+
+fn branch_rows(rows: &[Row]) -> Vec<Json> {
+    rows.iter()
+        .filter(|r| !r.report_only && matches!(r.fact.kind.as_str(), "branch" | "remote-branch"))
+        .map(|r| {
+            json!([
+                r.verdict,
+                r.rank,
+                format!("{}/{}", r.fact.org, r.fact.repo),
+                r.fact.reference,
+                r.age_hours.unwrap_or_default(),
+                pushed_of(&r.fact),
+                merge_word(&r.fact, r.landed),
+                r.fact.worktree.clone().unwrap_or_default()
+            ])
+        })
+        .collect()
+}
+
+/// `tend status`'s branch view: the sprawl snapshot the daemon keeps, judged
+/// by the same rules as `tend sprawl`, one line per own branch, per repo,
+/// oldest first. With `problems`, only alert and warn rows.
+pub(crate) fn status_branches(
+    config: &SprawlConfig,
+    path: &Path,
+    problems: bool,
+    now: SystemTime,
+) -> Vec<String> {
+    let Some(mut snapshot) = read_snapshot(path) else {
+        return vec!["branches: blind, no sprawl snapshot; tend sprawl refresh".to_owned()];
+    };
+    let answered = Policy::load(config, now).and_then(|mut policy| {
+        rejudged(&mut snapshot, &mut policy, config)?;
+        let lines = call(
+            &mut policy.program,
+            "branch_lines",
+            &[Json::Array(branch_rows(&snapshot.rows)), json!(problems)],
+        )?;
+        Ok(strings(&lines))
+    });
+    answered.unwrap_or_else(|e| vec![format!("branches: blind, judgement failed: {e:#}")])
+}
+
 pub(crate) fn report(
     config: &SprawlConfig,
     snapshot: Option<Snapshot>,
@@ -964,12 +1035,7 @@ pub(crate) fn report(
         }));
     };
     let mut policy = Policy::load(config, now)?;
-    if snapshot.digest != digest(config) {
-        let facts = snapshot.rows.drain(..).map(|r| r.fact).collect();
-        snapshot.rows = policy.judge(facts)?;
-        snapshot.refusals.clone_from(&policy.refusals);
-        snapshot.off.clone_from(&policy.off);
-    }
+    rejudged(&mut snapshot, &mut policy, config)?;
     let matched: Vec<Row> = snapshot
         .rows
         .iter()
@@ -1091,7 +1157,7 @@ fn alert_rows(rows: &[Row]) -> Vec<Json> {
                 format!("{}/{}", r.fact.org, r.fact.repo),
                 r.fact.branch,
                 r.age_hours.unwrap_or_default(),
-                r.fact.pushed.unwrap_or(false)
+                pushed_of(&r.fact)
             ])
         })
         .collect()
@@ -1480,6 +1546,75 @@ mod tests {
         assert_eq!(policy.off, vec!["overdue-branch".to_owned()]);
         assert_eq!(policy.validate(&off).unwrap()["ok"], true);
         assert_eq!(policy.validate(&wide).unwrap()["ok"], true);
+    }
+
+    #[test]
+    fn status_lists_each_own_branch_oldest_first_with_age_push_merge_and_worktree() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = fixture(tmp.path(), "r");
+        on_branch(&repo.path, "old", "o", "o\n", "me", NOW - 3 * DAY);
+        on_branch(&repo.path, "young", "y", "y\n", "me", NOW - 5 * 3600);
+        git_ok(&repo.path, &["push", "-q", "origin", "young"]);
+        git_ok(&repo.path, &["branch", "done", "main"]);
+        on_branch(&repo.path, "wt", "w", "w\n", "me", NOW - 4 * DAY);
+        let wt = tmp.path().join("r-wt");
+        git_ok(
+            &repo.path,
+            &["worktree", "add", "-q", &wt.to_string_lossy(), "wt"],
+        );
+        on_branch(&repo.path, "theirs", "t", "t\n", "someone", NOW - 9 * DAY);
+        git_ok(&repo.path, &["fetch", "-q", "origin"]);
+        let cfg = config();
+        snapshot_of(tmp.path(), &cfg);
+        let path = tmp.path().join("cache/sprawl.json");
+        let lines = status_branches(&cfg, &path, false, at(NOW));
+        assert_eq!(lines[1], "  pleme-io/r", "{lines:?}");
+        let body: Vec<&str> = lines[2..].iter().map(String::as_str).collect();
+        assert_eq!(body.len(), 5, "{lines:?}");
+        assert_eq!(
+            body[0],
+            "    ⚠️ done: 30d old, local only, merged, landed, not deleted"
+        );
+        assert!(
+            body[1].starts_with(
+                "    ❌ wt: 4d old, local only, open, overdue-branch, checked out at "
+            ),
+            "{lines:?}"
+        );
+        assert!(body[1].ends_with("r-wt"), "{lines:?}");
+        assert_eq!(
+            body[2],
+            "    ❌ old: 3d old, local only, open, overdue-branch"
+        );
+        assert!(
+            body.iter()
+                .any(|l| l.contains("done: ") && l.contains("merged, landed, not deleted")),
+            "{lines:?}"
+        );
+        assert!(
+            body.contains(&"    ✅ young: 5h old, pushed, open, active"),
+            "{lines:?}"
+        );
+        assert!(
+            body.contains(&"    ✅ origin/young: 5h old, pushed, open, active"),
+            "{lines:?}"
+        );
+        assert!(!lines.iter().any(|l| l.contains("theirs")), "{lines:?}");
+        let problems = status_branches(&cfg, &path, true, at(NOW));
+        assert!(
+            problems.iter().any(|l| l.contains("old: 3d")),
+            "{problems:?}"
+        );
+        assert!(
+            !problems.iter().any(|l| l.contains("young")),
+            "{problems:?}"
+        );
+        assert!(
+            problems[0].contains("2 overdue-branch, 1 landed"),
+            "{problems:?}"
+        );
+        let missing = status_branches(&cfg, &tmp.path().join("none.json"), false, at(NOW));
+        assert!(missing[0].contains("blind"), "{missing:?}");
     }
 
     #[test]

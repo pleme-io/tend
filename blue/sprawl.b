@@ -320,6 +320,20 @@ def young_hours(open)
   end
 end
 
+@doc """
+checked_out_scope: A checked-out branch is quiet only while it is young. With the open-branch alert on, a worktree's branch past the alert's age is judged like any other, so a worktree cannot hide an overdue branch.
+
+    checked_out_scope({"enabled" => true, "max_age_hours" => 48}) #=> {max_age_hours: 48}
+    checked_out_scope({"enabled" => false, "max_age_hours" => 48}) #=> {}
+"""
+def checked_out_scope(open)
+  if open["enabled"]
+    {max_age_hours: open["max_age_hours"]}
+  else
+    {}
+  end
+end
+
 def unlanded(open)
   if open["enabled"]
     "overdue-branch"
@@ -489,10 +503,14 @@ def builtin(open)
         verdict: "checked-out",
         kinds: ["branch"],
         when: [["checked_out", "eq", true]],
+        scope: checked_out_scope(open),
         severity: "info",
         announce: false,
         examples: [
-          example({kind: "branch", checked_out: true, ahead: 0}, "checked-out"),
+          example(
+            {kind: "branch", checked_out: true, age_hours: 0, ahead: 0},
+            "checked-out"
+          ),
           example(
             {kind: "remote-branch", checked_out: true, ahead: 0},
             "landed"
@@ -829,8 +847,10 @@ def alert_line(group)
     0,
     rows
   )
-  held = if any?((r) -> r[4], rows)
+  held = if any?((r) -> r[4] == true, rows)
     "pushed"
+  elsif any?((r) -> r[4].nil?, rows)
+    "push unread"
   else
     "local only"
   end
@@ -857,6 +877,123 @@ def alert_lines(rows, cap)
   else
     shown
   end
+end
+
+def status_mark(row)
+  if row[1] == 0
+    "❌"
+  elsif row[1] == 1
+    "⚠️"
+  elsif row[0] == "active"
+    "✅"
+  else
+    "➖"
+  end
+end
+
+def verdict_words(verdict)
+  if verdict == "landed"
+    "landed, not deleted"
+  else
+    verdict
+  end
+end
+
+def branch_line(row)
+  held = if row[5] == true
+    "pushed"
+  elsif row[5].nil?
+    "push unread"
+  else
+    "local only"
+  end
+  place = if row[7] == ""
+    ""
+  else
+    ", checked out at #{row[7]}"
+  end
+  "    #{status_mark(row)} #{row[3]}: #{hours_words(row[4])} old, #{held}, #{row[6]}, #{verdict_words(row[0])}#{place}"
+end
+
+def oldest_first(rows)
+  sort_stable_by((r) -> -r[4], rows)
+end
+
+@doc """
+branch_lines: `tend status`'s view of the sprawl judgement: every own non-default branch, local and on origin, per repo, oldest first, each with its age, whether origin holds it, merged, patch-applied or open, its worktree, and its verdict. `problems` keeps the alert and warn rows. Each row is `[verdict, rank, repo, ref, age_hours, pushed, merge, worktree]`.
+
+    branch_lines([], false) #=> ["branches: none open"]
+    branch_lines([["overdue-branch", 0, "pleme-io/tend", "wip/x", 50, false, "open", ""]], true) #=> ["branches: 1 in 1 repo, oldest first (1 overdue-branch)", "  pleme-io/tend", "    ❌ wip/x: 2d old, local only, open, overdue-branch"]
+"""
+def branch_lines(rows, problems)
+  kept = oldest_first(filter((r) -> not problems or r[1] <= 1, rows))
+  if is_empty(kept)
+    if problems
+      ["branches: none need attention"]
+    else
+      ["branches: none open"]
+    end
+  else
+    repos = unique(map((r) -> r[2], kept))
+    counts = map(
+      (v) -> "#{size(filter((r) -> r[0] == v, kept))} #{v}",
+      unique(map((r) -> r[0], sort_stable_by((r) -> r[1], kept)))
+    )
+    head = "branches: #{size(kept)} in #{plural(size(repos), "repo")}, oldest first (#{join(counts, ", ")})"
+    append(
+      [head],
+      flat_map(
+        repos,
+        fn(repo)
+          append(
+            ["  #{repo}"],
+            map(branch_line, filter((r) -> r[2] == repo, kept))
+          )
+        end
+      )
+    )
+  end
+end
+
+test "the status view lists each branch per repo, oldest first, and problems keeps alert and warn"
+  rows = [
+    ["active", 2, "pleme-io/a", "young", 3, true, "open", ""],
+    ["overdue-branch", 0, "pleme-io/b", "old", 90, false, "open", ""],
+    ["landed", 1, "pleme-io/a", "origin/done", 200, true, "merged", ""],
+    ["checked-out", 2, "pleme-io/a", "wt", 5, false, "open", "/w/a-wt"]
+  ]
+  lines = branch_lines(rows, false)
+  assert first(lines) ==
+    "branches: 4 in 2 repos, oldest first (1 overdue-branch, 1 landed, 1 checked-out, 1 active)"
+  assert lines[1] == "  pleme-io/a"
+  assert lines[2] ==
+    "    ⚠️ origin/done: 8d old, pushed, merged, landed, not deleted"
+  assert lines[3] ==
+    "    ➖ wt: 5h old, local only, open, checked-out, checked out at /w/a-wt"
+  assert lines[4] == "    ✅ young: 3h old, pushed, open, active"
+  assert lines[5] == "  pleme-io/b"
+  assert lines[6] == "    ❌ old: 3d old, local only, open, overdue-branch"
+  unread = branch_lines(
+    [["lingering", 1, "pleme-io/c", "x", 60, nil, "unread", ""]],
+    false
+  )
+  assert unread[2] == "    ⚠️ x: 2d old, push unread, unread, lingering"
+  quiet = branch_lines(rows, true)
+  assert size(quiet) == 5
+  assert not any?((l) -> includes(l, "young"), quiet)
+end
+
+test "a worktree hides a branch only while it is young"
+  on = {"enabled" => true, "max_age_hours" => 48}
+  off = {"enabled" => false, "max_age_hours" => 48}
+  old = {"checked_out" => true, "age_hours" => 90, "ahead" => 2}
+  assert with_open("branch", old, on) == "overdue-branch"
+  assert with_open("branch", old, off) == "checked-out"
+  assert with_open(
+    "branch",
+    {"checked_out" => true, "age_hours" => 2, "ahead" => 2},
+    on
+  ) == "checked-out"
 end
 
 @doc """

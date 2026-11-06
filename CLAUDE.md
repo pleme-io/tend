@@ -40,7 +40,7 @@ and automates version certification pipelines.
 | Command | Purpose |
 |---------|---------|
 | `sync` | Clone missing repos |
-| `status` | Show repo status (clean/dirty/ahead/no-upstream/behind/unborn/stuck/no-remote/missing/unknown); `--problems` drops clean and unborn; `--json` adds `ahead`/`behind`/`dirty_count` |
+| `status` | Show repo status (clean/dirty/ahead/no-upstream/behind/unborn/stuck/no-remote/missing/unknown); `--problems` drops clean and unborn; `--json` adds `ahead`/`behind`/`dirty_count`; then the branch view of the sprawl snapshot, per repo, oldest first (`--problems` keeps overdue and landed): [docs/SPRAWL.md](docs/SPRAWL.md) |
 | `hook stop\|session-start\|snapshot` | Claude Code hooks: block a Stop on touched dirty/unpushed repos; brief a new session on problem repos; refresh the snapshot SessionStart reads |
 | `list` | List configured repos |
 | `discover` | Discover repos from a GitHub org |

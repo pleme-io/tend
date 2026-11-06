@@ -1632,6 +1632,10 @@
           "minimum": 0,
           "type": "integer"
         },
+        "status_branches": {
+          "default": true,
+          "type": "boolean"
+        },
         "status_line": {
           "default": true,
           "type": "boolean"
@@ -2246,6 +2250,7 @@
         "report_only_orgs": [],
         "rules": [],
         "scan_minutes": 20,
+        "status_branches": true,
         "status_line": true,
         "workers": 4
       }

@@ -1643,6 +1643,17 @@ async fn main() -> Result<()> {
                         Err(e) => eprintln!("tend: wip branches unread: {e:#}"),
                     }
                 }
+                if cfg.sprawl.enabled && cfg.sprawl.status_branches {
+                    println!();
+                    for line in sprawl::status_branches(
+                        &cfg.sprawl,
+                        &sprawl::snapshot_path(),
+                        problems,
+                        std::time::SystemTime::now(),
+                    ) {
+                        println!("{line}");
+                    }
+                }
                 if cfg.sprawl.enabled && cfg.sprawl.status_line {
                     println!(
                         "{}",
