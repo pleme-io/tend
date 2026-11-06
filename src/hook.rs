@@ -1300,7 +1300,7 @@ mod tests {
         let memory = tmp.path().join("memory/stop.json");
         let later = SystemTime::now() + Duration::from_secs(40 * 86_400);
         let first = sprawl_note_for(&[&ws], &touched, &config, Some(&memory), later).unwrap();
-        assert!(first.contains("r holds 1 lingering"), "{first}");
+        assert!(first.contains("r holds 1 overdue-branch"), "{first}");
         assert!(sprawl_note_for(&[&ws], &touched, &config, Some(&memory), later).is_none());
     }
 

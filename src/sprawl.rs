@@ -22,6 +22,26 @@ const STASH: &str = "refs/stash";
 const CHUNK: usize = 400;
 const LIST_FORMAT: &str = "--format=%(refname)%1f%(objectname)%1f%(committerdate:unix)%1f%(authorname)%1f%(authoremail:trim)%1f%(upstream:track,nobracket)%1f%(worktreepath)%1f%(symref)";
 
+/// The integration loop's alert: an own branch, local or on origin, whose
+/// newest commit is `max_age_hours` old and is not landed on its default
+/// branch is an `overdue-branch` alert, named per branch. Off, such a branch
+/// lingers as it did before the alert and young work stays active for 72 hours.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(default)]
+pub struct OpenBranchConfig {
+    pub enabled: bool,
+    pub max_age_hours: u64,
+}
+
+impl Default for OpenBranchConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_age_hours: 48,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct SprawlConfig {
@@ -37,6 +57,8 @@ pub struct SprawlConfig {
     pub hook_stop: bool,
     pub status_line: bool,
     pub daemon: bool,
+    pub open_branch: OpenBranchConfig,
+    pub alert_lines: usize,
 }
 
 impl Default for SprawlConfig {
@@ -54,6 +76,8 @@ impl Default for SprawlConfig {
             hook_stop: true,
             status_line: true,
             daemon: true,
+            open_branch: OpenBranchConfig::default(),
+            alert_lines: 12,
         }
     }
 }
@@ -110,6 +134,8 @@ pub(crate) struct Fact {
     pub dirty: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub no_merge_base: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pushed: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -401,6 +427,10 @@ fn ref_facts(
         return Vec::new();
     }
     let counts = base_name.map(|b| ahead_behind(repo, b)).unwrap_or_default();
+    let on_origin: std::collections::HashSet<&str> = refs
+        .iter()
+        .filter_map(|r| r.name.strip_prefix(ORIGIN))
+        .collect();
     let path = repo.to_string_lossy().into_owned();
     let mut seen: HashMap<&str, DeepFacts> = HashMap::new();
     kept.iter()
@@ -424,6 +454,11 @@ fn ref_facts(
             fact.email = r.email.clone();
             fact.upstream_gone = (kind == "branch").then_some(r.track == "gone");
             fact.checked_out = (kind == "branch").then_some(!r.worktree.is_empty());
+            fact.pushed = match kind {
+                "branch" => Some(on_origin.contains(short)),
+                "remote-branch" => Some(true),
+                _ => None,
+            };
             if let Some((name, sha)) = base {
                 fact.base = Some(format!("origin/{name}"));
                 fact.base_sha = Some(sha.clone());
@@ -687,7 +722,7 @@ impl Policy {
         let standing = call(
             &mut program,
             "wire_rules",
-            &[Json::Array(config.rules.clone())],
+            &[Json::Array(config.rules.clone()), json!(config.open_branch)],
         )?;
         let mut own = config.own_authors.clone();
         own.extend(identity());
@@ -752,7 +787,7 @@ impl Policy {
         call(
             &mut self.program,
             "validate",
-            &[Json::Array(config.rules.clone())],
+            &[Json::Array(config.rules.clone()), json!(config.open_branch)],
         )
     }
 }
@@ -788,6 +823,7 @@ pub(crate) fn digest(config: &SprawlConfig) -> u64 {
         .hash(&mut hasher);
     config.own_authors.hash(&mut hasher);
     config.report_only_orgs.hash(&mut hasher);
+    config.open_branch.hash(&mut hasher);
     hasher.finish()
 }
 
@@ -1026,12 +1062,39 @@ pub(crate) fn session_lines(config: &SprawlConfig, path: &Path, now: SystemTime)
     let snapshot = read_snapshot(path);
     let classes = snapshot.as_ref().map_or(json!([]), |s| s.classes.clone());
     let meta = meta(snapshot.as_ref(), config, now);
-    let answered = crate::blue_policy::load_pure(None, POLICY_SOURCE, SHOWN)
-        .and_then(|mut p| call(&mut p, "session_lines", &[classes, meta]));
+    let alerts = snapshot
+        .as_ref()
+        .map_or_else(Vec::new, |s| alert_rows(&s.rows));
+    let answered = crate::blue_policy::load_pure(None, POLICY_SOURCE, SHOWN).and_then(|mut p| {
+        let mut lines = strings(&call(&mut p, "session_lines", &[classes, meta])?);
+        lines.extend(strings(&call(
+            &mut p,
+            "alert_lines",
+            &[Json::Array(alerts), json!(config.alert_lines)],
+        )?));
+        Ok(lines)
+    });
     match answered {
-        Ok(lines) => strings(&lines),
+        Ok(lines) => lines,
         Err(e) => vec![format!("tend sprawl: blind, judgement failed: {e:#}")],
     }
+}
+
+fn alert_rows(rows: &[Row]) -> Vec<Json> {
+    rows.iter()
+        .filter(|r| {
+            r.rank == 0 && r.announce && matches!(r.fact.kind.as_str(), "branch" | "remote-branch")
+        })
+        .map(|r| {
+            json!([
+                r.verdict,
+                format!("{}/{}", r.fact.org, r.fact.repo),
+                r.fact.branch,
+                r.age_hours.unwrap_or_default(),
+                r.fact.pushed.unwrap_or(false)
+            ])
+        })
+        .collect()
 }
 
 pub(crate) fn status_text(config: &SprawlConfig, path: &Path, now: SystemTime) -> String {
@@ -1321,7 +1384,7 @@ mod tests {
     }
 
     #[test]
-    fn unique_commits_linger_and_the_count_agrees_with_git_log() {
+    fn unique_commits_past_the_age_are_overdue_and_the_count_agrees_with_git_log() {
         let tmp = tempfile::TempDir::new().unwrap();
         let repo = fixture(tmp.path(), "r");
         let old = NOW - 20 * DAY;
@@ -1346,11 +1409,77 @@ mod tests {
         .count();
         assert_eq!(local.fact.unique, Some(u32::try_from(counted).unwrap()));
         assert_eq!(counted, 3);
-        assert_eq!(local.verdict, "lingering");
+        assert_eq!(local.verdict, "overdue-branch");
+        assert_eq!(local.fact.pushed, Some(true));
         assert_eq!(
             find(&rows, "remote-branch", "origin/absorb/work").verdict,
-            "lingering"
+            "overdue-branch"
         );
+    }
+
+    #[test]
+    fn the_open_branch_alert_defaults_to_two_days_and_is_on() {
+        let open = SprawlConfig::default().open_branch;
+        assert!(open.enabled);
+        assert_eq!(open.max_age_hours, 48);
+    }
+
+    #[test]
+    fn an_own_branch_past_two_days_not_landed_alerts_and_off_it_lingers() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let repo = fixture(tmp.path(), "r");
+        on_branch(&repo.path, "old", "o", "o\n", "me", NOW - 3 * DAY);
+        on_branch(&repo.path, "young", "y", "y\n", "me", NOW - DAY);
+        on_branch(&repo.path, "shared", "s", "s\n", "me", NOW - 3 * DAY);
+        git_ok(&repo.path, &["push", "-q", "origin", "shared"]);
+        git_ok(&repo.path, &["fetch", "-q", "origin"]);
+        let facts = observe(
+            &repo,
+            "pleme-io",
+            &Memo::new(),
+            Instant::now() + Duration::from_secs(30),
+        )
+        .unwrap();
+        let judge = |cfg: &SprawlConfig| {
+            Policy::load(cfg, at(NOW))
+                .unwrap()
+                .judge(facts.clone())
+                .unwrap()
+        };
+        let rows = judge(&config());
+        let old = find(&rows, "branch", "old");
+        assert_eq!(old.verdict, "overdue-branch");
+        assert_eq!(old.severity, "alert");
+        assert_eq!(old.age_hours, Some(72));
+        assert_eq!(old.fact.pushed, Some(false));
+        assert_eq!(find(&rows, "branch", "young").verdict, "active");
+        assert_eq!(find(&rows, "branch", "shared").fact.pushed, Some(true));
+        assert_eq!(
+            find(&rows, "remote-branch", "origin/shared").verdict,
+            "overdue-branch"
+        );
+        let off = SprawlConfig {
+            open_branch: OpenBranchConfig {
+                enabled: false,
+                ..OpenBranchConfig::default()
+            },
+            ..config()
+        };
+        let quiet = judge(&off);
+        assert_eq!(find(&quiet, "branch", "old").verdict, "lingering");
+        assert_eq!(find(&quiet, "branch", "young").verdict, "active");
+        let wide = SprawlConfig {
+            open_branch: OpenBranchConfig {
+                enabled: true,
+                max_age_hours: 96,
+            },
+            ..config()
+        };
+        assert_eq!(find(&judge(&wide), "branch", "old").verdict, "active");
+        let mut policy = Policy::load(&off, at(NOW)).unwrap();
+        assert_eq!(policy.off, vec!["overdue-branch".to_owned()]);
+        assert_eq!(policy.validate(&off).unwrap()["ok"], true);
+        assert_eq!(policy.validate(&wide).unwrap()["ok"], true);
     }
 
     #[test]
@@ -1365,7 +1494,7 @@ mod tests {
             .unwrap()
             .judge(facts)
             .unwrap();
-        assert_eq!(find(&rows, "branch", "w").verdict, "lingering");
+        assert_eq!(find(&rows, "branch", "w").verdict, "overdue-branch");
         assert_eq!(find(&rows, "branch", "w").landed, None);
     }
 
@@ -1618,7 +1747,7 @@ mod tests {
         assert_eq!(all["matched"], 2);
         assert!(!all.to_string().contains("example.invalid"), "{all}");
         let narrow = Filters {
-            verdict: Some("lingering".into()),
+            verdict: Some("overdue-branch".into()),
             ..Filters::default()
         };
         let one = report(&cfg, Some(snap.clone()), &narrow, 100, at(NOW), no_probe).unwrap();
@@ -1709,7 +1838,10 @@ mod tests {
         let cfg = config();
         let snap = snapshot_of(tmp.path(), &cfg);
         let tuned = SprawlConfig {
-            rules: vec![json!({"entry": "off", "name": "lingering", "value": {"target": "rule"}})],
+            rules: vec![
+                json!({"entry": "off", "name": "overdue-branch", "value": {"target": "rule"}}),
+                json!({"entry": "off", "name": "lingering", "value": {"target": "rule"}}),
+            ],
             ..config()
         };
         let out = report(
@@ -1722,7 +1854,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(out["items"][0]["verdict"], "unclassified");
-        assert_eq!(out["off"], json!(["lingering"]));
+        assert_eq!(out["off"], json!(["overdue-branch", "lingering"]));
     }
 
     #[test]
@@ -1798,11 +1930,11 @@ mod tests {
                 .map(|r| r.verdict.as_str())
         };
         assert_eq!(of(None), Some("uncounted"));
-        assert_eq!(of(Some(1)), Some("lingering"));
+        assert_eq!(of(Some(1)), Some("overdue-branch"));
     }
 
     #[test]
-    fn the_session_lines_are_one_per_class_with_counts_that_sum_to_the_rows() {
+    fn the_session_lines_are_one_per_class_then_one_per_alerting_branch() {
         let tmp = tempfile::TempDir::new().unwrap();
         let repo = fixture(tmp.path(), "r");
         for i in 0..3 {
@@ -1831,9 +1963,9 @@ mod tests {
             .sum();
         assert_eq!(total, snap.rows.len() as u64);
         let lines = session_lines(&cfg, &tmp.path().join("cache/sprawl.json"), at(NOW));
-        assert_eq!(lines.len(), 2, "{lines:?}");
+        assert_eq!(lines.len(), 5, "{lines:?}");
         assert!(
-            lines.iter().any(|l| l.contains("3 lingering in 1 repo ")),
+            lines[0].contains("3 overdue-branch in 1 repo "),
             "{lines:?}"
         );
         assert!(
@@ -1841,12 +1973,25 @@ mod tests {
             "{lines:?}"
         );
         assert!(
-            !lines.iter().any(|l| l.contains("w0")),
-            "never per branch: {lines:?}"
+            lines
+                .iter()
+                .any(|l| l.contains("overdue-branch pleme-io/r w0, 20d old, local only")),
+            "{lines:?}"
         );
         let text = status_text(&cfg, &tmp.path().join("cache/sprawl.json"), at(NOW));
-        assert!(text.contains("3 warn, 1 info"), "{text}");
+        assert!(text.contains("3 alert, 0 warn, 1 info"), "{text}");
         assert!(text.contains("1 of 1 repos read"), "{text}");
+        let quiet = SprawlConfig {
+            open_branch: OpenBranchConfig {
+                enabled: false,
+                ..OpenBranchConfig::default()
+            },
+            ..config()
+        };
+        snapshot_of(tmp.path(), &quiet);
+        let calm = session_lines(&quiet, &tmp.path().join("cache/sprawl.json"), at(NOW));
+        assert_eq!(calm.len(), 2, "{calm:?}");
+        assert!(calm[0].contains("3 lingering in 1 repo "), "{calm:?}");
     }
 
     #[test]
@@ -1889,7 +2034,7 @@ mod tests {
         assert_eq!(note.unread, 0);
         assert_eq!(note.lines.len(), 1);
         assert!(
-            note.lines[0].contains("r holds 1 lingering"),
+            note.lines[0].contains("r holds 1 overdue-branch"),
             "{:?}",
             note.lines
         );

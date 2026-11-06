@@ -1122,6 +1122,22 @@
       },
       "type": "object"
     },
+    "OpenBranchConfig": {
+      "description": "The integration loop's alert: an own branch, local or on origin, whose\nnewest commit is `max_age_hours` old and is not landed on its default\nbranch is an `overdue-branch` alert, named per branch. Off, such a branch\nlingers as it did before the alert and young work stays active for 72 hours.",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "max_age_hours": {
+          "default": 48,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "OrgReleaseSwarmConfig": {
       "description": "Per-org swarm policy. Deny by default at both levels.",
       "properties": {
@@ -1550,6 +1566,12 @@
     },
     "SprawlConfig": {
       "properties": {
+        "alert_lines": {
+          "default": 12,
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
         "daemon": {
           "default": true,
           "type": "boolean"
@@ -1577,6 +1599,13 @@
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
+        },
+        "open_branch": {
+          "$ref": "#/$defs/OpenBranchConfig",
+          "default": {
+            "enabled": true,
+            "max_age_hours": 48
+          }
         },
         "own_authors": {
           "default": [],
@@ -2202,12 +2231,17 @@
     "sprawl": {
       "$ref": "#/$defs/SprawlConfig",
       "default": {
+        "alert_lines": 12,
         "daemon": true,
         "deep_repo_seconds": 20,
         "enabled": true,
         "hook_session_start": true,
         "hook_stop": true,
         "max_age_minutes": 30,
+        "open_branch": {
+          "enabled": true,
+          "max_age_hours": 48
+        },
         "own_authors": [],
         "report_only_orgs": [],
         "rules": [],

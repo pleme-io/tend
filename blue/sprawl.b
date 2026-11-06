@@ -28,7 +28,7 @@ use(
 
 use("moji", %i[glob_match? includes])
 
-use("retsu", %i[contains find_first first flat_map is_empty size])
+use("retsu", %i[contains find_first first flat_map is_empty size take_n])
 
 use("shuugou", %i[group_by unique])
 
@@ -297,7 +297,49 @@ def branch_kinds()
   %w[branch remote-branch]
 end
 
-def builtin()
+@doc """
+open_branch_default: The integration loop's default: an own branch not landed on its base alerts once it is 48 hours old.
+
+    open_branch_default["max_age_hours"] #=> 48
+"""
+def open_branch_default()
+  {"enabled" => true, "max_age_hours" => 48}
+end
+
+@doc """
+young_hours: How long a branch reads as active. With the open-branch alert on it is the alert's age, so a branch is active or overdue and never between; off, it is the 72 hours tend used before the alert.
+
+    young_hours({"enabled" => true, "max_age_hours" => 48}) #=> 48
+    young_hours({"enabled" => false, "max_age_hours" => 48}) #=> 72
+"""
+def young_hours(open)
+  if open["enabled"]
+    open["max_age_hours"]
+  else
+    72
+  end
+end
+
+def unlanded(open)
+  if open["enabled"]
+    "overdue-branch"
+  else
+    "lingering"
+  end
+end
+
+def active_examples(open)
+  hours = young_hours(open)
+  older = example({kind: "branch", age_hours: hours, ahead: 4}, unlanded(open))
+  if hours > 0
+    [example({kind: "branch", age_hours: hours - 1, ahead: 4}, "active"), older]
+  else
+    [older]
+  end
+end
+
+def builtin(open)
+  after = unlanded(open)
   [
     rule(
       "default-branch-diverged",
@@ -463,13 +505,10 @@ def builtin()
       {
         verdict: "active",
         kinds: branch_kinds,
-        scope: {max_age_hours: 72},
+        scope: {max_age_hours: young_hours(open)},
         severity: "info",
         announce: false,
-        examples: [
-          example({kind: "branch", age_hours: 1, ahead: 4}, "active"),
-          example({kind: "branch", age_hours: 72, ahead: 4}, "lingering")
-        ]
+        examples: active_examples(open)
       }
     ),
     rule(
@@ -483,11 +522,8 @@ def builtin()
         examples: [
           example({kind: "branch", ahead: 0}, "landed"),
           example({kind: "branch", ahead: 5, unique: 0, merges: 0}, "landed"),
-          example(
-            {kind: "branch", ahead: 5, unique: 2, merges: 0},
-            "lingering"
-          ),
-          example({kind: "branch", ahead: 5}, "lingering")
+          example({kind: "branch", ahead: 5, unique: 2, merges: 0}, after),
+          example({kind: "branch", ahead: 5}, after)
         ]
       }
     ),
@@ -505,6 +541,40 @@ def builtin()
       }
     ),
     rule(
+      "overdue-branch",
+      {
+        verdict: "overdue-branch",
+        kinds: branch_kinds,
+        when: [["report_only", "eq", false]],
+        scope: {min_age_hours: open["max_age_hours"]},
+        severity: "alert",
+        next: "git -C {path} log --oneline {base}..{ref}",
+        examples: [
+          example(
+            {kind: "branch", age_hours: open["max_age_hours"], ahead: 3},
+            "overdue-branch"
+          ),
+          example(
+            {kind: "remote-branch", age_hours: open["max_age_hours"] + 24},
+            "overdue-branch"
+          ),
+          example(
+            {kind: "branch", age_hours: open["max_age_hours"], ahead: 0},
+            "landed"
+          ),
+          example(
+            {
+              kind: "branch",
+              org: "akeylesslabs",
+              age_hours: open["max_age_hours"],
+              ahead: 3
+            },
+            "lingering"
+          )
+        ]
+      }
+    ),
+    rule(
       "lingering",
       {
         verdict: "lingering",
@@ -513,10 +583,10 @@ def builtin()
         next: "git -C {path} log --oneline {base}..{ref}",
         examples: [
           example(
-            {kind: "branch", ahead: 56, unique: 56, merges: 0},
+            {kind: "branch", age_hours: nil, ahead: 56, unique: 56, merges: 0},
             "lingering"
           ),
-          example({kind: "remote-branch"}, "lingering")
+          example({kind: "remote-branch", age_hours: nil}, "lingering")
         ]
       }
     )
@@ -547,16 +617,38 @@ def plain?(e)
   map?(e) and kind_of(e) == :rule
 end
 
+def open_off()
+  {
+    "entry" => "off",
+    "name" => "overdue-branch",
+    "value" => {"target" => "rule"}
+  }
+end
+
 @doc """
-rules_of: The operator's entries over the built-in rules, judged. An operator rule goes first and a rule named like a built-in replaces it; off and tune reach both. Each bad entry is refused alone.
+rules_of: The operator's entries over the built-in rules, judged, with the open-branch alert at its default.
 
     size(rules_of([])[:rules]) > 0 #=> true
     rules_of([])[:refusals] #=> []
 """
 def rules_of(entries)
-  lifts = map(lifted, entries)
+  rules_with(entries, open_branch_default)
+end
+
+@doc """
+rules_with: The operator's entries over the built-in rules, judged. An operator rule goes first and a rule named like a built-in replaces it; off and tune reach both. Each bad entry is refused alone. `open` is `sprawl.open_branch`: off, the overdue-branch rule is configured off and the branch falls through to lingering.
+
+    rules_with([], {"enabled" => false, "max_age_hours" => 48})[:off] #=> ["overdue-branch"]
+"""
+def rules_with(entries, open)
+  wanted = if open["enabled"]
+    entries
+  else
+    append(entries, [open_off])
+  end
+  lifts = map(lifted, wanted)
   named = map(name_of, filter(plain?, lifts))
-  kept = filter((e) -> not contains(named, name_of(e)), builtin)
+  kept = filter((e) -> not contains(named, name_of(e)), builtin(open))
   judged = kousei::judge(
     schema,
     append(filter(plain?, lifts), kept, filter((e) -> not plain?(e), lifts))
@@ -571,8 +663,8 @@ def rules_of(entries)
   }
 end
 
-def wire_rules(entries)
-  out = rules_of(entries)
+def wire_rules(entries, open)
+  out = rules_with(entries, open)
   {
     "rules" => map((r) -> assoc(r, "examples", []), out[:rules]),
     "off" => out[:off],
@@ -712,6 +804,58 @@ def session_lines(classes, meta)
     end
     shown = filter((c) -> c["announce"], classes)
     append(head, map(class_line, shown), blind)
+  end
+end
+
+def hours_words(h)
+  if h < 48
+    "#{h}h"
+  else
+    "#{floor(h / 24)}d"
+  end
+end
+
+def alert_line(group)
+  rows = group[1]
+  head = first(rows)
+  age = reduce(
+    fn(acc, r)
+      if r[3] > acc
+        r[3]
+      else
+        acc
+      end
+    end,
+    0,
+    rows
+  )
+  held = if any?((r) -> r[4], rows)
+    "pushed"
+  else
+    "local only"
+  end
+  "tend sprawl: 🔴 #{head[0]} #{head[1]} #{head[2]}, #{hours_words(age)} old, #{held}; land it, rebase it, or tag it archive/#{head[2]} and delete it."
+end
+
+@doc """
+alert_lines: One line per branch an alert names, with its repo, age and whether origin holds it; a local branch and its origin copy are one line. At most `cap` lines, then one that counts the rest. Each row is `[verdict, repo, branch, age_hours, pushed]`.
+
+    alert_lines([["overdue-branch", "pleme-io/tend", "wip/x", 50, false]], 5) #=> ["tend sprawl: 🔴 overdue-branch pleme-io/tend wip/x, 2d old, local only; land it, rebase it, or tag it archive/wip/x and delete it."]
+    alert_lines([], 5) #=> []
+"""
+def alert_lines(rows, cap)
+  groups = group_by(rows, (r) -> "#{r[0]} #{r[1]} #{r[2]}")
+  shown = map(alert_line, take_n(groups, cap))
+  rest = size(groups) - size(shown)
+  if rest > 0
+    append(
+      shown,
+      [
+        "tend sprawl: 🔴 #{rest} more open branches past their age; tend sprawl --verdict overdue-branch."
+      ]
+    )
+  else
+    shown
   end
 end
 
@@ -874,10 +1018,11 @@ end
 @doc """
 validate: Every standing rule's examples, run through the whole chain. Fails a rule whose example does not hold and any refused entry.
 
-    validate([])["ok"] #=> true
+    validate([], open_branch_default)["ok"] #=> true
+    validate([], {"enabled" => false, "max_age_hours" => 48})["ok"] #=> true
 """
-def validate(entries)
-  out = rules_of(entries)
+def validate(entries, open)
+  out = rules_with(entries, open)
   rules = out[:rules]
   failures = flat_map(rules, (r) -> rule_failures(r, rules, ctx_fixture))
   {
@@ -896,8 +1041,8 @@ end
 test "the empty input judges to nothing and the built-in rules validate"
   assert judge([], rules_of([]), ctx_fixture) == []
   assert classes([]) == []
-  assert validate([])["ok"]
-  assert validate([])["failures"] == []
+  assert validate([], open_branch_default)["ok"]
+  assert validate([], open_branch_default)["failures"] == []
 end
 
 test "a rebased and landed branch is landed though ancestry says unmerged"
@@ -906,25 +1051,71 @@ test "a rebased and landed branch is landed though ancestry says unmerged"
     "landed"
 end
 
-test "unique commits linger, and an unknown count is never read as landed"
+test "unique commits past the age alert, and an unknown count is never read as landed"
   assert one("branch", {"ahead" => 56, "unique" => 56, "merges" => 0}) ==
+    "overdue-branch"
+  assert one("branch", {"ahead" => 5}) == "overdue-branch"
+  assert one("branch", {"ahead" => 5, "unique" => 0}) == "overdue-branch"
+  assert one("branch", {}) == "overdue-branch"
+  assert one("remote-branch", {"ahead" => 5}) == "overdue-branch"
+end
+
+test "a branch of unread age lingers rather than alerting"
+  assert one("branch", {"age_hours" => nil, "ahead" => 5}) == "lingering"
+end
+
+def with_open(kind, fields, open)
+  verdict_of(judge([item(kind, fields)], rules_with([], open), ctx_fixture)[0])
+end
+
+test "an own branch not landed alerts at the configured age, and off it lingers as before"
+  on = {"enabled" => true, "max_age_hours" => 48}
+  off = {"enabled" => false, "max_age_hours" => 48}
+  wide = {"enabled" => true, "max_age_hours" => 120}
+  open = {"age_hours" => 48, "ahead" => 2}
+  assert with_open("branch", open, on) == "overdue-branch"
+  assert with_open("branch", {"age_hours" => 47, "ahead" => 2}, on) == "active"
+  assert with_open("branch", open, off) == "active"
+  assert with_open("branch", {"age_hours" => 72, "ahead" => 2}, off) ==
     "lingering"
-  assert one("branch", {"ahead" => 5}) == "lingering"
-  assert one("branch", {"ahead" => 5, "unique" => 0}) == "lingering"
-  assert one("branch", {}) == "lingering"
+  assert with_open("branch", {"age_hours" => 100, "ahead" => 2}, wide) ==
+    "active"
+  assert with_open("branch", {"age_hours" => 48, "ahead" => 0}, on) == "landed"
+  assert with_open("branch", {"author" => "someone", "ahead" => 2}, on) ==
+    "foreign-author"
+  assert with_open("branch", {"org" => "akeylesslabs", "ahead" => 2}, on) ==
+    "lingering"
+  assert rules_with([], off)[:off] == ["overdue-branch"]
+  assert validate([], off)["ok"]
+  assert validate([], wide)["ok"]
+end
+
+test "an overdue branch alerts by name, once for its local and origin copies"
+  rows = [
+    ["overdue-branch", "pleme-io/tend", "wip/x", 50, false],
+    ["overdue-branch", "pleme-io/tend", "wip/x", 60, true],
+    ["overdue-branch", "pleme-io/nix", "y", 49, false]
+  ]
+  lines = alert_lines(rows, 5)
+  assert size(lines) == 2
+  assert includes(first(lines), "pleme-io/tend wip/x, 2d old, pushed")
+  assert includes(lines[1], "pleme-io/nix y, 2d old, local only")
+  capped = alert_lines(rows, 1)
+  assert size(capped) == 2
+  assert includes(capped[1], "1 more")
 end
 
 test "a branch of merges alone is not landed by the patch comparison"
   assert one("branch", {"ahead" => 2, "unique" => 0, "merges" => 2}) ==
-    "lingering"
+    "overdue-branch"
 end
 
-test "young work is active whatever it carries, and the threshold itself lingers"
-  assert one("branch", {"age_hours" => 71, "ahead" => 0}) == "active"
+test "young work is active whatever it carries, and the threshold itself is overdue"
+  assert one("branch", {"age_hours" => 47, "ahead" => 0}) == "active"
   assert one(
     "branch",
-    {"age_hours" => 72, "ahead" => 1, "unique" => 1, "merges" => 0}
-  ) == "lingering"
+    {"age_hours" => 48, "ahead" => 1, "unique" => 1, "merges" => 0}
+  ) == "overdue-branch"
 end
 
 test "an age is the clock against the commit, in whole hours"
@@ -1067,7 +1258,7 @@ test "validate fails a rule whose example does not hold, and one with no reach"
       ]
     }
   }
-  out = validate([wrong])
+  out = validate([wrong], open_branch_default)
   assert not out["ok"]
   assert first(out["failures"])["rule"] == "wrong"
   assert first(out["failures"])["got"] == "individual-stash"
@@ -1085,7 +1276,7 @@ test "a clause on an op that does not exist is refused"
       "examples" => [{"item" => {}, "expect" => "x"}]
     }
   }
-  assert not validate([bad])["ok"]
+  assert not validate([bad], open_branch_default)["ok"]
 end
 
 test "scope narrows by org, repo, ref glob and author"
@@ -1110,7 +1301,7 @@ test "scope narrows by org, repo, ref glob and author"
       ]
     }
   )
-  assert validate([scoped])["ok"]
+  assert validate([scoped], open_branch_default)["ok"]
 end
 
 test "classes count items and the repos that hold them, worst first"

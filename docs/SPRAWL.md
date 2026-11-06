@@ -16,7 +16,7 @@ judgement. `blue/sprawl.b` judges them in a pure frame. `git` runs with
 | `tend sprawl refresh` | a scan now; refused when host pressure says run nothing, narrowed when it says throttle | `sprawl.enabled` |
 | `tend sprawl validate [--json]` | runs every rule's examples; exits non-zero on a wrong example or a refused entry | none |
 | `tend_sprawl` MCP tool | the same report, read-only, from the snapshot; takes org, repo, verdict, limit | `sprawl.enabled` |
-| `tend hook session-start` | one line per class with a count, never per branch | `sprawl.hook_session_start` |
+| `tend hook session-start` | one line per class with a count, then one line per branch an alert names (repo, age, pushed or local only), at most `sprawl.alert_lines` (default 12) | `sprawl.hook_session_start` |
 | `tend hook stop` | a `systemMessage` per touched repo, once per session; it never blocks | `sprawl.hook_stop` |
 | `tend status` | one summary line | `sprawl.status_line` |
 | the daemon | refreshes the snapshot each cycle, with workers bounded by the pressure verdict | `sprawl.daemon` |
@@ -66,9 +66,10 @@ first:
 | `backup-ref` | info | any `refs/backup/*` |
 | `foreign-author` | info | the tip's author is not the operator, or was not read |
 | `checked-out` | info | a local branch some worktree has checked out |
-| `active` | info | younger than 72 hours |
+| `active` | info | younger than `sprawl.open_branch.max_age_hours` (48); 72 when the open-branch alert is off |
 | `landed` | warn | nothing new against the base: ahead 0, an empty three-dot diff, or no unique patch and no merge |
-| `lingering` | warn | any other branch |
+| `overdue-branch` | alert | an own branch, local or on origin, outside the report-only orgs, at least `sprawl.open_branch.max_age_hours` old and not landed |
+| `lingering` | warn | any other branch: one of unread age, a report-only org's, or every unlanded branch when the open-branch alert is off |
 | `unclassified` | warn | no rule held: the rules leave this item unseen, so it stays visible |
 
 `checked-out` and `active` do not print in the session lines (`announce: false`).
@@ -76,6 +77,26 @@ first:
 **Unknown is never landed.** A clause on a field not read holds for nothing but
 the op `unknown`. A branch of merges alone is not landed by the patch
 comparison, since a merge can carry work no patch shows.
+
+## The open-branch alert
+
+The integration loop is tight: a branch lives hours, not days (operator,
+2026-11-06). `overdue-branch` makes that an alert. An own branch whose newest
+commit is two days old and is not landed on its default branch is red, and the
+session start names each one with its repo, its age and whether origin holds
+it. A local branch and its origin copy are one line. The answer is to land it,
+rebase it, or tag it `archive/<branch>` and delete it.
+
+```yaml
+sprawl:
+  open_branch:
+    enabled: true
+    max_age_hours: 48
+```
+
+`enabled: false` turns the rule off: such a branch lingers at warn as before,
+and young work is active for 72 hours. An unknown count is never landed, so a
+branch whose patch counts were not read still alerts.
 
 ## House rule
 
