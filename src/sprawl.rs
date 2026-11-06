@@ -1205,7 +1205,7 @@ pub(crate) fn print_report(report: &Json) {
     }
     if report["deep_unknown"].as_u64().unwrap_or(0) > 0 {
         println!(
-            "{} branches over the per-repo budget: counts unknown, so read as lingering, never landed",
+            "{} branches over the per-repo budget: counts unknown, so never read as landed",
             report["deep_unknown"]
         );
     }
