@@ -8,7 +8,7 @@
 //! consumers (report, MCP queries, K8s controllers, future
 //! convergence loops) can read once and act on consistently.
 //!
-//! Per SHIGOTO.md §IV.4 M5: "typed DriftEvent surface + audit emission."
+//! M5 from the original tend plan: "typed DriftEvent surface + audit emission."
 //! The derivation `outcomes → events` is in [`derive_from_receipt`];
 //! the sink trait lets backends (audit JSONL, in-memory, NATS publish,
 //! etc.) capture events for downstream use.

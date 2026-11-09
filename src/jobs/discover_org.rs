@@ -4,7 +4,7 @@
 //! Output is a `Vec<String>` of repo names; the cache layer below
 //! decides whether to hit the API or return cached data.
 //!
-//! M2 from the original tend plan (SHIGOTO.md §IV.4): "discovery TTL —
+//! M2 from the original tend plan: "discovery TTL —
 //! re-hit GitHub each cycle." The TTL itself is in `cache::read`'s
 //! freshness check; this Job makes the discovery operation auditable
 //! through the scheduler's transition log + InMemorySink.

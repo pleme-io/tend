@@ -25,8 +25,8 @@ use crate::secret::GitConfigEnv;
 ///
 /// Tier-honest: truly-unrepresentable *outside* this module; only-
 /// mitigated *within* it (a determined author in `sync.rs` can still
-/// hand-build the struct). Same grade UNREPRESENTABILITY.md gives
-/// `CidrBlock`. Do not round up.
+/// hand-build the struct). Same grade a `CidrBlock` newtype gets. Do not
+/// round up.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RemoteWitness {
     /// The first configured remote observed — conventionally `origin`.

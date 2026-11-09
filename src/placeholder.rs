@@ -7,7 +7,7 @@
 //! - A reserved name to prevent tend from re-cloning a repo the
 //!   operator deliberately deleted on disk.
 //!
-//! M3 from the original tend plan + SHIGOTO.md §IV.4. The marker is a
+//! M3 from the original tend plan. The marker is a
 //! file named `PLACEHOLDER_FILENAME` (`.tend-placeholder`) inside the
 //! directory. The `NotPlaceholderGate` (jobs/gates.rs) consults this
 //! to Skip reconcile Jobs against marked dirs.

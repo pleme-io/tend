@@ -82,7 +82,7 @@ impl Gate for CacheFreshGate {
 /// than as a silent no-op or worse, a misclassified StubDirectoryFound
 /// drift.
 ///
-/// M3 from SHIGOTO.md §IV.4 — the typed empty-dir intent primitive.
+/// M3 from the original tend plan — the typed empty-dir intent primitive.
 pub(crate) struct NotPlaceholderGate {
     pub base_dir: PathBuf,
 }

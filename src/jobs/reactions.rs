@@ -6,7 +6,7 @@
 //! could be remediated by an explicit fetch, etc. This module is the
 //! binding layer between detected drift and scheduled handler Jobs.
 //!
-//! Per SHIGOTO.md §IV.4 M6: "typed reactions — bind drift kinds to
+//! M6 from the original tend plan: "typed reactions — bind drift kinds to
 //! actions." The binding is a pure function `DriftEvent → Option<Job>`
 //! — no Reaction trait, no policy registry, just data → Job. Future
 //! commits add more reaction arms by extending the match in

@@ -157,7 +157,7 @@ Residue = Clean | Dirty { causes: NonEmpty<(RepoId, FailureCause)> }
 
 `Clean` is the ONLY resting state. `Dirty` carries a **`NonEmpty`** — a residue
 that cannot name a cause is unconstructible, which kills the "125 failed" line
-that explains nothing. This is AUTOREVIVY §XI's zero-residue rule given a type.
+that explains nothing. This is the zero-residue rule given a type.
 
 ### The product
 
@@ -224,7 +224,7 @@ score. Do not round it up.**
 shigoto (`Dag`/`Job`/`RecordingJob`/gates — tend is already native; the new
 causes become typed job outcomes) · samba `LeakyBucket` · shikumi `TieredConfig`
 + `Provenance` · cofre `SecretRef` · dojo's `Evidence` discipline (no stringly-
-typed discriminants) · AUTOREVIVY §XI (zero-residue-or-be-loud) ·
+typed discriminants) · zero-residue-or-be-loud ·
 UNREPRESENTABILITY's eliminate-the-shared-cell.
 
 No new job system. No second cache primitive. No new secret vocabulary.

@@ -5,7 +5,7 @@
 //! per-kind counts, recent failures, and the cohort of Jobs currently
 //! sitting in non-terminal phases.
 //!
-//! Realizes M7 from the original tend plan (SHIGOTO.md §IV.4 + §VII).
+//! Realizes M7 from the original tend plan.
 //! No new state — every field below is derived from the transition
 //! log alone.
 
