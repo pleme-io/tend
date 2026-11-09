@@ -29,9 +29,6 @@
 //!                                          │
 //!                                          ▼
 //!                            result published on tend.github.jobs.results.<key>
-//!
-//! See pleme-io/theory/RATE-LIMITED-CONSUMERS.md for the canonical
-//! design + the eight invariants this composition enforces.
 
 use anyhow::{Context as _, Result};
 use async_trait::async_trait;

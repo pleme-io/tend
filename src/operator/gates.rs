@@ -456,7 +456,7 @@ pub fn nix_env(cmd: &mut Command) {
 /// Resolve the `HOME` / `XDG_CACHE_HOME` pair handed to a child `nix`.
 ///
 /// **Both env arms are filtered for ABSOLUTE, not merely non-empty** — the
-/// masked-branch class of `theory/MASKED-BRANCH.md`. The literal fallbacks
+/// masked-branch class. The literal fallbacks
 /// are the guarded arm and cannot be relative, which is precisely what made
 /// the raw arms read as safe. `HOME=""` made nix abort ("cannot determine
 /// user's home directory") *and* silently produced `XDG_CACHE_HOME=/.cache`;
@@ -531,7 +531,7 @@ fn tail_utf8(bytes: &[u8], max: usize) -> String {
 #[cfg(test)]
 mod tests {
 
-    /// ── ★ THE MASKED BRANCH (theory/MASKED-BRANCH.md) ───────────────────
+    /// ── ★ THE MASKED BRANCH ───────────────────
     /// `nix_env`'s literal fallbacks (`/home/tend`, `<home>/.cache`) cannot
     /// be relative, so the function read as safe while both env arms took
     /// their variable verbatim. These gates run with

@@ -9,8 +9,8 @@ use crate::secret::GitConfigEnv;
 
 /// Proof that a repo's remote set was **observed** and found non-empty.
 ///
-/// This is the witness half of the derived-verdict law
-/// (theory/UNREPRESENTABILITY.md §II.4): a verdict is derived from the
+/// This is the witness half of the derived-verdict law: a verdict is
+/// derived from the
 /// subject set it claims about, and carries the witness of that
 /// derivation. `RepoStatus::Clean` is a claim *relative to a remote* —
 /// without one, "clean" is a verdict over an empty subject set (Tier ⊥

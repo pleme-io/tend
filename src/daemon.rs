@@ -633,8 +633,8 @@ async fn run_workspace_cycle(
     if pull {
         // Full reconcile via the scheduler: SyncRepoJob → (Dag edge) →
         // PullRepoJob per repo. Both kinds share max_inflight (separate
-        // per-kind counters so sync waves don't starve pulls). Per
-        // theory/SHIGOTO.md §IV.5: this is the canonical daemon cycle
+        // per-kind counters so sync waves don't starve pulls). This is
+        // the canonical daemon cycle
         // — one scheduler run, one typed receipt, all four reconcile
         // primitives reachable from the same audit log.
         let receipt = reconcile::reconcile_workspace_sync_then_pull(

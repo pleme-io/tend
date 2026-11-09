@@ -1,7 +1,7 @@
 //! DAG planner — consumes `shigoto-dag`.
 //!
-//! The typed DAG implementation has been lifted into `shigoto-dag` (per
-//! theory/SHIGOTO.md §IV.3 M0.7). This module is now a thin tend-side
+//! The typed DAG implementation has been lifted into `shigoto-dag`
+//! (M0.7). This module is now a thin tend-side
 //! adapter:
 //!   - Re-exports `shigoto_dag::Dag` as `FleetDag` for source compat
 //!     with existing `operator/reconcile.rs` call sites.

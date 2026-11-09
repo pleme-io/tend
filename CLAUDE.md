@@ -24,11 +24,10 @@ WITHIN it, and the remote-set detection itself is a runtime `git remote` check,
 i.e. only-mitigated. Do not round up.
 
 > **★★★ CSE / Knowable Construction.** This repo operates under
-> **Constructive Substrate Engineering** — canonical specification at
-> [`pleme-io/theory/CONSTRUCTIVE-SUBSTRATE-ENGINEERING.md`](https://github.com/pleme-io/theory/blob/main/CONSTRUCTIVE-SUBSTRATE-ENGINEERING.md).
+> **Constructive Substrate Engineering**.
 > The Compounding Directive (operational rules: solve once, load-bearing
 > fixes only, idiom-first, models stay current, direction beats velocity)
-> is in the org-level pleme-io/CLAUDE.md ★★★ section. Read both before
+> is in the org-level pleme-io/CLAUDE.md ★★★ section. Read it before
 > non-trivial changes. Workspace repo manager + version watch daemon;
 > the substrate's typed driver for fleet-wide flake.lock propagation.
 
@@ -71,7 +70,7 @@ config); the legacy per-workspace `prebuild:` block is hoisted to the
 top-level section in its own layer; `github_auth` is a LIST because shikumi
 merges maps and a one-key-map sum type would merge into two keys.
 
-**New daemon behaviour is a vigy** (`theory/VIGY.md` §II.1): a sensor, sweep,
+**New daemon behaviour is a vigy**: a sensor, sweep,
 sync or optimizer is written in blue and run by tend as its host, which supplies
 only intrinsics (repo facts, host pressure). The 2026-10-22 pressure and liveness
 notes, pull policy and tick budget are Rust today and move on their next refactor.

@@ -13,8 +13,7 @@
 //! defined a hand-rolled sliding-window limiter (`RequestBudget`) that
 //! duplicated `LeakyBucket`'s job for the in-process discovery path
 //! while the NATS-relayed throttle path already used samba. Both paths
-//! now share one canonical primitive — see
-//! pleme-io/theory/RATE-LIMITED-CONSUMERS.md.
+//! now share one canonical primitive.
 
 use std::time::Duration;
 

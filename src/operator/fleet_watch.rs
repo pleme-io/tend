@@ -18,8 +18,7 @@
 //! "stream of work" is continuous, every flake-having org repo gets
 //! HEAD-checked every (N_repos × tick_interval) seconds.
 //!
-//! See pleme-io/theory/RATE-LIMITED-CONSUMERS.md §V (per-consumer
-//! ingestion strategy: Mode A steady-trickle).
+//! Per-consumer ingestion strategy: Mode A steady-trickle.
 
 use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};

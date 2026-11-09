@@ -248,8 +248,7 @@ pub async fn reconcile_policy(
     //   • true — `NatsThrottleClient` publishes refresh jobs to
     //     `pleme-tend-throttle` over NATS and awaits the result.
     //     The single fleet-wide drain enforces ≤10% of GitHub's
-    //     authenticated quota by construction (theory in
-    //     pleme-io/theory/RATE-LIMITED-CONSUMERS.md). A timeout on
+    //     authenticated quota by construction. A timeout on
     //     the result subscriber returns a transient RegistryError;
     //     the reconciler retries next cycle (option (c) — no inline
     //     fallback that would defeat the invariant).

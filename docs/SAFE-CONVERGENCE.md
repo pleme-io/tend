@@ -368,5 +368,4 @@ layer — no architectural innovation, just lifting + adapting.
 - Pangea-operator reactive policy: `pangea-operator/src/controller/reactive.rs`
 - Pangea-operator settling tracker: `pangea-operator/src/controller/settling.rs`
 - Pangea-operator error policy: `pangea-operator/src/controller/error_policy.rs`
-- Viggy Method: `pleme-io/theory/CONTINUOUS-SOLUTION-MACHINE.md`
-- shigoto: `pleme-io/theory/SHIGOTO.md`
+- shigoto: `pleme-io/shigoto`

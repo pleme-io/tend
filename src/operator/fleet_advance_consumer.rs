@@ -17,8 +17,8 @@
 //! (the throttle worker just observed the advance) so the trigger is
 //! near-free in API quota.
 //!
-//! See pleme-io/theory/RATE-LIMITED-CONSUMERS.md §V (the bridge
-//! pattern: continuous watcher → typed event → reactive reconciler).
+//! This is the bridge pattern: continuous watcher → typed event →
+//! reactive reconciler.
 
 use anyhow::{Context as _, Result};
 use kube::{

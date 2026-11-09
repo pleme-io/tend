@@ -1208,7 +1208,7 @@ impl Config {
     /// `std::env` (which races under parallel test execution).
     ///
     /// **Every arm of the old chain could yield a RELATIVE path** — the
-    /// masked-branch class of `theory/MASKED-BRANCH.md`. `$XDG_CONFIG_HOME`
+    /// masked-branch class. `$XDG_CONFIG_HOME`
     /// was taken verbatim by `PathBuf::from`, so `XDG_CONFIG_HOME=""`
     /// resolved to a bare `tend/config.yaml` and `XDG_CONFIG_HOME=rel` to
     /// `rel/tend/config.yaml`; the home arm's own
@@ -1340,7 +1340,7 @@ mod tests {
         })
     }
 
-    /// ── ★ THE MASKED BRANCH (theory/MASKED-BRANCH.md) ───────────────────
+    /// ── ★ THE MASKED BRANCH ───────────────────
     /// The `$XDG_CONFIG_HOME` arm was taken verbatim while the `$HOME` arm
     /// went through `dirs::home_dir()`, so *unsetting* the variable behaved
     /// correctly and *emptying* it did not — and unsetting is what anyone

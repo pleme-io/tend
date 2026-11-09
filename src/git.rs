@@ -74,7 +74,7 @@ impl GitOps for SystemGitOps {
     }
 
     fn commit(&self, repo_dir: &Path, message: &str) -> Result<()> {
-        // vau CleanTreeWitness (safe-concurrent-git-mutation, theory/VAU.md) —
+        // vau CleanTreeWitness (safe-concurrent-git-mutation) —
         // REFUSE to commit a conflicted tree. The live bug 7ac40036 staged
         // conflict markers into flake.lock and committed them. A plain
         // `git diff --check` (working-tree vs index) MISSES markers that are

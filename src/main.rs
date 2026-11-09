@@ -552,8 +552,7 @@ enum Commands {
     /// adaptive halving when X-RateLimit-Remaining drops below
     /// pressure thresholds.
     ///
-    /// Built on samba (pleme-io/samba) for the typed primitive. See
-    /// pleme-io/theory/RATE-LIMITED-CONSUMERS.md.
+    /// Built on samba (pleme-io/samba) for the typed primitive.
     #[cfg(feature = "operator")]
     Throttle {
         /// Path to the samba worker config YAML. Defaults to

@@ -193,8 +193,7 @@ fn build_batch_query(targets: &[(usize, &UpstreamId)]) -> Result<String, anyhow:
     // Build the query as a TREE, not a string.
     //
     // This was `format!()` of GraphQL syntax, and it shipped a defect
-    // that only a tree could have prevented — see theory/GRAPHQL-AST.md,
-    // which is written around this exact site.
+    // that only a tree could have prevented.
     //
     // ── ★ THERE IS NO SUCH REF AS refs/heads/HEAD ────────────────
     // `ExtendedNode::tracking_ref` returns the literal "HEAD" for any

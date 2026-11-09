@@ -45,7 +45,7 @@
 //!
 //! # What this module does not defend against
 //!
-//! Tier-honest, per theory/UNREPRESENTABILITY.md: this makes leaks
+//! Tier-honest: this makes leaks
 //! unrepresentable *by accident*. A determined author can still call
 //! `expose_for_header()` and print the result. The goal is that every path
 //! to a leak requires typing a renderer name — one grep-able token that a

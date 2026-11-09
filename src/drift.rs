@@ -366,7 +366,7 @@ fn parse_expected_ref(stderr: &str) -> Option<String> {
 /// Receivers of `DriftEvent`. Thin trait over the canonical
 /// `shigoto_types::sink::Sink<DriftEvent>` so every tend caller
 /// writing `&dyn DriftSink` keeps working unchanged after the
-/// theory/CONVERGENCE-ADOPTION.md Phase 0.1 extraction. The blanket
+/// `Sink` extraction. The blanket
 /// impl below means any `Sink<DriftEvent>` impl auto-satisfies
 /// `DriftSink` — no per-impl wiring at the consumer side.
 ///

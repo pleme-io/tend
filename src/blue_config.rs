@@ -1,7 +1,7 @@
 //! `tend.b`: tend's configuration declared in blue.
 //!
 //! The discovered configuration file may be `tend.b` instead of YAML (blue is
-//! the source; YAML is a rendering, theory/FUEKI.md R9). Blue evaluates it in a
+//! the source; YAML is a rendering). Blue evaluates it in a
 //! pure frame, no clock, file, process, environment or network, under the tree
 //! walker's default budget, with the standard bidamas available to `use`. Its
 //! `config()` value becomes the file layer with the `.b` path as provenance, so
