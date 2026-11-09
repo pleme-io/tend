@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "e90ff273fdd0693e20cb495a3e660fa25b9747ff34eb31dbd9ad15efbcee46ab",
+  "cargo_lock_sha256": "4e7fc3db6928918fa13c639ba60a90fb9261e4c152e6b5576685966dcc0dd9c7",
   "manifest_sha256": {
-    "Cargo.toml": "f1e325d62410dee0f47fcc9abfd493e66f2019d3f46df904a93fa51de84a1238"
+    "Cargo.toml": "404c290c028a966962dd60cf07c57eb370311508e106d78a24b47ce11696db7b"
   },
   "target_resolves": {
     "base": {
@@ -282,7 +282,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "arc-swap-1.9.3": {
+      "arc-swap-1.9.5": {
         "runtime_dependencies": [
           {
             "name": "rustversion",
@@ -833,7 +833,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [
               "clone-impls",
@@ -1022,13 +1022,6 @@
           "alloc"
         ]
       },
-      "bitflags-1.3.2": {
-        "runtime_dependencies": [],
-        "build_dependencies": [],
-        "features": [
-          "default"
-        ]
-      },
       "bitflags-2.13.2": {
         "runtime_dependencies": [],
         "build_dependencies": [],
@@ -1052,11 +1045,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-bidama-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+      "blue-lang-bidama-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1068,11 +1061,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-check-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+      "blue-lang-check-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-syntax-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1094,11 +1087,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-fmt-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+      "blue-lang-fmt-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-syntax-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1130,7 +1123,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-host-macros-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+      "blue-lang-host-macros-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -1168,7 +1161,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-mondou-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+      "blue-lang-mondou-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -1185,7 +1178,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-check-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1195,7 +1188,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-fmt-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1205,7 +1198,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-runtime-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1215,7 +1208,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-syntax-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1225,7 +1218,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1257,7 +1250,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-pkg-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+      "blue-lang-pkg-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -1274,7 +1267,7 @@
           },
           {
             "name": "blue_lang_bidama",
-            "package_key": "blue-lang-bidama-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-bidama-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1284,7 +1277,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-check-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1294,7 +1287,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-fmt-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1304,7 +1297,7 @@
           },
           {
             "name": "blue_lang_mondou",
-            "package_key": "blue-lang-mondou-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-mondou-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1314,7 +1307,7 @@
           },
           {
             "name": "blue_lang_proc",
-            "package_key": "blue-lang-proc-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-proc-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1324,7 +1317,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-runtime-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1334,7 +1327,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-syntax-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1344,7 +1337,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1410,7 +1403,7 @@
           "embedded"
         ]
       },
-      "blue-lang-runtime-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+      "blue-lang-runtime-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -1427,7 +1420,7 @@
           },
           {
             "name": "blue_lang_check",
-            "package_key": "blue-lang-check-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-check-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1437,7 +1430,7 @@
           },
           {
             "name": "blue_lang_fmt",
-            "package_key": "blue-lang-fmt-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-fmt-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1447,7 +1440,7 @@
           },
           {
             "name": "blue_lang_proc",
-            "package_key": "blue-lang-proc-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-proc-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1457,7 +1450,7 @@
           },
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-syntax-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1467,7 +1460,7 @@
           },
           {
             "name": "blue_lang_waku",
-            "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1597,7 +1590,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-syntax-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+      "blue-lang-syntax-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
         "runtime_dependencies": [
           {
             "name": "tatara_lisp",
@@ -1613,11 +1606,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+      "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
         "runtime_dependencies": [
           {
             "name": "blue_lang_syntax",
-            "package_key": "blue-lang-syntax-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-syntax-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1675,7 +1668,7 @@
           },
           {
             "name": "brotli_decompressor",
-            "package_key": "brotli-decompressor-6.3.0",
+            "package_key": "brotli-decompressor-6.3.1",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -1691,7 +1684,7 @@
           "std"
         ]
       },
-      "brotli-decompressor-6.3.0": {
+      "brotli-decompressor-6.3.1": {
         "runtime_dependencies": [
           {
             "name": "alloc_no_stdlib",
@@ -1979,7 +1972,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [
               "full"
@@ -2490,99 +2483,6 @@
           "std"
         ]
       },
-      "defmt-1.2.0": {
-        "runtime_dependencies": [
-          {
-            "name": "bitflags",
-            "package_key": "bitflags-1.3.2",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "defmt_macros",
-            "package_key": "defmt-macros-1.2.0",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "host"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "alloc"
-        ]
-      },
-      "defmt-macros-1.2.0": {
-        "runtime_dependencies": [
-          {
-            "name": "defmt_parser",
-            "package_key": "defmt-parser-1.1.0",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "proc_macro2",
-            "package_key": "proc-macro2-1.0.107",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "quote",
-            "package_key": "quote-1.0.47",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          },
-          {
-            "name": "syn",
-            "package_key": "syn-3.0.9",
-            "kind": "normal",
-            "features": [
-              "extra-traits",
-              "full"
-            ],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
-      },
-      "defmt-parser-1.1.0": {
-        "runtime_dependencies": [
-          {
-            "name": "thiserror",
-            "package_key": "thiserror-2.0.21",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": []
-      },
       "der-0.7.10": {
         "runtime_dependencies": [
           {
@@ -2826,7 +2726,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3079,7 +2979,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3544,7 +3444,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [
               "full"
@@ -3689,7 +3589,7 @@
           "std"
         ]
       },
-      "gen-macros-0.1.55": {
+      "gen-macros-0.1.56": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -3732,7 +3632,7 @@
         "runtime_dependencies": [
           {
             "name": "gen_macros",
-            "package_key": "gen-macros-0.1.55",
+            "package_key": "gen-macros-0.1.56",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3742,7 +3642,7 @@
           },
           {
             "name": "gen_types",
-            "package_key": "gen-types-0.1.55",
+            "package_key": "gen-types-0.1.56",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3796,7 +3696,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "gen-types-0.1.55": {
+      "gen-types-0.1.56": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -4174,7 +4074,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686": {
+      "graphql-synthesizer-0.1.1-ae19d88da618020dc885d74910b2c388c0d86ffd": {
         "runtime_dependencies": [
           {
             "name": "synthesizer_core",
@@ -4451,7 +4351,7 @@
           },
           {
             "name": "itoa",
-            "package_key": "itoa-1.0.18",
+            "package_key": "itoa-1.0.19",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -4657,7 +4557,7 @@
           },
           {
             "name": "itoa",
-            "package_key": "itoa-1.0.18",
+            "package_key": "itoa-1.0.19",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5496,16 +5396,16 @@
           "default"
         ]
       },
-      "itoa-1.0.18": {
+      "itoa-1.0.19": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
       },
-      "jiff-0.2.39": {
+      "jiff-0.2.41": {
         "runtime_dependencies": [
           {
             "name": "jcore",
-            "package_key": "jiff-core-0.1.2",
+            "package_key": "jiff-core-0.1.4",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -5531,7 +5431,7 @@
           "std"
         ]
       },
-      "jiff-core-0.1.2": {
+      "jiff-core-0.1.4": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": [
@@ -5816,7 +5716,7 @@
           },
           {
             "name": "jiff",
-            "package_key": "jiff-0.2.39",
+            "package_key": "jiff-0.2.41",
             "kind": "normal",
             "features": [
               "alloc",
@@ -5857,11 +5757,11 @@
           "v1_35"
         ]
       },
-      "kanshou-0.1.11-c3f488f50902eb8e9fa294e8fa9628e680be442f": {
+      "kanshou-0.1.11-6aa929f3203c5153852cdec7c2e06c38984cbdef": {
         "runtime_dependencies": [
           {
             "name": "kanshou_derive",
-            "package_key": "kanshou-derive-0.1.11-c3f488f50902eb8e9fa294e8fa9628e680be442f",
+            "package_key": "kanshou-derive-0.1.11-6aa929f3203c5153852cdec7c2e06c38984cbdef",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -5945,7 +5845,7 @@
           "derive"
         ]
       },
-      "kanshou-derive-0.1.11-c3f488f50902eb8e9fa294e8fa9628e680be442f": {
+      "kanshou-derive-0.1.11-6aa929f3203c5153852cdec7c2e06c38984cbdef": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -6179,7 +6079,7 @@
           },
           {
             "name": "jiff",
-            "package_key": "jiff-0.2.39",
+            "package_key": "jiff-0.2.41",
             "kind": "normal",
             "features": [
               "serde",
@@ -6439,7 +6339,7 @@
           },
           {
             "name": "jiff",
-            "package_key": "jiff-0.2.39",
+            "package_key": "jiff-0.2.41",
             "kind": "normal",
             "features": [
               "std"
@@ -7104,7 +7004,7 @@
           "std"
         ]
       },
-      "notify-types-2.2.0": {
+      "notify-types-2.3.0": {
         "runtime_dependencies": [
           {
             "name": "bitflags",
@@ -7313,7 +7213,7 @@
           "std"
         ]
       },
-      "opencode-zen-0.1.4-712a765fd6f6e0a23c5ec9586e61e466e6e8b348": {
+      "opencode-zen-0.1.4-d4c8522ae13dd74cbf23037acce968174e1868bc": {
         "runtime_dependencies": [
           {
             "name": "reqwest",
@@ -7726,7 +7626,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7890,7 +7790,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "pleme-tend-0.3.40": {
+      "pleme-tend-0.3.41": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -7934,7 +7834,7 @@
           },
           {
             "name": "blue_lang_host",
-            "package_key": "blue-lang-host-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-host-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -7944,7 +7844,7 @@
           },
           {
             "name": "blue_lang_runtime",
-            "package_key": "blue-lang-runtime-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+            "package_key": "blue-lang-runtime-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8028,7 +7928,7 @@
           },
           {
             "name": "graphql_synthesizer",
-            "package_key": "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686",
+            "package_key": "graphql-synthesizer-0.1.1-ae19d88da618020dc885d74910b2c388c0d86ffd",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8085,7 +7985,7 @@
           },
           {
             "name": "kanshou",
-            "package_key": "kanshou-0.1.11-c3f488f50902eb8e9fa294e8fa9628e680be442f",
+            "package_key": "kanshou-0.1.11-6aa929f3203c5153852cdec7c2e06c38984cbdef",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8109,7 +8009,7 @@
           },
           {
             "name": "notify",
-            "package_key": "notify-8.2.1",
+            "package_key": "notify-8.2.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8139,7 +8039,7 @@
           },
           {
             "name": "opencode_zen",
-            "package_key": "opencode-zen-0.1.4-712a765fd6f6e0a23c5ec9586e61e466e6e8b348",
+            "package_key": "opencode-zen-0.1.4-d4c8522ae13dd74cbf23037acce968174e1868bc",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8245,7 +8145,7 @@
           },
           {
             "name": "samba",
-            "package_key": "samba-0.1.6-fc0110f01a94500422f619b1ab057b5ca746586b",
+            "package_key": "samba-0.1.6-af303b69eefcbb364e0f03714c755e0f36041d07",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8309,7 +8209,7 @@
           },
           {
             "name": "shigoto_budget",
-            "package_key": "shigoto-budget-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-budget-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8319,7 +8219,7 @@
           },
           {
             "name": "shigoto_dag",
-            "package_key": "shigoto-dag-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-dag-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8329,7 +8229,7 @@
           },
           {
             "name": "shigoto_emit",
-            "package_key": "shigoto-emit-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-emit-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8339,7 +8239,7 @@
           },
           {
             "name": "shigoto_gate",
-            "package_key": "shigoto-gate-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-gate-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8349,7 +8249,7 @@
           },
           {
             "name": "shigoto_retry",
-            "package_key": "shigoto-retry-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-retry-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8359,7 +8259,7 @@
           },
           {
             "name": "shigoto_scheduler",
-            "package_key": "shigoto-scheduler-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-scheduler-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8369,7 +8269,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-types-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8379,7 +8279,7 @@
           },
           {
             "name": "shikumi",
-            "package_key": "shikumi-0.1.1084",
+            "package_key": "shikumi-0.1.1085",
             "kind": "normal",
             "features": [
               "cli",
@@ -8414,7 +8314,7 @@
           },
           {
             "name": "todoku",
-            "package_key": "todoku-0.1.11-f3046048ce953434e7576fb85f312aef29d742f1",
+            "package_key": "todoku-0.1.11-c28c57f14383e28126cf4ac6ba1d4cb6cd2e3ef0",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8478,7 +8378,7 @@
           },
           {
             "name": "tsunagu",
-            "package_key": "tsunagu-0.1.11-de0209d0224a5fb57ab69546a4ddb2276ee1657a",
+            "package_key": "tsunagu-0.1.12-16dbc776b36890d9bd231f8f67aeb7af923d1b33",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -8488,7 +8388,7 @@
           },
           {
             "name": "uuid",
-            "package_key": "uuid-1.29.0",
+            "package_key": "uuid-1.29.2",
             "kind": "normal",
             "features": [
               "v4"
@@ -9485,7 +9385,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -10648,7 +10548,7 @@
           "default"
         ]
       },
-      "samba-0.1.6-fc0110f01a94500422f619b1ab057b5ca746586b": {
+      "samba-0.1.6-af303b69eefcbb364e0f03714c755e0f36041d07": {
         "runtime_dependencies": [
           {
             "name": "async_nats",
@@ -11049,7 +10949,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11302,7 +11202,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [
               "clone-impls",
@@ -11387,7 +11287,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [
               "clone-impls",
@@ -11408,7 +11308,7 @@
         "runtime_dependencies": [
           {
             "name": "itoa",
-            "package_key": "itoa-1.0.18",
+            "package_key": "itoa-1.0.19",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11484,7 +11384,7 @@
           },
           {
             "name": "itoa",
-            "package_key": "itoa-1.0.18",
+            "package_key": "itoa-1.0.19",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11550,7 +11450,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11594,7 +11494,7 @@
           },
           {
             "name": "itoa",
-            "package_key": "itoa-1.0.18",
+            "package_key": "itoa-1.0.19",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11640,7 +11540,7 @@
           },
           {
             "name": "itoa",
-            "package_key": "itoa-1.0.18",
+            "package_key": "itoa-1.0.19",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11795,7 +11695,7 @@
           "tilde"
         ]
       },
-      "shigoto-budget-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": {
+      "shigoto-budget-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": {
         "runtime_dependencies": [
           {
             "name": "serde",
@@ -11811,7 +11711,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-types-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11833,7 +11733,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-dag-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": {
+      "shigoto-dag-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": {
         "runtime_dependencies": [
           {
             "name": "petgraph",
@@ -11859,7 +11759,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-types-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11881,7 +11781,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-emit-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": {
+      "shigoto-emit-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": {
         "runtime_dependencies": [
           {
             "name": "async_trait",
@@ -11917,7 +11817,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-types-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11939,11 +11839,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-gate-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": {
+      "shigoto-gate-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": {
         "runtime_dependencies": [
           {
             "name": "shigoto_dag",
-            "package_key": "shigoto-dag-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-dag-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11953,7 +11853,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-types-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11965,7 +11865,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-retry-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": {
+      "shigoto-retry-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": {
         "runtime_dependencies": [
           {
             "name": "serde",
@@ -11981,7 +11881,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-types-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -11993,7 +11893,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-scheduler-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": {
+      "shigoto-scheduler-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -12051,7 +11951,7 @@
           },
           {
             "name": "shigoto_budget",
-            "package_key": "shigoto-budget-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-budget-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12061,7 +11961,7 @@
           },
           {
             "name": "shigoto_dag",
-            "package_key": "shigoto-dag-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-dag-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12071,7 +11971,7 @@
           },
           {
             "name": "shigoto_emit",
-            "package_key": "shigoto-emit-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-emit-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12081,7 +11981,7 @@
           },
           {
             "name": "shigoto_gate",
-            "package_key": "shigoto-gate-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-gate-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12091,7 +11991,7 @@
           },
           {
             "name": "shigoto_retry",
-            "package_key": "shigoto-retry-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-retry-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12101,7 +12001,7 @@
           },
           {
             "name": "shigoto_types",
-            "package_key": "shigoto-types-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3",
+            "package_key": "shigoto-types-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12148,7 +12048,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shigoto-types-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": {
+      "shigoto-types-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": {
         "runtime_dependencies": [
           {
             "name": "async_trait",
@@ -12194,7 +12094,7 @@
           },
           {
             "name": "gen_types",
-            "package_key": "gen-types-0.1.55",
+            "package_key": "gen-types-0.1.56",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12260,11 +12160,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "shikumi-0.1.1084": {
+      "shikumi-0.1.1085": {
         "runtime_dependencies": [
           {
             "name": "arc_swap",
-            "package_key": "arc-swap-1.9.3",
+            "package_key": "arc-swap-1.9.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12329,7 +12229,7 @@
           },
           {
             "name": "gen_types",
-            "package_key": "gen-types-0.1.55",
+            "package_key": "gen-types-0.1.56",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -12352,7 +12252,7 @@
           },
           {
             "name": "notify",
-            "package_key": "notify-8.2.1",
+            "package_key": "notify-8.2.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -12362,7 +12262,7 @@
           },
           {
             "name": "notify",
-            "package_key": "notify-8.2.1",
+            "package_key": "notify-8.2.2",
             "kind": "normal",
             "features": [
               "macos_fsevent"
@@ -12790,7 +12690,7 @@
           "visit-mut"
         ]
       },
-      "syn-3.0.9": {
+      "syn-3.0.10": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -12881,7 +12781,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [
               "clone-impls",
@@ -13311,7 +13211,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -13485,7 +13385,7 @@
           "default"
         ]
       },
-      "todoku-0.1.11-f3046048ce953434e7576fb85f312aef29d742f1": {
+      "todoku-0.1.11-c28c57f14383e28126cf4ac6ba1d4cb6cd2e3ef0": {
         "runtime_dependencies": [
           {
             "name": "async_trait",
@@ -13766,7 +13666,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [
               "full"
@@ -14954,7 +14854,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "tsunagu-0.1.11-de0209d0224a5fb57ab69546a4ddb2276ee1657a": {
+      "tsunagu-0.1.12-16dbc776b36890d9bd231f8f67aeb7af923d1b33": {
         "runtime_dependencies": [
           {
             "name": "dirs",
@@ -15204,7 +15104,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "uuid-1.29.0": {
+      "uuid-1.29.2": {
         "runtime_dependencies": [
           {
             "name": "getrandom",
@@ -15213,7 +15113,7 @@
             "features": [],
             "uses_default_features": true,
             "optional": true,
-            "target": "cfg(not(all(target_arch = \"wasm32\", any(target_os = \"unknown\", target_os = \"none\"))))",
+            "target": "cfg(not(all(target_family = \"wasm\", any(target_os = \"unknown\", target_os = \"none\"))))",
             "tree": "target"
           }
         ],
@@ -15420,7 +15320,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [
               "fold",
@@ -15494,7 +15394,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [
               "fold",
@@ -15684,7 +15584,7 @@
           },
           {
             "name": "syn",
-            "package_key": "syn-3.0.9",
+            "package_key": "syn-3.0.10",
             "kind": "normal",
             "features": [
               "extra-traits"
@@ -15766,11 +15666,11 @@
               "std"
             ]
           },
-          "blue-lang-host-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+          "blue-lang-host-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
             "runtime_dependencies": [
               {
                 "name": "blue_lang_host_macros",
-                "package_key": "blue-lang-host-macros-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-host-macros-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15780,7 +15680,7 @@
               },
               {
                 "name": "blue_lang_pkg",
-                "package_key": "blue-lang-pkg-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-pkg-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15790,7 +15690,7 @@
               },
               {
                 "name": "blue_lang_runtime",
-                "package_key": "blue-lang-runtime-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-runtime-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15800,7 +15700,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -15867,7 +15767,7 @@
               "packages"
             ]
           },
-          "blue-lang-proc-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+          "blue-lang-proc-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
             "runtime_dependencies": [
               {
                 "name": "blake3",
@@ -15884,7 +15784,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16409,7 +16309,7 @@
               "fallback"
             ]
           },
-          "notify-8.2.1": {
+          "notify-8.2.2": {
             "runtime_dependencies": [
               {
                 "name": "bitflags",
@@ -16443,7 +16343,7 @@
               },
               {
                 "name": "notify_types",
-                "package_key": "notify-types-2.2.0",
+                "package_key": "notify-types-2.3.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -16943,6 +16843,7 @@
             "features": [
               "alloc",
               "default",
+              "event",
               "fs",
               "process",
               "std",
@@ -17305,11 +17206,11 @@
               "std"
             ]
           },
-          "blue-lang-host-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+          "blue-lang-host-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
             "runtime_dependencies": [
               {
                 "name": "blue_lang_host_macros",
-                "package_key": "blue-lang-host-macros-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-host-macros-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17319,7 +17220,7 @@
               },
               {
                 "name": "blue_lang_pkg",
-                "package_key": "blue-lang-pkg-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-pkg-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17329,7 +17230,7 @@
               },
               {
                 "name": "blue_lang_runtime",
-                "package_key": "blue-lang-runtime-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-runtime-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17339,7 +17240,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17419,7 +17320,7 @@
               "packages"
             ]
           },
-          "blue-lang-proc-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+          "blue-lang-proc-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
             "runtime_dependencies": [
               {
                 "name": "blake3",
@@ -17436,7 +17337,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -17449,6 +17350,7 @@
                 "package_key": "rustix-1.1.6",
                 "kind": "normal",
                 "features": [
+                  "event",
                   "process",
                   "std",
                   "thread"
@@ -17955,7 +17857,7 @@
               "prctl"
             ]
           },
-          "notify-8.2.1": {
+          "notify-8.2.2": {
             "runtime_dependencies": [
               {
                 "name": "inotify",
@@ -18013,7 +17915,7 @@
               },
               {
                 "name": "notify_types",
-                "package_key": "notify-types-2.2.0",
+                "package_key": "notify-types-2.3.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18445,6 +18347,7 @@
             "features": [
               "alloc",
               "default",
+              "event",
               "fs",
               "process",
               "std",
@@ -18630,11 +18533,11 @@
               "std"
             ]
           },
-          "blue-lang-host-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+          "blue-lang-host-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
             "runtime_dependencies": [
               {
                 "name": "blue_lang_host_macros",
-                "package_key": "blue-lang-host-macros-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-host-macros-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18644,7 +18547,7 @@
               },
               {
                 "name": "blue_lang_pkg",
-                "package_key": "blue-lang-pkg-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-pkg-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18654,7 +18557,7 @@
               },
               {
                 "name": "blue_lang_runtime",
-                "package_key": "blue-lang-runtime-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-runtime-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18664,7 +18567,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18744,7 +18647,7 @@
               "packages"
             ]
           },
-          "blue-lang-proc-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+          "blue-lang-proc-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
             "runtime_dependencies": [
               {
                 "name": "blake3",
@@ -18761,7 +18664,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -18774,6 +18677,7 @@
                 "package_key": "rustix-1.1.6",
                 "kind": "normal",
                 "features": [
+                  "event",
                   "process",
                   "std",
                   "thread"
@@ -19280,7 +19184,7 @@
               "prctl"
             ]
           },
-          "notify-8.2.1": {
+          "notify-8.2.2": {
             "runtime_dependencies": [
               {
                 "name": "inotify",
@@ -19338,7 +19242,7 @@
               },
               {
                 "name": "notify_types",
-                "package_key": "notify-types-2.2.0",
+                "package_key": "notify-types-2.3.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -19649,6 +19553,7 @@
             "features": [
               "alloc",
               "default",
+              "event",
               "fs",
               "process",
               "std",
@@ -19844,11 +19749,11 @@
               "std"
             ]
           },
-          "blue-lang-host-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+          "blue-lang-host-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
             "runtime_dependencies": [
               {
                 "name": "blue_lang_host_macros",
-                "package_key": "blue-lang-host-macros-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-host-macros-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -19858,7 +19763,7 @@
               },
               {
                 "name": "blue_lang_pkg",
-                "package_key": "blue-lang-pkg-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-pkg-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -19868,7 +19773,7 @@
               },
               {
                 "name": "blue_lang_runtime",
-                "package_key": "blue-lang-runtime-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-runtime-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -19878,7 +19783,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -19945,7 +19850,7 @@
               "packages"
             ]
           },
-          "blue-lang-proc-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+          "blue-lang-proc-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
             "runtime_dependencies": [
               {
                 "name": "blake3",
@@ -19962,7 +19867,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -20536,7 +20441,7 @@
               "fallback"
             ]
           },
-          "notify-8.2.1": {
+          "notify-8.2.2": {
             "runtime_dependencies": [
               {
                 "name": "bitflags",
@@ -20570,7 +20475,7 @@
               },
               {
                 "name": "notify_types",
-                "package_key": "notify-types-2.2.0",
+                "package_key": "notify-types-2.3.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21050,6 +20955,7 @@
             "features": [
               "alloc",
               "default",
+              "event",
               "fs",
               "process",
               "std",
@@ -21422,11 +21328,11 @@
               "std"
             ]
           },
-          "blue-lang-host-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+          "blue-lang-host-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
             "runtime_dependencies": [
               {
                 "name": "blue_lang_host_macros",
-                "package_key": "blue-lang-host-macros-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-host-macros-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21436,7 +21342,7 @@
               },
               {
                 "name": "blue_lang_pkg",
-                "package_key": "blue-lang-pkg-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-pkg-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21446,7 +21352,7 @@
               },
               {
                 "name": "blue_lang_runtime",
-                "package_key": "blue-lang-runtime-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-runtime-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21456,7 +21362,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21536,7 +21442,7 @@
               "packages"
             ]
           },
-          "blue-lang-proc-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+          "blue-lang-proc-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
             "runtime_dependencies": [
               {
                 "name": "blake3",
@@ -21553,7 +21459,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -21566,6 +21472,7 @@
                 "package_key": "rustix-1.1.6",
                 "kind": "normal",
                 "features": [
+                  "event",
                   "process",
                   "std",
                   "thread"
@@ -22121,7 +22028,7 @@
               "prctl"
             ]
           },
-          "notify-8.2.1": {
+          "notify-8.2.2": {
             "runtime_dependencies": [
               {
                 "name": "inotify",
@@ -22179,7 +22086,7 @@
               },
               {
                 "name": "notify_types",
-                "package_key": "notify-types-2.2.0",
+                "package_key": "notify-types-2.3.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -22591,6 +22498,7 @@
             "features": [
               "alloc",
               "default",
+              "event",
               "fs",
               "process",
               "std",
@@ -22786,11 +22694,11 @@
               "std"
             ]
           },
-          "blue-lang-host-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+          "blue-lang-host-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
             "runtime_dependencies": [
               {
                 "name": "blue_lang_host_macros",
-                "package_key": "blue-lang-host-macros-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-host-macros-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -22800,7 +22708,7 @@
               },
               {
                 "name": "blue_lang_pkg",
-                "package_key": "blue-lang-pkg-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-pkg-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -22810,7 +22718,7 @@
               },
               {
                 "name": "blue_lang_runtime",
-                "package_key": "blue-lang-runtime-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-runtime-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -22820,7 +22728,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -22900,7 +22808,7 @@
               "packages"
             ]
           },
-          "blue-lang-proc-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+          "blue-lang-proc-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
             "runtime_dependencies": [
               {
                 "name": "blake3",
@@ -22917,7 +22825,7 @@
               },
               {
                 "name": "blue_lang_waku",
-                "package_key": "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9",
+                "package_key": "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -22930,6 +22838,7 @@
                 "package_key": "rustix-1.1.6",
                 "kind": "normal",
                 "features": [
+                  "event",
                   "process",
                   "std",
                   "thread"
@@ -23485,7 +23394,7 @@
               "prctl"
             ]
           },
-          "notify-8.2.1": {
+          "notify-8.2.2": {
             "runtime_dependencies": [
               {
                 "name": "inotify",
@@ -23543,7 +23452,7 @@
               },
               {
                 "name": "notify_types",
-                "package_key": "notify-types-2.2.0",
+                "package_key": "notify-types-2.3.0",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -23834,6 +23743,7 @@
             "features": [
               "alloc",
               "default",
+              "event",
               "fs",
               "process",
               "std",
@@ -24022,7 +23932,7 @@
     "ar_archive_writer-0.5.3": {
       "edition": "2024"
     },
-    "arc-swap-1.9.3": {
+    "arc-swap-1.9.5": {
       "edition": "2018"
     },
     "archery-1.2.3": {
@@ -24082,9 +23992,6 @@
     "base64ct-1.8.3": {
       "edition": "2024"
     },
-    "bitflags-1.3.2": {
-      "edition": "2018"
-    },
     "bitflags-2.13.2": {
       "edition": "2021"
     },
@@ -24095,39 +24002,39 @@
     "block-buffer-0.10.4": {
       "edition": "2018"
     },
-    "blue-lang-bidama-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+    "blue-lang-bidama-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
       "edition": "2021"
     },
-    "blue-lang-check-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+    "blue-lang-check-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
       "edition": "2021"
     },
-    "blue-lang-fmt-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+    "blue-lang-fmt-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
       "edition": "2021"
     },
-    "blue-lang-host-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+    "blue-lang-host-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
       "edition": "2021"
     },
-    "blue-lang-host-macros-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+    "blue-lang-host-macros-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
       "edition": "2021",
       "proc_macro": true
     },
-    "blue-lang-mondou-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+    "blue-lang-mondou-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
       "edition": "2021"
     },
-    "blue-lang-pkg-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+    "blue-lang-pkg-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
       "edition": "2021",
       "build_script": "build.rs"
     },
-    "blue-lang-proc-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+    "blue-lang-proc-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
       "edition": "2021"
     },
-    "blue-lang-runtime-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+    "blue-lang-runtime-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
       "edition": "2021"
     },
-    "blue-lang-syntax-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+    "blue-lang-syntax-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
       "edition": "2021"
     },
-    "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": {
+    "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": {
       "edition": "2021"
     },
     "brotli-9.1.1": {
@@ -24143,7 +24050,7 @@
         }
       ]
     },
-    "brotli-decompressor-6.3.0": {
+    "brotli-decompressor-6.3.1": {
       "edition": "2015",
       "binaries": [
         {
@@ -24271,19 +24178,6 @@
     },
     "data-encoding-2.11.1": {
       "edition": "2018"
-    },
-    "defmt-1.2.0": {
-      "edition": "2021",
-      "build_script": "build.rs",
-      "links": "defmt"
-    },
-    "defmt-macros-1.2.0": {
-      "edition": "2021",
-      "proc_macro": true,
-      "build_script": "build.rs"
-    },
-    "defmt-parser-1.1.0": {
-      "edition": "2021"
     },
     "der-0.7.10": {
       "edition": "2021"
@@ -24424,14 +24318,14 @@
     "futures-util-0.3.34": {
       "edition": "2018"
     },
-    "gen-macros-0.1.55": {
+    "gen-macros-0.1.56": {
       "edition": "2024",
       "proc_macro": true
     },
     "gen-platform-0.1.55": {
       "edition": "2024"
     },
-    "gen-types-0.1.55": {
+    "gen-types-0.1.56": {
       "edition": "2024"
     },
     "generic-array-0.14.7": {
@@ -24466,7 +24360,7 @@
         }
       ]
     },
-    "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686": {
+    "graphql-synthesizer-0.1.1-ae19d88da618020dc885d74910b2c388c0d86ffd": {
       "edition": "2024"
     },
     "h2-0.4.20": {
@@ -24587,13 +24481,13 @@
     "is_terminal_polyfill-1.70.2": {
       "edition": "2021"
     },
-    "itoa-1.0.18": {
+    "itoa-1.0.19": {
       "edition": "2021"
     },
-    "jiff-0.2.39": {
+    "jiff-0.2.41": {
       "edition": "2021"
     },
-    "jiff-core-0.1.2": {
+    "jiff-core-0.1.4": {
       "edition": "2021"
     },
     "jobserver-0.1.35": {
@@ -24616,10 +24510,10 @@
       "build_script": "build.rs",
       "links": "k8s-openapi-0.28.0"
     },
-    "kanshou-0.1.11-c3f488f50902eb8e9fa294e8fa9628e680be442f": {
+    "kanshou-0.1.11-6aa929f3203c5153852cdec7c2e06c38984cbdef": {
       "edition": "2024"
     },
-    "kanshou-derive-0.1.11-c3f488f50902eb8e9fa294e8fa9628e680be442f": {
+    "kanshou-derive-0.1.11-6aa929f3203c5153852cdec7c2e06c38984cbdef": {
       "edition": "2024",
       "proc_macro": true
     },
@@ -24715,10 +24609,10 @@
     "nohash-hasher-0.2.0": {
       "edition": "2018"
     },
-    "notify-8.2.1": {
+    "notify-8.2.2": {
       "edition": "2021"
     },
-    "notify-types-2.2.0": {
+    "notify-types-2.3.0": {
       "edition": "2024"
     },
     "nu-ansi-term-0.50.3": {
@@ -24765,7 +24659,7 @@
     "once_cell-1.21.4": {
       "edition": "2021"
     },
-    "opencode-zen-0.1.4-712a765fd6f6e0a23c5ec9586e61e466e6e8b348": {
+    "opencode-zen-0.1.4-d4c8522ae13dd74cbf23037acce968174e1868bc": {
       "edition": "2021"
     },
     "openssl-probe-0.2.2": {
@@ -24843,7 +24737,7 @@
     "pkg-config-0.3.34": {
       "edition": "2021"
     },
-    "pleme-tend-0.3.40": {
+    "pleme-tend-0.3.41": {
       "edition": "2021",
       "binaries": [
         {
@@ -25038,7 +24932,7 @@
     "safe_arch-0.7.4": {
       "edition": "2018"
     },
-    "samba-0.1.6-fc0110f01a94500422f619b1ab057b5ca746586b": {
+    "samba-0.1.6-af303b69eefcbb364e0f03714c755e0f36041d07": {
       "edition": "2024"
     },
     "same-file-1.0.6": {
@@ -25147,28 +25041,28 @@
     "shellexpand-3.1.2": {
       "edition": "2018"
     },
-    "shigoto-budget-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": {
+    "shigoto-budget-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": {
       "edition": "2024"
     },
-    "shigoto-dag-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": {
+    "shigoto-dag-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": {
       "edition": "2024"
     },
-    "shigoto-emit-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": {
+    "shigoto-emit-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": {
       "edition": "2024"
     },
-    "shigoto-gate-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": {
+    "shigoto-gate-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": {
       "edition": "2024"
     },
-    "shigoto-retry-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": {
+    "shigoto-retry-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": {
       "edition": "2024"
     },
-    "shigoto-scheduler-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": {
+    "shigoto-scheduler-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": {
       "edition": "2024"
     },
-    "shigoto-types-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": {
+    "shigoto-types-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": {
       "edition": "2024"
     },
-    "shikumi-0.1.1084": {
+    "shikumi-0.1.1085": {
       "edition": "2024"
     },
     "shlex-2.0.1": {
@@ -25220,7 +25114,7 @@
     "syn-2.0.119": {
       "edition": "2021"
     },
-    "syn-3.0.9": {
+    "syn-3.0.10": {
       "edition": "2021"
     },
     "sync_wrapper-1.0.2": {
@@ -25300,7 +25194,7 @@
     "tinyvec-1.13.3": {
       "edition": "2018"
     },
-    "todoku-0.1.11-f3046048ce953434e7576fb85f312aef29d742f1": {
+    "todoku-0.1.11-c28c57f14383e28126cf4ac6ba1d4cb6cd2e3ef0": {
       "edition": "2024",
       "binaries": [
         {
@@ -25377,7 +25271,7 @@
     "tryhard-0.5.2": {
       "edition": "2018"
     },
-    "tsunagu-0.1.11-de0209d0224a5fb57ab69546a4ddb2276ee1657a": {
+    "tsunagu-0.1.12-16dbc776b36890d9bd231f8f67aeb7af923d1b33": {
       "edition": "2024"
     },
     "twox-hash-2.1.5": {
@@ -25450,7 +25344,7 @@
     "utf_types-1.0.0": {
       "edition": "2021"
     },
-    "uuid-1.29.0": {
+    "uuid-1.29.2": {
       "edition": "2021"
     },
     "version_check-0.9.5": {
@@ -25527,31 +25421,31 @@
     }
   },
   "git_nar_sha256": {
-    "blue-lang-bidama-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": "sha256-QQG8d+M37u9RjcswK5zBHWYBfMhhkuqoBQsQtogl0fE=",
-    "blue-lang-check-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": "sha256-QQG8d+M37u9RjcswK5zBHWYBfMhhkuqoBQsQtogl0fE=",
-    "blue-lang-fmt-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": "sha256-QQG8d+M37u9RjcswK5zBHWYBfMhhkuqoBQsQtogl0fE=",
-    "blue-lang-host-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": "sha256-QQG8d+M37u9RjcswK5zBHWYBfMhhkuqoBQsQtogl0fE=",
-    "blue-lang-host-macros-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": "sha256-QQG8d+M37u9RjcswK5zBHWYBfMhhkuqoBQsQtogl0fE=",
-    "blue-lang-mondou-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": "sha256-QQG8d+M37u9RjcswK5zBHWYBfMhhkuqoBQsQtogl0fE=",
-    "blue-lang-pkg-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": "sha256-QQG8d+M37u9RjcswK5zBHWYBfMhhkuqoBQsQtogl0fE=",
-    "blue-lang-proc-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": "sha256-QQG8d+M37u9RjcswK5zBHWYBfMhhkuqoBQsQtogl0fE=",
-    "blue-lang-runtime-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": "sha256-QQG8d+M37u9RjcswK5zBHWYBfMhhkuqoBQsQtogl0fE=",
-    "blue-lang-syntax-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": "sha256-QQG8d+M37u9RjcswK5zBHWYBfMhhkuqoBQsQtogl0fE=",
-    "blue-lang-waku-0.0.153-8e13d6474c45baee5fc4d316c5ea78ff53d314f9": "sha256-QQG8d+M37u9RjcswK5zBHWYBfMhhkuqoBQsQtogl0fE=",
-    "graphql-synthesizer-0.1.1-00094cb0bb0f863a330a4a2c398d4a0ea090c686": "sha256-B/Zlbtl+tNdhX1Br9NkFq8oAl8nZJRjphCpoF+QivVA=",
-    "kanshou-0.1.11-c3f488f50902eb8e9fa294e8fa9628e680be442f": "sha256-iKafb0IcIpkmCLmtpziFKR5nNgsSSB+SuZPTH418rCs=",
-    "kanshou-derive-0.1.11-c3f488f50902eb8e9fa294e8fa9628e680be442f": "sha256-iKafb0IcIpkmCLmtpziFKR5nNgsSSB+SuZPTH418rCs=",
-    "opencode-zen-0.1.4-712a765fd6f6e0a23c5ec9586e61e466e6e8b348": "sha256-4PlfCtJ8YvTN8twN8D+mhsJ0eJXQ5nroIPUbCKamXY4=",
-    "samba-0.1.6-fc0110f01a94500422f619b1ab057b5ca746586b": "sha256-PFin1lZQ1S4y6T0mcGXb2l9DqbAwxjj0LMRHa1+C6w4=",
-    "shigoto-budget-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": "sha256-UrOOkUxZKywIZV10GLnAKUh1b6/GFQiXDAuTByFNyV4=",
-    "shigoto-dag-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": "sha256-UrOOkUxZKywIZV10GLnAKUh1b6/GFQiXDAuTByFNyV4=",
-    "shigoto-emit-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": "sha256-UrOOkUxZKywIZV10GLnAKUh1b6/GFQiXDAuTByFNyV4=",
-    "shigoto-gate-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": "sha256-UrOOkUxZKywIZV10GLnAKUh1b6/GFQiXDAuTByFNyV4=",
-    "shigoto-retry-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": "sha256-UrOOkUxZKywIZV10GLnAKUh1b6/GFQiXDAuTByFNyV4=",
-    "shigoto-scheduler-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": "sha256-UrOOkUxZKywIZV10GLnAKUh1b6/GFQiXDAuTByFNyV4=",
-    "shigoto-types-0.1.16-57a76b9aafd2902f565d5db069bf2504c38c2cf3": "sha256-UrOOkUxZKywIZV10GLnAKUh1b6/GFQiXDAuTByFNyV4=",
-    "todoku-0.1.11-f3046048ce953434e7576fb85f312aef29d742f1": "sha256-yOnWkx+Xoc8q3yNS5DD6zXGBCR9OvKlG4q3qW+/PaUU=",
-    "tsunagu-0.1.11-de0209d0224a5fb57ab69546a4ddb2276ee1657a": "sha256-u9l+1FTeNpCW0ic6IfAhXaDxzLP4GmmhW1S8nF8er9o="
+    "blue-lang-bidama-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": "sha256-N/SBMH9TW3UbvWjHtGFEZjXTDcL6HfZICmKOsmwRX0E=",
+    "blue-lang-check-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": "sha256-N/SBMH9TW3UbvWjHtGFEZjXTDcL6HfZICmKOsmwRX0E=",
+    "blue-lang-fmt-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": "sha256-N/SBMH9TW3UbvWjHtGFEZjXTDcL6HfZICmKOsmwRX0E=",
+    "blue-lang-host-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": "sha256-N/SBMH9TW3UbvWjHtGFEZjXTDcL6HfZICmKOsmwRX0E=",
+    "blue-lang-host-macros-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": "sha256-N/SBMH9TW3UbvWjHtGFEZjXTDcL6HfZICmKOsmwRX0E=",
+    "blue-lang-mondou-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": "sha256-N/SBMH9TW3UbvWjHtGFEZjXTDcL6HfZICmKOsmwRX0E=",
+    "blue-lang-pkg-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": "sha256-N/SBMH9TW3UbvWjHtGFEZjXTDcL6HfZICmKOsmwRX0E=",
+    "blue-lang-proc-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": "sha256-N/SBMH9TW3UbvWjHtGFEZjXTDcL6HfZICmKOsmwRX0E=",
+    "blue-lang-runtime-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": "sha256-N/SBMH9TW3UbvWjHtGFEZjXTDcL6HfZICmKOsmwRX0E=",
+    "blue-lang-syntax-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": "sha256-N/SBMH9TW3UbvWjHtGFEZjXTDcL6HfZICmKOsmwRX0E=",
+    "blue-lang-waku-0.0.176-4e5fefc313c04bc6ed814e33a33b5f831fd730e0": "sha256-N/SBMH9TW3UbvWjHtGFEZjXTDcL6HfZICmKOsmwRX0E=",
+    "graphql-synthesizer-0.1.1-ae19d88da618020dc885d74910b2c388c0d86ffd": "sha256-irzPFUh6RC/QNly3ZP3bwYXyg3Cu7afyf9pBLSYusC4=",
+    "kanshou-0.1.11-6aa929f3203c5153852cdec7c2e06c38984cbdef": "sha256-l8bSK9eF8aF5WMFDA8Mo7UUi2k4nu+cMMvy1m6VGCxY=",
+    "kanshou-derive-0.1.11-6aa929f3203c5153852cdec7c2e06c38984cbdef": "sha256-l8bSK9eF8aF5WMFDA8Mo7UUi2k4nu+cMMvy1m6VGCxY=",
+    "opencode-zen-0.1.4-d4c8522ae13dd74cbf23037acce968174e1868bc": "sha256-3O6YU8HqiBkGIVSFFH1JBuKaSUlbgCYo50o7iYxmFYE=",
+    "samba-0.1.6-af303b69eefcbb364e0f03714c755e0f36041d07": "sha256-6xd+u+X1TbwHoPglHjbx1gyG7BE3eSv2QXIa7dMMt/Y=",
+    "shigoto-budget-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": "sha256-zgSaKb+SXr4n/Uc3LfPlGBZu9ZqGL+NXpoBev+dLppo=",
+    "shigoto-dag-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": "sha256-zgSaKb+SXr4n/Uc3LfPlGBZu9ZqGL+NXpoBev+dLppo=",
+    "shigoto-emit-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": "sha256-zgSaKb+SXr4n/Uc3LfPlGBZu9ZqGL+NXpoBev+dLppo=",
+    "shigoto-gate-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": "sha256-zgSaKb+SXr4n/Uc3LfPlGBZu9ZqGL+NXpoBev+dLppo=",
+    "shigoto-retry-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": "sha256-zgSaKb+SXr4n/Uc3LfPlGBZu9ZqGL+NXpoBev+dLppo=",
+    "shigoto-scheduler-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": "sha256-zgSaKb+SXr4n/Uc3LfPlGBZu9ZqGL+NXpoBev+dLppo=",
+    "shigoto-types-0.1.18-ea754e7d7262b0003290a5419cf48800afd92d6b": "sha256-zgSaKb+SXr4n/Uc3LfPlGBZu9ZqGL+NXpoBev+dLppo=",
+    "todoku-0.1.11-c28c57f14383e28126cf4ac6ba1d4cb6cd2e3ef0": "sha256-utVbFa+WAR2ZxGYCsL9/WEEa04txp1vm40R9SFyfAcY=",
+    "tsunagu-0.1.12-16dbc776b36890d9bd231f8f67aeb7af923d1b33": "sha256-VtpBbKSUVnQJsY8aIM/ayhU9uNtrAPxxbOgpMU/Z1qA="
   },
   "flake_metadata": {}
 }
