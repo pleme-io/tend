@@ -86,7 +86,7 @@ The integration loop is tight: a branch lives hours, not days (operator,
 commit is two days old and is not landed on its default branch is red, and the
 session start names each one with its repo, its age and whether origin holds
 it. A local branch and its origin copy are one line. The answer is to land it,
-rebase it, or tag it `archive/<branch>` and delete it.
+rebase it, or archive it to `refs/archive/<branch>` and delete it.
 
 ```yaml
 sprawl:

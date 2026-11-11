@@ -854,13 +854,13 @@ def alert_line(group)
   else
     "local only"
   end
-  "tend sprawl: 🔴 #{head[0]} #{head[1]} #{head[2]}, #{hours_words(age)} old, #{held}; land it, rebase it, or tag it archive/#{head[2]} and delete it."
+  "tend sprawl: 🔴 #{head[0]} #{head[1]} #{head[2]}, #{hours_words(age)} old, #{held}; land it, rebase it, or archive it to refs/archive/#{head[2]} and delete it."
 end
 
 @doc """
 alert_lines: One line per branch an alert names, with its repo, age and whether origin holds it; a local branch and its origin copy are one line. At most `cap` lines, then one that counts the rest. Each row is `[verdict, repo, branch, age_hours, pushed]`.
 
-    alert_lines([["overdue-branch", "pleme-io/tend", "wip/x", 50, false]], 5) #=> ["tend sprawl: 🔴 overdue-branch pleme-io/tend wip/x, 2d old, local only; land it, rebase it, or tag it archive/wip/x and delete it."]
+    alert_lines([["overdue-branch", "pleme-io/tend", "wip/x", 50, false]], 5) #=> ["tend sprawl: 🔴 overdue-branch pleme-io/tend wip/x, 2d old, local only; land it, rebase it, or archive it to refs/archive/wip/x and delete it."]
     alert_lines([], 5) #=> []
 """
 def alert_lines(rows, cap)
