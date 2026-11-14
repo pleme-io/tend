@@ -90,6 +90,8 @@ pub struct Config {
     pub wip: crate::wip::WipConfig,
     #[serde(default)]
     pub sprawl: crate::sprawl::SprawlConfig,
+    #[serde(default)]
+    pub scratchpad: crate::scratchpad::ScratchpadConfig,
 }
 
 /// The `github_auth:` list — shikumi [`GithubAuth`] sources tried in order.
@@ -956,6 +958,10 @@ impl shikumi::TieredConfig for Config {
                 enabled: false,
                 ..crate::sprawl::SprawlConfig::default()
             },
+            scratchpad: crate::scratchpad::ScratchpadConfig {
+                enabled: false,
+                ..crate::scratchpad::ScratchpadConfig::default()
+            },
         }
     }
     /// What tend runs when a source says nothing — every daemon knob the
@@ -977,6 +983,7 @@ impl shikumi::TieredConfig for Config {
             status_snapshot: crate::scan::StatusSnapshotConfig::default(),
             wip: crate::wip::WipConfig::default(),
             sprawl: crate::sprawl::SprawlConfig::default(),
+            scratchpad: crate::scratchpad::ScratchpadConfig::default(),
         }
     }
 }

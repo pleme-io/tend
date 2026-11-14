@@ -139,3 +139,39 @@ disk:
   No record reads `unseen`, never `ok`.
 - **Policy tests:** the goal and the cache plan are in `blue/cargo_target.b`, so
   the `blue test` line above covers them.
+
+## Agent session scratchpads (`src/scratchpad.rs`, `blue/scratchpad.b`)
+
+Measured 2026-11-14 on ryn: one Claude Code session's scratchpad held three
+checkouts of one repo, each with its own `target/` (32 + 32 + 17 GB). The disk
+reached 0.85 GB free. Deleting the three targets freed 59 GB, and the session
+refilled 25 GB in 20 minutes. The sweep above looks under the workspace roots
+and `extra_roots`, never under session scratchpads, so nothing flagged it.
+
+The sensor measures every `<root>/<project>/<session>/scratchpad` and the cargo
+target dirs inside it (`discover`, the same recognition as above). Each target's
+checkout is the nearest directory with a `.git` inside the scratchpad; its repo
+is the `origin` GitHub slug, else the git common dir (so worktrees of one repo
+match). Blue judges. Report only: it deletes nothing.
+
+| Verdict | When | Fix in the line |
+|---|---|---|
+| `scratchpad-oversize` | the scratchpad holds `threshold_gib` or more | share one `CARGO_TARGET_DIR`, delete what the session no longer needs |
+| `scratchpad-duplicate-targets` | 2 or more checkouts of one repo each hold their own target | `export CARGO_TARGET_DIR=<scratchpad>/cargo-target` for every checkout, delete the per-checkout targets |
+
+```yaml
+scratchpad:
+  enabled: true            # off: nothing measured, nothing said
+  threshold_gib: 20        # 0 turns the oversize verdict off
+  duplicate_targets: true  # the duplicate-target verdict alone
+  root: ""                 # empty: $CLAUDE_CODE_TMPDIR or /tmp, joined with claude-<uid of $HOME>
+  search_depth: 3
+  interval_minutes: 10     # daemon cadence; runs before the pressure gate
+  hook_session_start: true # the session-start hook prints the snapshot's lines
+```
+
+Surfaces: `tend scratchpad [--json]` and the `tend_scratchpads` MCP tool
+measure now and save the snapshot (`<cache>/daemon/scratchpad.json`); the
+daemon refreshes it every `interval_minutes` and audits verdicts as
+`scratchpad_verdicts`; the session-start hook prints each verdict line with
+the measurement age.

@@ -28,6 +28,7 @@ mod pressure;
 mod push_ahead;
 mod scan;
 mod schema;
+mod scratchpad;
 mod sprawl;
 mod wip;
 mod worktree;
@@ -142,6 +143,15 @@ enum Commands {
     CargoTarget {
         #[command(subcommand)]
         action: CargoTargetAction,
+    },
+
+    #[command(
+        about = "Agent session scratchpads under the Claude temp root: size, cargo targets, verdicts; report only",
+        long_about = "Measures every <root>/<project>/<session>/scratchpad (root: scratchpad.root, else /tmp/claude-<uid>), its cargo target dirs and which repo each belongs to, judged in blue/scratchpad.b: scratchpad-oversize past scratchpad.threshold_gib, scratchpad-duplicate-targets when two or more checkouts of one repo there each hold their own target. Saves the snapshot the session-start hook reads. Never deletes."
+    )]
+    Scratchpad {
+        #[arg(long, help = "Emit the measurement as JSON")]
+        json: bool,
     },
 
     #[command(
@@ -860,6 +870,20 @@ async fn main() -> Result<()> {
             }
             if disk::failed_removal(&report) {
                 std::process::exit(1);
+            }
+        }
+
+        Commands::Scratchpad { json } => {
+            let cfg = loader(none()).load()?;
+            let sight = scratchpad::refresh(
+                &cfg.scratchpad,
+                &scratchpad::snapshot_path(),
+                std::time::SystemTime::now(),
+            )?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&sight)?);
+            } else {
+                scratchpad::print(&sight);
             }
         }
 

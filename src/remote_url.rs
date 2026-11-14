@@ -48,7 +48,7 @@ impl GitHubSlug {
     /// `github.com` remote URL form. Returns `None` for non-GitHub
     /// remotes and for GitHub URLs whose path isn't exactly two
     /// segments.
-    fn parse(url: &str) -> Option<Self> {
+    pub(crate) fn parse(url: &str) -> Option<Self> {
         let path = github_path(url)?;
         let path = path.strip_suffix(".git").unwrap_or(path);
         let (org, repo) = path.split_once('/')?;

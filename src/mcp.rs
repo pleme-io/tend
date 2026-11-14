@@ -90,6 +90,14 @@ pub const TOOLS: &[Tool] = &[
         mutating: false,
     },
     Tool {
+        name: "tend_scratchpads",
+        description: "Agent session scratchpads under the Claude temp root: size, \
+                      cargo targets and their repo, and the verdicts \
+                      (scratchpad-oversize / scratchpad-duplicate-targets) with \
+                      the fix. Measures now; never deletes.",
+        mutating: false,
+    },
+    Tool {
         name: "tend_wip",
         description: "wip/<domain-slug> branches on origin across the workspace \
                       repos, from the daemon snapshot or a live read of each \
@@ -401,6 +409,29 @@ impl TendMcp {
         .await;
         match swept {
             Ok(Ok(report)) => json!({"ok": true, "report": report}).to_string(),
+            Ok(Err(e)) => json!({"ok": false, "error": format!("{e:#}")}).to_string(),
+            Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
+        }
+    }
+
+    #[tool(
+        description = "Agent session scratchpads under the Claude temp root (scratchpad.root, else /tmp/claude-<uid>), measured now: per scratchpad its size and each cargo target dir with its size, checkout and repo; the verdicts from blue/scratchpad.b (scratchpad-oversize past scratchpad.threshold_gib, scratchpad-duplicate-targets when two or more checkouts of one repo each hold their own target) and one line per verdict naming the fix, one shared CARGO_TARGET_DIR. `state` is off, no-root or seen. Saves the snapshot the session-start hook reads. Never deletes."
+    )]
+    async fn tend_scratchpads(&self) -> String {
+        let cfg = match crate::load_config(None) {
+            Ok(c) => c,
+            Err(e) => return json!({"ok": false, "error": e.to_string()}).to_string(),
+        };
+        let sensed = tokio::task::spawn_blocking(move || {
+            crate::scratchpad::refresh(
+                &cfg.scratchpad,
+                &crate::scratchpad::snapshot_path(),
+                std::time::SystemTime::now(),
+            )
+        })
+        .await;
+        match sensed {
+            Ok(Ok(sight)) => json!({"ok": true, "scratchpads": sight}).to_string(),
             Ok(Err(e)) => json!({"ok": false, "error": format!("{e:#}")}).to_string(),
             Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
         }

@@ -152,6 +152,11 @@ pub(crate) fn run(event: Event, config: anyhow::Result<Config>, raw: &str) -> Op
                         .into_iter()
                         .flatten(),
                 )
+                .chain(crate::scratchpad::session_lines(
+                    &config.scratchpad,
+                    &crate::scratchpad::snapshot_path(),
+                    SystemTime::now(),
+                ))
                 .collect(),
             config.host_health.report_daemon,
             &config.wip,

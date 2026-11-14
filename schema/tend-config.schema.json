@@ -1384,6 +1384,45 @@
       },
       "type": "object"
     },
+    "ScratchpadConfig": {
+      "properties": {
+        "duplicate_targets": {
+          "default": true,
+          "type": "boolean"
+        },
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "hook_session_start": {
+          "default": true,
+          "type": "boolean"
+        },
+        "interval_minutes": {
+          "default": 10,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "root": {
+          "default": "",
+          "type": "string"
+        },
+        "search_depth": {
+          "default": 3,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "threshold_gib": {
+          "default": 20,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "SecretBackend": {
       "description": "Internally-tagged variants — the backends proper.\n\nSplit out from [`SecretSource`] so the outer enum can be `untagged`\n(for bare-string literals) while the backends stay `rename_all` to\nmatch the YAML keys used by config files.\n\n`Serialize` is hand-written as a single-key map (`{tag: payload}`) rather\nthan derived. For `serde_json` and figment the two are byte-identical; the\ndifference is `serde_yaml` 0.9, which emits a *derived* externally tagged\nenum as a YAML tag (`!env X`) — a shape this crate's own untagged\n[`SecretSource`] cannot read back — and refuses outright to emit one nested\ninside another enum. Pinned by\n`tests::secret_source_yaml_emission_round_trips_for_every_backend`.",
       "oneOf": [
@@ -2231,6 +2270,18 @@
         "max_inflight": 16
       },
       "description": "Concurrency of the repo reconcile (`git pull`), shared by `tend\ndaemon`, `tend reconcile` and `tend pressure`."
+    },
+    "scratchpad": {
+      "$ref": "#/$defs/ScratchpadConfig",
+      "default": {
+        "duplicate_targets": true,
+        "enabled": true,
+        "hook_session_start": true,
+        "interval_minutes": 10,
+        "root": "",
+        "search_depth": 3,
+        "threshold_gib": 20
+      }
     },
     "sprawl": {
       "$ref": "#/$defs/SprawlConfig",

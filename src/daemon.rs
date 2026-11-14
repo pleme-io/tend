@@ -42,6 +42,7 @@ pub(crate) async fn run_with_kanshou(
     // When the cargo target-dir sweep last ran; `None` = on the first cycle.
     let mut last_cargo_sweep: Option<std::time::Instant> = None;
     let mut last_sweep_freed: u64 = 0;
+    let mut last_scratchpad: Option<std::time::Instant> = None;
     let note_sweep = |outcome: Result<(), String>| {
         let refused = outcome.is_err();
         if let Some(loud) = crate::sweep_record::note_probe(
@@ -376,6 +377,37 @@ pub(crate) async fn run_with_kanshou(
                 }
                 running.store(false, Ordering::SeqCst);
             });
+        }
+
+        if cfg.scratchpad.enabled
+            && last_scratchpad.is_none_or(|t| t.elapsed() >= cfg.scratchpad.interval())
+        {
+            last_scratchpad = Some(std::time::Instant::now());
+            let sp = cfg.scratchpad.clone();
+            let sensed = tokio::task::spawn_blocking(move || {
+                crate::scratchpad::refresh(
+                    &sp,
+                    &crate::scratchpad::snapshot_path(),
+                    std::time::SystemTime::now(),
+                )
+            })
+            .await;
+            match sensed {
+                Ok(Ok(crate::scratchpad::Sight::Seen(s))) => {
+                    for line in &s.lines {
+                        eprintln!("  {line}");
+                    }
+                    if !s.verdicts.is_empty() {
+                        audit::AuditLog::default_path().log(
+                            "scratchpad_verdicts",
+                            serde_json::json!({ "verdicts": s.verdicts }),
+                        );
+                    }
+                }
+                Ok(Ok(_)) => {}
+                Ok(Err(e)) => eprintln!("daemon: scratchpad sensor failed: {e:#}"),
+                Err(e) => eprintln!("daemon: scratchpad sensor panicked: {e}"),
+            }
         }
 
         // Build the DAG of configured work BEFORE touching repos or the network.
