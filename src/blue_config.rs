@@ -120,7 +120,7 @@ end
         let clock = evaluate_text(None, "def config()\n  {stamp: now_ms}\nend\n")
             .unwrap_err()
             .to_string();
-        assert!(clock.contains("unbound name `now_ms`"), "the clock is not in a config's frame: {clock}");
+        assert!(clock.contains("outside its frame: now_ms"), "the clock is not in a config's frame: {clock}");
     }
 
     #[test]
