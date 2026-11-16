@@ -43,6 +43,7 @@ pub(crate) async fn run_with_kanshou(
     let mut last_cargo_sweep: Option<std::time::Instant> = None;
     let mut last_sweep_freed: u64 = 0;
     let mut last_scratchpad: Option<std::time::Instant> = None;
+    let mut last_agent_scratch: Option<std::time::Instant> = None;
     let note_sweep = |outcome: Result<(), String>| {
         let refused = outcome.is_err();
         if let Some(loud) = crate::sweep_record::note_probe(
@@ -408,6 +409,46 @@ pub(crate) async fn run_with_kanshou(
                 Ok(Err(e)) => eprintln!("daemon: scratchpad sensor failed: {e:#}"),
                 Err(e) => eprintln!("daemon: scratchpad sensor panicked: {e}"),
             }
+        }
+
+        match crate::agent_scratch::declared(crate::agent_scratch::settings_path(None).as_deref()) {
+            Ok(declared)
+                if declared.settings.enabled
+                    && last_agent_scratch
+                        .is_none_or(|t| t.elapsed() >= declared.settings.interval()) =>
+            {
+                last_agent_scratch = Some(std::time::Instant::now());
+                let swept = tokio::task::spawn_blocking(move || {
+                    let host = crate::agent_scratch::Host {
+                        procs: &crate::cargo_target::SystemProcessTable,
+                        open: &crate::agent_scratch::SystemOpenFiles,
+                        pressured: &crate::agent_scratch::system_pressured,
+                    };
+                    let outcome = crate::agent_scratch::run(
+                        &declared,
+                        crate::cargo_target::Mode::Apply,
+                        std::time::SystemTime::now(),
+                        &host,
+                    )?;
+                    if let crate::agent_scratch::Outcome::Ran(run) = &outcome {
+                        crate::agent_scratch::record(run, &declared.settings, None)?;
+                    }
+                    anyhow::Ok(outcome)
+                })
+                .await;
+                match swept {
+                    Ok(Ok(crate::agent_scratch::Outcome::Ran(run))) => {
+                        for line in &run.lines {
+                            eprintln!("  {line}");
+                        }
+                    }
+                    Ok(Ok(crate::agent_scratch::Outcome::Off)) => {}
+                    Ok(Err(e)) => eprintln!("daemon: agent-scratch reclaim refused: {e:#}"),
+                    Err(e) => eprintln!("daemon: agent-scratch reclaim panicked: {e}"),
+                }
+            }
+            Ok(_) => {}
+            Err(e) => eprintln!("daemon: agent-scratch settings refused: {e:#}"),
         }
 
         // Build the DAG of configured work BEFORE touching repos or the network.

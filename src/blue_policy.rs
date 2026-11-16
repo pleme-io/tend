@@ -21,6 +21,17 @@ pub(crate) fn load_pure(path: Option<&Path>, text: &str, shown: &str) -> Result<
         .map_err(|e| anyhow!("{shown}: {e}"))
 }
 
+pub(crate) fn load_data(text: &str, shown: &str) -> Result<Program<()>> {
+    let effects = blue_lang_host::host_effect_names();
+    let pure = |name: &str| !effects.contains(&name);
+    Program::<()>::builder(Entry { path: None, text })
+        .loader(&Standard)
+        .canonical(blue_lang_host::Canonical::AsWritten)
+        .frame(&pure, Budget::tree_walker_default())
+        .load(&mut ())
+        .map_err(|e| anyhow!("{shown}: {e}"))
+}
+
 pub(crate) fn call(text: &str, shown: &str, name: &str, args: &[Json]) -> Result<Json> {
     let mut program = load_pure(None, text, shown)?;
     call_on(&mut program, shown, name, args)

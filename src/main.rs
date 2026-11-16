@@ -1,3 +1,4 @@
+mod agent_scratch;
 mod ai_cron;
 mod ai_executor;
 mod ai_flow;
@@ -152,6 +153,15 @@ enum Commands {
     Scratchpad {
         #[arg(long, help = "Emit the measurement as JSON")]
         json: bool,
+    },
+
+    #[command(
+        about = "Agent scratch dirs under the managed root: reclaim the expired, report undeclared debris",
+        long_about = "Each <root>/<name>/ carrying a .tend-scratch marker (owner, created_unix, ttl_hours, purpose, a blue value) is reclaimed once its ttl has run out or it has been idle past max_idle_hours, and only when no live process holds a file, cwd or argv path in it; disk pressure cuts the ttl to pressure_ttl_pct, never below floor_hours. Directories without a marker, or matching a pattern in a watch path, are reported with a command as text and never deleted. The policy and its configuration are blue/agent_scratch.b; a node lays fields over the defaults in agent-scratch.b (agent_scratch())."
+    )]
+    AgentScratch {
+        #[command(subcommand)]
+        action: AgentScratchAction,
     },
 
     #[command(
@@ -606,6 +616,53 @@ enum CargoTargetAction {
     },
 }
 
+#[derive(clap::Args)]
+struct AgentScratchArgs {
+    #[arg(
+        long,
+        help = "A blue file defining agent_scratch(), the fields laid over the defaults (default: $TEND_AGENT_SCRATCH_SETTINGS, else ~/.config/tend/agent-scratch.b when present)"
+    )]
+    settings: Option<PathBuf>,
+    #[arg(long, help = "Also write node-exporter textfile metrics here")]
+    textfile: Option<PathBuf>,
+    #[arg(long, help = "Emit the run as JSON")]
+    json: bool,
+}
+
+#[derive(Subcommand)]
+enum AgentScratchAction {
+    #[command(about = "Judge every scratch dir and report debris; deletes nothing")]
+    Report {
+        #[command(flatten)]
+        args: AgentScratchArgs,
+    },
+    #[command(about = "Reclaim what the policy selects and report debris")]
+    Apply {
+        #[command(flatten)]
+        args: AgentScratchArgs,
+    },
+    #[command(about = "Reclaim and report every interval_minutes, recording each run; no repo sync")]
+    Watch {
+        #[command(flatten)]
+        args: AgentScratchArgs,
+    },
+    #[command(about = "Create <root>/<name>/ with its .tend-scratch marker and print the path")]
+    New {
+        name: String,
+        #[arg(
+            long,
+            help = "Hours until it may be reclaimed (default: default_ttl_hours)"
+        )]
+        ttl_hours: Option<u64>,
+        #[arg(long, help = "What it is for")]
+        purpose: Option<String>,
+        #[arg(long, help = "Owner id (default: $CLAUDE_CODE_SESSION_ID, else $USER)")]
+        owner: Option<String>,
+        #[arg(long)]
+        settings: Option<PathBuf>,
+    },
+}
+
 #[derive(Subcommand)]
 enum SprawlAction {
     #[command(about = "Scan every workspace repo now and save the snapshot; no network")]
@@ -869,6 +926,59 @@ async fn main() -> Result<()> {
                 cargo_target::print_report(&report, &cfg.cargo_target);
             }
             if disk::failed_removal(&report) {
+                std::process::exit(1);
+            }
+        }
+
+        Commands::AgentScratch { action } => {
+            let (mode, args) = match action {
+                AgentScratchAction::Report { args } => (cargo_target::Mode::DryRun, args),
+                AgentScratchAction::Apply { args } => (cargo_target::Mode::Apply, args),
+                AgentScratchAction::Watch { args } => {
+                    agent_scratch::watch(args.settings, args.textfile.as_deref()).await;
+                    return Ok(());
+                }
+                AgentScratchAction::New {
+                    name,
+                    ttl_hours,
+                    purpose,
+                    owner,
+                    settings,
+                } => {
+                    let declared =
+                        agent_scratch::declared(agent_scratch::settings_path(settings).as_deref())?;
+                    let owner = owner
+                        .or_else(|| std::env::var("CLAUDE_CODE_SESSION_ID").ok())
+                        .or_else(|| std::env::var("USER").ok())
+                        .unwrap_or_else(|| "unknown".into());
+                    let marker = agent_scratch::Marker {
+                        owner,
+                        created_unix: heartbeat::unix(std::time::SystemTime::now()),
+                        ttl_hours: ttl_hours.unwrap_or(declared.settings.default_ttl_hours),
+                        purpose,
+                    };
+                    let dir = agent_scratch::create(&declared.settings, &name, &marker)?;
+                    println!("{}", dir.display());
+                    return Ok(());
+                }
+            };
+            let declared =
+                agent_scratch::declared(agent_scratch::settings_path(args.settings).as_deref())?;
+            let host = agent_scratch::Host {
+                procs: &cargo_target::SystemProcessTable,
+                open: &agent_scratch::SystemOpenFiles,
+                pressured: &agent_scratch::system_pressured,
+            };
+            let outcome = agent_scratch::run(&declared, mode, std::time::SystemTime::now(), &host)?;
+            if let agent_scratch::Outcome::Ran(run) = &outcome {
+                agent_scratch::record(run, &declared.settings, args.textfile.as_deref())?;
+            }
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&outcome)?);
+            } else {
+                agent_scratch::print(&outcome);
+            }
+            if matches!(&outcome, agent_scratch::Outcome::Ran(r) if r.summary.failed > 0) {
                 std::process::exit(1);
             }
         }

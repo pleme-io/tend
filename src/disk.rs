@@ -19,7 +19,7 @@ const GIB: u64 = 1024 * 1024 * 1024;
 const SYSTEM_CACHE_ROOT: &str = "/private/var/cache";
 const CACHEDIR_TAG: &str = "CACHEDIR.TAG";
 const GIT_DIR: &str = ".git";
-const USER_DATA_TREES: &[&str] = &[
+pub(crate) const USER_DATA_TREES: &[&str] = &[
     ".ssh",
     ".gnupg",
     ".config",

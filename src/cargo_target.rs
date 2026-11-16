@@ -975,12 +975,16 @@ pub enum Verdict {
     RemoveIdle,
     /// Not idle, but the least recently used while the total is over budget.
     RemoveOverBudget,
+    RemoveExpired,
 }
 
 impl Verdict {
     #[must_use]
     pub const fn removes(self) -> bool {
-        matches!(self, Self::RemoveIdle | Self::RemoveOverBudget)
+        matches!(
+            self,
+            Self::RemoveIdle | Self::RemoveOverBudget | Self::RemoveExpired
+        )
     }
 
     pub(crate) fn from_word(w: &str) -> Option<Self> {
@@ -993,6 +997,7 @@ impl Verdict {
             "keep" => Some(Self::Keep),
             "remove-idle" => Some(Self::RemoveIdle),
             "remove-over-budget" => Some(Self::RemoveOverBudget),
+            "remove-expired" => Some(Self::RemoveExpired),
             _ => None,
         }
     }
@@ -1387,6 +1392,7 @@ impl Verdict {
             Self::Keep => "keep",
             Self::RemoveIdle => "remove (idle)",
             Self::RemoveOverBudget => "remove (over budget, LRU)",
+            Self::RemoveExpired => "remove (ttl expired)",
         }
     }
 }

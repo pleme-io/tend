@@ -98,6 +98,15 @@ pub const TOOLS: &[Tool] = &[
         mutating: false,
     },
     Tool {
+        name: "tend_agent_scratch",
+        description: "Agent scratch dirs under the managed root (default \
+                      /var/tmp/agent-scratch): per marked dir its owner, age, ttl, \
+                      size, process use and the verdict from blue/agent_scratch.b; \
+                      plus undeclared debris (no .tend-scratch marker, or outside \
+                      the root) with a command as text. A dry run: never deletes.",
+        mutating: false,
+    },
+    Tool {
         name: "tend_wip",
         description: "wip/<domain-slug> branches on origin across the workspace \
                       repos, from the daemon snapshot or a live read of each \
@@ -409,6 +418,34 @@ impl TendMcp {
         .await;
         match swept {
             Ok(Ok(report)) => json!({"ok": true, "report": report}).to_string(),
+            Ok(Err(e)) => json!({"ok": false, "error": format!("{e:#}")}).to_string(),
+            Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
+        }
+    }
+
+    #[tool(
+        description = "Agent scratch dirs under the managed root (agent-scratch.b root, default /var/tmp/agent-scratch), judged now as a dry run: per dir carrying a .tend-scratch marker its owner, age, ttl, bytes, process use and verdict from blue/agent_scratch.b (remove-expired, remove-idle, keep, in-use-*); undeclared debris (unmarked, bad marker, or marked outside the root, in the watch paths by pattern) with one line each naming a command as text; the summary (scratch bytes, oldest age, debris bytes) and the heartbeat verdict. Never deletes."
+    )]
+    async fn tend_agent_scratch(&self) -> String {
+        let swept = tokio::task::spawn_blocking(move || {
+            let declared = crate::agent_scratch::declared(
+                crate::agent_scratch::settings_path(None).as_deref(),
+            )?;
+            let host = crate::agent_scratch::Host {
+                procs: &crate::cargo_target::SystemProcessTable,
+                open: &crate::agent_scratch::SystemOpenFiles,
+                pressured: &crate::agent_scratch::system_pressured,
+            };
+            crate::agent_scratch::run(
+                &declared,
+                crate::cargo_target::Mode::DryRun,
+                std::time::SystemTime::now(),
+                &host,
+            )
+        })
+        .await;
+        match swept {
+            Ok(Ok(outcome)) => json!({"ok": true, "agent_scratch": outcome}).to_string(),
             Ok(Err(e)) => json!({"ok": false, "error": format!("{e:#}")}).to_string(),
             Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
         }
