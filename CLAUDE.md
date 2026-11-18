@@ -49,7 +49,7 @@ and automates version certification pipelines.
 | `init` | Generate starter config |
 | `sprawl [refresh\|validate]` | Branch, stash, worktree and backup-ref sprawl, judged in blue, report only: [docs/SPRAWL.md](docs/SPRAWL.md) |
 | `cargo-target report\|apply` | Size, idle days, form and verdict for every cargo target dir (repos + `extra_roots`), plus the `disk:` free goal and declared caches; `apply` removes what the policy selects: [docs/CARGO-TARGET.md](docs/CARGO-TARGET.md) |
-| `scratchpad [--json]` | Agent session scratchpads under the Claude temp root: size, cargo targets per repo, `scratchpad-oversize` / `scratchpad-duplicate-targets`; report only, judged in `blue/scratchpad.b`: [docs/CARGO-TARGET.md](docs/CARGO-TARGET.md) |
+| `scratchpad [--json]` | Agent scratchpad size and cargo targets; report only: [docs/CARGO-TARGET.md](docs/CARGO-TARGET.md) |
 | `config-show [--effective [--provenance]]` | The config at a tier, or the one this invocation resolves and which layer set each leaf |
 | `config-schema` | The config's JSON Schema (`schema/tend-config.schema.json`) |
 
