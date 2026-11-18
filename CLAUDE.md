@@ -2,9 +2,8 @@
 
 pending-unrep: RepoStatus::Clean carries a `RemoteWitness` proving a remote was
 OBSERVED. That closes the
-Tier ⊥ subclass A hole this repo actually shipped — a `clean` verdict over an
-empty subject set, which reported `ferrite-zig` / `openclaw-publisher-pki` /
-`pleme-app-core` healthy while their entire histories sat on one disk — but it
+Tier ⊥ subclass A hole this repo shipped (a `clean` verdict over an empty
+subject set, three repos reported healthy with history on one disk), but it
 is not the full derived-verdict law. Two rows remain, each narrowed 2026-10-08:
 (1) `Clean` is now reached only from an upstream comparison that came back
 `+0 -0` (`git status --porcelain=v2 --branch`), or a detached HEAD some
