@@ -96,14 +96,16 @@ async fn try_apply_pin_once(
     // operator's status.error becomes a useless "nix ... failed".
     let mut cmd = Command::new("nix");
     super::gates::nix_env(&mut cmd);
-    let nix_out = cmd
-        .arg("flake")
+    cmd.arg("flake")
         .arg("update")
         .arg(input_name)
-        .current_dir(repo_dir)
-        .output()
-        .await
-        .context("running nix flake update")?;
+        .current_dir(repo_dir);
+    let nix_out = crate::watch::run_bounded(
+        cmd,
+        crate::watch::SUBPROCESS_DEADLINE_SECS,
+        "nix flake update",
+    )
+    .await?;
     if !nix_out.status.success() {
         let stderr = String::from_utf8_lossy(&nix_out.stderr);
         let stdout = String::from_utf8_lossy(&nix_out.stdout);

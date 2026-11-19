@@ -508,7 +508,16 @@ async fn dispatch_cargo_build(repo_dir: &Path) -> Result<GateOutcome> {
 }
 
 async fn capture(cmd: &mut Command) -> Result<GateOutcome> {
-    let output = cmd.output().await?;
+    cmd.kill_on_drop(true);
+    let secs = crate::watch::BUILD_DEADLINE_SECS;
+    let Ok(output) = tokio::time::timeout(std::time::Duration::from_secs(secs), cmd.output()).await
+    else {
+        return Ok(GateOutcome {
+            passed: false,
+            log_tail: format!("the gate exceeded its {secs}s deadline and was killed"),
+        });
+    };
+    let output = output?;
     let mut combined = output.stdout;
     combined.extend_from_slice(&output.stderr);
     let log_tail = tail_utf8(&combined, LOG_TAIL_BYTES);

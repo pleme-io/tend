@@ -1502,6 +1502,8 @@ pub(crate) fn run_bounded_sync(
 /// short of forever, which is what these had.
 pub(crate) const SUBPROCESS_DEADLINE_SECS: u64 = 600;
 
+pub(crate) const BUILD_DEADLINE_SECS: u64 = SUBPROCESS_DEADLINE_SECS * 12;
+
 /// Run a command with a hard deadline, and KILL it if the deadline passes.
 ///
 /// ── ★ AN UNBOUNDED SUBPROCESS WEDGES AN ALWAYS-ON DAEMON ─────────────
@@ -2192,6 +2194,80 @@ mod tests {
              run_bounded_sync, or a hang wedges the watch loop indefinitely \
              with no symptom but a kanshou tick that stops: {unbounded:?}"
         );
+    }
+
+    fn unbounded_nix_spawns(src: &str) -> Vec<usize> {
+        let runtime = src.split("\n#[cfg(test)]").next().unwrap_or(src);
+        let lines: Vec<&str> = runtime.lines().collect();
+        let ctor = ["Command::new(", "\"nix\")"].concat();
+        let runs = |s: &str| s.contains(".output()") || s.contains(".status()");
+        let mut found = Vec::new();
+        for (n, line) in lines.iter().enumerate() {
+            if line.trim_start().starts_with("//") || !line.contains(&ctor) {
+                continue;
+            }
+            let tail = lines[n..(n + 16).min(lines.len())].join("\n");
+            if tail.contains("--version") {
+                continue;
+            }
+            let chain_end = tail.find(';').map_or(tail.len(), |e| e + 1);
+            if runs(&tail[..chain_end]) {
+                found.push(n + 1);
+                continue;
+            }
+            let var = line
+                .split("let mut ")
+                .nth(1)
+                .and_then(|r| r.split_whitespace().next())
+                .map(str::to_string);
+            if let Some(var) = var {
+                let later = &tail[chain_end..];
+                let flat = |stmt: &str| stmt.split_whitespace().collect::<String>();
+                if later.split(';').map(flat).any(|stmt| {
+                    (stmt.starts_with(&format!("{var}.")) || stmt.contains(&format!("={var}.")))
+                        && runs(&stmt)
+                }) {
+                    found.push(n + 1);
+                }
+            }
+        }
+        found
+    }
+
+    #[test]
+    fn no_nix_subprocess_anywhere_runs_without_a_deadline() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = vec![root];
+        let mut offenders = Vec::new();
+        while let Some(dir) = files.pop() {
+            for entry in std::fs::read_dir(&dir).expect("src is readable").flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    files.push(path);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    let src = std::fs::read_to_string(&path).expect("a source file reads");
+                    for line in unbounded_nix_spawns(&src) {
+                        offenders.push(format!("{}:{line}", path.display()));
+                    }
+                }
+            }
+        }
+        assert!(
+            offenders.is_empty(),
+            "nix runs without a deadline; route it through run_bounded or run_bounded_sync: {offenders:?}"
+        );
+    }
+
+    #[test]
+    fn the_nix_deadline_gate_sees_both_spawn_shapes() {
+        let inline = "fn f() {\n    let o = Command::new(\"nix\")\n        .args([\"flake\", \"update\"])\n        .output();\n}\n";
+        assert_eq!(unbounded_nix_spawns(inline), vec![2]);
+        let split = "fn f() {\n    let mut cmd = Command::new(\"nix\");\n    env(&mut cmd);\n    let out = cmd\n        .arg(\"build\")\n        .output();\n}\n";
+        assert_eq!(unbounded_nix_spawns(split), vec![2]);
+        let bounded = "fn f() {\n    let mut cmd = Command::new(\"nix\");\n    cmd.arg(\"build\");\n    let out = run_bounded_sync(cmd, 600, \"nix build\");\n}\n";
+        assert!(unbounded_nix_spawns(bounded).is_empty());
+        let version = "fn f() {\n    Command::new(\"nix\").arg(\"--version\").output();\n}\n";
+        assert!(unbounded_nix_spawns(version).is_empty());
     }
 
     /// A timed-out child must be KILLED, not merely stopped-waiting-on.

@@ -881,28 +881,20 @@ pub(crate) fn execute_cargo_update(
         if cargo_nix_path.exists() {
             // Probe for the regenerate-cargo-nix app via `nix eval`.
             // Quiet — we only care whether it returns 0.
-            let has_regen = Command::new("nix")
-                .args([
+            let has_app = |system: &str| {
+                let mut c = Command::new("nix");
+                c.args([
                     "eval",
-                    ".#apps.x86_64-darwin.regenerate-cargo-nix.type",
+                    &format!(".#apps.{system}.regenerate-cargo-nix.type"),
                     "--raw",
                 ])
-                .current_dir(&repo_path)
-                .output();
-            let regen_available = matches!(
-                has_regen,
-                Ok(out) if out.status.success()
-            ) || matches!(
-                Command::new("nix")
-                    .args([
-                        "eval",
-                        ".#apps.aarch64-darwin.regenerate-cargo-nix.type",
-                        "--raw",
-                    ])
-                    .current_dir(&repo_path)
-                    .output(),
-                Ok(out) if out.status.success()
-            );
+                .current_dir(&repo_path);
+                matches!(
+                    run_bounded_sync(c, SUBPROCESS_DEADLINE_SECS, "nix eval regenerate-cargo-nix"),
+                    Ok(out) if out.status.success()
+                )
+            };
+            let regen_available = has_app("x86_64-darwin") || has_app("aarch64-darwin");
 
             if regen_available {
                 if !opts.quiet {

@@ -54,7 +54,9 @@ use std::collections::HashSet;
 /// config keeps parsing unchanged (★★ MODULARIZE, DON'T DELETE — attic
 /// stays a fully working, selectable backend, it is simply not the
 /// fleet's choice today).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, serde::Serialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, serde::Serialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum CacheBackend {
     /// `attic push <cache> <path>`, preceded by `attic login`.
@@ -682,19 +684,23 @@ fn attic_login_target_inner(target: &CacheTarget) -> Result<()> {
 /// a genuine eval failure — which the caller treats as a soft skip, same
 /// as the legacy missing-default path.
 pub fn run_flake_show(repo: &std::path::Path) -> Result<String> {
-    let out = Command::new("nix")
-        .args([
-            "flake",
-            "show",
-            "--json",
-            "--all-systems",
-            "--option",
-            "warn-dirty",
-            "false",
-        ])
-        .current_dir(repo)
-        .output()
-        .with_context(|| format!("nix flake show in {}", repo.display()))?;
+    let mut cmd = Command::new("nix");
+    cmd.args([
+        "flake",
+        "show",
+        "--json",
+        "--all-systems",
+        "--option",
+        "warn-dirty",
+        "false",
+    ])
+    .current_dir(repo);
+    let out = crate::watch::run_bounded_sync(
+        cmd,
+        crate::watch::SUBPROCESS_DEADLINE_SECS,
+        "nix flake show",
+    )
+    .with_context(|| format!("nix flake show in {}", repo.display()))?;
     if !out.status.success() {
         anyhow::bail!(
             "nix flake show failed: {}",
@@ -708,19 +714,19 @@ pub fn run_flake_show(repo: &std::path::Path) -> Result<String> {
 /// realised out-paths. `installable` is e.g. `.#packages.<sys>.<attr>`
 /// (from [`PackageRef::installable`]) or `"."` for the legacy default.
 pub fn nix_build_installable(repo: &std::path::Path, installable: &str) -> Result<Vec<String>> {
-    let out = Command::new("nix")
-        .args([
-            "build",
-            installable,
-            "--no-link",
-            "--print-out-paths",
-            "--refresh",
-            "--option",
-            "warn-dirty",
-            "false",
-        ])
-        .current_dir(repo)
-        .output()
+    let mut cmd = Command::new("nix");
+    cmd.args([
+        "build",
+        installable,
+        "--no-link",
+        "--print-out-paths",
+        "--refresh",
+        "--option",
+        "warn-dirty",
+        "false",
+    ])
+    .current_dir(repo);
+    let out = crate::watch::run_bounded_sync(cmd, crate::watch::BUILD_DEADLINE_SECS, "nix build")
         .with_context(|| format!("nix build {installable} in {}", repo.display()))?;
     if !out.status.success() {
         let stderr = String::from_utf8_lossy(&out.stderr);
@@ -931,10 +937,12 @@ impl CacheFillEnv for RealEnv {
 /// server is deliberately fail-open, and what keeps poison out is the
 /// reproducibility gate upstream of this call, never the transport.
 fn nix_copy_to(url: &str, path: &str) -> Result<()> {
-    let status = Command::new("nix")
-        .args(["copy", "--to", url, path])
-        .status()
-        .with_context(|| format!("running nix copy --to {url} {path}"))?;
+    let mut cmd = Command::new("nix");
+    cmd.args(["copy", "--to", url, path]);
+    let status =
+        crate::watch::run_bounded_sync(cmd, crate::watch::SUBPROCESS_DEADLINE_SECS * 3, "nix copy")
+            .with_context(|| format!("running nix copy --to {url} {path}"))?
+            .status;
     if !status.success() {
         anyhow::bail!("nix copy --to {url} {path} exited {status}");
     }

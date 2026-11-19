@@ -205,12 +205,15 @@ pub(crate) fn rewrite_flake(text: &str) -> std::result::Result<String, RewriteRe
 /// shell, so there is no word-splitting/quoting fragility.
 fn nix_update_substrate(repo: &Path) -> bool {
     let ran = |args: &[&str]| {
-        Command::new("nix")
-            .current_dir(repo)
-            .args(args)
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
+        let mut cmd = Command::new("nix");
+        cmd.current_dir(repo).args(args);
+        crate::watch::run_bounded_sync(
+            cmd,
+            crate::watch::SUBPROCESS_DEADLINE_SECS,
+            &format!("nix {}", args.join(" ")),
+        )
+        .map(|o| o.status.success())
+        .unwrap_or(false)
     };
     ran(&["flake", "update", "substrate"]) || ran(&["flake", "lock"])
 }
