@@ -20,6 +20,17 @@ dependencies = [
 
 [[package]]
 name = "ahash"
+version = "0.7.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "891477e0c6a8957309ee5c45a6368af3ae14bb510732d2684ffa19af310920f9"
+dependencies = [
+ "getrandom 0.2.17",
+ "once_cell",
+ "version_check",
+]
+
+[[package]]
+name = "ahash"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75"
@@ -381,7 +392,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-bidama"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#e6e5b20084dbc98207dc53e733170c293e448424"
+source = "git+https://github.com/pleme-io/blue#a25d2465d7f9bd076c4774af0d0ee53e46340b51"
 dependencies = [
  "blue-lang-waku",
 ]
@@ -389,7 +400,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-check"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#e6e5b20084dbc98207dc53e733170c293e448424"
+source = "git+https://github.com/pleme-io/blue#a25d2465d7f9bd076c4774af0d0ee53e46340b51"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -398,7 +409,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-fmt"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#e6e5b20084dbc98207dc53e733170c293e448424"
+source = "git+https://github.com/pleme-io/blue#a25d2465d7f9bd076c4774af0d0ee53e46340b51"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -408,7 +419,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-host"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#e6e5b20084dbc98207dc53e733170c293e448424"
+source = "git+https://github.com/pleme-io/blue#a25d2465d7f9bd076c4774af0d0ee53e46340b51"
 dependencies = [
  "blue-lang-host-macros",
  "blue-lang-pkg",
@@ -425,7 +436,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-host-macros"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#e6e5b20084dbc98207dc53e733170c293e448424"
+source = "git+https://github.com/pleme-io/blue#a25d2465d7f9bd076c4774af0d0ee53e46340b51"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -435,7 +446,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-mondou"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#e6e5b20084dbc98207dc53e733170c293e448424"
+source = "git+https://github.com/pleme-io/blue#a25d2465d7f9bd076c4774af0d0ee53e46340b51"
 dependencies = [
  "blake3",
  "blue-lang-check",
@@ -451,7 +462,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-pkg"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#e6e5b20084dbc98207dc53e733170c293e448424"
+source = "git+https://github.com/pleme-io/blue#a25d2465d7f9bd076c4774af0d0ee53e46340b51"
 dependencies = [
  "blake3",
  "blue-lang-bidama",
@@ -472,7 +483,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-proc"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#e6e5b20084dbc98207dc53e733170c293e448424"
+source = "git+https://github.com/pleme-io/blue#a25d2465d7f9bd076c4774af0d0ee53e46340b51"
 dependencies = [
  "blake3",
  "blue-lang-waku",
@@ -486,13 +497,14 @@ dependencies = [
 [[package]]
 name = "blue-lang-runtime"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#e6e5b20084dbc98207dc53e733170c293e448424"
+source = "git+https://github.com/pleme-io/blue#a25d2465d7f9bd076c4774af0d0ee53e46340b51"
 dependencies = [
  "bao",
  "blake3",
  "blue-lang-check",
  "blue-lang-fmt",
  "blue-lang-proc",
+ "blue-lang-saturate",
  "blue-lang-syntax",
  "blue-lang-waku",
  "chacha20poly1305",
@@ -515,9 +527,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "blue-lang-saturate"
+version = "0.0.192"
+source = "git+https://github.com/pleme-io/blue#a25d2465d7f9bd076c4774af0d0ee53e46340b51"
+dependencies = [
+ "egg",
+ "tatara-lisp",
+]
+
+[[package]]
 name = "blue-lang-syntax"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#e6e5b20084dbc98207dc53e733170c293e448424"
+source = "git+https://github.com/pleme-io/blue#a25d2465d7f9bd076c4774af0d0ee53e46340b51"
 dependencies = [
  "tatara-lisp",
 ]
@@ -525,7 +546,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-waku"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#e6e5b20084dbc98207dc53e733170c293e448424"
+source = "git+https://github.com/pleme-io/blue#a25d2465d7f9bd076c4774af0d0ee53e46340b51"
 dependencies = [
  "blue-lang-syntax",
  "serde",
@@ -566,10 +587,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95832e849adfb21180ccb6826a99da14e5d266ae5c2e668e1602cf234f153797"
 
 [[package]]
-name = "bytes"
-version = "1.12.1"
+name = "byteorder"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
+checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
+
+[[package]]
+name = "bytes"
+version = "1.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "776dfebd015e2d8732c684a2c71003674ccb49457b539b9e82151ba38e96dd7c"
 dependencies = [
  "serde",
 ]
@@ -660,9 +687,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.6.7"
+version = "4.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa8876b300ab35ba921adea3dfd70157a46249b33f95c9084ae5709785478946"
+checksum = "ac230478587d0269d8d6998b82ae69ea51509d55df66d9e92edd1f986904cd4a"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -682,9 +709,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.6.7"
+version = "4.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9c751b79415d4e559e3d1fcf128e09e720eb673a06d26cf6f392d37d75b66e0"
+checksum = "895c9d8d2ac2dd8b8a29f3724a14e72aaaa6debcf8c38c82f97305c6a172767a"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -694,9 +721,9 @@ dependencies = [
 
 [[package]]
 name = "clap_lex"
-version = "1.1.1"
+version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
+checksum = "e0921b3876b3a1df8a1c9f912e7f94342458022c2e84288015893d83c4d62a79"
 
 [[package]]
 name = "cmake"
@@ -1100,6 +1127,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "egg"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96beaf9d35dbc4686bc86a4ecb851fd6a406f0bf32d9f646b1225a5c5cf5b5d7"
+dependencies = [
+ "env_logger",
+ "fxhash",
+ "hashbrown 0.12.3",
+ "indexmap 1.9.3",
+ "instant",
+ "log",
+ "smallvec",
+ "symbol_table",
+ "symbolic_expressions",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "either"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1146,6 +1191,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.10",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a12e6657c4c97ebab115a42dcee77225f7f482cdd841cf7088c657a42e9e00e7"
+dependencies = [
+ "log",
 ]
 
 [[package]]
@@ -1349,6 +1403,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "fxhash"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c31b6d751ae2c7f11320402d34e41349dd1016f8d5d45e48c4312bc8625af50c"
+dependencies = [
+ "byteorder",
+]
+
+[[package]]
 name = "gen-macros"
 version = "0.1.59"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1381,7 +1444,7 @@ checksum = "c8909d3e502a12b0e1e07597bee2fc6d0828cbf8f7ba6c810b91c98db0c8640a"
 dependencies = [
  "blake3",
  "chrono",
- "indexmap",
+ "indexmap 2.14.2",
  "inventory",
  "serde",
  "serde_json",
@@ -1481,7 +1544,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "http",
- "indexmap",
+ "indexmap 2.14.2",
  "slab",
  "tokio",
  "tokio-util",
@@ -1493,6 +1556,15 @@ name = "handan"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "168bce822fe8afd3eaffa21b98bcd7df6964382dd84527c89c2218c988be5a67"
+
+[[package]]
+name = "hashbrown"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+dependencies = [
+ "ahash 0.7.8",
+]
 
 [[package]]
 name = "hashbrown"
@@ -1830,6 +1902,16 @@ checksum = "2a0813be332553f857953298749fa19549e8b61b80589757c29b4e2a804fa9c6"
 
 [[package]]
 name = "indexmap"
+version = "1.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
+dependencies = [
+ "autocfg",
+ "hashbrown 0.12.3",
+]
+
+[[package]]
+name = "indexmap"
 version = "2.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc4e190f5d26ca7051642629da2c52fc03bde85a03197c99408dcd291734c855"
@@ -1873,6 +1955,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "instant"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
+dependencies = [
+ "cfg-if",
 ]
 
 [[package]]
@@ -2085,7 +2176,7 @@ dependencies = [
 [[package]]
 name = "kanshou"
 version = "0.1.11"
-source = "git+https://github.com/pleme-io/kanshou#74e48bde4fdf90ded7b1501c395826b8b85dc3a9"
+source = "git+https://github.com/pleme-io/kanshou#74013b34e775b60ae37054aebe6cb463d91c6a3d"
 dependencies = [
  "kanshou-derive",
  "okiba 0.2.1",
@@ -2099,7 +2190,7 @@ dependencies = [
 [[package]]
 name = "kanshou-derive"
 version = "0.1.11"
-source = "git+https://github.com/pleme-io/kanshou#74e48bde4fdf90ded7b1501c395826b8b85dc3a9"
+source = "git+https://github.com/pleme-io/kanshou#74013b34e775b60ae37054aebe6cb463d91c6a3d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2214,7 +2305,7 @@ version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3eb064ef71c7bea55e934a443960da9e9ec31fbb2ba63e47e4aeca32603d5cc7"
 dependencies = [
- "ahash",
+ "ahash 0.8.12",
  "async-broadcast",
  "async-stream",
  "backon",
@@ -2374,9 +2465,9 @@ dependencies = [
 
 [[package]]
 name = "monosashi"
-version = "0.4.17"
+version = "0.4.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcd827ea74fff0c509a52386e384b8bfca61b2c6653c319c4211d28b9e56b1ea"
+checksum = "0ee3bffe65da52970f35510f51dea96db798e57ecece65f67862f6365e4ef44c"
 
 [[package]]
 name = "multiversion_no_op"
@@ -2595,7 +2686,7 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "opencode-zen"
 version = "0.1.4"
-source = "git+https://github.com/pleme-io/opencode-zen#ceaf9803874ecc1316795a33048865f58c62a004"
+source = "git+https://github.com/pleme-io/opencode-zen#c25213f044f4ff26796543b1ae111f8ffbd40f7e"
 dependencies = [
  "reqwest",
  "serde",
@@ -2768,34 +2859,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4c5cc86750666a3ed20bdaf5ca2a0344f9c67674cae0515bec2da16fbaa47db"
 dependencies = [
  "fixedbitset",
- "indexmap",
+ "indexmap 2.14.2",
 ]
 
 [[package]]
 name = "pin-project"
-version = "1.1.13"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2466b2336ed02bcdca6b294417127b90ec92038d1d5c4fbeac971a922e0e0924"
+checksum = "a6c2123f4708bbd422630a6dae7c03f678b1ce1f1c99e4c4b3beac69c8174cc9"
 dependencies = [
  "pin-project-internal",
 ]
 
 [[package]]
 name = "pin-project-internal"
-version = "1.1.13"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c96395f0a926bc13b1c17622aaddda1ecb55d49c8f1bf9777e4d877800a43f8b"
+checksum = "358938fd6df944c1e44bb328b60fb275f13c804aac47ba26a1165d45a3f87756"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.10",
 ]
 
 [[package]]
 name = "pin-project-lite"
-version = "0.2.17"
+version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
+checksum = "c938015719552d665fd0553b90d96cd7ff58e83e4c061ca99e6bb78865a72752"
 
 [[package]]
 name = "pkcs8"
@@ -2815,7 +2906,7 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.44"
+version = "0.3.45"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3190,9 +3281,9 @@ checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
 name = "rand_pcg"
-version = "0.10.2"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "caa0f4137e1c0a72f4c651489402276c8e8e1cf081f3b0ba156d2cbeef09e86a"
+checksum = "eb95882a1e14462c69aea9984bb261293ccfe6022ef8de0eda18bd5afb0052df"
 dependencies = [
  "rand_core 0.10.1",
 ]
@@ -3256,9 +3347,9 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.13.1"
+version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f020237b6c8eed93db2e2cb53c00c60a8e1bc73da7d073199a1180401450218d"
+checksum = "9807af0e638c12e753aa1b4e601791bf2a8f71274023c8bbeec12fc149950857"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -3268,9 +3359,9 @@ dependencies = [
 
 [[package]]
 name = "regex-automata"
-version = "0.4.18"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad8553b9b26413251cbf30e620595c7a41b3887f03da04579c0e6b0d6a06b4b2"
+checksum = "41d60ef07df457506a0a1a2073112eb4aae5733dbd2813c3da77d1b0fd441158"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -3279,9 +3370,9 @@ dependencies = [
 
 [[package]]
 name = "regex-syntax"
-version = "0.8.11"
+version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
+checksum = "d902046e6a28a1e4c3cab97258a0ce11e994903f01c2d97a9447a0b3df85f4f6"
 
 [[package]]
 name = "reqwest"
@@ -3585,7 +3676,7 @@ dependencies = [
 [[package]]
 name = "samba"
 version = "0.1.7"
-source = "git+https://github.com/pleme-io/samba#7c2665f37981556ab2144808e9f216c272131fa4"
+source = "git+https://github.com/pleme-io/samba#692878ecf7db8f5232957e511bfa78e77b32d592"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -3733,7 +3824,7 @@ version = "0.0.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7bd22781911de0ca6debda95f073c8f18bec65d1a94f1fa9573f3102e514cea4"
 dependencies = [
- "ahash",
+ "ahash 0.8.12",
  "annotate-snippets",
  "base64 0.22.1",
  "encoding_rs_io",
@@ -3826,7 +3917,7 @@ version = "0.9.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e408f29489b5fd500fab51ff1484fc859bb655f32c671f307dcd733b72e8168c"
 dependencies = [
- "indexmap",
+ "indexmap 2.14.2",
  "itoa",
  "ryu",
  "serde",
@@ -3871,7 +3962,7 @@ version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b4db627b98b36d4203a7b458cf3573730f2bb591b28871d916dfa9efabfd41f"
 dependencies = [
- "indexmap",
+ "indexmap 2.14.2",
  "itoa",
  "ryu",
  "serde",
@@ -3921,7 +4012,7 @@ dependencies = [
 [[package]]
 name = "shigoto-budget"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#d1fee0d29666123f5f542bda63aac6c2e20ec954"
+source = "git+https://github.com/pleme-io/shigoto#f3ecf3ac7d5b836f0e54872b8184cddbb7d97c91"
 dependencies = [
  "serde",
  "shigoto-types",
@@ -3931,7 +4022,7 @@ dependencies = [
 [[package]]
 name = "shigoto-dag"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#d1fee0d29666123f5f542bda63aac6c2e20ec954"
+source = "git+https://github.com/pleme-io/shigoto#f3ecf3ac7d5b836f0e54872b8184cddbb7d97c91"
 dependencies = [
  "petgraph",
  "serde",
@@ -3942,7 +4033,7 @@ dependencies = [
 [[package]]
 name = "shigoto-emit"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#d1fee0d29666123f5f542bda63aac6c2e20ec954"
+source = "git+https://github.com/pleme-io/shigoto#f3ecf3ac7d5b836f0e54872b8184cddbb7d97c91"
 dependencies = [
  "async-trait",
  "serde",
@@ -3954,7 +4045,7 @@ dependencies = [
 [[package]]
 name = "shigoto-gate"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#d1fee0d29666123f5f542bda63aac6c2e20ec954"
+source = "git+https://github.com/pleme-io/shigoto#f3ecf3ac7d5b836f0e54872b8184cddbb7d97c91"
 dependencies = [
  "shigoto-dag",
  "shigoto-types",
@@ -3963,7 +4054,7 @@ dependencies = [
 [[package]]
 name = "shigoto-retry"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#d1fee0d29666123f5f542bda63aac6c2e20ec954"
+source = "git+https://github.com/pleme-io/shigoto#f3ecf3ac7d5b836f0e54872b8184cddbb7d97c91"
 dependencies = [
  "serde",
  "shigoto-types",
@@ -3972,7 +4063,7 @@ dependencies = [
 [[package]]
 name = "shigoto-scheduler"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#d1fee0d29666123f5f542bda63aac6c2e20ec954"
+source = "git+https://github.com/pleme-io/shigoto#f3ecf3ac7d5b836f0e54872b8184cddbb7d97c91"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3993,7 +4084,7 @@ dependencies = [
 [[package]]
 name = "shigoto-types"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#d1fee0d29666123f5f542bda63aac6c2e20ec954"
+source = "git+https://github.com/pleme-io/shigoto#f3ecf3ac7d5b836f0e54872b8184cddbb7d97c91"
 dependencies = [
  "async-trait",
  "blake3",
@@ -4167,6 +4258,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
+name = "symbol_table"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32bf088d1d7df2b2b6711b06da3471bc86677383c57b27251e18c56df8deac14"
+dependencies = [
+ "ahash 0.7.8",
+ "hashbrown 0.12.3",
+]
+
+[[package]]
+name = "symbolic_expressions"
+version = "5.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c68d531d83ec6c531150584c42a4290911964d5f0d79132b193b67252a23b71"
+
+[[package]]
 name = "syn"
 version = "2.0.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4263,18 +4370,18 @@ dependencies = [
 
 [[package]]
 name = "tatara-closed-set"
-version = "0.4.17"
+version = "0.4.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "514a5439c48d9656ab540161a6d9c222d43020af745bd6bb5eb7cbbd2c1b27c7"
+checksum = "8712068a0a284e5d1433e33f87a90de33ce5ca7066fdeabb6c1df6e21b3cc337"
 dependencies = [
  "tatara-closed-set-derive",
 ]
 
 [[package]]
 name = "tatara-closed-set-derive"
-version = "0.4.17"
+version = "0.4.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb759ceaae25ebd65ae16ba02e7e30f3f27fdab5e4954811db54ce85cc8ef740"
+checksum = "71f6f39bb984850ed1a8b9a11d02704f650dd214bd6448b21ded585b9078de1b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4283,9 +4390,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp"
-version = "0.4.17"
+version = "0.4.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "530cd5e9c11415b8b79a8b8932a2e5b082802400ef3d3aec545b9fd2ebb5e509"
+checksum = "5581ffc584b6e77a30ab69b37e61e606770a2d8ce335a16aad3baeee837810d5"
 dependencies = [
  "blake3",
  "serde",
@@ -4297,9 +4404,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-derive"
-version = "0.4.17"
+version = "0.4.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca0a608506c620f9ef4653d8071c2edff00962f0e17023623b96e813c78c1c73"
+checksum = "c585ee0ce335ec2e66e047a333f9e6387b4e86729a7c752abf00dcf0560047cb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4308,9 +4415,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-eval"
-version = "0.4.17"
+version = "0.4.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0551b813d61efb7d1becab50ca3436ecee4c09fe6c7b4a2224385aa95557907a"
+checksum = "751c1b3693bf1053b03e3a732e199ae68caffff82d64290bae65e29678e251f1"
 dependencies = [
  "arc-swap",
  "blake3",
@@ -4440,7 +4547,7 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 [[package]]
 name = "todoku"
 version = "0.1.11"
-source = "git+https://github.com/pleme-io/todoku#9a98740b57a397bdd74456a5b2192399cb6fb8bd"
+source = "git+https://github.com/pleme-io/todoku#983cd07902e161d4262d039448ff4ddba73559c6"
 dependencies = [
  "async-trait",
  "handan",
@@ -4565,7 +4672,7 @@ version = "0.22.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41fe8c660ae4257887cf66394862d21dbca4a6ddd26f04a3560410406a2f819a"
 dependencies = [
- "indexmap",
+ "indexmap 2.14.2",
  "serde",
  "serde_spanned",
  "toml_datetime",
@@ -4728,7 +4835,7 @@ dependencies = [
 [[package]]
 name = "tsunagu"
 version = "0.1.13"
-source = "git+https://github.com/pleme-io/tsunagu#77ebce1a32ff4d343bb52809576cd7e8c3b541af"
+source = "git+https://github.com/pleme-io/tsunagu#4b47bf6bbc292595a86ad15bd5926a4d5f9475c0"
 dependencies = [
  "dirs",
  "okiba 0.3.2",
@@ -4754,9 +4861,9 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
 name = "ucd-trie"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2896d95c02a80c6d6a5d6e953d479f5ddf2dfdb6a244441010e373ac0fb88971"
+checksum = "8f20bdbfc9915686faa18fb5bbe8b4552778505defbf9f12289beefbc44092a6"
 
 [[package]]
 name = "unarray"
@@ -4860,9 +4967,9 @@ checksum = "3a3b425286980a367278453f3b6d28cdcb134b574e5a35824a6ff5eebad50bb6"
 
 [[package]]
 name = "uuid"
-version = "1.29.2"
+version = "1.29.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bed99139f7dac9b5cfe5f17be4d66dc7079a34dee1d74bcc77217119240e267c"
+checksum = "3c14b15dffa2f4bd712103e857140aa04a4f2ff6e955c77d7eb8e53ee02a3b64"
 dependencies = [
  "getrandom 0.4.3",
  "js-sys",
@@ -5449,9 +5556,9 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.9.1"
+version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e13084392c5e4bc371903e2935a5eaeed24905a7511356b883835e18a78f6879"
+checksum = "85ccff8a4805aba1eaa4cd4afcd49f7557dd2cf5fd79ffc37f8959466effc5aa"
 dependencies = [
  "zeroize_derive",
 ]
