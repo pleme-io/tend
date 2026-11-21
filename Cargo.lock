@@ -392,7 +392,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-bidama"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#239bd074cc45f9a45ba871d87e942926b6332bd7"
+source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
 dependencies = [
  "blue-lang-waku",
 ]
@@ -400,7 +400,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-check"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#239bd074cc45f9a45ba871d87e942926b6332bd7"
+source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -409,7 +409,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-fmt"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#239bd074cc45f9a45ba871d87e942926b6332bd7"
+source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -419,7 +419,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-host"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#239bd074cc45f9a45ba871d87e942926b6332bd7"
+source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
 dependencies = [
  "blue-lang-host-macros",
  "blue-lang-pkg",
@@ -436,7 +436,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-host-macros"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#239bd074cc45f9a45ba871d87e942926b6332bd7"
+source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -446,7 +446,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-mondou"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#239bd074cc45f9a45ba871d87e942926b6332bd7"
+source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
 dependencies = [
  "blake3",
  "blue-lang-check",
@@ -462,7 +462,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-pkg"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#239bd074cc45f9a45ba871d87e942926b6332bd7"
+source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
 dependencies = [
  "blake3",
  "blue-lang-bidama",
@@ -483,7 +483,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-proc"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#239bd074cc45f9a45ba871d87e942926b6332bd7"
+source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
 dependencies = [
  "blake3",
  "blue-lang-waku",
@@ -497,7 +497,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-runtime"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#239bd074cc45f9a45ba871d87e942926b6332bd7"
+source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
 dependencies = [
  "bao",
  "blake3",
@@ -529,7 +529,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-saturate"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#239bd074cc45f9a45ba871d87e942926b6332bd7"
+source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
 dependencies = [
  "egg",
  "tatara-lisp",
@@ -538,7 +538,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-syntax"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#239bd074cc45f9a45ba871d87e942926b6332bd7"
+source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
 dependencies = [
  "tatara-lisp",
 ]
@@ -546,7 +546,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-waku"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#239bd074cc45f9a45ba871d87e942926b6332bd7"
+source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
 dependencies = [
  "blue-lang-syntax",
  "serde",
@@ -603,9 +603,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.11.2"
+version = "1.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33ef9e3e8154a45c7a95cff4c1299702106ad94062d7bb85fdc5d3a5afd91d45"
+checksum = "02f0e023adb368345ce0ca6cdfc0f24a06554468d0e8503e14a0841de79bfa69"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -687,9 +687,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.6.8"
+version = "4.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac230478587d0269d8d6998b82ae69ea51509d55df66d9e92edd1f986904cd4a"
+checksum = "844c5c0b65be192cb68d570cca1b21a6444431d24e39c084dc0336177015337c"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -709,9 +709,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.6.8"
+version = "4.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "895c9d8d2ac2dd8b8a29f3724a14e72aaaa6debcf8c38c82f97305c6a172767a"
+checksum = "b4c174f11f949b9ca8c60580925e282b9cbd5454750e506f08648b2038080cd7"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -762,9 +762,9 @@ dependencies = [
 
 [[package]]
 name = "compression-codecs"
-version = "0.4.47"
+version = "0.4.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84f840cff84d10085260e460023934d0af699e71212b09b2a41452e8bd9cda43"
+checksum = "5e41632c2efd201c62f1432f7cbee121b97878eab579da9d85676573d1fd33b9"
 dependencies = [
  "brotli",
  "compression-core",
@@ -1301,9 +1301,9 @@ checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "form_urlencoded"
-version = "1.2.2"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
+checksum = "afa489199eaffb1211795df1c6236ce1ad0d41a6fa45250add73e3b02420f06e"
 dependencies = [
  "percent-encoding",
 ]
@@ -2176,7 +2176,7 @@ dependencies = [
 [[package]]
 name = "kanshou"
 version = "0.1.11"
-source = "git+https://github.com/pleme-io/kanshou#74013b34e775b60ae37054aebe6cb463d91c6a3d"
+source = "git+https://github.com/pleme-io/kanshou#61c849d51c596b7423ed2204946f90ef104ec7e5"
 dependencies = [
  "kanshou-derive",
  "okiba 0.2.1",
@@ -2190,7 +2190,7 @@ dependencies = [
 [[package]]
 name = "kanshou-derive"
 version = "0.1.11"
-source = "git+https://github.com/pleme-io/kanshou#74013b34e775b60ae37054aebe6cb463d91c6a3d"
+source = "git+https://github.com/pleme-io/kanshou#61c849d51c596b7423ed2204946f90ef104ec7e5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2465,9 +2465,9 @@ dependencies = [
 
 [[package]]
 name = "monosashi"
-version = "0.4.24"
+version = "0.4.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4f134c3c51976bd11b4c1e4e1c94287541397c65b0529d4f439289cc084e940"
+checksum = "027fa28398c354fbb15cfc977684f22e21973b4991f80c598dda4221e560735c"
 
 [[package]]
 name = "multiversion_no_op"
@@ -2686,7 +2686,7 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "opencode-zen"
 version = "0.1.4"
-source = "git+https://github.com/pleme-io/opencode-zen#c25213f044f4ff26796543b1ae111f8ffbd40f7e"
+source = "git+https://github.com/pleme-io/opencode-zen#119df988b3717c45a858c188622d55165c29bbf5"
 dependencies = [
  "reqwest",
  "serde",
@@ -2906,7 +2906,7 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.46"
+version = "0.3.47"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3676,7 +3676,7 @@ dependencies = [
 [[package]]
 name = "samba"
 version = "0.1.7"
-source = "git+https://github.com/pleme-io/samba#692878ecf7db8f5232957e511bfa78e77b32d592"
+source = "git+https://github.com/pleme-io/samba#6a3b56309440857ba7ba5de155c0b11a60373766"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -4012,7 +4012,7 @@ dependencies = [
 [[package]]
 name = "shigoto-budget"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#f3ecf3ac7d5b836f0e54872b8184cddbb7d97c91"
+source = "git+https://github.com/pleme-io/shigoto#b8daa7c336c4887d50e98487ca6f2024b7a46122"
 dependencies = [
  "serde",
  "shigoto-types",
@@ -4022,7 +4022,7 @@ dependencies = [
 [[package]]
 name = "shigoto-dag"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#f3ecf3ac7d5b836f0e54872b8184cddbb7d97c91"
+source = "git+https://github.com/pleme-io/shigoto#b8daa7c336c4887d50e98487ca6f2024b7a46122"
 dependencies = [
  "petgraph",
  "serde",
@@ -4033,7 +4033,7 @@ dependencies = [
 [[package]]
 name = "shigoto-emit"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#f3ecf3ac7d5b836f0e54872b8184cddbb7d97c91"
+source = "git+https://github.com/pleme-io/shigoto#b8daa7c336c4887d50e98487ca6f2024b7a46122"
 dependencies = [
  "async-trait",
  "serde",
@@ -4045,7 +4045,7 @@ dependencies = [
 [[package]]
 name = "shigoto-gate"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#f3ecf3ac7d5b836f0e54872b8184cddbb7d97c91"
+source = "git+https://github.com/pleme-io/shigoto#b8daa7c336c4887d50e98487ca6f2024b7a46122"
 dependencies = [
  "shigoto-dag",
  "shigoto-types",
@@ -4054,7 +4054,7 @@ dependencies = [
 [[package]]
 name = "shigoto-retry"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#f3ecf3ac7d5b836f0e54872b8184cddbb7d97c91"
+source = "git+https://github.com/pleme-io/shigoto#b8daa7c336c4887d50e98487ca6f2024b7a46122"
 dependencies = [
  "serde",
  "shigoto-types",
@@ -4063,7 +4063,7 @@ dependencies = [
 [[package]]
 name = "shigoto-scheduler"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#f3ecf3ac7d5b836f0e54872b8184cddbb7d97c91"
+source = "git+https://github.com/pleme-io/shigoto#b8daa7c336c4887d50e98487ca6f2024b7a46122"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4084,7 +4084,7 @@ dependencies = [
 [[package]]
 name = "shigoto-types"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#f3ecf3ac7d5b836f0e54872b8184cddbb7d97c91"
+source = "git+https://github.com/pleme-io/shigoto#b8daa7c336c4887d50e98487ca6f2024b7a46122"
 dependencies = [
  "async-trait",
  "blake3",
@@ -4370,18 +4370,18 @@ dependencies = [
 
 [[package]]
 name = "tatara-closed-set"
-version = "0.4.24"
+version = "0.4.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f49b287308007a2a8ae49a8b972d9a31aa290a56032d90d22ddde2e4d692507"
+checksum = "6ff01584a308b069c7a24710bbc433b27f403fa9f6975ff57b971db0d770e19c"
 dependencies = [
  "tatara-closed-set-derive",
 ]
 
 [[package]]
 name = "tatara-closed-set-derive"
-version = "0.4.24"
+version = "0.4.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "838c119f1c12866971fd169d019d7e082e89eeca08be60fdcaeff3017a85e03a"
+checksum = "23b5ae73a05197df93cbf78f21b539f4a17210ada1830e1e37f98ebc6b8c73b0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4390,9 +4390,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp"
-version = "0.4.24"
+version = "0.4.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cc8de8ac1ecbd52ac11be932391719d6444581cf1a48cfbd0a787836504bd25"
+checksum = "a1dbe10376812354030f484e3c483bbb88a002aa84d33f9988d56ebe730c6073"
 dependencies = [
  "blake3",
  "serde",
@@ -4404,9 +4404,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-derive"
-version = "0.4.24"
+version = "0.4.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15e2c779dc740113878d3659e381253dec3a05c362c6cd9630ba4c57c04328df"
+checksum = "cef1b5a1a30db99304bbf7f5ebc821a09d3d1c931e7dae1e3a827b56f113f498"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4415,9 +4415,9 @@ dependencies = [
 
 [[package]]
 name = "tatara-lisp-eval"
-version = "0.4.24"
+version = "0.4.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b01ae1dd4ee547fb1ef2c7ac09e5ed108a11ca191cccda815510de92fec3548"
+checksum = "87188f6f9343ae5b3de58a44cfa2e298ec2e7f5a24196bbe5937be8a72b7e154"
 dependencies = [
  "arc-swap",
  "blake3",
@@ -4547,7 +4547,7 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 [[package]]
 name = "todoku"
 version = "0.1.11"
-source = "git+https://github.com/pleme-io/todoku#983cd07902e161d4262d039448ff4ddba73559c6"
+source = "git+https://github.com/pleme-io/todoku#3610304712280fbb0194135f30285887caea9b3f"
 dependencies = [
  "async-trait",
  "handan",
@@ -4835,7 +4835,7 @@ dependencies = [
 [[package]]
 name = "tsunagu"
 version = "0.1.13"
-source = "git+https://github.com/pleme-io/tsunagu#4b47bf6bbc292595a86ad15bd5926a4d5f9475c0"
+source = "git+https://github.com/pleme-io/tsunagu#8c41f2de0dbb6f0b1dc13086cbec669e2e994aa1"
 dependencies = [
  "dirs",
  "okiba 0.3.2",
@@ -4934,9 +4934,9 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
 name = "url"
-version = "2.5.8"
+version = "2.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed"
+checksum = "f00cd2407bb42c0ef17be88d4cf020f5cceffd121665bac9b8b9493a369b3b1a"
 dependencies = [
  "form_urlencoded",
  "idna",
@@ -4990,9 +4990,9 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "walkdir"
-version = "2.5.0"
+version = "2.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29790946404f91d9c5d06f9874efddea1dc06c5efe94541a7d6863108e3a5e4b"
+checksum = "b42e295b7452c4604982280d8586001fcad9b8b201cac67bca9771e7a7475403"
 dependencies = [
  "same-file",
  "winapi-util",
@@ -5515,18 +5515,18 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.8.63"
+version = "0.8.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5fe1f8f1b06191a00962174c61aa5005e0bb391a6d80d07e24d115c01a92ed8"
+checksum = "ed43f3060383c64b000f3c630550aebdfa9d3b76d48de32390483dd2cc7e0865"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.8.63"
+version = "0.8.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "863ad3ac83293fb4d740aedbfdc9240dd8d1a50c1099acd76ce80ce7c7230c7f"
+checksum = "a5cbd820fe3e35fb38c83b6dc7e6b1618bc46e0cd10073ae94e8d52dc468d8b9"
 dependencies = [
  "proc-macro2",
  "quote",
