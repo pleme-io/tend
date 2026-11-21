@@ -122,6 +122,43 @@ def decide(cands, p, pressured)
   [first(trimmed), total, after, limit, after > limit]
 end
 
+def trim_held_one(acc, row, limit)
+  if acc[1] <= limit
+    acc
+  else
+    [assoc(first(acc), first(row), true), acc[1] - row[1]]
+  end
+end
+
+@doc """
+trim_held: Which held dirs give up their incremental caches. Each row's bytes are what trimming that dir frees, zero when it may not be trimmed. The largest go first and the trim stops once the total is within the limit.
+
+    trim_held([5, 20, 0], 40, 30) #=> [false, true, false]
+    trim_held([5, 20], 25, 30) #=> [false, false]
+"""
+def trim_held(trimmable, after, limit)
+  rows = zip(indexes(trimmable), trimmable)
+  open = filter((r) -> r[1] > 0, rows)
+  order = sort_keyed((r) -> -r[1], open)
+  picked = first(
+    reduce((acc, row) -> trim_held_one(acc, row, limit), [{}, after], order)
+  )
+  map((i) -> not get(picked, i).nil?, indexes(trimmable))
+end
+
+test "held dirs are trimmed largest first and only as far as the limit"
+  assert trim_held([10, 30, 20], 100, 60) == [false, true, true]
+  assert trim_held([10, 30, 20], 100, 75) == [false, true, false]
+end
+
+test "a dir with nothing trimmable is never picked"
+  assert trim_held([0, 0], 100, 0) == [false, false]
+end
+
+test "within the limit nothing is trimmed"
+  assert trim_held([10, 30], 50, 50) == [false, false]
+end
+
 def day()
   86400
 end

@@ -219,6 +219,11 @@
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
+        },
+        "trim_incremental": {
+          "default": true,
+          "description": "When the dirs in use alone exceed the budget, trim the\n`<profile>/incremental` caches of a dir that only a running process\nholds (no cargo lock), largest first, until the budget holds. The dir\nitself stays. Default true; false keeps every dir in use whole.",
+          "type": "boolean"
         }
       },
       "type": "object"
@@ -1996,7 +2001,8 @@
         "max_idle_days": 14,
         "pressure_budget_gib": 10,
         "pressure_interval_minutes": 5,
-        "search_depth": 2
+        "search_depth": 2,
+        "trim_incremental": true
       },
       "description": "Bounds on local cargo `target/` directories -- see\n`src/cargo_target.rs`. Absent means disabled."
     },

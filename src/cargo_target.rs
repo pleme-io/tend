@@ -191,6 +191,11 @@ pub struct CargoTargetConfig {
     pub auto_apply: bool,
     /// Minimum minutes between pressure-relief sweeps.
     pub pressure_interval_minutes: u64,
+    /// When the dirs in use alone exceed the budget, trim the
+    /// `<profile>/incremental` caches of a dir that only a running process
+    /// holds (no cargo lock), largest first, until the budget holds. The dir
+    /// itself stays. Default true; false keeps every dir in use whole.
+    pub trim_incremental: bool,
 }
 
 impl Default for CargoTargetConfig {
@@ -209,6 +214,7 @@ impl Default for CargoTargetConfig {
             adopt_untagged: false,
             auto_apply: true,
             pressure_interval_minutes: DEFAULT_PRESSURE_INTERVAL_MINUTES,
+            trim_incremental: true,
         }
     }
 }
@@ -1170,6 +1176,138 @@ pub fn remove(dir: &CargoTargetDir) -> Result<(), RemoveError> {
     result
 }
 
+const INCREMENTAL: &str = "incremental";
+
+/// `<profile>/incremental` and `<triple>/<profile>/incremental` under a
+/// target root, each a real directory.
+fn incremental_dirs(root: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let children = |d: &Path| -> Vec<PathBuf> {
+        std::fs::read_dir(d)
+            .map(|es| {
+                es.flatten()
+                    .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+                    .map(|e| e.path())
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    for one in children(root) {
+        for two in children(&one) {
+            if two.file_name() == Some(OsStr::new(INCREMENTAL)) {
+                out.push(two);
+            } else {
+                let three = two.join(INCREMENTAL);
+                if real_dir(&three) {
+                    out.push(three);
+                }
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+/// The incremental caches of one target dir that no write touched within
+/// `active_window`, and the bytes they hold.
+fn trimmable(root: &Path, active_window: Duration, now: SystemTime) -> (Vec<PathBuf>, u64) {
+    let mut dirs = Vec::new();
+    let mut bytes = 0;
+    for d in incremental_dirs(root) {
+        let Ok(facts) = walk_tree(&d, &mut |_, _, _| {}) else {
+            continue;
+        };
+        let quiet = now
+            .duration_since(facts.newest)
+            .is_ok_and(|a| a >= active_window);
+        if quiet && !facts.unread {
+            bytes += facts.bytes;
+            dirs.push(d);
+        }
+    }
+    (dirs, bytes)
+}
+
+/// Delete the incremental caches of a target dir that stays.
+///
+/// Holds every cargo lock exclusively, as [`remove`] does: cargo writes
+/// `incremental/` only under its build lock, so a build that starts now
+/// waits, and one already running makes this refuse.
+///
+/// # Errors
+/// See [`RemoveError`]. A path that is not an `incremental` directory
+/// inside the recognized dir is refused before anything is deleted.
+pub fn trim(dir: &CargoTargetDir, paths: &[PathBuf]) -> Result<(), RemoveError> {
+    let dir = CargoTargetDir::recognize(dir.path(), dir.admission)
+        .map_err(RemoveError::NoLongerRecognized)?;
+    for p in paths {
+        if p.file_name() != Some(OsStr::new(INCREMENTAL))
+            || !p.starts_with(dir.path())
+            || !real_dir(p)
+        {
+            return Err(RemoveError::Io(io::Error::other(format!(
+                "not an incremental cache inside {}: {}",
+                dir.path().display(),
+                p.display()
+            ))));
+        }
+    }
+    let mut held: Vec<File> = Vec::new();
+    for lock in lock_files(dir.path()) {
+        let Ok(f) = File::open(&lock) else { continue };
+        match f.try_lock() {
+            Ok(()) => held.push(f),
+            Err(std::fs::TryLockError::WouldBlock) => return Err(RemoveError::BecameActive),
+            Err(std::fs::TryLockError::Error(e)) => return Err(RemoveError::Io(e)),
+        }
+    }
+    let result = paths
+        .iter()
+        .try_for_each(std::fs::remove_dir_all)
+        .map_err(RemoveError::Io);
+    drop(held);
+    result
+}
+
+/// Ask `blue/cargo_target.b` which held dirs give up their incremental
+/// caches, then refuse any pick that is not held by a process alone.
+///
+/// # Errors
+/// The policy failed, answered in another shape, or picked a dir that a
+/// cargo lock holds, that the process table could not see, or that has
+/// nothing trimmable.
+pub(crate) fn plan_trims(
+    held: &[(Candidate, u64)],
+    after_bytes: u64,
+    limit: u64,
+) -> Result<Vec<bool>> {
+    let bytes: Vec<Json> = held.iter().map(|(_, b)| json!(int(*b))).collect();
+    let out = crate::blue_policy::call(
+        POLICY_SOURCE,
+        "cargo_target.b",
+        "trim_held",
+        &[Json::Array(bytes), json!(int(after_bytes)), json!(int(limit))],
+    )?;
+    let picks = out
+        .as_array()
+        .filter(|v| v.len() == held.len())
+        .ok_or_else(|| anyhow!("cargo_target.b: trim_held() answered {out}"))?
+        .iter()
+        .map(|b| {
+            b.as_bool()
+                .ok_or_else(|| anyhow!("cargo_target.b: expected a flag, got {b}"))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    for ((c, b), pick) in held.iter().zip(&picks) {
+        if *pick && (c.lock_held || c.process != ProcessUse::Used || *b == 0) {
+            return Err(anyhow!(
+                "cargo_target.b: refused a trim of a dir not held by a process alone"
+            ));
+        }
+    }
+    Ok(picks)
+}
+
 /// Cargo lock files within [`LOCK_MAX_DEPTH`] of the target root.
 fn lock_files(root: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
@@ -1221,6 +1359,20 @@ pub struct Entry {
     /// Set in apply mode: whether the removal happened.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub removed: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Set when the policy trims this dir's incremental caches.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trim_incremental: Option<Trim>,
+}
+
+/// An incremental-cache trim of a dir in use.
+#[derive(Debug, Clone, Serialize)]
+pub struct Trim {
+    pub gib: f64,
+    /// Set in apply mode: whether the trim happened.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trimmed: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
@@ -1309,11 +1461,70 @@ pub fn sweep(
     }
 
     let cands: Vec<Candidate> = measured.iter().map(|m| m.candidate).collect();
-    let plan = decide(&cands, cfg.policy(), now, pressured)?;
+    let policy = cfg.policy();
+    let plan = decide(&cands, policy, now, pressured)?;
+
+    let held_alone = |m: &Measured, v: &Verdict| {
+        *v == Verdict::Active {
+            signal: ActiveSignal::ProcessUses,
+        } && !m.candidate.lock_held
+            && m.candidate.process == ProcessUse::Used
+    };
+    let trims: Vec<(Vec<PathBuf>, u64)> = measured
+        .iter()
+        .zip(&plan.verdicts)
+        .map(|(m, v)| {
+            if cfg.trim_incremental && plan.budget_unreachable && held_alone(m, v) {
+                trimmable(m.dir.path(), policy.active_window, now)
+            } else {
+                (Vec::new(), 0)
+            }
+        })
+        .collect();
+    let picks = if trims.iter().any(|(_, b)| *b > 0) {
+        let held: Vec<(Candidate, u64)> = measured
+            .iter()
+            .zip(&trims)
+            .map(|(m, (_, b))| (m.candidate, *b))
+            .collect();
+        plan_trims(&held, plan.after_bytes, plan.effective_budget_bytes)?
+    } else {
+        vec![false; measured.len()]
+    };
+    let trim_bytes: u64 = trims
+        .iter()
+        .zip(&picks)
+        .filter(|(_, p)| **p)
+        .map(|((_, b), _)| *b)
+        .sum();
+    let after_bytes = plan.after_bytes.saturating_sub(trim_bytes);
 
     let mut freed: u64 = 0;
     let mut entries = Vec::with_capacity(measured.len());
-    for (m, v) in measured.iter().zip(&plan.verdicts) {
+    for (((m, v), (paths, tbytes)), pick) in measured
+        .iter()
+        .zip(&plan.verdicts)
+        .zip(&trims)
+        .zip(&picks)
+    {
+        let trim_incremental = pick.then(|| {
+            let (trimmed, error) = if mode == Mode::Apply {
+                match trim(&m.dir, paths) {
+                    Ok(()) => {
+                        freed += tbytes;
+                        (Some(true), None)
+                    }
+                    Err(e) => (Some(false), Some(e.to_string())),
+                }
+            } else {
+                (None, None)
+            };
+            Trim {
+                gib: to_gib(*tbytes),
+                trimmed,
+                error,
+            }
+        });
         let idle = age(&m.candidate, now).as_secs_f64() / 86_400.0;
         let (removed, error) = if mode == Mode::Apply && v.removes() {
             match remove(&m.dir) {
@@ -1337,6 +1548,7 @@ pub fn sweep(
             verdict: *v,
             removed,
             error,
+            trim_incremental,
         });
     }
     entries.sort_by_key(|e| std::cmp::Reverse(e.bytes));
@@ -1353,10 +1565,10 @@ pub fn sweep(
         },
         count: entries.len(),
         total_gib: to_gib(plan.total_bytes),
-        reclaim_gib: to_gib(plan.total_bytes.saturating_sub(plan.after_bytes)),
-        after_gib: to_gib(plan.after_bytes),
+        reclaim_gib: to_gib(plan.total_bytes.saturating_sub(after_bytes)),
+        after_gib: to_gib(after_bytes),
         effective_budget_gib: to_gib(plan.effective_budget_bytes),
-        budget_unreachable: plan.budget_unreachable,
+        budget_unreachable: after_bytes > plan.effective_budget_bytes,
         freed_gib: to_gib(freed),
         entries,
         refused: found
@@ -1428,6 +1640,19 @@ pub fn print_report(r: &Report, cfg: &CargoTargetConfig) {
             (Some(false), Some(err)) => "  [FAILED: ".to_string() + err + "]",
             _ => String::new(),
         };
+        let outcome = outcome
+            + &match &e.trim_incremental {
+                None => String::new(),
+                Some(Trim {
+                    trimmed: Some(true),
+                    gib,
+                    ..
+                }) => format!("  [trimmed incremental, {gib:.1} GiB]"),
+                Some(Trim {
+                    error: Some(err), ..
+                }) => format!("  [incremental trim FAILED: {err}]"),
+                Some(Trim { gib, .. }) => format!("  [trims incremental, {gib:.1} GiB]"),
+            };
         let form = match e.form {
             Form::Named => "",
             Form::Layout => "  [by layout]",
@@ -2384,9 +2609,168 @@ mod tests {
         assert!(r.entries.iter().all(|e| e.form == Form::Layout));
     }
 
+    fn held_target(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
+        let repo = root.join("r");
+        let t = cargo_target(root, "r", 4096);
+        let incr = t.join("debug/incremental/blue-abc");
+        std::fs::create_dir_all(&incr).unwrap();
+        std::fs::write(incr.join("query-cache.bin"), vec![1u8; 64 * 1024]).unwrap();
+        let wasm = t.join("wasm32-unknown-unknown/release/incremental");
+        std::fs::create_dir_all(&wasm).unwrap();
+        std::fs::write(wasm.join("dep-graph.bin"), vec![2u8; 8192]).unwrap();
+        (repo, t, incr)
+    }
+
+    fn ide_in(repo: &Path) -> Fixed {
+        Fixed(ProcessView::Seen(vec![facts_of(9, repo, &[], &[], None)]))
+    }
+
+    fn squeeze() -> CargoTargetConfig {
+        CargoTargetConfig {
+            budget_gib: 0,
+            pressure_budget_gib: 0,
+            ..CargoTargetConfig::default()
+        }
+    }
+
+    #[test]
+    fn a_target_held_only_by_a_process_gives_up_its_incremental_caches() {
+        let tmp = TempDir::new().unwrap();
+        let (repo, t, incr) = held_target(tmp.path());
+        let r = sweep(
+            &squeeze(),
+            std::slice::from_ref(&repo),
+            true,
+            Mode::Apply,
+            later(),
+            &ide_in(&repo),
+        )
+        .unwrap();
+        let e = &r.entries[0];
+        assert_eq!(
+            e.verdict,
+            Verdict::Active {
+                signal: ActiveSignal::ProcessUses
+            }
+        );
+        assert_eq!(e.trim_incremental.as_ref().unwrap().trimmed, Some(true));
+        assert!(!incr.exists());
+        assert!(!t.join("wasm32-unknown-unknown/release/incremental").exists());
+        assert!(t.join("debug/blob").exists());
+        assert!(t.join("CACHEDIR.TAG").exists());
+        assert!(r.freed_gib > 0.0);
+    }
+
+    #[test]
+    fn a_dry_run_names_the_trim_and_deletes_nothing() {
+        let tmp = TempDir::new().unwrap();
+        let (repo, _, incr) = held_target(tmp.path());
+        let r = sweep(
+            &squeeze(),
+            std::slice::from_ref(&repo),
+            true,
+            Mode::DryRun,
+            later(),
+            &ide_in(&repo),
+        )
+        .unwrap();
+        let trim = r.entries[0].trim_incremental.as_ref().unwrap();
+        assert_eq!(trim.trimmed, None);
+        assert!(trim.gib > 0.0);
+        assert!(incr.exists());
+    }
+
+    #[test]
+    fn a_held_cargo_lock_keeps_the_incremental_caches() {
+        let tmp = TempDir::new().unwrap();
+        let (repo, t, incr) = held_target(tmp.path());
+        let lock = File::open(t.join("debug/.cargo-lock")).unwrap();
+        lock.lock().unwrap();
+        let r = sweep(
+            &squeeze(),
+            std::slice::from_ref(&repo),
+            true,
+            Mode::Apply,
+            later(),
+            &ide_in(&repo),
+        )
+        .unwrap();
+        assert!(r.entries[0].trim_incremental.is_none());
+        assert!(incr.exists());
+    }
+
+    #[test]
+    fn the_trim_switched_off_keeps_a_held_target_whole() {
+        let tmp = TempDir::new().unwrap();
+        let (repo, _, incr) = held_target(tmp.path());
+        let cfg = CargoTargetConfig {
+            trim_incremental: false,
+            ..squeeze()
+        };
+        let r = sweep(
+            &cfg,
+            std::slice::from_ref(&repo),
+            true,
+            Mode::Apply,
+            later(),
+            &ide_in(&repo),
+        )
+        .unwrap();
+        assert!(r.entries[0].trim_incremental.is_none());
+        assert!(r.budget_unreachable);
+        assert!(incr.exists());
+    }
+
+    #[test]
+    fn a_held_target_within_budget_is_not_trimmed() {
+        let tmp = TempDir::new().unwrap();
+        let (repo, _, incr) = held_target(tmp.path());
+        let r = sweep(
+            &CargoTargetConfig::default(),
+            std::slice::from_ref(&repo),
+            true,
+            Mode::Apply,
+            later(),
+            &ide_in(&repo),
+        )
+        .unwrap();
+        assert!(r.entries[0].trim_incremental.is_none());
+        assert!(incr.exists());
+    }
+
+    #[test]
+    fn trim_refuses_a_path_that_is_not_an_incremental_cache() {
+        let tmp = TempDir::new().unwrap();
+        let (_, t, incr) = held_target(tmp.path());
+        let dir = CargoTargetDir::recognize(&t, STRICT).unwrap();
+        let deps = t.join("debug");
+        assert!(trim(&dir, &[incr.clone(), deps.clone()]).is_err());
+        assert!(incr.exists());
+        assert!(deps.join("blob").exists());
+        let outside = tmp.path().join("incremental");
+        std::fs::create_dir_all(&outside).unwrap();
+        assert!(trim(&dir, &[outside.clone()]).is_err());
+        assert!(outside.exists());
+    }
+
+    #[test]
+    fn the_policy_may_not_trim_a_locked_or_unseen_dir() {
+        let mut locked = cand(10, 1);
+        locked.lock_held = true;
+        locked.process = ProcessUse::Used;
+        let mut unseen = cand(10, 1);
+        unseen.process = ProcessUse::Unseen;
+        assert!(plan_trims(&[(locked, 5)], 100, 0).is_err());
+        assert!(plan_trims(&[(unseen, 5)], 100, 0).is_err());
+        let mut held = cand(10, 1);
+        held.process = ProcessUse::Used;
+        assert_eq!(plan_trims(&[(held, 5)], 100, 0).unwrap(), vec![true]);
+    }
+
     #[test]
     fn config_defaults_and_partial_blocks() {
         let d = CargoTargetConfig::default();
+        assert!(d.trim_incremental, "a held target gives up its incremental caches");
         assert!(!d.enable, "the scheduled sweep is opt-in");
         assert!(d.auto_apply, "pressure relief is on unless switched off");
         assert!(!d.adopt_untagged);
