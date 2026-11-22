@@ -392,7 +392,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-bidama"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
+source = "git+https://github.com/pleme-io/blue#5dc047fa5713c728cb4289ec72581c27adf8d038"
 dependencies = [
  "blue-lang-waku",
 ]
@@ -400,7 +400,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-check"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
+source = "git+https://github.com/pleme-io/blue#5dc047fa5713c728cb4289ec72581c27adf8d038"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -409,7 +409,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-fmt"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
+source = "git+https://github.com/pleme-io/blue#5dc047fa5713c728cb4289ec72581c27adf8d038"
 dependencies = [
  "blue-lang-syntax",
  "tatara-lisp",
@@ -419,7 +419,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-host"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
+source = "git+https://github.com/pleme-io/blue#5dc047fa5713c728cb4289ec72581c27adf8d038"
 dependencies = [
  "blue-lang-host-macros",
  "blue-lang-pkg",
@@ -436,7 +436,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-host-macros"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
+source = "git+https://github.com/pleme-io/blue#5dc047fa5713c728cb4289ec72581c27adf8d038"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -446,7 +446,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-mondou"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
+source = "git+https://github.com/pleme-io/blue#5dc047fa5713c728cb4289ec72581c27adf8d038"
 dependencies = [
  "blake3",
  "blue-lang-check",
@@ -462,7 +462,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-pkg"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
+source = "git+https://github.com/pleme-io/blue#5dc047fa5713c728cb4289ec72581c27adf8d038"
 dependencies = [
  "blake3",
  "blue-lang-bidama",
@@ -483,7 +483,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-proc"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
+source = "git+https://github.com/pleme-io/blue#5dc047fa5713c728cb4289ec72581c27adf8d038"
 dependencies = [
  "blake3",
  "blue-lang-waku",
@@ -497,7 +497,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-runtime"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
+source = "git+https://github.com/pleme-io/blue#5dc047fa5713c728cb4289ec72581c27adf8d038"
 dependencies = [
  "bao",
  "blake3",
@@ -529,7 +529,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-saturate"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
+source = "git+https://github.com/pleme-io/blue#5dc047fa5713c728cb4289ec72581c27adf8d038"
 dependencies = [
  "egg",
  "tatara-lisp",
@@ -538,7 +538,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-syntax"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
+source = "git+https://github.com/pleme-io/blue#5dc047fa5713c728cb4289ec72581c27adf8d038"
 dependencies = [
  "tatara-lisp",
 ]
@@ -546,7 +546,7 @@ dependencies = [
 [[package]]
 name = "blue-lang-waku"
 version = "0.0.192"
-source = "git+https://github.com/pleme-io/blue#bc996b26fafb25240ec11ae3ef5214d56efdff96"
+source = "git+https://github.com/pleme-io/blue#5dc047fa5713c728cb4289ec72581c27adf8d038"
 dependencies = [
  "blue-lang-syntax",
  "serde",
@@ -1585,9 +1585,9 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.17.1"
+version = "0.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+checksum = "735eaa21a6a5ffb2e84362faaeb90c05ba8e19797ca30428478cb6ea3a4921bc"
 
 [[package]]
 name = "heck"
@@ -1917,7 +1917,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc4e190f5d26ca7051642629da2c52fc03bde85a03197c99408dcd291734c855"
 dependencies = [
  "equivalent",
- "hashbrown 0.17.1",
+ "hashbrown 0.17.2",
  "serde",
  "serde_core",
 ]
@@ -2176,7 +2176,7 @@ dependencies = [
 [[package]]
 name = "kanshou"
 version = "0.1.11"
-source = "git+https://github.com/pleme-io/kanshou#61c849d51c596b7423ed2204946f90ef104ec7e5"
+source = "git+https://github.com/pleme-io/kanshou#de5b666fde80aec08d7d41089266c39d3b39e07a"
 dependencies = [
  "kanshou-derive",
  "okiba 0.2.1",
@@ -2190,7 +2190,7 @@ dependencies = [
 [[package]]
 name = "kanshou-derive"
 version = "0.1.11"
-source = "git+https://github.com/pleme-io/kanshou#61c849d51c596b7423ed2204946f90ef104ec7e5"
+source = "git+https://github.com/pleme-io/kanshou#de5b666fde80aec08d7d41089266c39d3b39e07a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2686,7 +2686,7 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "opencode-zen"
 version = "0.1.4"
-source = "git+https://github.com/pleme-io/opencode-zen#119df988b3717c45a858c188622d55165c29bbf5"
+source = "git+https://github.com/pleme-io/opencode-zen#acbab11212e51649a498b2fa68c62947d91ec0db"
 dependencies = [
  "reqwest",
  "serde",
@@ -2906,7 +2906,7 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pleme-tend"
-version = "0.3.47"
+version = "0.3.48"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3676,7 +3676,7 @@ dependencies = [
 [[package]]
 name = "samba"
 version = "0.1.7"
-source = "git+https://github.com/pleme-io/samba#6a3b56309440857ba7ba5de155c0b11a60373766"
+source = "git+https://github.com/pleme-io/samba#3af1aacebe34ce2bb94e4f965c3efaf5cbd3bf3d"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -4012,7 +4012,7 @@ dependencies = [
 [[package]]
 name = "shigoto-budget"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#b8daa7c336c4887d50e98487ca6f2024b7a46122"
+source = "git+https://github.com/pleme-io/shigoto#2c9d3dc0a48ed4b990f0397b960ceba8dca8eb94"
 dependencies = [
  "serde",
  "shigoto-types",
@@ -4022,7 +4022,7 @@ dependencies = [
 [[package]]
 name = "shigoto-dag"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#b8daa7c336c4887d50e98487ca6f2024b7a46122"
+source = "git+https://github.com/pleme-io/shigoto#2c9d3dc0a48ed4b990f0397b960ceba8dca8eb94"
 dependencies = [
  "petgraph",
  "serde",
@@ -4033,7 +4033,7 @@ dependencies = [
 [[package]]
 name = "shigoto-emit"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#b8daa7c336c4887d50e98487ca6f2024b7a46122"
+source = "git+https://github.com/pleme-io/shigoto#2c9d3dc0a48ed4b990f0397b960ceba8dca8eb94"
 dependencies = [
  "async-trait",
  "serde",
@@ -4045,7 +4045,7 @@ dependencies = [
 [[package]]
 name = "shigoto-gate"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#b8daa7c336c4887d50e98487ca6f2024b7a46122"
+source = "git+https://github.com/pleme-io/shigoto#2c9d3dc0a48ed4b990f0397b960ceba8dca8eb94"
 dependencies = [
  "shigoto-dag",
  "shigoto-types",
@@ -4054,7 +4054,7 @@ dependencies = [
 [[package]]
 name = "shigoto-retry"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#b8daa7c336c4887d50e98487ca6f2024b7a46122"
+source = "git+https://github.com/pleme-io/shigoto#2c9d3dc0a48ed4b990f0397b960ceba8dca8eb94"
 dependencies = [
  "serde",
  "shigoto-types",
@@ -4063,7 +4063,7 @@ dependencies = [
 [[package]]
 name = "shigoto-scheduler"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#b8daa7c336c4887d50e98487ca6f2024b7a46122"
+source = "git+https://github.com/pleme-io/shigoto#2c9d3dc0a48ed4b990f0397b960ceba8dca8eb94"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4084,7 +4084,7 @@ dependencies = [
 [[package]]
 name = "shigoto-types"
 version = "0.1.19"
-source = "git+https://github.com/pleme-io/shigoto#b8daa7c336c4887d50e98487ca6f2024b7a46122"
+source = "git+https://github.com/pleme-io/shigoto#2c9d3dc0a48ed4b990f0397b960ceba8dca8eb94"
 dependencies = [
  "async-trait",
  "blake3",
@@ -4547,7 +4547,7 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 [[package]]
 name = "todoku"
 version = "0.1.11"
-source = "git+https://github.com/pleme-io/todoku#3610304712280fbb0194135f30285887caea9b3f"
+source = "git+https://github.com/pleme-io/todoku#12c4f8af09a17372e2b8064ebc394136fc96c9fb"
 dependencies = [
  "async-trait",
  "handan",
@@ -4835,7 +4835,7 @@ dependencies = [
 [[package]]
 name = "tsunagu"
 version = "0.1.13"
-source = "git+https://github.com/pleme-io/tsunagu#8c41f2de0dbb6f0b1dc13086cbec669e2e994aa1"
+source = "git+https://github.com/pleme-io/tsunagu#0b7b849f89d7407d5147c112ad5dc5f69ce673eb"
 dependencies = [
  "dirs",
  "okiba 0.3.2",
