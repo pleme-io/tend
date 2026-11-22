@@ -220,9 +220,20 @@
           "minimum": 0,
           "type": "integer"
         },
+        "superseded_keep_hours": {
+          "default": 24,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
         "trim_incremental": {
           "default": true,
           "description": "When the dirs in use alone exceed the budget, trim the\n`<profile>/incremental` caches of a dir that only a running process\nholds (no cargo lock), largest first, until the budget holds. The dir\nitself stays. Default true; false keeps every dir in use whole.",
+          "type": "boolean"
+        },
+        "trim_superseded": {
+          "default": true,
+          "description": "With `trim_incremental`, also delete the outputs of units (in\n`.fingerprint`, `deps`, `build`) that no build touched within\n`superseded_keep_hours` and that a newer unit of the same crate\nsuperseded. Cargo never collects them. Default true; false trims the\nincremental caches alone.",
           "type": "boolean"
         }
       },
@@ -2002,7 +2013,9 @@
         "pressure_budget_gib": 10,
         "pressure_interval_minutes": 5,
         "search_depth": 2,
-        "trim_incremental": true
+        "superseded_keep_hours": 24,
+        "trim_incremental": true,
+        "trim_superseded": true
       },
       "description": "Bounds on local cargo `target/` directories -- see\n`src/cargo_target.rs`. Absent means disabled."
     },

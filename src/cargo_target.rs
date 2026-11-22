@@ -98,7 +98,7 @@
 //! whole. A removed directory costs one cold build to bring back; that is the
 //! whole downside, and it is why idleness, not size, is the primary rule.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::io;
@@ -146,6 +146,9 @@ pub(crate) const DEFAULT_INTERVAL_MINUTES: u64 = 60;
 /// pressure a build can fill the disk within one ordinary interval, so the
 /// relief sweep runs on a shorter clock.
 pub(crate) const DEFAULT_PRESSURE_INTERVAL_MINUTES: u64 = 5;
+/// A unit a build touched within a day stays: a sibling variant (check,
+/// test, another feature set) is still in rotation.
+pub(crate) const DEFAULT_SUPERSEDED_KEEP_HOURS: u64 = 24;
 
 /// Default search depth below each repo root. 1 finds only `<repo>/target`;
 /// 2 also finds `<repo>/<dir>/target` (a nested, non-workspace crate). All 35
@@ -196,6 +199,13 @@ pub struct CargoTargetConfig {
     /// holds (no cargo lock), largest first, until the budget holds. The dir
     /// itself stays. Default true; false keeps every dir in use whole.
     pub trim_incremental: bool,
+    /// With `trim_incremental`, also delete the outputs of units (in
+    /// `.fingerprint`, `deps`, `build`) that no build touched within
+    /// `superseded_keep_hours` and that a newer unit of the same crate
+    /// superseded. Cargo never collects them. Default true; false trims the
+    /// incremental caches alone.
+    pub trim_superseded: bool,
+    pub superseded_keep_hours: u64,
 }
 
 impl Default for CargoTargetConfig {
@@ -215,6 +225,8 @@ impl Default for CargoTargetConfig {
             auto_apply: true,
             pressure_interval_minutes: DEFAULT_PRESSURE_INTERVAL_MINUTES,
             trim_incremental: true,
+            trim_superseded: true,
+            superseded_keep_hours: DEFAULT_SUPERSEDED_KEEP_HOURS,
         }
     }
 }
@@ -1177,27 +1189,31 @@ pub fn remove(dir: &CargoTargetDir) -> Result<(), RemoveError> {
 }
 
 const INCREMENTAL: &str = "incremental";
+const FINGERPRINT: &str = ".fingerprint";
+const UNIT_DIRS: [&str; 3] = [FINGERPRINT, "deps", "build"];
+const UNIT_HASH_LEN: usize = 16;
 
-/// `<profile>/incremental` and `<triple>/<profile>/incremental` under a
-/// target root, each a real directory.
-fn incremental_dirs(root: &Path) -> Vec<PathBuf> {
+fn child_dirs(d: &Path) -> Vec<PathBuf> {
+    std::fs::read_dir(d)
+        .map(|es| {
+            es.flatten()
+                .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+                .map(|e| e.path())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// `<profile>/<name>` and `<triple>/<profile>/<name>` under a target root,
+/// each a real directory.
+fn profile_children(root: &Path, name: &str) -> Vec<PathBuf> {
     let mut out = Vec::new();
-    let children = |d: &Path| -> Vec<PathBuf> {
-        std::fs::read_dir(d)
-            .map(|es| {
-                es.flatten()
-                    .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
-                    .map(|e| e.path())
-                    .collect()
-            })
-            .unwrap_or_default()
-    };
-    for one in children(root) {
-        for two in children(&one) {
-            if two.file_name() == Some(OsStr::new(INCREMENTAL)) {
+    for one in child_dirs(root) {
+        for two in child_dirs(&one) {
+            if two.file_name() == Some(OsStr::new(name)) {
                 out.push(two);
             } else {
-                let three = two.join(INCREMENTAL);
+                let three = two.join(name);
                 if real_dir(&three) {
                     out.push(three);
                 }
@@ -1208,24 +1224,153 @@ fn incremental_dirs(root: &Path) -> Vec<PathBuf> {
     out
 }
 
-/// The incremental caches of one target dir that no write touched within
-/// `active_window`, and the bytes they hold.
-fn trimmable(root: &Path, active_window: Duration, now: SystemTime) -> (Vec<PathBuf>, u64) {
-    let mut dirs = Vec::new();
+/// The hash of a cargo unit artifact name: `<name>-<16 hex>` followed by
+/// nothing or an extension.
+fn unit_hash(file_name: &str) -> Option<&str> {
+    let stem = file_name.split('.').next()?;
+    let (_, hash) = stem.rsplit_once('-')?;
+    (hash.len() == UNIT_HASH_LEN && hash.bytes().all(|b| b.is_ascii_hexdigit())).then_some(hash)
+}
+
+struct Unit {
+    name: String,
+    newest: SystemTime,
+    paths: Vec<PathBuf>,
+    bytes: u64,
+    unread: bool,
+}
+
+/// The units of one profile older than `keep` that a newer unit of the same
+/// name superseded: every path cargo wrote for them and the bytes deleting
+/// them frees (a hard-linked file frees nothing and counts nothing).
+fn superseded(profile: &Path, keep: Duration, now: SystemTime) -> (Vec<PathBuf>, u64) {
+    let mut units: HashMap<String, Unit> = HashMap::new();
+    for e in std::fs::read_dir(profile.join(FINGERPRINT))
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
+        let file = e.file_name();
+        let Some(name) = file.to_str() else { continue };
+        let Some(hash) = unit_hash(name) else {
+            continue;
+        };
+        let crate_name = name[..name.len() - UNIT_HASH_LEN - 1].to_string();
+        units.insert(
+            hash.to_string(),
+            Unit {
+                name: crate_name,
+                newest: SystemTime::UNIX_EPOCH,
+                paths: Vec::new(),
+                bytes: 0,
+                unread: false,
+            },
+        );
+    }
+    for sub in UNIT_DIRS {
+        for e in std::fs::read_dir(profile.join(sub))
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
+            let file = e.file_name();
+            let Some(hash) = file.to_str().and_then(unit_hash) else {
+                continue;
+            };
+            let Some(u) = units.get_mut(hash) else {
+                continue;
+            };
+            let path = e.path();
+            match walk_tree(&path, &mut |_, _, _| {}) {
+                Ok(f) => {
+                    u.newest = u.newest.max(f.newest);
+                    u.unread |= f.unread;
+                    let shared = std::fs::symlink_metadata(&path)
+                        .is_ok_and(|m| !m.is_dir() && m.nlink() > 1);
+                    if !shared {
+                        u.bytes += f.bytes;
+                    }
+                }
+                Err(_) => u.unread = true,
+            }
+            u.paths.push(path);
+        }
+    }
+    let mut newest: HashMap<&str, SystemTime> = HashMap::new();
+    for u in units.values() {
+        let n = newest.entry(&u.name).or_insert(u.newest);
+        *n = (*n).max(u.newest);
+    }
+    let mut paths = Vec::new();
     let mut bytes = 0;
-    for d in incremental_dirs(root) {
+    for u in units.values() {
+        let old = now.duration_since(u.newest).is_ok_and(|a| a >= keep);
+        if old && !u.unread && u.newest < newest[u.name.as_str()] {
+            bytes += u.bytes;
+            paths.extend(u.paths.iter().cloned());
+        }
+    }
+    paths.sort();
+    (paths, bytes)
+}
+
+/// What a dir in use can give up and stay usable.
+#[derive(Debug, Clone, Copy)]
+struct TrimScope {
+    active_window: Duration,
+    superseded_keep: Option<Duration>,
+}
+
+/// The incremental caches of one target dir that no write touched within
+/// `active_window`, plus the superseded units when the scope names them,
+/// and the bytes each part holds.
+fn trimmable(root: &Path, scope: TrimScope, now: SystemTime) -> (Vec<PathBuf>, u64, u64) {
+    let mut paths = Vec::new();
+    let mut incremental = 0;
+    for d in profile_children(root, INCREMENTAL) {
         let Ok(facts) = walk_tree(&d, &mut |_, _, _| {}) else {
             continue;
         };
         let quiet = now
             .duration_since(facts.newest)
-            .is_ok_and(|a| a >= active_window);
+            .is_ok_and(|a| a >= scope.active_window);
         if quiet && !facts.unread {
-            bytes += facts.bytes;
-            dirs.push(d);
+            incremental += facts.bytes;
+            paths.push(d);
         }
     }
-    (dirs, bytes)
+    let mut stale = 0;
+    if let Some(keep) = scope.superseded_keep {
+        for fp in profile_children(root, FINGERPRINT) {
+            let Some(profile) = fp.parent() else { continue };
+            let (p, b) = superseded(profile, keep.max(scope.active_window), now);
+            stale += b;
+            paths.extend(p);
+        }
+    }
+    (paths, incremental, stale)
+}
+
+/// A path [`trim`] may delete: an `incremental` dir, or a direct child of a
+/// profile's `.fingerprint`, `deps` or `build` dir named for a unit.
+fn trimmable_path(p: &Path) -> bool {
+    if p.file_name() == Some(OsStr::new(INCREMENTAL)) {
+        return real_dir(p);
+    }
+    let (Some(parent), Some(name)) = (p.parent(), p.file_name().and_then(OsStr::to_str)) else {
+        return false;
+    };
+    let in_unit_dir = parent
+        .file_name()
+        .and_then(OsStr::to_str)
+        .is_some_and(|n| UNIT_DIRS.contains(&n));
+    in_unit_dir
+        && unit_hash(name).is_some()
+        && real_dir(parent)
+        && parent
+            .parent()
+            .is_some_and(|pr| real_dir(&pr.join(FINGERPRINT)))
+        && std::fs::symlink_metadata(p).is_ok_and(|m| !m.file_type().is_symlink())
 }
 
 /// Delete the incremental caches of a target dir that stays.
@@ -1241,12 +1386,9 @@ pub fn trim(dir: &CargoTargetDir, paths: &[PathBuf]) -> Result<(), RemoveError> 
     let dir = CargoTargetDir::recognize(dir.path(), dir.admission)
         .map_err(RemoveError::NoLongerRecognized)?;
     for p in paths {
-        if p.file_name() != Some(OsStr::new(INCREMENTAL))
-            || !p.starts_with(dir.path())
-            || !real_dir(p)
-        {
+        if !p.starts_with(dir.path()) || !trimmable_path(p) {
             return Err(RemoveError::Io(io::Error::other(format!(
-                "not an incremental cache inside {}: {}",
+                "not an incremental cache or a unit output inside {}: {}",
                 dir.path().display(),
                 p.display()
             ))));
@@ -1263,7 +1405,13 @@ pub fn trim(dir: &CargoTargetDir, paths: &[PathBuf]) -> Result<(), RemoveError> 
     }
     let result = paths
         .iter()
-        .try_for_each(std::fs::remove_dir_all)
+        .try_for_each(|p| {
+            if real_dir(p) {
+                std::fs::remove_dir_all(p)
+            } else {
+                std::fs::remove_file(p)
+            }
+        })
         .map_err(RemoveError::Io);
     drop(held);
     result
@@ -1370,6 +1518,9 @@ pub struct Entry {
 #[derive(Debug, Clone, Serialize)]
 pub struct Trim {
     pub gib: f64,
+    pub incremental_gib: f64,
+    /// Outputs of units a newer unit of the same name superseded.
+    pub superseded_gib: f64,
     /// Set in apply mode: whether the trim happened.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trimmed: Option<bool>,
@@ -1470,17 +1621,25 @@ pub fn sweep(
         } && !m.candidate.lock_held
             && m.candidate.process == ProcessUse::Used
     };
-    let trims: Vec<(Vec<PathBuf>, u64)> = measured
+    let scope = TrimScope {
+        active_window: policy.active_window,
+        superseded_keep: cfg
+            .trim_superseded
+            .then(|| Duration::from_secs(cfg.superseded_keep_hours.saturating_mul(3600))),
+    };
+    let parts: Vec<(Vec<PathBuf>, u64, u64)> = measured
         .iter()
         .zip(&plan.verdicts)
         .map(|(m, v)| {
             if cfg.trim_incremental && plan.budget_unreachable && held_alone(m, v) {
-                trimmable(m.dir.path(), policy.active_window, now)
+                trimmable(m.dir.path(), scope, now)
             } else {
-                (Vec::new(), 0)
+                (Vec::new(), 0, 0)
             }
         })
         .collect();
+    let trims: Vec<(Vec<PathBuf>, u64)> =
+        parts.iter().map(|(p, i, s)| (p.clone(), i + s)).collect();
     let picks = if trims.iter().any(|(_, b)| *b > 0) {
         let held: Vec<(Candidate, u64)> = measured
             .iter()
@@ -1501,11 +1660,12 @@ pub fn sweep(
 
     let mut freed: u64 = 0;
     let mut entries = Vec::with_capacity(measured.len());
-    for (((m, v), (paths, tbytes)), pick) in measured
+    for ((((m, v), (paths, tbytes)), pick), (_, incr, stale)) in measured
         .iter()
         .zip(&plan.verdicts)
         .zip(&trims)
         .zip(&picks)
+        .zip(&parts)
     {
         let trim_incremental = pick.then(|| {
             let (trimmed, error) = if mode == Mode::Apply {
@@ -1521,6 +1681,8 @@ pub fn sweep(
             };
             Trim {
                 gib: to_gib(*tbytes),
+                incremental_gib: to_gib(*incr),
+                superseded_gib: to_gib(*stale),
                 trimmed,
                 error,
             }
@@ -1645,13 +1807,22 @@ pub fn print_report(r: &Report, cfg: &CargoTargetConfig) {
                 None => String::new(),
                 Some(Trim {
                     trimmed: Some(true),
-                    gib,
+                    incremental_gib,
+                    superseded_gib,
                     ..
-                }) => format!("  [trimmed incremental, {gib:.1} GiB]"),
+                }) => format!(
+                    "  [trimmed incremental {incremental_gib:.1} GiB, superseded {superseded_gib:.1} GiB]"
+                ),
                 Some(Trim {
                     error: Some(err), ..
-                }) => format!("  [incremental trim FAILED: {err}]"),
-                Some(Trim { gib, .. }) => format!("  [trims incremental, {gib:.1} GiB]"),
+                }) => format!("  [trim FAILED: {err}]"),
+                Some(Trim {
+                    incremental_gib,
+                    superseded_gib,
+                    ..
+                }) => format!(
+                    "  [trims incremental {incremental_gib:.1} GiB, superseded {superseded_gib:.1} GiB]"
+                ),
             };
         let form = match e.form {
             Form::Named => "",
@@ -2655,7 +2826,9 @@ mod tests {
         );
         assert_eq!(e.trim_incremental.as_ref().unwrap().trimmed, Some(true));
         assert!(!incr.exists());
-        assert!(!t.join("wasm32-unknown-unknown/release/incremental").exists());
+        assert!(!t
+            .join("wasm32-unknown-unknown/release/incremental")
+            .exists());
         assert!(t.join("debug/blob").exists());
         assert!(t.join("CACHEDIR.TAG").exists());
         assert!(r.freed_gib > 0.0);
@@ -2749,8 +2922,152 @@ mod tests {
         assert!(deps.join("blob").exists());
         let outside = tmp.path().join("incremental");
         std::fs::create_dir_all(&outside).unwrap();
-        assert!(trim(&dir, &[outside.clone()]).is_err());
+        assert!(trim(&dir, std::slice::from_ref(&outside)).is_err());
         assert!(outside.exists());
+    }
+
+    fn unit(profile: &Path, name: &str, hash: &str, age: Duration) -> Vec<PathBuf> {
+        let fp = profile.join(FINGERPRINT).join(format!("{name}-{hash}"));
+        let build = profile.join("build").join(format!("{name}-{hash}"));
+        let rlib = profile.join("deps").join(format!("lib{name}-{hash}.rlib"));
+        let dep = profile.join("deps").join(format!("{name}-{hash}.d"));
+        for d in [&fp, &build] {
+            std::fs::create_dir_all(d).unwrap();
+            std::fs::write(d.join("out"), vec![3u8; 4096]).unwrap();
+        }
+        std::fs::create_dir_all(profile.join("deps")).unwrap();
+        std::fs::write(&rlib, vec![4u8; 32 * 1024]).unwrap();
+        std::fs::write(&dep, "x").unwrap();
+        let when = SystemTime::now() - age;
+        for f in [fp.join("out"), build.join("out"), rlib.clone(), dep.clone()] {
+            File::options()
+                .write(true)
+                .open(&f)
+                .unwrap()
+                .set_modified(when)
+                .unwrap();
+        }
+        for d in [&fp, &build] {
+            File::open(d).unwrap().set_modified(when).unwrap();
+        }
+        vec![fp, build, rlib, dep]
+    }
+
+    fn held_with_units(root: &Path) -> (PathBuf, Vec<PathBuf>, Vec<PathBuf>, Vec<PathBuf>) {
+        let (repo, t, _) = held_target(root);
+        let debug = t.join("debug");
+        let old = unit(
+            &debug,
+            "blue_rt",
+            "00aa11bb22cc33dd",
+            Duration::from_secs(5 * 86_400),
+        );
+        let new = unit(&debug, "blue_rt", "44ee55ff66aa77bb", Duration::ZERO);
+        let lone = unit(
+            &debug,
+            "serde",
+            "8899aabbccddeeff",
+            Duration::from_secs(5 * 86_400),
+        );
+        (repo, old, new, lone)
+    }
+
+    #[test]
+    fn a_held_target_gives_up_the_units_a_newer_build_superseded() {
+        let tmp = TempDir::new().unwrap();
+        let (repo, old, new, lone) = held_with_units(tmp.path());
+        let r = sweep(
+            &squeeze(),
+            std::slice::from_ref(&repo),
+            true,
+            Mode::Apply,
+            later(),
+            &ide_in(&repo),
+        )
+        .unwrap();
+        let trim = r.entries[0].trim_incremental.as_ref().unwrap();
+        assert_eq!(trim.trimmed, Some(true), "{:?}", trim.error);
+        assert!(trim.superseded_gib > 0.0);
+        assert!(old.iter().all(|p| !p.exists()));
+        assert!(new.iter().all(|p| p.exists()));
+        assert!(lone.iter().all(|p| p.exists()));
+    }
+
+    #[test]
+    fn a_superseded_unit_a_build_touched_within_the_keep_window_stays() {
+        let tmp = TempDir::new().unwrap();
+        let (repo, old, _, _) = held_with_units(tmp.path());
+        let cfg = CargoTargetConfig {
+            superseded_keep_hours: 24 * 365,
+            ..squeeze()
+        };
+        sweep(
+            &cfg,
+            std::slice::from_ref(&repo),
+            true,
+            Mode::Apply,
+            later(),
+            &ide_in(&repo),
+        )
+        .unwrap();
+        assert!(old.iter().all(|p| p.exists()));
+    }
+
+    #[test]
+    fn the_superseded_trim_switched_off_keeps_every_unit() {
+        let tmp = TempDir::new().unwrap();
+        let (repo, old, _, _) = held_with_units(tmp.path());
+        let cfg = CargoTargetConfig {
+            trim_superseded: false,
+            ..squeeze()
+        };
+        let r = sweep(
+            &cfg,
+            std::slice::from_ref(&repo),
+            true,
+            Mode::Apply,
+            later(),
+            &ide_in(&repo),
+        )
+        .unwrap();
+        let trim = r.entries[0].trim_incremental.as_ref().unwrap();
+        assert!(trim.superseded_gib.abs() < f64::EPSILON);
+        assert!(old.iter().all(|p| p.exists()));
+    }
+
+    #[test]
+    fn trim_refuses_a_unit_dir_itself_and_a_name_without_a_unit_hash() {
+        let tmp = TempDir::new().unwrap();
+        let (_, t, _) = held_target(tmp.path());
+        let debug = t.join("debug");
+        unit(&debug, "blue_rt", "00aa11bb22cc33dd", Duration::ZERO);
+        let dir = CargoTargetDir::recognize(&t, STRICT).unwrap();
+        let plain = debug.join("deps/notes.txt");
+        std::fs::write(&plain, "x").unwrap();
+        for p in [debug.join("deps"), plain.clone(), debug.join(".cargo-lock")] {
+            assert!(
+                trim(&dir, std::slice::from_ref(&p)).is_err(),
+                "{}",
+                p.display()
+            );
+            assert!(p.exists());
+        }
+    }
+
+    #[test]
+    fn unit_hashes_are_sixteen_hex_digits() {
+        assert_eq!(
+            unit_hash("libserde-8899aabbccddeeff.rlib"),
+            Some("8899aabbccddeeff")
+        );
+        assert_eq!(unit_hash("blue-00aa11bb22cc33dd"), Some("00aa11bb22cc33dd"));
+        assert_eq!(
+            unit_hash("blue-00aa11bb22cc33dd.dSYM"),
+            Some("00aa11bb22cc33dd")
+        );
+        assert_eq!(unit_hash("notes.txt"), None);
+        assert_eq!(unit_hash("blue-zzaa11bb22cc33dd"), None);
+        assert_eq!(unit_hash("blue-00aa11"), None);
     }
 
     #[test]
@@ -2770,7 +3087,12 @@ mod tests {
     #[test]
     fn config_defaults_and_partial_blocks() {
         let d = CargoTargetConfig::default();
-        assert!(d.trim_incremental, "a held target gives up its incremental caches");
+        assert!(
+            d.trim_incremental,
+            "a held target gives up its incremental caches"
+        );
+        assert!(d.trim_superseded, "and the units a newer build superseded");
+        assert_eq!(d.superseded_keep_hours, 24);
         assert!(!d.enable, "the scheduled sweep is opt-in");
         assert!(d.auto_apply, "pressure relief is on unless switched off");
         assert!(!d.adopt_untagged);
